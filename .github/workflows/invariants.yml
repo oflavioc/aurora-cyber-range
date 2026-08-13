@@ -71,11 +71,19 @@ jobs:
           # sao hooks e CI, o mecanismo que aplica a propria spec; scripts/
           # porque inclui o harness negativo e o launcher de auditoria.
           #
+          # user-scope/ entra pelo mesmo criterio: e a FONTE VERSIONADA do
+          # checkpoint-auditor e do seu hook readonly_bash.py, que bootstrap.sh
+          # copia para ~/.claude/. O argumento de integridade de
+          # docs/process/WORKFLOW.md secao "Por que o auditor nao mora no
+          # repositorio" protege a copia instalada, nao a fonte — sem esta
+          # entrada, o mesmo PR que altera a spec pode enfraquecer o auditor
+          # que deveria audita-la.
+          #
           # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
           # Sem o magic glob, '*.sh' casaria em qualquer profundidade.
           CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
             range-core/ domains/ contracts/ \
-            tools/ scripts/ .claude/ .github/ ':(glob)*.sh' | wc -l)
+            tools/ scripts/ .claude/ .github/ user-scope/ ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
