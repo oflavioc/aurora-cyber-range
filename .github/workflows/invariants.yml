@@ -94,12 +94,23 @@ jobs:
           # mudanca normativa exigira dois PRs — o de spec-change e o que
           # atualiza o CLAUDE.md. Mesmo custo ja aceito para tools/.
           #
+          # .gitignore entra porque e mecanismo, nao descricao: e ele que
+          # executa 05_SECURITY_REQUIREMENTS.md secao 6 e CLAUDE.md secao
+          # "Nunca commitar", e e o objeto exclusivo do item 6 da DoD
+          # (ground_truth.yaml e GM_NOTES.md nao podem estar nele). Sem esta
+          # entrada, um PR podia alterar 05_SECURITY_REQUIREMENTS.md e, no
+          # mesmo commit, remover .env do .gitignore.
+          #
+          # Com ela, o conjunto de versionados fora de CODE e fora de
+          # docs/spec/ fica so com documentacao descritiva: CHANGELOG_V3.md,
+          # README_FIRST.md, docs/process/ e docs/progress/.
+          #
           # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
           # Sem o magic glob, '*.sh' casaria em qualquer profundidade.
           CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
             range-core/ domains/ contracts/ \
             tools/ scripts/ .claude/ .github/ user-scope/ \
-            CLAUDE.md ':(glob)*.sh' | wc -l)
+            CLAUDE.md .gitignore ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
