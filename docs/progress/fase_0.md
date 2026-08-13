@@ -31,6 +31,26 @@ Os seis verificadores saíam `0` em árvore limpa e `1` contra cada probe. Isso 
 
 Ordem de correção determinada pela auditoria: H4 primeiro e isolado, porque enquanto ele existisse o auditor era **estruturalmente incapaz** de executar a prova central e auditava por inferência de leitura de código. Toda auditoria anterior a `aec88a8` foi inferência.
 
+### Segunda auditoria: PASS, sem blocker
+
+Executada sobre o commit corrigido. **Foi a primeira auditoria capaz de executar o harness em vez de inferir por leitura**, porque H4 já estava corrigido.
+
+Veredito PASS, com três correções exigidas antes do `finalize` e três pendências mantidas abertas:
+
+| ID | Severidade | Resumo | Destino |
+|---|---|---|---|
+| M3 | MEDIUM | Isenções de caminho casavam qualquer segmento, em qualquer profundidade | corrigido em `76e04c9` |
+| M2 | MEDIUM | `RULE_DIVERGENT` do `codegen` nunca falhou contra violação plantada | corrigido em `8b129d2` |
+| L3 | LOW | Docstring de `_common.py` contradizia o contrato estabelecido pelo H2 | corrigido em `6ed9993` |
+| L1 | LOW | Separador de segmentos do hook do auditor quebra comando de leitura legítimo | **pendência aberta** — §6 P8 |
+| L2 | LOW | `check_security_constraints.py` não varre os próprios hooks | **pendência aberta** — §6 P9 |
+
+O L3 merece nota porque é a categoria mais traiçoeira: o cabeçalho de `_common.py` ainda instruía *"qualquer valor diferente de zero conta como detecção"*, exatamente o defeito que o H2 corrigira três commits antes. Documentação interna que sobrevive à correção e orienta a próxima pessoa a reintroduzi-la.
+
+O M3 confirma o risco antecipado no próprio registro da primeira auditoria: ao trocar a varredura por negação padrão (B1), a isenção de caminho virou a **única** fronteira do invariante 4, e ela casava segmento em qualquer profundidade. `domains/<adapter>/api/metrics/emit.py` ficava isento por ter um `metrics` no meio do caminho. É a fronteira que a Fase 1 herda quando `range-core/` e `domains/` passarem a existir de fato.
+
+Além dessas, uma regressão **minha** foi encontrada e corrigida entre as duas auditorias, em `c8c2be3` — ver §7 O4.
+
 ### O que mudou no harness, e por quem
 
 `scripts/phase0_negative_tests.py` foi alterado em B1, H2, H1 e H3. Isso contraria o princípio registrado em §6 P1 — *o implementador não mexe no teste que o julga*. A distinção que autoriza estas mudanças: **foram determinadas pela auditoria**, não escolhidas por quem estava sendo avaliado. P1 continua não corrigida justamente porque nasceu de julgamento meu, não de finding.
@@ -119,7 +139,7 @@ Este layout é contrato herdado pela Fase 1.
 
 **Esta seção descreve o estado APÓS as correções da primeira auditoria.** A versão anterior deste registro afirmava, com razão, que o harness passava — e o harness passava sem tocar as fronteiras que importavam. Passar no teste negativo é condição necessária, nunca suficiente; a qualidade do probe é parte do que precisa ser auditado.
 
-**Teste negativo obrigatório** — `python scripts/phase0_negative_tests.py` passa com **8 probes**, dois a mais que a entrega original:
+**Teste negativo obrigatório** — `python scripts/phase0_negative_tests.py` passa com **11 probes**, cinco a mais que a entrega original:
 
 | Probe | Onde é plantado | Fronteira que exercita |
 |---|---|---|
@@ -127,10 +147,13 @@ Este layout é contrato herdado pela Fase 1.
 | `check_contract_literals.py` | `domains/academus/_phase0_probe_literal.py` | literal de flag em Python |
 | `check_contract_literals.py` (TypeScript) | `domains/academus/web/_phase0_probe_literal.tsx` | literal de flag em TS — **novo, H1** |
 | `check_event_envelope.py` | `range-core/engine/_phase0_probe_event.py` | **replantado, B1** — antes em `domains/academus/api/` |
+| `check_event_envelope.py` (isenção ancorada) | `domains/academus/api/metrics/emit.py` | segmento `metrics` fora do core — **novo, M3** |
+| `check_contract_literals.py` (isenção ancorada) | `domains/academus/api/contracts/handler.py` | segmento `contracts` fora da raiz — **novo, M3** |
 | `check_security_constraints.py` | `range-core/_phase0_probe_security.py` | execução dinâmica |
 | `check_synthetic_data.py` | `scenarios/_phase0_probe/fixture.jsonl` | IP roteável e domínio real |
 | `check_synthetic_data.py` (identificador) | `scenarios/_phase0_probe_cpf/alunos.jsonl` | CPF válido — **novo, H3** |
-| `codegen.py --check` | `domains/_phase0_codegen_probe/flags.yaml` | artefato gerado ausente |
+| `codegen.py --check` (ausente) | `domains/_phase0_codegen_probe/flags.yaml` | artefato gerado ausente |
+| `codegen.py --check` (divergente) | `domains/_phase0_divergent_probe/generated/flags.py` e `.ts` | conteúdo fora de sincronia — **novo, M2** |
 
 Cada probe exige agora `rc == 1` **e** menção ao arquivo plantado. `rc = 2` (crash de ferramenta) é rejeitado explicitamente.
 
@@ -198,7 +221,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 
 Itens 9 a 13 são executados por `bash finalize_phase0.sh`, único script autorizado a commitar, publicar, esperar CI, aplicar branch protection e criar a tag. **A Fase 0 não está concluída enquanto eles não passarem.**
 
-**Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ⛔ — a primeira auditoria emitiu FAIL (§0). Nova auditoria é necessária sobre o commit corrigido, e ela é a primeira que poderá executar o harness em vez de inferir por leitura, já que H4 foi corrigido.
+**Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ⚠️ — a primeira auditoria emitiu FAIL, a segunda emitiu **PASS sem blocker** (§0), mas exigiu três correções antes do `finalize` (`76e04c9`, `8b129d2`, `6ed9993`). Uma terceira auditoria é necessária sobre o commit corrigido: as correções do M3 alteram a semântica de fronteira dos invariantes 2 e 4, e nenhuma auditoria as examinou ainda.
 
 ### Estado do repositório neste registro
 
@@ -214,6 +237,11 @@ Itens 9 a 13 são executados por `bash finalize_phase0.sh`, único script autori
 | `817e434` | `log_audit.py` persiste veredito e relatório da auditoria |
 | `8e5dedb` | [H1] `check_contract_literals` cobre TypeScript |
 | `9f786ec` | [H3] `check_synthetic_data` verifica identificador (CPF) |
+| `132ff75` | registro da reprovação na primeira auditoria |
+| `c8c2be3` | regressão do `817e434`: hook gravava subagente qualquer como auditoria |
+| `76e04c9` | [M3] isenção de caminho ancorada, nos dois verificadores |
+| `8b129d2` | [M2] probe para o ramo de divergência do `codegen --check` |
+| `6ed9993` | [L3] docstring de `_common.py` alinhada ao contrato do H2 |
 
 `finalize_phase0.sh` **não** foi executado.
 
@@ -285,7 +313,7 @@ As quatro pendências seguintes vêm da primeira auditoria de checkpoint (§0). 
   artefato .py/.ts com conteúdo divergente.
 ```
 
-**Status.** Aberta por instrução. O ramo `RULE_DIVERGENT` foi verificado manualmente fora do harness (§4, "artefato gerado presente porém divergente"), mas verificação manual não é gate: ela não roda no CI e não sobrevive a um commit futuro. Enquanto não houver probe, T2 está provado pela metade — e é justamente a metade que o `codegen --check` existe para cobrir.
+**Status: FECHADA em `8b129d2`**, na segunda auditoria. O probe planta `flags.yaml` **e** os dois artefatos gerados, ambos divergentes: com `.py` e `.ts` presentes, o ramo de ausência não pode disparar, então a detecção só pode vir da comparação de conteúdo. Verificado que a saída cita "divergente" e não "ausente".
 
 ### P7 — [M3] Isenções de caminho casam qualquer segmento, em qualquer profundidade
 
@@ -302,7 +330,9 @@ As quatro pendências seguintes vêm da primeira auditoria de checkpoint (§0). 
   conter literal de flag sem violação.
 ```
 
-**Status.** Aberta por instrução. Agrava-se com a correção do B1: ao ampliar a varredura para todo `range-core/` e `domains/`, a isenção por segmento passou a ser a **única** fronteira do invariante 4 — e ela é ampla demais. A correção provável é ancorar a isenção em prefixo de caminho conhecido (`range-core/objectives/`, `range-core/aar/`) em vez de casar segmento em qualquer profundidade.
+**Status: FECHADA em `76e04c9`**, na segunda auditoria. Projeção passou a ser reconhecida por prefixo ancorado na raiz (`range-core/objectives|aar|metrics|calibration`), e autorização de literal por `contracts/...` ou `domains/<adapter>/generated/...`. Dois probes novos provam a correção; verificado também que as camadas de projeção legítimas do core seguem isentas e os artefatos gerados seguem autorizados.
+
+O encaminhamento antecipado neste registro — ancorar em prefixo — foi o adotado.
 
 ### P8 — [L1] O separador de segmentos do hook do auditor quebra comandos de leitura legítimos
 
@@ -330,7 +360,20 @@ As quatro pendências seguintes vêm da primeira auditoria de checkpoint (§0). 
   roda em toda chamada de Edit/Write — não é verificado por nenhum dos seis.
 ```
 
-**Status.** Aberta por instrução. O código de governança é o menos vigiado do repositório, e é o que roda com mais frequência. Ao incluir `.claude/hooks/` no escopo será preciso decidir o que fazer com o `subprocess.run` legítimo de `check_architecture.py` e do `log_audit.py` — nenhum usa shell, então a regra atual não os acusaria, mas isso precisa ser verificado e não presumido.
+**Status.** Aberta, **reconfirmada na segunda auditoria**. O código de governança é o menos vigiado do repositório, e é o que roda com mais frequência. Ao incluir `.claude/hooks/` no escopo será preciso decidir o que fazer com o `subprocess.run` legítimo de `check_architecture.py` e do `log_audit.py` — nenhum usa shell, então a regra atual não os acusaria, mas isso precisa ser verificado e não presumido.
+
+A regressão O4 (§7) reforça o argumento: o defeito nasceu em `.claude/hooks/log_audit.py`, e nenhum dos seis verificadores olhava para lá.
+
+### P10 — [L3] Docstring de `_common.py` contradizia o contrato do H2 — resolvida
+
+```text
+[L3] a docstring de tools/_common.py:18-19 ainda diz "qualquer valor diferente
+  de zero conta como deteccao", contradizendo o contrato que o H2 estabeleceu
+  (rc == 1 exatamente). Documentação interna que instrui precisamente o erro
+  corrigido.
+```
+
+**Status: FECHADA em `6ed9993`.** Registrada mesmo resolvida porque nomeia uma categoria de defeito que vai reaparecer: correção de código que deixa para trás a documentação que a contradiz. O texto antigo sobreviveria à correção e orientaria a próxima pessoa a desfazê-la. Verificado que nenhum outro ponto do repositório repete a instrução.
 
 ---
 
@@ -356,8 +399,8 @@ Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui
 
 Ordem para fechá-la:
 
-1. **Nova auditoria de checkpoint** sobre o commit corrigido (`9f786ec` ou posterior), via `bash scripts/start_checkpoint_audit.sh 0`. Será a primeira auditoria capaz de executar o harness em vez de inferir por leitura, porque H4 foi corrigido. Enquanto o veredito não for PASS, o item 15 da DoD (§5) permanece ⛔.
-2. Decidir o destino de P6, P7, P8 e P9 (§6). Nenhuma foi corrigida; três delas — P7 em particular — tocam a fronteira de invariante ampliada pelo B1.
+1. **Terceira auditoria de checkpoint** sobre o commit corrigido, via `bash scripts/start_checkpoint_audit.sh 0`. As correções do M3 mudaram a semântica de fronteira dos invariantes 2 e 4, e nenhuma auditoria as examinou — a segunda auditoria as exigiu, não as revisou.
+2. Decidir o destino de P8 (L1) e P9 (L2), as duas pendências que seguem abertas (§6).
 3. Só então `bash finalize_phase0.sh`, que fecha os itens 9 a 13. Nunca tagueie antes de provar o CI.
 
 Depois disso, **Fase 1 — Contratos e esqueleto** (`07_IMPLEMENTATION_PHASES.md`), checkpoint ⏸. O kickoff da Fase 1 pede, antes de qualquer código: árvore de diretórios, `contracts/` completo, catálogo de eventos inicial com `truth_layer` de cada tipo, e as três decisões de modelagem mais arriscadas com recomendação. Aguardar aval humano antes de implementar.
