@@ -23,7 +23,11 @@ build/
 .aurora-worktrees/
 
 # Runtime/generated artifacts
-docs/progress/audit_log.jsonl
+# docs/progress/audit_log.jsonl e docs/progress/audit_*.md SAO versionados de
+# proposito: registro de auditoria que nao entra no repositorio nao e registro.
+# Nao sao artefato reconstruivel — cada linha e a unica prova de uma rodada que
+# ja aconteceu. A spec so exige docs/progress/fase_<n>.md; versionar tambem o
+# registro de auditoria e decisao de processo, nao mudanca de spec.
 # Evidencia e projecao determinista de ground_truth.yaml + RANDOM_SEED.
 # Nada dela precisa de versionamento; e reconstruida por `range-cli evidence build`.
 scenarios/**/evidence/

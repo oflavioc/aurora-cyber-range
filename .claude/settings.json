@@ -24,6 +24,7 @@
         ]
       }
     ],
+    "$comment_SubagentStop": "NAO e o mecanismo de captura da auditoria de checkpoint. start_checkpoint_audit.sh invoca o auditor como agente de TOPO (claude --agent), e SubagentStop so dispara para subagente despachado pela ferramenta Agent dentro de uma sessao: por aquele caminho este hook nunca roda. A captura real vive no launcher, via scripts/audit_report.py. Mantido apenas para o caso de o checkpoint-auditor um dia ser despachado como SUBAGENTE, para que o registro daquela execucao nao se perca.",
     "SubagentStop": [
       {
         "matcher": "^checkpoint-auditor$",

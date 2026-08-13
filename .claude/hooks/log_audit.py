@@ -1,116 +1,56 @@
 #!/usr/bin/env python3
-"""SubagentStop — persiste o RESULTADO da auditoria de checkpoint.
+"""SubagentStop — registro de auditoria quando o auditor roda como SUBAGENTE.
 
-A versao anterior gravava apenas timestamp, agent_type e session_id. O
-veredito PASS/FAIL e os findings morriam com a sessao, e a proxima pessoa a
-abrir o repositorio nao tinha como saber que o gate mordeu. Uma auditoria
-cujo resultado nao sobrevive nao e registro, e lembranca.
+ATENCAO, PARA QUEM LER ISTO DEPOIS: este hook NAO e o mecanismo de captura da
+auditoria de checkpoint. Ele esta inalcancavel pelo fluxo documentado.
 
-Dois cuidados que a versao anterior nao tinha:
+`scripts/start_checkpoint_audit.sh` invoca o auditor com `claude --agent
+checkpoint-auditor`, ou seja, como agente de TOPO. `SubagentStop` so dispara
+para subagente despachado pela ferramenta Agent DENTRO de uma sessao. Por este
+caminho o evento nunca ocorre, para nenhum valor de `agent_type` — e foi por
+isso que nenhum `docs/progress/audit_*.md` jamais foi gravado, apesar de cinco
+rodadas de auditoria terem acontecido.
 
-1. O `checkpoint-auditor` roda em worktree descartavel
-   (.aurora-worktrees/audit, recriado a cada execucao). Gravar relativo ao
-   cwd perde o registro junto com o worktree — foi o que aconteceu. A raiz do
-   worktree PRINCIPAL e resolvida por `git rev-parse --git-common-dir`.
+A captura real vive no launcher, via `scripts/audit_report.py`.
 
-2. Hook nunca derruba a sessao nem bloqueia o Stop: qualquer falha sai 0.
+Este arquivo permanece registrado em `.claude/settings.json` por um motivo
+unico e estreito: SE algum dia o `checkpoint-auditor` for despachado como
+subagente (pela ferramenta Agent, a partir de uma sessao ja aberta), o registro
+daquela execucao nao se perde. Fora dessa hipotese ele nao roda. Nao trate a
+presenca deste hook como evidencia de que a auditoria esta sendo capturada;
+quem captura e o launcher.
 
-O relatorio completo vai para docs/progress/audit_<timestamp>.md e o
-audit_log.jsonl passa a apontar para ele, com o veredito.
+Cuidados preservados da versao anterior:
+
+1. o auditor roda em worktree descartavel (.aurora-worktrees/audit, recriado a
+   cada execucao). Gravar relativo ao cwd perde o registro junto com o worktree;
+2. o hook nunca derruba a sessao nem bloqueia o Stop: qualquer falha sai 0;
+3. relatorio so e gravado quando o agente se identifica. Sem identificacao,
+   registra-se a ocorrencia e NADA mais — inventar veredito a partir do texto
+   final de um subagente qualquer e pior que nao registrar nenhum, e ja
+   aconteceu: o arquivo fabricado sujava a arvore e bloqueava o proprio launcher
+   na verificacao de tree limpo.
 """
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-MAX_REPORT_CHARS = 200_000
+# scripts/ do MESMO checkout: em worktree de auditoria, .claude/hooks/ e
+# scripts/ vem do commit auditado, entao o modulo compartilhado esta ao lado.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-#: SubagentStop dispara para QUALQUER subagente da sessao, e o matcher
-#: "^checkpoint-auditor$" de .claude/settings.json nao filtra porque agent_type
-#: chega vazio no payload. Sem esta confirmacao o hook gravava o texto final de
-#: um subagente qualquer como se fosse relatorio de auditoria, inclusive
-#: fabricando veredito a partir dele — e o arquivo resultante sujava a arvore,
-#: bloqueando o proprio launcher da auditoria na verificacao de tree limpo.
-#:
-#: Regra: relatorio so e gravado quando o agente se identifica. Sem
-#: identificacao, registra-se a ocorrencia e NADA mais. Inventar veredito e
-#: pior que nao registrar nenhum.
+from audit_report import (  # noqa: E402
+    MAX_REPORT_CHARS,
+    detect_verdict,
+    last_agent_text,
+    main_worktree_root,
+    persist,
+)
+
 EXPECTED_AGENT = "checkpoint-auditor"
-
-
-def main_worktree_root(start: Path) -> Path:
-    """Raiz do worktree principal, mesmo quando invocado de um worktree."""
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(start), "rev-parse", "--git-common-dir"],
-            check=False,
-            text=True,
-            capture_output=True,
-            timeout=5,
-        )
-        common = result.stdout.strip()
-        if result.returncode == 0 and common:
-            path = Path(common)
-            if not path.is_absolute():
-                path = (start / path).resolve()
-            # <raiz principal>/.git -> <raiz principal>
-            if path.name == ".git":
-                return path.parent
-            return path
-    except Exception:
-        pass
-    return start
-
-
-def last_agent_text(transcript: Path) -> str:
-    """Ultimo bloco de texto emitido pelo subagente, do transcript JSONL."""
-    chunks: list[str] = []
-    try:
-        with transcript.open(encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except ValueError:
-                    continue
-                if entry.get("type") != "assistant":
-                    continue
-                content = (entry.get("message") or {}).get("content")
-                if not isinstance(content, list):
-                    continue
-                texts = [
-                    block.get("text", "")
-                    for block in content
-                    if isinstance(block, dict) and block.get("type") == "text"
-                ]
-                joined = "\n".join(t for t in texts if t.strip())
-                if joined.strip():
-                    chunks = [joined]
-    except Exception:
-        return ""
-    return chunks[0] if chunks else ""
-
-
-def detect_verdict(report: str) -> str:
-    """Veredito por melhor esforco. 'indeterminado' quando ambiguo."""
-    upper = report.upper()
-    has_fail = "FAIL" in upper
-    has_pass = "PASS" in upper
-    if has_fail and not has_pass:
-        return "FAIL"
-    if has_pass and not has_fail:
-        return "PASS"
-    if has_fail and has_pass:
-        # Relatorio que cita os dois: FAIL prevalece, porque qualquer BLOCKER
-        # e FAIL (docs/process/WORKFLOW.md) e o custo de errar para o lado
-        # otimista e declarar concluida uma fase que nao passou.
-        return "FAIL"
-    return "indeterminado"
 
 
 def main() -> int:
@@ -123,9 +63,6 @@ def main() -> int:
         cwd = Path(data.get("cwd") or ".").resolve()
     except Exception:
         cwd = Path(".").resolve()
-
-    root = main_worktree_root(cwd)
-    progress = root / "docs" / "progress"
 
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
@@ -141,35 +78,24 @@ def main() -> int:
 
     record = {
         "ts": now.isoformat(),
-        "agent_type": agent_type or None,
+        "phase": None,
+        "head_sha": None,
         "session_id": data.get("session_id"),
-        "cwd": str(cwd),
+        "mode": "subagent",
+        "launcher_exit": None,
         "verdict": detect_verdict(report) if report else "sem_relatorio",
         "report_path": None,
+        "capture_error": None if report else "subagente nao identificado como auditor",
+        "source": "subagent_stop_hook",
+        "cwd": str(cwd),
         # Sem isto, um subagente qualquer viraria "auditoria" no historico.
         "identified_as_auditor": is_auditor,
-        # Chaves recebidas, para diagnosticar campo ausente sem adivinhacao:
-        # agent_type veio vazio em todas as ocorrencias da Fase 0.
+        # Chaves recebidas, para diagnosticar campo ausente sem adivinhacao.
         "payload_keys": sorted(k for k in data.keys() if k != "transcript_path"),
     }
 
     try:
-        progress.mkdir(parents=True, exist_ok=True)
-        if report:
-            report_file = progress / f"audit_{stamp}.md"
-            header = (
-                f"# Auditoria de checkpoint — {now.isoformat()}\n\n"
-                f"- session_id: `{data.get('session_id')}`\n"
-                f"- veredito detectado: **{record['verdict']}**\n"
-                f"- worktree auditado: `{cwd}`\n\n"
-                "> Detectado por melhor esforco a partir do relatorio abaixo, "
-                "que e a fonte autoritativa.\n\n---\n\n"
-            )
-            report_file.write_text(header + report + "\n", encoding="utf-8")
-            record["report_path"] = report_file.relative_to(root).as_posix()
-
-        with (progress / "audit_log.jsonl").open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        persist(main_worktree_root(cwd), record, report, stamp)
     except Exception:
         return 0
 
