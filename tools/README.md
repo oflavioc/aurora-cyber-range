@@ -10,3 +10,5 @@ Este diretório é deliberadamente entregue sem os seis verificadores finais. A 
 - `codegen.py` com modo `--check`
 
 Não avance para código de aplicação antes de `python scripts/phase0_negative_tests.py` provar que cada verificador falha contra uma violação externa plantada.
+
+# dod10: alteracao descartavel
