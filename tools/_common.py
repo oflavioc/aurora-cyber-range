@@ -108,6 +108,80 @@ def iter_files(
             yield path
 
 
+#: Sufixos de front-end. 01_ARCHITECTURE.md secao 2 coloca range-core/web/ e
+#: domains/<adapter>/web/ em TypeScript, e secao 5.4 exige constantes geradas
+#: para Python E TypeScript.
+WEB_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mts", ".cts")
+
+
+def iter_web_string_literals(path: Path):
+    """Literais de string de arquivo TS/JS, por varredura lexica.
+
+    A stdlib nao traz analisador de TypeScript, entao isto e um lexer pequeno
+    que acompanha estado de aspas e de comentario. Nao e grep — comentario e
+    escape sao respeitados — mas tambem nao e AST, e a diferenca esta
+    declarada aqui de proposito.
+
+    Limite conhecido: literal de expressao regular (/.../) nao e reconhecido
+    como tal, entao uma regex contendo aspas pode dessincronizar o estado. O
+    efeito e falso NEGATIVO (um literal deixa de ser visto), nunca travamento,
+    porque a comparacao final e contra o conjunto declarado no contrato.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ContractError(f"{rel(path)}: nao foi possivel ler ({exc})") from exc
+
+    line = 1
+    index = 0
+    size = len(text)
+    while index < size:
+        char = text[index]
+
+        if char == "\n":
+            line += 1
+            index += 1
+            continue
+
+        if char == "/" and index + 1 < size:
+            following = text[index + 1]
+            if following == "/":
+                while index < size and text[index] != "\n":
+                    index += 1
+                continue
+            if following == "*":
+                index += 2
+                while index + 1 < size and not (text[index] == "*" and text[index + 1] == "/"):
+                    if text[index] == "\n":
+                        line += 1
+                    index += 1
+                index += 2
+                continue
+
+        if char in "\"'`":
+            quote = char
+            opened_at = line
+            index += 1
+            buffer: list[str] = []
+            while index < size:
+                current = text[index]
+                if current == "\\" and index + 1 < size:
+                    buffer.append(text[index + 1])
+                    index += 2
+                    continue
+                if current == quote:
+                    index += 1
+                    break
+                if current == "\n":
+                    line += 1
+                buffer.append(current)
+                index += 1
+            yield opened_at, "".join(buffer)
+            continue
+
+        index += 1
+
+
 def parse_python(path: Path) -> ast.Module:
     """Le e analisa um arquivo Python.
 

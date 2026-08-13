@@ -17,6 +17,15 @@ Duas deteccoes complementares:
    em runtime viraria flag desconhecida.
 
 A lista de adapters vem de domains/<adapter>/, nao de uma constante embutida.
+
+Python e TypeScript sao varridos. 01_ARCHITECTURE.md secao 5.4 exige constante
+gerada para as DUAS linguagens, e o layout da secao 2 coloca range-core/web/ e
+domains/<adapter>/web/ em TypeScript: cobrir so Python deixaria literal de flag
+em TSX passar pelo gate real do CI, mesmo com o hook rapido acusando.
+
+Python usa AST. TypeScript usa varredura lexica, porque a stdlib nao traz
+analisador de TypeScript — ver iter_web_string_literals em _common.py, onde o
+limite esta declarado.
 """
 from __future__ import annotations
 
@@ -30,11 +39,13 @@ sys.dont_write_bytecode = True
 from _common import (  # noqa: E402
     GENERATED_DIR,
     REPO_ROOT,
+    WEB_SUFFIXES,
     ContractError,
     Violation,
     adapter_names,
     fail,
     iter_files,
+    iter_web_string_literals,
     load_declared_event_types,
     load_declared_flags,
     parse_python,
@@ -77,6 +88,47 @@ def _looks_like_flag(value: str, adapters: frozenset[str]) -> bool:
     return all(part.replace("_", "").isalnum() for part in tail.split(".") if part)
 
 
+def _judge(
+    value: str,
+    source: str,
+    line: int,
+    declared_flags: dict[str, str],
+    declared_events: dict[str, str],
+    adapters: frozenset[str],
+    violations: list[Violation],
+) -> None:
+    if value in declared_flags:
+        violations.append(
+            Violation(
+                source,
+                line,
+                RULE_DECLARED,
+                f"literal '{value}' declarado em {declared_flags[value]}. "
+                "Use a constante gerada.",
+            )
+        )
+    elif value in declared_events:
+        violations.append(
+            Violation(
+                source,
+                line,
+                RULE_DECLARED,
+                f"event_type '{value}' declarado em {declared_events[value]}. "
+                "Use a constante gerada.",
+            )
+        )
+    elif _looks_like_flag(value, adapters):
+        violations.append(
+            Violation(
+                source,
+                line,
+                RULE_UNDECLARED,
+                f"literal '{value}' tem forma de flag de um adapter existente "
+                "mas nao esta declarado em nenhum flags.yaml.",
+            )
+        )
+
+
 def main() -> int:
     violations: list[Violation] = []
     try:
@@ -87,40 +139,22 @@ def main() -> int:
         for path in iter_files(REPO_ROOT, SCANNED_DIRS, PYTHON_SUFFIXES):
             if _is_authorized(path):
                 continue
-            tree = parse_python(path)
             source = rel(path)
-            for node in _string_constants(tree):
-                value = node.value
-                if value in declared_flags:
-                    violations.append(
-                        Violation(
-                            source,
-                            node.lineno,
-                            RULE_DECLARED,
-                            f"literal '{value}' declarado em {declared_flags[value]}. "
-                            "Use a constante gerada.",
-                        )
-                    )
-                elif value in declared_events:
-                    violations.append(
-                        Violation(
-                            source,
-                            node.lineno,
-                            RULE_DECLARED,
-                            f"event_type '{value}' declarado em {declared_events[value]}. "
-                            "Use a constante gerada.",
-                        )
-                    )
-                elif _looks_like_flag(value, adapters):
-                    violations.append(
-                        Violation(
-                            source,
-                            node.lineno,
-                            RULE_UNDECLARED,
-                            f"literal '{value}' tem forma de flag de um adapter existente "
-                            "mas nao esta declarado em nenhum flags.yaml.",
-                        )
-                    )
+            for node in _string_constants(parse_python(path)):
+                _judge(
+                    node.value, source, node.lineno,
+                    declared_flags, declared_events, adapters, violations,
+                )
+
+        for path in iter_files(REPO_ROOT, SCANNED_DIRS, WEB_SUFFIXES):
+            if _is_authorized(path):
+                continue
+            source = rel(path)
+            for line, value in iter_web_string_literals(path):
+                _judge(
+                    value, source, line,
+                    declared_flags, declared_events, adapters, violations,
+                )
     except ContractError as exc:
         return fail(str(exc))
 

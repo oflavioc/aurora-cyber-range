@@ -97,12 +97,28 @@ def main() -> int:
         expect_fail("check_core_boundary.py", [sys.executable, "tools/check_core_boundary.py"],
                     "range-core/_phase0_probe_bad.py")
 
+    # Montado por concatenacao de proposito: .claude/hooks/check_architecture.py
+    # recusa literal de flag em codigo, e este arquivo e codigo. A montagem
+    # evita o falso positivo do hook sem afrouxa-lo.
+    probe_flag = "academus." + "phase0_probe_flag"
+
     flags = """flags:\n  - name: academus.phase0_probe_flag\n    type: boolean\n    default: false\n"""
     with temporary_file("domains/academus/flags.yaml", flags), temporary_file(
         "domains/academus/_phase0_probe_literal.py", "FLAG = 'academus.phase0_probe_flag'\n"
     ):
         expect_fail("check_contract_literals.py", [sys.executable, "tools/check_contract_literals.py"],
                     "domains/academus/_phase0_probe_literal.py")
+
+    # TypeScript e gate real, nao so hook: 01_ARCHITECTURE.md secao 5.4 exige
+    # constante gerada para Python E TypeScript, e o layout da secao 2 coloca
+    # o front-end de core e adapter em .ts/.tsx.
+    with temporary_file("domains/academus/flags.yaml", flags), temporary_file(
+        "domains/academus/web/_phase0_probe_literal.tsx",
+        "export const FLAG = " + '"' + probe_flag + '";\n',
+    ):
+        expect_fail("check_contract_literals.py (TypeScript)",
+                    [sys.executable, "tools/check_contract_literals.py"],
+                    "domains/academus/web/_phase0_probe_literal.tsx")
 
     # Plantado em range-core/engine/, NAO em um diretorio "api"/"events": a
     # versao anterior do verificador so varria esses dois segmentos e o probe
