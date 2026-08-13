@@ -2,6 +2,7 @@
 """Probes externos: cada verificador da Fase 0 deve falhar contra uma violacao plantada."""
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -10,6 +11,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+#: readonly_bash.py vive em duas copias: a versionada (fonte) e a instalada em
+#: ~/.claude/hooks/, que e a que o Claude Code realmente executa. Os probes
+#: rodam contra a FONTE, e `hook_copies_in_sync` cobre a diferenca entre as duas.
+READONLY_HOOK_SOURCE = ROOT / "user-scope" / "hooks" / "readonly_bash.py"
+READONLY_HOOK_INSTALLED = Path.home() / ".claude" / "hooks" / "readonly_bash.py"
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:
@@ -90,6 +97,104 @@ def expect_fail(label: str, command: list[str], planted: str) -> None:
         )
 
     print(f"OK: {label} detectou violacao em {planted} (rc=1)")
+
+
+# --------------------------------------------------------------------------
+# Probes do hook readonly_bash.py — NAS DUAS DIRECOES.
+#
+# So testar bloqueio produz um guarda que bloqueia tudo e passa no teste. Foi
+# assim que quatro rodadas seguidas renderam falso bloqueio sem nenhum teste
+# reprovar: o harness cobria "nega escrita" e nunca "libera leitura".
+# --------------------------------------------------------------------------
+
+#: Os cinco modos de falso bloqueio da familia P23, todos leitura legitima.
+LEITURA_LEGITIMA = [
+    ("(a) redirecao de stderr para /dev/null", "git rev-parse main 2>/dev/null"),
+    ("(b) pipeline com filtro de texto", "git ls-files | sort"),
+    ("(c) alternancia dentro de aspas", r'grep -n "fase 0\|phase 0"'),
+    ("(d) laco de shell", 'for f in $(git ls-files); do cat "$f"; done'),
+    (
+        "(e) smoke test do PHASE_0_CHECKLIST (payload citado)",
+        "printf '%s\\n' '{\"tool_input\":{\"command\":\"rm -rf range-core\"}}'"
+        " | python ~/.claude/hooks/readonly_bash.py",
+    ),
+    ("verificador com prefixo de ambiente seguro",
+     "PYTHONDONTWRITEBYTECODE=1 python tools/check_core_boundary.py"),
+    ("harness negativo (este arquivo)", "python scripts/phase0_negative_tests.py"),
+]
+
+#: Escrita deliberada: a protecao nao pode ter sido afrouxada pela tokenizacao.
+ESCRITA_DELIBERADA = [
+    ("remocao real", "rm -rf range-core"),
+    ("git que altera estado", "git commit -m x"),
+    ("redirecionamento para arquivo", "git log > out.txt"),
+    ("escrita via tee", "git ls-files | tee out.txt"),
+    ("instalacao de pacote", "pip install requests"),
+    ("acesso de rede", "curl https://example.com"),
+    ("execucao arbitraria via python -c", "python -c 'import os'"),
+    ("edicao in-place", "sed -i s/a/b/ file"),
+    ("escrita no corpo de um laco", "for f in a; do rm $f; done"),
+    ("execucao dentro de substituicao de comando", "git ls-files `rm -rf x`"),
+    ("env como trampolim de execucao", "env rm -rf x"),
+    ("flag destrutiva de git branch", "git branch -D main"),
+    ("find com acao de escrita", "find . -delete"),
+]
+
+
+def _run_readonly_hook(command: str) -> subprocess.CompletedProcess[str]:
+    payload = json.dumps({"tool_input": {"command": command}})
+    return subprocess.run(
+        [sys.executable, str(READONLY_HOOK_SOURCE)],
+        cwd=ROOT, input=payload, text=True, capture_output=True,
+    )
+
+
+def expect_hook_allows(label: str, command: str) -> None:
+    result = _run_readonly_hook(command)
+    if result.returncode != 0:
+        _reject(
+            f"readonly_bash.py {label}",
+            f"BLOQUEOU leitura legitima (rc={result.returncode}). "
+            f"Comando: {command}",
+            (result.stdout or "") + (result.stderr or ""),
+        )
+    print(f"OK: readonly_bash.py liberou leitura legitima - {label}")
+
+
+def expect_hook_blocks(label: str, command: str) -> None:
+    result = _run_readonly_hook(command)
+    saida = (result.stdout or "") + (result.stderr or "")
+    if result.returncode != 2:
+        _reject(
+            f"readonly_bash.py {label}",
+            f"NAO bloqueou escrita deliberada (rc={result.returncode}, esperado 2). "
+            f"Comando: {command}",
+            saida,
+        )
+    if not saida.strip():
+        _reject(f"readonly_bash.py {label}", "bloqueou sem explicar o motivo", saida)
+    print(f"OK: readonly_bash.py bloqueou escrita deliberada - {label}")
+
+
+def hook_copies_in_sync() -> None:
+    """A copia instalada e a que roda. Divergencia silenciosa e o pior caso."""
+    if not READONLY_HOOK_INSTALLED.exists():
+        print(
+            "AVISO: ~/.claude/hooks/readonly_bash.py ausente — checagem de drift "
+            "pulada (esperado em CI, onde nao ha escopo de usuario)."
+        )
+        return
+    fonte = READONLY_HOOK_SOURCE.read_text(encoding="utf-8").splitlines()
+    instalada = READONLY_HOOK_INSTALLED.read_text(encoding="utf-8").splitlines()
+    if fonte != instalada:
+        _reject(
+            "readonly_bash.py",
+            "fonte versionada e copia instalada DIVERGEM. "
+            f"Copie {READONLY_HOOK_SOURCE.relative_to(ROOT).as_posix()} "
+            "para ~/.claude/hooks/",
+            "",
+        )
+    print("OK: fonte versionada e copia instalada de readonly_bash.py identicas")
 
 
 def main() -> int:
@@ -234,7 +339,17 @@ def main() -> int:
                     [sys.executable, "tools/codegen.py", "--check"],
                     "contracts/events.schema.yaml")
 
-    print("Todos os seis verificadores falharam contra probes independentes.")
+    for label, comando in LEITURA_LEGITIMA:
+        expect_hook_allows(label, comando)
+    for label, comando in ESCRITA_DELIBERADA:
+        expect_hook_blocks(label, comando)
+    hook_copies_in_sync()
+
+    print(
+        "Todos os seis verificadores falharam contra probes independentes, e "
+        f"readonly_bash.py passou nos {len(LEITURA_LEGITIMA)} probes de leitura "
+        f"legitima e nos {len(ESCRITA_DELIBERADA)} de escrita deliberada."
+    )
     return 0
 
 
