@@ -57,7 +57,25 @@ jobs:
         run: |
           set -euo pipefail
           SPEC=$(git diff --name-only "$BASE_SHA" HEAD -- docs/spec/ | wc -l)
-          CODE=$(git diff --name-only "$BASE_SHA" HEAD -- range-core/ domains/ contracts/ | wc -l)
+
+          # O conjunto CODE segue o texto normativo, que diz "codigo" sem
+          # restringir a diretorio: CLAUDE.md secao "A especificacao e imutavel
+          # durante a implementacao" e docs/process/WORKFLOW.md:25.
+          #
+          # O criterio e SER EXECUTAVEL, nao "tudo que nao e docs/spec/".
+          # Por isso docs/process/ fica de fora: e documentacao, e o proprio PR
+          # de spec-change costuma precisar toca-la.
+          #
+          # tools/ entra porque e onde vivem os verificadores que a spec
+          # normatiza (01_ARCHITECTURE.md secao 2); .claude/ e .github/ porque
+          # sao hooks e CI, o mecanismo que aplica a propria spec; scripts/
+          # porque inclui o harness negativo e o launcher de auditoria.
+          #
+          # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
+          # Sem o magic glob, '*.sh' casaria em qualquer profundidade.
+          CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
+            range-core/ domains/ contracts/ \
+            tools/ scripts/ .claude/ .github/ ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
