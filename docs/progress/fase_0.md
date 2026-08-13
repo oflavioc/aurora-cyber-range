@@ -76,7 +76,7 @@ Primeira rodada sem achado bloqueante nem HIGH. Quatro MEDIUM e cinco LOW.
 | ID | Severidade | Resumo | Destino |
 |---|---|---|---|
 | M2 | MEDIUM | O procedimento do item 10 da DoD não exercitava a regra que afirmava provar | corrigido em `7302bd1` |
-| M1 | MEDIUM | Conjunto `CODE` do `spec_freeze` omite `user-scope/` — correção do P12 incompleta | **pendência aberta** — §6 P18 |
+| M1 | MEDIUM | Conjunto `CODE` do `spec_freeze` omite `user-scope/` — correção do P12 incompleta | corrigido em `ee7731d` — §6 P18 |
 | M3 | MEDIUM | Deny de secrets ainda não cobre `Write` | **pendência aberta** — §6 P19 (reconfirma P13) |
 | M4 | MEDIUM | `check_event_envelope.py` só varre `.py`, limitação não declarada no arquivo | **pendência aberta** — §6 P20 (reconfirma P14) |
 | L1 | LOW | `tools/README.md` e `README_FIRST.md` ainda dizem que os seis não existem | **pendência aberta** — §6 P21 (reconfirma P15) |
@@ -624,9 +624,13 @@ continua enfraquecível no mesmo PR que altera a spec. Mesma categoria do M1 da
 terceira auditoria, classificado MEDIUM.
 ```
 
-**Status.** Aberta. **Correção incompleta minha**, não defeito herdado: o P12 foi fechado por mim uma rodada antes, com o critério "ser executável", e `user-scope/` satisfaz esse critério tanto quanto `.claude/`. Confirmado por medição: o conjunto `CODE` tem 20 arquivos e nenhum é de `user-scope/`.
+**Correção incompleta minha**, não defeito herdado: o P12 foi fechado por mim uma rodada antes, com o critério "ser executável", e `user-scope/` satisfaz esse critério tanto quanto `.claude/`.
 
-**Peso.** É a única das oito que toca o gate que os itens 10 e 11 vão demonstrar. Vale decidir antes de executá-los, pelo mesmo argumento que levou o P12 a ser corrigido antes: demonstrar um gate incompleto não é demonstrar o gate que a spec descreve.
+**Status: FECHADA em `ee7731d`.** `user-scope/` entrou no conjunto `CODE`. Corrigida antes dos itens 10 e 11 pelo mesmo argumento que levou o P12 a ser corrigido antes: são eles que demonstram o `spec_freeze`, e a tag `spec-v1.0` congela a especificação confiando nesse gate.
+
+Medido: o conjunto `CODE` passa de **20 para 22** arquivos — `user-scope/agents/checkpoint-auditor.md` e `user-scope/hooks/readonly_bash.py`. Verificado que `docs/spec/` e `docs/process/` seguem fora, e que o cenário do finding, spec + `user-scope/hooks/` no mesmo PR, passa a disparar a regra de spec+código.
+
+**O que a omissão revelava.** O argumento de integridade de `docs/process/WORKFLOW.md` §"Por que o auditor não mora no repositório" protege a **cópia instalada** em `~/.claude/`, fora do alcance do commit sob revisão. Ele não diz nada sobre a fonte versionada — que continua no repositório, e continuava fora do gate. O mesmo PR que alterava a spec podia enfraquecer o auditor que deveria auditá-la.
 
 ### P19 — [M3, quarta auditoria] Deny de secrets ainda não cobre `Write` — reconfirma P13
 
@@ -776,8 +780,8 @@ Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afi
 
 Ordem para fechá-la:
 
-1. **Decidir o P18** (§6), a única pendência aberta que toca o `spec_freeze`. É o gate que os passos 3 e 4 demonstram, e `user-scope/` — fonte versionada do auditor e do seu hook — está fora do conjunto `CODE`. Mesmo argumento que levou o P12 a ser corrigido antes dos itens 10 e 11.
-2. Decidir o destino das demais pendências abertas (§6). São **vinte** no total: quatro declaradas por mim durante a implementação (P1–P4) e dezesseis vindas das auditorias (P8, P9, P11, P13–P25). P5, P6, P7, P10 e P12 estão fechadas.
+1. **Quinta auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. Duas correções entraram depois da quarta rodada — `7302bd1` (procedimento do item 10) e `ee7731d` (`user-scope/` no conjunto `CODE`) — e nenhuma auditoria as examinou. Ambas tocam exatamente o que os passos 3 e 4 vão exercitar.
+2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12 e P18 estão fechadas.
    - **P11** ainda tem efeito sobre a próxima auditoria: enquanto o mecanismo de captura estiver inerte, o veredito precisa ser colado manualmente;
    - **P25** está deliberadamente adiada para a Fase 1 — mexer no `invariants.yml` na véspera de executar os PRs que testam esse mesmo workflow adiciona risco sem necessidade.
 3. `bash finalize_phase0.sh` — vai até branch protection e **para antes da tag**, imprimindo os comandos dos itens 10 e 11 da DoD.
