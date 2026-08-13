@@ -1,6 +1,35 @@
 #!/usr/bin/env bash
-# Fecha a Fase 0 somente depois de verificadores, testes negativos, CI e branch protection.
+# Fecha a Fase 0 somente depois de verificadores, testes negativos, CI,
+# branch protection E dos itens 10 e 11 da DoD.
+#
+# Os itens 10 e 11 exigem PR descartavel comprovando que spec_freeze reprova
+# spec+codigo no mesmo PR, e que alteracao so de spec exige titulo
+# 'spec-change:'. Este script NAO os executa: ele para antes da tag e instrui
+# o operador.
+#
+# Por que nao automatizar: seria criar PR, esperar CI reprovar, fechar e apagar
+# branch — mutacao de remoto que nao pode ser testada antes de rodar de
+# verdade. Automacao nao exercitada dentro do unico script que cria a tag de
+# imutabilidade e a mesma classe de defeito que a Fase 0 existe para pegar, e
+# falha parcial deixaria PR e branch orfaos.
+#
+# A tag so e criada em uma segunda invocacao explicita:
+#
+#     bash finalize_phase0.sh --dod-10-11-verificados
+#
+# Essa flag e a afirmacao do operador de que executou os dois PRs descartaveis
+# e viu spec_freeze REPROVAR nos dois. Sem ela, nada e declarado concluido.
 set -euo pipefail
+
+CONFIRMA_DOD_10_11=0
+case "${1:-}" in
+  "") ;;
+  --dod-10-11-verificados) CONFIRMA_DOD_10_11=1 ;;
+  *)
+    echo "Uso: bash finalize_phase0.sh [--dod-10-11-verificados]"
+    exit 2
+    ;;
+esac
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
 if [ -z "$ROOT" ]; then
@@ -146,7 +175,56 @@ gh repo edit "$REPO" \
   --enable-rebase-merge=true >/dev/null \
   || echo "AVISO: ajuste manualmente Settings > General > Pull Requests (desligar merge commit)."
 
-echo "==> criando tag somente apos CI + branch protection"
+if [ "$CONFIRMA_DOD_10_11" -eq 0 ]; then
+  cat <<INSTRUCOES
+
+================================================================
+FASE 0 NAO CONCLUIDA. A tag spec-v1.0 NAO foi criada.
+================================================================
+
+CI verde e branch protection aplicada. Faltam os itens 10 e 11 da DoD
+(docs/process/PHASE_0_CHECKLIST.md), que este script deliberadamente nao
+executa por serem verificacao de comportamento do proprio gate.
+
+Enquanto eles nao forem executados, a spec nao deve virar imutavel: a partir
+de spec-v1.0 o mecanismo que a protege passa a valer sem nunca ter sido
+demonstrado.
+
+ITEM 10 — spec_freeze deve REPROVAR spec e codigo no mesmo PR
+
+  git checkout -b dod10-descartavel
+  # altere um arquivo de docs/spec/ E um de contracts/ no mesmo commit
+  git commit -am "dod10: PR descartavel, spec e codigo juntos"
+  git push -u origin dod10-descartavel
+  gh pr create --title "dod10: PR descartavel" --body "Verificacao da DoD. Fechar sem merge."
+  # ESPERADO: job spec_freeze FALHA com "PR altera spec e codigo no mesmo PR"
+  gh pr close dod10-descartavel --delete-branch
+  git checkout main && git branch -D dod10-descartavel
+
+ITEM 11 — alteracao so de spec exige titulo 'spec-change:'
+
+  git checkout -b dod11-descartavel
+  # altere APENAS um arquivo de docs/spec/
+  git commit -am "dod11: PR descartavel, so spec"
+  git push -u origin dod11-descartavel
+  gh pr create --title "dod11: sem o prefixo exigido" --body "Verificacao da DoD. Fechar sem merge."
+  # ESPERADO: job spec_freeze FALHA exigindo titulo iniciando com 'spec-change:'
+  gh pr close dod11-descartavel --delete-branch
+  git checkout main && git branch -D dod11-descartavel
+
+Se QUALQUER um dos dois PRs passar no spec_freeze, o gate esta furado: nao
+crie a tag e corrija .github/workflows/invariants.yml.
+
+Depois de ver os DOIS reprovarem, rode:
+
+  bash finalize_phase0.sh --dod-10-11-verificados
+
+INSTRUCOES
+  exit 0
+fi
+
+echo "==> itens 10 e 11 afirmados pelo operador via --dod-10-11-verificados"
+echo "==> criando tag somente apos CI + branch protection + DoD 10 e 11"
 if git rev-parse -q --verify refs/tags/spec-v1.0 >/dev/null; then
   TAG_SHA=$(git rev-list -n 1 spec-v1.0)
   if [ "$TAG_SHA" != "$HEAD_SHA" ]; then
@@ -160,5 +238,6 @@ fi
 git push origin spec-v1.0
 
 echo
-echo "FASE 0 CONCLUIDA: CI verde, main protegida e spec-v1.0 publicada."
+echo "FASE 0 CONCLUIDA: CI verde, main protegida, itens 10 e 11 verificados pelo"
+echo "operador e spec-v1.0 publicada."
 echo "Rode /doctor no Claude Code antes de iniciar a Fase 1."

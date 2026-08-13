@@ -220,7 +220,11 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 13 | `spec-v1.0` criada depois de CI e branch protection | ⛔ nenhuma tag existe |
 | 14 | `/doctor` sem apontamentos relevantes | ✅ executado nesta sessão, sem achados |
 
-Itens 9 a 13 são executados por `bash finalize_phase0.sh`, único script autorizado a commitar, publicar, esperar CI, aplicar branch protection e criar a tag. **A Fase 0 não está concluída enquanto eles não passarem.**
+**Quem executa o quê, corrigido após o H2 da terceira auditoria.** `bash finalize_phase0.sh` executa os itens **9, 12 e 13** — push, espera de CI, branch protection e tag. Os itens **10 e 11 são manuais**: exigem PR descartável comprovando que `spec_freeze` reprova spec+código no mesmo PR e que alteração só de spec exige título `spec-change:`.
+
+O script parava de declarar "FASE 0 CONCLUÍDA" e criar `spec-v1.0` sem que 10 e 11 tivessem sido executados. Agora ele para antes da tag, imprime os comandos exatos dos dois PRs descartáveis, e só cria a tag numa segunda invocação explícita: `bash finalize_phase0.sh --dod-10-11-verificados`. A flag é a afirmação do operador de que executou os dois PRs e viu `spec_freeze` reprovar nos dois.
+
+**A Fase 0 não está concluída enquanto os itens 9 a 13 não passarem.**
 
 **Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ⚠️ — a primeira auditoria emitiu FAIL, a segunda emitiu **PASS sem blocker** (§0), mas exigiu três correções antes do `finalize` (`76e04c9`, `8b129d2`, `6ed9993`). Uma terceira auditoria é necessária sobre o commit corrigido: as correções do M3 alteram a semântica de fronteira dos invariantes 2 e 4, e nenhuma auditoria as examinou ainda.
 
