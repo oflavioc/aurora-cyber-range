@@ -1,0 +1,32 @@
+# Secrets / environment
+.env
+.env.local
+.env.*.local
+secrets/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / build
+node_modules/
+dist/
+build/
+
+# Claude local state
+.claude/settings.local.json
+.claude/agent-memory-local/
+.aurora-worktrees/
+
+# Runtime/generated artifacts
+docs/progress/audit_log.jsonl
+# Evidencia e projecao determinista de ground_truth.yaml + RANDOM_SEED.
+# Nada dela precisa de versionamento; e reconstruida por `range-cli evidence build`.
+scenarios/**/evidence/
+
+# IMPORTANT: ground_truth.yaml and GM_NOTES.md are intentionally versioned
+# in this private repository. Participant builds/exports must exclude them.

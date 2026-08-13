@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""PreToolUse — Bash restrito do checkpoint-auditor."""
+from __future__ import annotations
+
+import json
+import re
+import sys
+
+SAFE_ENV_PREFIX = r"(?:(?:PYTHONDONTWRITEBYTECODE|PYTHONHASHSEED|NODE_ENV)=[^\s]+\s+)*"
+
+ALLOWED = [
+    rf"^{SAFE_ENV_PREFIX}git\s+(diff|log|show|status|branch|rev-parse|ls-files)\b",
+    rf"^{SAFE_ENV_PREFIX}(pytest|python\s+-m\s+pytest)\b",
+    rf"^{SAFE_ENV_PREFIX}npm\s+(test|run\s+test|run\s+lint|run\s+typecheck)\b",
+    rf"^{SAFE_ENV_PREFIX}(ruff|mypy|black\s+--check|eslint|tsc\s+--noEmit)\b",
+    rf"^{SAFE_ENV_PREFIX}range-cli\s+scenario\s+(validate|lint|dryrun)\b",
+    rf"^{SAFE_ENV_PREFIX}range-cli\s+evidence\s+verify\b",
+    rf"^{SAFE_ENV_PREFIX}docker\s+compose\s+(ps|logs|config)\b",
+    rf"^{SAFE_ENV_PREFIX}python\s+tools/(?:check_[A-Za-z0-9_.-]+\.py|codegen\.py\s+--check)\b",
+    rf"^{SAFE_ENV_PREFIX}(ls|cat|head|tail|wc|grep|rg|find|tree|diff|stat)\b",
+    rf"^{SAFE_ENV_PREFIX}(pwd|echo|which|env)\b",
+]
+
+DENIED_ANYWHERE = [
+    (r">\s*\S|>>\s*\S", "redirecionamento de saida para arquivo"),
+    (r"\|\s*tee\b", "escrita via tee"),
+    (r"\b(rm|mv|cp|chmod|chown|mkdir|touch|truncate)\b", "comando de escrita"),
+    (r"\bgit\s+(commit|push|add|reset|checkout|switch|merge|rebase|clean|restore)\b", "git que altera estado"),
+    (r"\b(curl|wget|nc|ssh|scp)\b", "acesso de rede"),
+    (r"\b(pip|npm)\s+install\b", "instalacao de pacote"),
+    (r"\bsed\s+-i\b|\bperl\s+-i\b", "edicao in-place"),
+]
+
+
+def main() -> int:
+    try:
+        data = json.load(sys.stdin)
+    except Exception:
+        return 0
+
+    cmd = ((data.get("tool_input") or {}).get("command") or "").strip()
+    if not cmd:
+        return 0
+
+    for pat, label in DENIED_ANYWHERE:
+        if re.search(pat, cmd):
+            print(
+                f"BLOQUEADO: checkpoint-auditor sem escrita deliberada ({label}).\n"
+                f"Comando: {cmd}\nReporte o finding; nao corrija.",
+                file=sys.stderr,
+            )
+            return 2
+
+    for segment in re.split(r"\|\||&&|;|\|", cmd):
+        seg = segment.strip()
+        if not seg:
+            continue
+        if not any(re.match(pattern, seg) for pattern in ALLOWED):
+            print(
+                "BLOQUEADO: comando fora da allowlist do auditor.\n"
+                f"Segmento: {seg}\n"
+                "Permitido: git de leitura, testes/linters, verificadores, range-cli de validacao e leitura de arquivo.",
+                file=sys.stderr,
+            )
+            return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

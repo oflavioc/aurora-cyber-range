@@ -1,0 +1,70 @@
+name: invariantes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  arquitetura:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: fronteira core/adapter
+        run: python tools/check_core_boundary.py
+
+      - name: literais de flag e event_type
+        run: python tools/check_contract_literals.py
+
+      - name: objective_ids fora do caminho de emissao
+        run: python tools/check_event_envelope.py
+
+      # codegen.py --check NAO escreve: compara o gerado em memoria com o
+      # que esta em disco e sai != 0 em divergencia. Um `git diff` aqui seria
+      # vacuoso, porque nada e escrito.
+      - name: constantes geradas em dia
+        run: python tools/codegen.py --check
+
+  spec_freeze:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: spec so muda em PR separado marcado spec-change
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          SPEC=$(git diff --name-only "$BASE_SHA" HEAD -- docs/spec/ | wc -l)
+          CODE=$(git diff --name-only "$BASE_SHA" HEAD -- range-core/ domains/ contracts/ | wc -l)
+
+          if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
+            echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
+            exit 1
+          fi
+
+          if [ "$SPEC" -gt 0 ] && ! printf '%s' "$PR_TITLE" | grep -q '^spec-change:'; then
+            echo "Alteracao em docs/spec/ exige titulo iniciando com 'spec-change:'"
+            exit 1
+          fi
+
+  seguranca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: restricoes de 05_SECURITY_REQUIREMENTS
+        run: python tools/check_security_constraints.py
+
+      - name: dados sinteticos em faixa de documentacao
+        run: python tools/check_synthetic_data.py

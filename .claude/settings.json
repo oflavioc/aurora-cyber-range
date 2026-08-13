@@ -1,0 +1,39 @@
+{
+  "$comment": "Hooks dao feedback rapido dentro do Claude Code; o CI e o gate real. Auto Mode desabilitado neste projeto. Regras de caminho usam nome simples (semantica gitignore) para casar em qualquer profundidade.",
+  "permissions": {
+    "defaultMode": "default",
+    "disableAutoMode": "disable",
+    "deny": [
+      "Read(.env)",
+      "Edit(.env)",
+      "Read(.env.*)",
+      "Edit(.env.*)",
+      "Read(secrets/**)",
+      "Edit(secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/check_architecture.py"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^checkpoint-auditor$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/log_audit.py"
+          }
+        ]
+      }
+    ]
+  }
+}

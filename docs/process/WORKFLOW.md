@@ -1,0 +1,126 @@
+# Processo de trabalho — AURORA CYBER RANGE
+
+## Fase 0 — Specification Freeze
+
+Só documentação normativa, schemas, agentes, hooks, CI e tooling de governança. Nenhuma aplicação.
+
+A ordem é deliberadamente rígida:
+
+```text
+bootstrap.sh
+    ↓
+seis verificadores + testes negativos
+    ↓
+commit/push
+    ↓
+CI verde
+    ↓
+branch protection confirmada
+    ↓
+spec-v1.0
+```
+
+`bootstrap.sh` **não** commita, não faz push e não cria tag. `finalize_phase0.sh` só cria a tag depois que CI e branch protection forem comprovados.
+
+A partir de `spec-v1.0`, a especificação é imutável durante a implementação. Alteração exige branch `spec-change/<slug>` e PR próprio com título `spec-change:`, sem código junto e com aprovação humana.
+
+## Ciclo por fase
+
+```text
+git checkout -b fase-<n>-<slug>
+claude --permission-mode default
+# implementar e testar
+git add -A
+git commit -m "fase-<n>: checkpoint candidate"
+bash scripts/start_checkpoint_audit.sh <n>
+# corrigir BLOCKER/HIGH, criar novo commit e reauditar
+gh pr create --title "fase-<n>: <descrição>"
+```
+
+O auditor não corrige. Ele reporta e emite PASS/FAIL. Qualquer BLOCKER é FAIL.
+
+## Por que o auditor formal usa launcher de worktree
+
+O objetivo é garantir simultaneamente:
+
+- contexto fresco;
+- filesystem descartável para efeitos colaterais de testes;
+- commit auditado imutável durante a revisão;
+- comparação reproduzível contra `main`.
+
+O launcher cria um worktree **explicitamente a partir do `HEAD` candidato** e então inicia `claude --agent checkpoint-auditor` nele. Isso evita depender do worktree automático do frontmatter, cujo ponto de partida pode ser a branch default e não a branch candidata.
+
+O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist. Essa combinação evita escrita deliberada; qualquer sujeira incidental de teste morre com o worktree temporário.
+
+## Scenario designer
+
+O `scenario-designer` possui uma competência diferente da engenharia de aplicação e pode editar apenas `scenarios/`.
+
+A restrição é técnica, não apenas textual:
+
+- `scenario_scope.py`: bloqueia Write/Edit fora de `scenarios/`;
+- `scenario_bash.py`: permite apenas `range-cli scenario validate|lint|dryrun`, `git diff -- scenarios/...` e `git status --short`.
+
+`ground_truth.yaml` e `GM_NOTES.md` são versionados no repositório privado. Eles nunca chegam a imagem, API, bundle ou export de participante.
+
+## Paralelismo — não antes da Fase 8
+
+Fases 1 a 7 são estritamente sequenciais: contratos → engine → API → vertical slice → objetivos → pacote. Worktree paralelo nessa etapa tende a fragmentar justamente os contratos que precisam permanecer coerentes.
+
+A partir da Fase 8, três frentes podem ser separadas:
+
+| Worktree | Escopo |
+|---|---|
+| `wt-web` | academus-web completo e dashboards por persona |
+| `wt-evidence` | projeção de fatos e telemetry-forwarder |
+| `wt-external` | federated-identity, mec-gateway, stub prontus |
+
+Cada frente deve tocar diretórios claramente definidos e reconvergir antes da Fase 10.
+
+## Por que o auditor não mora no repositório
+
+Duas razões, e a segunda importa mais:
+
+1. **Mecânica.** Hooks de frontmatter de subagente de *projeto* só rodam depois que você aceita o diálogo de confiança da pasta que contém o arquivo do agente. O worktree de auditoria é outra pasta; sem essa aceitação o Claude Code pula os hooks silenciosamente e registra apenas no debug log. O `readonly_bash.py` simplesmente não rodaria.
+
+2. **Integridade.** Um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit. Definição em `~/.claude/agents/` fica fora do alcance do código sob revisão.
+
+O `scenario-designer` e o `spec-guardian` continuam no projeto, porque escrevem ou leem dentro dele e são versionados junto com as regras que aplicam.
+
+## Revisão adversarial de segunda camada
+
+O `checkpoint-auditor` oferece o ganho principal: contexto fresco, spec + diff + saída real de teste, sem raciocínio da implementação.
+
+Um segundo fornecedor/modelo pode ser usado nos checkpoints ⏸ para reduzir viés específico de modelo, mas é camada adicional. Não substitui o auditor nem o CI.
+
+## Ordem de defesa
+
+1. **Hook** — feedback em segundos dentro da sessão; pega violações óbvias.
+2. **CI** — gate real por AST/contrato; pega violações feitas dentro ou fora do Claude Code.
+3. **Auditor** — verifica se o teste realmente prova o requisito e se a semântica da implementação corresponde à spec.
+
+Nenhuma camada substitui outra.
+
+## Auto Mode e secrets
+
+O usuário pode ter Auto Mode configurado globalmente. Este projeto define `permissions.defaultMode = default` e `disableAutoMode = disable` em `.claude/settings.json`.
+
+Também existem deny rules para `.env`, variantes locais e `secrets/`. `.env.example` continua disponível e deve conter apenas placeholders.
+
+## GitHub / branch protection
+
+`spec_freeze` roda apenas em `pull_request`. Isso é intencional: no primeiro push não existe `pull_request.base.sha`, nem título de PR.
+
+O fechamento da Fase 0 exige branch protection com os três contexts:
+
+- `arquitetura`
+- `spec_freeze`
+- `seguranca`
+
+Se a API de branch protection não estiver disponível para o plano/permissão do repositório, a Fase 0 não deve ser declarada concluída até a proteção equivalente ser configurada e comprovada.
+
+## Windows
+
+Os hooks são Python para funcionar em Git Bash e PowerShell, desde que `python` esteja no PATH. Os scripts `.sh` devem ser executados em Git Bash.
+
+Depois do primeiro commit e novamente após qualquer alteração em `.claude/`, rode `/doctor`.
