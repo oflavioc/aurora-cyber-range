@@ -488,6 +488,22 @@ foram persistidas por ele.
 
 **Encaminhamento provável.** Capturar no `launcher`, que é quem sabe que está executando uma auditoria e já grava `phase`, `head_sha` e `launcher_exit`, em vez de depender de um hook que precisa adivinhar quem chamou. Isso implica também decidir o destino de `docs/progress/audit_log.jsonl`, hoje em `.gitignore:26` — um registro de auditoria que não entra no repositório não é registro. Enquanto isso não existir, o veredito precisa ser colado manualmente, como foi nas três primeiras rodadas.
 
+**Status: FECHADA** no commit que introduz `scripts/audit_report.py`. Cinco rodadas foram transcritas à mão antes disso, com três confusões de ID.
+
+O diagnóstico do encaminhamento estava certo e foi confirmado: `SubagentStop` **nunca** dispara para o auditor, e não por causa do `agent_type`. O launcher invoca `claude --agent checkpoint-auditor`, que é sessão **de topo**; `SubagentStop` só dispara para subagente despachado pela ferramenta Agent dentro de uma sessão. O evento não ocorre por aquele caminho para nenhum valor de `agent_type`. A exigência introduzida em `c8c2be3` não era o obstáculo — era o gancho errado.
+
+**Como a saída de uma sessão interativa é capturada.** Não por pipe. O Claude Code entra em modo não-interativo quando o stdout não é um TTY (`claude --help`: "via `-p`, or when stdout is not a TTY, e.g. piped or redirected output"). Canalizar a saída para capturá-la destruiria exatamente a interatividade que a auditoria existe para ter — e o que sairia seria fluxo de repaint de TUI, não documento. Captura por PTY (`script`) foi descartada pela mesma razão, mais a ausência da ferramenta no Git Bash do Windows.
+
+O launcher passou a **pré-atribuir** o identificador da sessão (`--session-id`) e a ler o transcript daquela sessão depois que ela termina. A sessão continua 100% interativa. O identificador deixa de ser descoberto por heurística ("arquivo mais recente do diretório") — origem das três confusões de ID — e passa a ser imposto por quem lança. O transcript é localizado pelo **nome do arquivo** (`<session-id>.jsonl`), não pela regra de sanitização do diretório de projeto, que é convenção interna.
+
+**Limite conhecido, com mitigação explícita.** O formato do transcript JSONL é interno do Claude Code, sem contrato público. Se mudar, a extração degrada. A mitigação é a falha ser **visível**: registro com `verdict: "sem_relatorio"` e o motivo, saída diferente de zero (código 3, distinto da falha da própria sessão), **e aviso impresso em bloco** dizendo que o veredito precisa ser transcrito à mão. Código de saída no fim de script longo passa despercebido; a mensagem não.
+
+**Modo headless (`--headless`)** existe para CI, usando `-p`. Não é o padrão, e a decisão é deliberada: a auditoria é o momento em que o operador mais quer acompanhar e intervir — foi assim que uma sessão travada foi pega na quinta rodada e que uma reclassificação de ID foi decidida no meio de uma rodada. Headless troca isso por conveniência de captura, e a captura é o problema menor. O launcher **imprime o modo** em que está rodando, para não haver ambiguidade sobre por que a sessão não abriu.
+
+**Destino resolvido.** `.gitignore:26` removido. `docs/progress/audit_log.jsonl` e `docs/progress/audit_*.md` passam a ser versionados: cada linha é a única prova de uma rodada que já aconteceu, não artefato reconstruível. Não exige `spec-change` — a spec só fala de `docs/progress/fase_<n>.md` (`07_IMPLEMENTATION_PHASES.md:229`) e nada diz sobre o registro de auditoria.
+
+**Decisão sobre o hook `SubagentStop`.** Mantido em `.claude/settings.json`, **com comentário explícito** (`$comment_SubagentStop`) dizendo que não é o mecanismo de captura e que só vale se o auditor um dia for despachado como subagente. Removê-lo faria essa hipótese perder registro; mantê-lo mudo faria alguém supor, daqui a seis meses, que a auditoria está sendo capturada por ele. O mesmo aviso abre a docstring de `.claude/hooks/log_audit.py`. O hook passou a importar `last_agent_text`, `detect_verdict`, `main_worktree_root` e `persist` de `scripts/audit_report.py` em vez de duplicá-las, e preservou a guarda de identificação: sem `agent_type == "checkpoint-auditor"`, registra a ocorrência e nada mais.
+
 ---
 
 As seis pendências seguintes vêm da **terceira auditoria**. IDs novos, para não colidir com P1–P11; a coluna de origem em §0 dá a correspondência com os IDs daquela rodada.

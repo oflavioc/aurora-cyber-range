@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Captura e persistencia do relatorio de auditoria de checkpoint.
+
+Modulo compartilhado por dois chamadores:
+
+- `scripts/start_checkpoint_audit.sh` usa a CLI. E o caminho REAL: o launcher
+  invoca o auditor como agente de TOPO (`claude --agent`);
+- `.claude/hooks/log_audit.py` importa as funcoes. E o caminho hipotetico, que
+  so existe se o auditor um dia for despachado como SUBAGENTE.
+
+Por que a captura vive no launcher e nao no hook
+------------------------------------------------
+`SubagentStop` so dispara para subagente despachado pela ferramenta Agent dentro
+de uma sessao. O launcher invoca `claude --agent checkpoint-auditor`, que e
+sessao de topo: o evento nunca ocorre, para nenhum valor de `agent_type`. Foi
+por isso que nenhum `docs/progress/audit_*.md` jamais foi gravado, e cinco
+rodadas precisaram de transcricao manual.
+
+Como a saida de uma sessao INTERATIVA e capturada
+-------------------------------------------------
+Nao por pipe. O Claude Code entra em modo nao-interativo quando stdout nao e um
+TTY (`--help`: "via -p, or when stdout is not a TTY, e.g. piped or redirected
+output"). Canalizar a saida para captura-la destruiria justamente a
+interatividade que a auditoria existe para ter — e o que sairia seria fluxo de
+repaint de TUI, nao documento.
+
+Em vez disso o launcher PRE-ATRIBUI o identificador da sessao (`--session-id`) e
+aqui o transcript daquela sessao e lido depois que ela termina. A sessao
+permanece 100% interativa, e o identificador deixa de ser descoberto por
+heuristica ("arquivo mais recente do diretorio") — origem das tres confusoes de
+ID — para ser imposto por quem lanca.
+
+O transcript e localizado pelo NOME DO ARQUIVO (`<session-id>.jsonl`), varrendo
+os diretorios de projeto. Reproduzir a regra de sanitizacao de caminho de
+diretorio seria depender de convencao interna; o nome do arquivo e o UUID que o
+proprio launcher escolheu.
+
+Limite conhecido e sua mitigacao
+--------------------------------
+O formato do transcript JSONL e interno do Claude Code, sem contrato publico. Se
+mudar, a extracao degrada. A mitigacao e a falha ser VISIVEL: registro com
+`verdict: "sem_relatorio"` e o motivo, saida diferente de zero, e aviso impresso
+em bloco dizendo que o veredito precisa ser transcrito a mao. Codigo de saida no
+fim de script longo passa despercebido; a mensagem nao.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+MAX_REPORT_CHARS = 200_000
+
+
+def claude_config_dir() -> Path:
+    override = os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(override) if override else Path.home() / ".claude"
+
+
+def main_worktree_root(start: Path) -> Path:
+    """Raiz do worktree PRINCIPAL, mesmo quando invocado de um worktree.
+
+    A auditoria roda em .aurora-worktrees/audit, recriado a cada execucao.
+    Gravar relativo ao cwd perde o registro junto com o worktree.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--git-common-dir"],
+            check=False, text=True, capture_output=True, timeout=5,
+        )
+        common = result.stdout.strip()
+        if result.returncode == 0 and common:
+            path = Path(common)
+            if not path.is_absolute():
+                path = (start / path).resolve()
+            return path.parent if path.name == ".git" else path
+    except Exception:
+        pass
+    return start
+
+
+def find_transcript(session_id: str) -> Path | None:
+    """Transcript da sessao, localizado pelo nome do arquivo.
+
+    Busca por `<session-id>.jsonl` em vez de reconstruir o nome sanitizado do
+    diretorio de projeto: o UUID e escolhido por quem lanca, a sanitizacao e
+    convencao interna.
+    """
+    projects = claude_config_dir() / "projects"
+    if not projects.is_dir():
+        return None
+    matches = sorted(projects.glob(f"*/{session_id}.jsonl"))
+    return matches[0] if matches else None
+
+
+def last_agent_text(transcript: Path) -> str:
+    """Ultimo bloco de texto emitido pelo agente, do transcript JSONL."""
+    latest = ""
+    try:
+        with transcript.open(encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if entry.get("type") != "assistant":
+                    continue
+                content = (entry.get("message") or {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                texts = [
+                    block.get("text", "")
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
+                ]
+                joined = "\n".join(t for t in texts if t.strip())
+                if joined.strip():
+                    latest = joined
+    except Exception:
+        return ""
+    return latest
+
+
+def detect_verdict(report: str) -> str:
+    """Veredito por melhor esforco. 'indeterminado' quando ambiguo."""
+    upper = report.upper()
+    has_fail = "FAIL" in upper
+    has_pass = "PASS" in upper
+    if has_fail and not has_pass:
+        return "FAIL"
+    if has_pass and not has_fail:
+        return "PASS"
+    if has_fail and has_pass:
+        # Relatorio que cita os dois: FAIL prevalece, porque qualquer BLOCKER e
+        # FAIL (docs/process/WORKFLOW.md) e o custo de errar para o lado
+        # otimista e declarar concluida uma fase que nao passou.
+        return "FAIL"
+    return "indeterminado"
+
+
+def persist(root: Path, record: dict, report: str, stamp: str) -> Path | None:
+    """Grava audit_<stamp>.md quando ha relatorio e anexa ao audit_log.jsonl."""
+    progress = root / "docs" / "progress"
+    progress.mkdir(parents=True, exist_ok=True)
+
+    report_file: Path | None = None
+    if report:
+        report_file = progress / f"audit_{stamp}.md"
+        header = (
+            f"# Auditoria de checkpoint - {record['ts']}\n\n"
+            f"- fase: **{record.get('phase')}**\n"
+            f"- commit auditado: `{record.get('head_sha')}`\n"
+            f"- session_id: `{record.get('session_id')}`\n"
+            f"- modo: `{record.get('mode')}`\n"
+            f"- veredito detectado: **{record['verdict']}**\n\n"
+            "> Veredito detectado por melhor esforco a partir do relatorio "
+            "abaixo, que e a fonte autoritativa.\n\n---\n\n"
+        )
+        report_file.write_text(header + report + "\n", encoding="utf-8")
+        record["report_path"] = report_file.relative_to(root).as_posix()
+
+    with (progress / "audit_log.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return report_file
+
+
+def alerta_captura_falhou(motivo: str, session_id: str) -> None:
+    """Aviso em bloco. Codigo de saida sozinho passa despercebido."""
+    linhas = [
+        "CAPTURA DO RELATORIO DE AUDITORIA FALHOU",
+        "",
+        f"Motivo: {motivo}",
+        f"session_id: {session_id}",
+        "",
+        "A auditoria pode ter rodado normalmente - o que falhou foi a captura.",
+        "O VEREDITO E OS FINDINGS PRECISAM SER TRANSCRITOS A MAO para",
+        "docs/progress/fase_<n>.md antes de seguir.",
+        "",
+        "Registrado em docs/progress/audit_log.jsonl com verdict=sem_relatorio.",
+    ]
+    # Largura dimensionada pelo conteudo: motivo longo nao pode quebrar a moldura,
+    # que e justamente o que faz o aviso ser notado no fim de um script longo.
+    largura = max(len(linha) for linha in linhas) + 6
+    borda = "!" * largura
+    print("\n" + borda, file=sys.stderr)
+    for linha in linhas:
+        print(f"!! {linha}".ljust(largura - 2) + "!!", file=sys.stderr)
+    print(borda + "\n", file=sys.stderr)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", required=True)
+    parser.add_argument("--session-id", required=True)
+    parser.add_argument("--phase", required=True)
+    parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--mode", required=True, choices=["interactive", "headless"])
+    parser.add_argument("--launcher-exit", required=True, type=int)
+    parser.add_argument(
+        "--fallback-text",
+        help="Arquivo com a saida crua da sessao. So no modo headless, onde o "
+             "stdout ja e o relatorio e nao depende do transcript.",
+    )
+    args = parser.parse_args()
+
+    root = main_worktree_root(Path(args.root).resolve())
+    now = datetime.now(timezone.utc)
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+
+    report = ""
+    motivo = ""
+    transcript = find_transcript(args.session_id)
+    if transcript is None:
+        motivo = f"transcript da sessao {args.session_id} nao encontrado"
+    else:
+        report = last_agent_text(transcript)[:MAX_REPORT_CHARS]
+        if not report:
+            motivo = f"transcript {transcript.name} nao rendeu texto de agente"
+
+    if not report and args.fallback_text:
+        bruto = Path(args.fallback_text)
+        try:
+            report = bruto.read_text(encoding="utf-8", errors="replace")[:MAX_REPORT_CHARS].strip()
+        except Exception as exc:
+            motivo = f"{motivo}; fallback ilegivel ({exc})"
+        if report:
+            motivo = ""
+
+    record = {
+        "ts": now.isoformat(),
+        "phase": int(args.phase),
+        "head_sha": args.head_sha,
+        "session_id": args.session_id,
+        "mode": args.mode,
+        "launcher_exit": args.launcher_exit,
+        "verdict": detect_verdict(report) if report else "sem_relatorio",
+        "report_path": None,
+        "capture_error": motivo or None,
+        "source": "launcher",
+    }
+
+    try:
+        report_file = persist(root, record, report, stamp)
+    except Exception as exc:
+        alerta_captura_falhou(f"nao foi possivel gravar o registro ({exc})", args.session_id)
+        return 1
+
+    if not report:
+        alerta_captura_falhou(motivo or "relatorio vazio", args.session_id)
+        return 1
+
+    print(f"\nRelatorio capturado: {report_file.relative_to(root).as_posix()}")
+    print(f"Veredito detectado: {record['verdict']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
