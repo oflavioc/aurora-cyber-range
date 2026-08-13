@@ -476,18 +476,24 @@ não "range-core, domains e contracts".
 
 **Status: FECHADA em `012ce3a`.** Corrigida **antes** dos itens 10 e 11 da DoD, de propósito: são eles que demonstram o `spec_freeze`, e a tag `spec-v1.0` congela a especificação confiando nesse gate. Demonstrar um gate estreito não é demonstrar o gate que a spec descreve.
 
-O critério adotado é **ser executável**, não "tudo que não é `docs/spec/`":
+O critério adotado é **ser mecanismo que aplica a spec**, não "tudo que não é `docs/spec/`". A formulação original dizia "ser executável", o que nunca foi literalmente verdade — o conjunto sempre incluiu markdown de governança de agente, que não executa nada e define comportamento.
 
-| Entra no conjunto `CODE` | Por quê |
-|---|---|
-| `range-core/`, `domains/`, `contracts/` | conjunto original |
-| `tools/` | os verificadores que a spec normatiza (`01_ARCHITECTURE.md` §2) |
-| `scripts/` | harness negativo e launcher de auditoria |
-| `.claude/` | hooks — o mecanismo que aplica a própria spec |
-| `.github/` | CI, idem |
-| `bootstrap.sh`, `finalize_phase0.sh` | executáveis de raiz, via `:(glob)*.sh` |
+| Entra no conjunto `CODE` | Por quê | Quando entrou |
+|---|---|---|
+| `range-core/`, `domains/`, `contracts/` | conjunto original | — |
+| `tools/` | os verificadores que a spec normatiza (`01_ARCHITECTURE.md` §2) | `012ce3a` |
+| `scripts/` | harness negativo e launcher de auditoria | `012ce3a` |
+| `.claude/` | hooks e definições de agente de projeto | `012ce3a` |
+| `.github/` | CI | `012ce3a` |
+| `bootstrap.sh`, `finalize_phase0.sh` | executáveis de raiz, via `:(glob)*.sh` | `012ce3a` |
+| `user-scope/` | fonte versionada do auditor e do seu hook | `ee7731d` (§6 P18) |
+| `CLAUDE.md` | instrução permanente: autoridade, invariantes, restrições inegociáveis | `32bdc05` |
 
-`docs/process/` **não** entra: é documentação, e o próprio PR de `spec-change` costuma precisar tocá-la. Verificado que nenhum caminho sob `docs/` casa com o conjunto `CODE`.
+`docs/process/`, `README_FIRST.md` e `CHANGELOG_V3.md` **não** entram: são documentação descritiva, e o próprio PR de `spec-change` costuma precisar tocá-los. Verificado que nenhum caminho sob `docs/` casa com o conjunto `CODE`.
+
+**Consequência aceita da entrada do `CLAUDE.md`.** Ele espelha partes da spec — cita `docs/spec/` sete vezes e repete os invariantes arquiteturais e as quatro camadas de verdade. Uma mudança normativa passa a exigir **dois PRs**: o `spec-change:` e o que atualiza o `CLAUDE.md`, com o segundo temporariamente defasado em relação ao primeiro. É o mesmo custo já aceito para `tools/`, pelo mesmo motivo: separar a mudança da regra da mudança do mecanismo que a aplica.
+
+Esta última entrada foi **decisão do operador**, não correção de finding — nenhuma auditoria a levantou.
 
 O `:(glob)` é necessário: sem o magic glob, `*.sh` casaria em qualquer profundidade, e não apenas na raiz.
 
@@ -624,7 +630,7 @@ continua enfraquecível no mesmo PR que altera a spec. Mesma categoria do M1 da
 terceira auditoria, classificado MEDIUM.
 ```
 
-**Correção incompleta minha**, não defeito herdado: o P12 foi fechado por mim uma rodada antes, com o critério "ser executável", e `user-scope/` satisfaz esse critério tanto quanto `.claude/`.
+**Correção incompleta minha**, não defeito herdado: o P12 foi fechado por mim uma rodada antes, com o critério então formulado como "ser executável", e `user-scope/` satisfaz esse critério tanto quanto `.claude/`. (A formulação foi depois refinada para "ser mecanismo que aplica a spec" — ver a tabela em §6 P12 —, o que só reforça a inclusão.)
 
 **Status: FECHADA em `ee7731d`.** `user-scope/` entrou no conjunto `CODE`. Corrigida antes dos itens 10 e 11 pelo mesmo argumento que levou o P12 a ser corrigido antes: são eles que demonstram o `spec_freeze`, e a tag `spec-v1.0` congela a especificação confiando nesse gate.
 
