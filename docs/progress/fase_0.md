@@ -365,6 +365,16 @@ O encaminhamento antecipado neste registro — ancorar em prefixo — foi o adot
 
 A regressão O4 (§7) reforça o argumento: o defeito nasceu em `.claude/hooks/log_audit.py`, e nenhum dos seis verificadores olhava para lá.
 
+### P10 — [L3] Docstring de `_common.py` contradizia o contrato do H2 — resolvida
+
+```text
+[L3] a docstring de tools/_common.py:18-19 ainda diz "qualquer valor diferente
+  de zero conta como deteccao", contradizendo o contrato que o H2 estabeleceu
+  (rc == 1 exatamente). Documentação interna que instrui precisamente o erro
+  corrigido.
+```
+
+**Status: FECHADA em `6ed9993`.** Registrada mesmo resolvida porque nomeia uma categoria de defeito que vai reaparecer: correção de código que deixa para trás a documentação que a contradiz. O texto antigo sobreviveria à correção e orientaria a próxima pessoa a desfazê-la. Verificado que nenhum outro ponto do repositório repete a instrução.
 ### P11 — [M1, segunda auditoria] O registro afirmava capacidade que o próprio HEAD desabilitou
 
 ```text
@@ -382,17 +392,6 @@ foram persistidas por ele.
 **Por que não basta remover a exigência de `agent_type`.** Ela foi introduzida em `c8c2be3` justamente porque, sem ela, o hook gravava a mensagem final de qualquer subagente como auditoria, com veredito fabricado. Afrouxar volta a fabricar. O problema real é anterior: o launcher invoca o auditor como agente **de topo** (`claude --agent`), não como subagente, então `SubagentStop` provavelmente nunca dispara para ele — o hook está no evento errado.
 
 **Encaminhamento provável.** Capturar no `launcher`, que é quem sabe que está executando uma auditoria e já grava `phase`, `head_sha` e `launcher_exit`, em vez de depender de um hook que precisa adivinhar quem chamou. Isso implica também decidir o destino de `docs/progress/audit_log.jsonl`, hoje em `.gitignore:26` — um registro de auditoria que não entra no repositório não é registro. Enquanto isso não existir, o veredito precisa ser colado manualmente, como foi nas duas primeiras rodadas.
-
-### P10 — [L3] Docstring de `_common.py` contradizia o contrato do H2 — resolvida
-
-```text
-[L3] a docstring de tools/_common.py:18-19 ainda diz "qualquer valor diferente
-  de zero conta como deteccao", contradizendo o contrato que o H2 estabeleceu
-  (rc == 1 exatamente). Documentação interna que instrui precisamente o erro
-  corrigido.
-```
-
-**Status: FECHADA em `6ed9993`.** Registrada mesmo resolvida porque nomeia uma categoria de defeito que vai reaparecer: correção de código que deixa para trás a documentação que a contradiz. O texto antigo sobreviveria à correção e orientaria a próxima pessoa a desfazê-la. Verificado que nenhum outro ponto do repositório repete a instrução.
 
 ---
 
