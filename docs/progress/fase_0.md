@@ -92,6 +92,12 @@ Primeira rodada sem achado bloqueante nem HIGH. Quatro MEDIUM e cinco LOW.
 
 O L2 é o achado mais instrutivo da rodada: a categoria estava nomeada, registrada duas vezes, e mesmo assim reincidi na correção seguinte. Corrigir código e deixar a documentação para trás não é distração pontual — é padrão, e nesta fase já apareceu quatro vezes (P10, P15, P17, P22).
 
+### Quinta auditoria: apenas um achado transmitido
+
+Da quinta rodada chegou a este registro exatamente **um** achado — o M1, sobre `CLAUDE.md` estar fora do conjunto `CODE` — corrigido em `32bdc05` e registrado em §6 P26. **Veredito, contagem e demais achados não foram transmitidos**, e isso fica declarado em vez de suposto.
+
+A causa é **P11**: sem persistência do relatório, cada rodada chega por transcrição manual, e o que não for transcrito não existe para este registro. O mesmo mecanismo produziu a terceira confusão de IDs entre rodadas desta fase — o achado foi inicialmente classificado como decisão do operador, porque chegou sem identificação de rodada e o M1 conhecido até então era o da quarta auditoria.
+
 **Dois desses findings acusam este próprio registro de imprecisão, e ambos procedem:**
 
 - o **M1** contesta a classificação "formalmente conforme" que o §7 O2 dava ao commit inicial misturar `docs/spec/` e `tools/`. O texto normativo do `CLAUDE.md` diz *código*, não "range-core, domains e contracts". O O2 foi corrigido;
@@ -487,13 +493,13 @@ O critério adotado é **ser mecanismo que aplica a spec**, não "tudo que não 
 | `.github/` | CI | `012ce3a` |
 | `bootstrap.sh`, `finalize_phase0.sh` | executáveis de raiz, via `:(glob)*.sh` | `012ce3a` |
 | `user-scope/` | fonte versionada do auditor e do seu hook | `ee7731d` (§6 P18) |
-| `CLAUDE.md` | instrução permanente: autoridade, invariantes, restrições inegociáveis | `32bdc05` |
+| `CLAUDE.md` | instrução permanente: autoridade, invariantes, restrições inegociáveis | `32bdc05` (§6 P26) |
 
 `docs/process/`, `README_FIRST.md` e `CHANGELOG_V3.md` **não** entram: são documentação descritiva, e o próprio PR de `spec-change` costuma precisar tocá-los. Verificado que nenhum caminho sob `docs/` casa com o conjunto `CODE`.
 
 **Consequência aceita da entrada do `CLAUDE.md`.** Ele espelha partes da spec — cita `docs/spec/` sete vezes e repete os invariantes arquiteturais e as quatro camadas de verdade. Uma mudança normativa passa a exigir **dois PRs**: o `spec-change:` e o que atualiza o `CLAUDE.md`, com o segundo temporariamente defasado em relação ao primeiro. É o mesmo custo já aceito para `tools/`, pelo mesmo motivo: separar a mudança da regra da mudança do mecanismo que a aplica.
 
-Esta última entrada foi **decisão do operador**, não correção de finding — nenhuma auditoria a levantou.
+Esta última entrada corrige o **M1 da quinta auditoria** — ver §6 P26.
 
 O `:(glob)` é necessário: sem o magic glob, `*.sh` casaria em qualquer profundidade, e não apenas na raiz.
 
@@ -753,6 +759,20 @@ python-version: "3.12" está corretamente pinado.
 
 ---
 
+### P26 — [M1, quinta auditoria] `CLAUDE.md` fora do conjunto `CODE` do `spec_freeze`
+
+Houve uma **quinta auditoria**. Dela chegou até este registro exatamente um achado, o M1: `CLAUDE.md` deveria entrar no conjunto `CODE` do `spec_freeze`. O texto verbatim do finding **não foi transmitido**, e o veredito e os demais achados da rodada também não — o que fica declarado aqui em vez de suposto, e é consequência direta de **P11**, que mantém a captura de relatório inerte.
+
+**Status: FECHADA em `32bdc05`.**
+
+`CLAUDE.md` é a instrução permanente carregada em toda sessão: define autoridade normativa, os quatro invariantes arquiteturais e as restrições inegociáveis. Alterar a especificação e, no mesmo PR, o documento que diz como obedecê-la é exatamente o acoplamento que a regra existe para impedir.
+
+**O que o achado expôs, além do próprio caminho.** Ao justificar a inclusão, ficou claro que o critério do conjunto `CODE` estava mal formulado. O comentário do workflow dizia "ser executável", e isso nunca foi literalmente verdade: desde `012ce3a` o conjunto já continha `.claude/agents/scenario-designer.md`, `.claude/agents/spec-guardian.md` e `user-scope/agents/checkpoint-auditor.md` — três markdowns que não executam nada e definem comportamento. O critério real sempre foi **ser mecanismo que aplica a spec**, e a formulação foi corrigida no workflow e na tabela do §6 P12.
+
+**Erro de classificação, corrigido.** Este achado foi registrado inicialmente como decisão do operador, porque chegou sem identificação de rodada e o M1 conhecido até então era o da quarta auditoria, sobre `user-scope/`. É a terceira vez nesta fase que IDs se confundem entre rodadas — as duas anteriores estão em §0 —, e todas as três têm a mesma raiz: **P11**. Enquanto o relatório da auditoria não for persistido, cada rodada chega por transcrição manual, sem rodada nem veredito anexados.
+
+---
+
 ## 7. Observações levantadas durante a fase
 
 Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui e se perderiam de outro modo.
@@ -788,8 +808,8 @@ Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afi
 
 Ordem para fechá-la:
 
-1. **Quinta auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. Duas correções entraram depois da quarta rodada — `7302bd1` (procedimento do item 10) e `ee7731d` (`user-scope/` no conjunto `CODE`) — e nenhuma auditoria as examinou. Ambas tocam exatamente o que os passos 3 e 4 vão exercitar.
-2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12 e P18 estão fechadas.
+1. **Sexta auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. O motivo não é formalidade: o critério do conjunto `CODE` foi refinado de "ser executável" para "ser mecanismo que aplica a spec" (§6 P26), e **o conjunto atual nunca foi conferido contra o critério novo**. Se houver uma quarta instância da linhagem P12 → P18 → P26, é o critério corrigido que a encontra. Três correções entraram depois da quarta rodada — `7302bd1`, `ee7731d` e `32bdc05` — e as duas últimas tocam o próprio gate que os passos 3 e 4 vão exercitar.
+2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12, P18 e P26 estão fechadas.
    - **P11** ainda tem efeito sobre a próxima auditoria: enquanto o mecanismo de captura estiver inerte, o veredito precisa ser colado manualmente;
    - **P25** está deliberadamente adiada para a Fase 1 — mexer no `invariants.yml` na véspera de executar os PRs que testam esse mesmo workflow adiciona risco sem necessidade.
 3. `bash finalize_phase0.sh` — vai até branch protection e **para antes da tag**, imprimindo os comandos dos itens 10 e 11 da DoD.
