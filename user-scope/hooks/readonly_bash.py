@@ -17,8 +17,24 @@ ALLOWED = [
     rf"^{SAFE_ENV_PREFIX}range-cli\s+evidence\s+verify\b",
     rf"^{SAFE_ENV_PREFIX}docker\s+compose\s+(ps|logs|config)\b",
     rf"^{SAFE_ENV_PREFIX}python\s+tools/(?:check_[A-Za-z0-9_.-]+\.py|codegen\.py\s+--check)\b",
+    # O harness negativo e a prova central da Fase 0: um verificador que nunca
+    # falhou contra violacao plantada e so um script que sai com zero. Sem esta
+    # entrada o auditor nao consegue executa-lo e passa a auditar por inferencia
+    # de leitura de codigo.
+    #
+    # Excecao deliberada e delimitada: este script PLANTA arquivos temporarios
+    # fora dos verificadores e os remove ao terminar. E escrita instrumental do
+    # proprio teste, nao escrita deliberada do auditor. Nenhum outro caminho sob
+    # scripts/ e liberado.
+    rf"^{SAFE_ENV_PREFIX}python\s+scripts/phase0_negative_tests\.py\s*$",
+    # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
+    # travessia como .claude/hooks/../../x.py nao casa.
+    rf"^{SAFE_ENV_PREFIX}python\s+(?:~/|\$HOME/)?\.claude/hooks/[A-Za-z0-9_.-]+\.py\s*$",
     rf"^{SAFE_ENV_PREFIX}(ls|cat|head|tail|wc|grep|rg|find|tree|diff|stat)\b",
-    rf"^{SAFE_ENV_PREFIX}(pwd|echo|which|env)\b",
+    # printf entra porque os smoke tests alimentam o hook por pipe
+    # (printf '{...}' | python .claude/hooks/x.py) e cada segmento do pipe e
+    # validado isoladamente. Sem escrita: redirecionamento ja e negado acima.
+    rf"^{SAFE_ENV_PREFIX}(pwd|echo|printf|which|env)\b",
 ]
 
 DENIED_ANYWHERE = [
