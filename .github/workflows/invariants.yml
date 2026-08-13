@@ -62,9 +62,14 @@ jobs:
           # restringir a diretorio: CLAUDE.md secao "A especificacao e imutavel
           # durante a implementacao" e docs/process/WORKFLOW.md:25.
           #
-          # O criterio e SER EXECUTAVEL, nao "tudo que nao e docs/spec/".
-          # Por isso docs/process/ fica de fora: e documentacao, e o proprio PR
-          # de spec-change costuma precisar toca-la.
+          # O criterio e SER MECANISMO QUE APLICA A SPEC, nao "tudo que nao e
+          # docs/spec/". Nao e literalmente "ser executavel": o conjunto sempre
+          # incluiu markdown de governanca de agente (.claude/agents/*.md,
+          # user-scope/agents/checkpoint-auditor.md), que nao executa nada mas
+          # define comportamento.
+          #
+          # Por isso docs/process/ fica de fora: e documentacao descritiva, e o
+          # proprio PR de spec-change costuma precisar toca-la.
           #
           # tools/ entra porque e onde vivem os verificadores que a spec
           # normatiza (01_ARCHITECTURE.md secao 2); .claude/ e .github/ porque
@@ -79,11 +84,22 @@ jobs:
           # entrada, o mesmo PR que altera a spec pode enfraquecer o auditor
           # que deveria audita-la.
           #
+          # CLAUDE.md entra pelo mesmo criterio, como instancia de topo: e a
+          # instrucao permanente carregada em toda sessao, e define autoridade,
+          # invariantes e restricoes inegociaveis. Alterar a spec e o documento
+          # que diz como obedece-la no mesmo PR e exatamente o acoplamento que
+          # esta regra existe para impedir.
+          #
+          # Consequencia aceita: o CLAUDE.md espelha partes da spec, entao uma
+          # mudanca normativa exigira dois PRs — o de spec-change e o que
+          # atualiza o CLAUDE.md. Mesmo custo ja aceito para tools/.
+          #
           # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
           # Sem o magic glob, '*.sh' casaria em qualquer profundidade.
           CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
             range-core/ domains/ contracts/ \
-            tools/ scripts/ .claude/ .github/ user-scope/ ':(glob)*.sh' | wc -l)
+            tools/ scripts/ .claude/ .github/ user-scope/ \
+            CLAUDE.md ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
