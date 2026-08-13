@@ -103,6 +103,20 @@ def main() -> int:
     probe_flag = "academus." + "phase0_probe_flag"
 
     flags = """flags:\n  - name: academus.phase0_probe_flag\n    type: boolean\n    default: false\n"""
+
+    # Catalogo minimo no formato de 09_EVENT_MODEL.md secao 4.1, agrupado por
+    # truth_layer. Ate aqui nenhum probe plantava contracts/events.schema.yaml,
+    # entao load_declared_event_types() devolvia sempre {} e METADE do
+    # invariante 2 — o ramo de event_type — nunca foi exercitada. O bloco de
+    # artefatos de evento do codegen tambem nunca era alcancado.
+    eventos = (
+        "event_types:\n"
+        "  ground_truth:\n"
+        "    - fact_materialized\n"
+        "  participant_action:\n"
+        "    - containment_declared\n"
+    )
+    probe_event_type = "containment_declared"
     with temporary_file("domains/academus/flags.yaml", flags), temporary_file(
         "domains/academus/_phase0_probe_literal.py", "FLAG = 'academus.phase0_probe_flag'\n"
     ):
@@ -153,6 +167,16 @@ def main() -> int:
                     [sys.executable, "tools/check_contract_literals.py"],
                     "domains/academus/api/contracts/handler.py")
 
+    # O invariante 2 tem DOIS ramos: literal de flag e literal de event_type.
+    # So o de flag tinha probe.
+    with temporary_file("contracts/events.schema.yaml", eventos), temporary_file(
+        "domains/academus/api/handler.py",
+        "EVENT = " + repr(probe_event_type) + "\n",
+    ):
+        expect_fail("check_contract_literals.py (event_type)",
+                    [sys.executable, "tools/check_contract_literals.py"],
+                    "domains/academus/api/handler.py")
+
     with temporary_file("range-core/_phase0_probe_security.py", "value = eval('1 + 1')\n"):
         expect_fail("check_security_constraints.py", [sys.executable, "tools/check_security_constraints.py"],
                     "range-core/_phase0_probe_security.py")
@@ -199,6 +223,16 @@ def main() -> int:
         expect_fail("codegen.py --check (artefato divergente)",
                     [sys.executable, "tools/codegen.py", "--check"],
                     "domains/_phase0_divergent_probe/generated/flags.py")
+
+    # O codegen tem dois blocos de contrato: flags por adapter e o catalogo de
+    # eventos. O bloco de eventos nunca era alcancado, porque nenhum probe
+    # plantava contracts/events.schema.yaml. O ramo de divergencia de conteudo e
+    # o mesmo codigo ja exercitado pelo probe de flags acima; aqui o que se
+    # prova e que o catalogo de eventos gera expectativa de artefato.
+    with temporary_file("contracts/events.schema.yaml", eventos):
+        expect_fail("codegen.py --check (artefatos de evento)",
+                    [sys.executable, "tools/codegen.py", "--check"],
+                    "contracts/events.schema.yaml")
 
     print("Todos os seis verificadores falharam contra probes independentes.")
     return 0
