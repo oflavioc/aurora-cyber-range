@@ -571,7 +571,9 @@ Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui
 
 **O2 — o commit inicial mistura `docs/spec/` e `tools/`.** As edições de propagação em `docs/spec/` e os seis verificadores entraram no mesmo commit inicial. Isso **não** aciona o job `spec_freeze`: ele roda apenas em `pull_request`, e o conjunto que ele considera "código" é `range-core/`, `domains/` e `contracts/` — `tools/` não está nele.
 
-**Correção após o M1 da terceira auditoria.** Uma versão anterior deste parágrafo classificava a situação como "formalmente conforme". Essa leitura não se sustenta: `CLAUDE.md` §A especificação é imutável e `docs/process/WORKFLOW.md:25` dizem **código**, sem restringir a três diretórios — e `tools/` é justamente onde vivem os verificadores que a spec normatiza. O que existe é uma lacuna no `spec_freeze`, registrada em §6 P12, não conformidade formal.
+**Correção após o M1 da terceira auditoria.** Uma versão anterior deste parágrafo classificava a situação como "formalmente conforme". Essa leitura não se sustenta: `CLAUDE.md` §A especificação é imutável e `docs/process/WORKFLOW.md:25` dizem **código**, sem restringir a três diretórios — e `tools/` é justamente onde vivem os verificadores que a spec normatiza. Era uma lacuna do `spec_freeze`, não conformidade formal.
+
+**Estado atual.** A lacuna foi fechada em `012ce3a` (§6 P12): o conjunto `CODE` passou a incluir `tools/`, `scripts/`, `.claude/`, `.github/` e os `.sh` de raiz. Sob a regra corrigida, o commit inicial **seria reprovado** — o que não é problema, porque ele nasceu em `main` sem PR, e `spec_freeze` só roda em `pull_request`. Ver a observação retroativa em P12.
 
 **O3 — o regime de `spec-change` ainda não estava em vigor.** Por `docs/process/WORKFLOW.md`, a especificação passa a ser imutável a partir da tag `spec-v1.0`. Como ela não existe, as edições em `docs/spec/` feitas nesta fase são parte do bundle inicial, não alteração de spec congelada.
 
