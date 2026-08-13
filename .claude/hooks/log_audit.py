@@ -28,6 +28,18 @@ from pathlib import Path
 
 MAX_REPORT_CHARS = 200_000
 
+#: SubagentStop dispara para QUALQUER subagente da sessao, e o matcher
+#: "^checkpoint-auditor$" de .claude/settings.json nao filtra porque agent_type
+#: chega vazio no payload. Sem esta confirmacao o hook gravava o texto final de
+#: um subagente qualquer como se fosse relatorio de auditoria, inclusive
+#: fabricando veredito a partir dele — e o arquivo resultante sujava a arvore,
+#: bloqueando o proprio launcher da auditoria na verificacao de tree limpo.
+#:
+#: Regra: relatorio so e gravado quando o agente se identifica. Sem
+#: identificacao, registra-se a ocorrencia e NADA mais. Inventar veredito e
+#: pior que nao registrar nenhum.
+EXPECTED_AGENT = "checkpoint-auditor"
+
 
 def main_worktree_root(start: Path) -> Path:
     """Raiz do worktree principal, mesmo quando invocado de um worktree."""
@@ -118,20 +130,26 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
 
+    agent_type = (data.get("agent_type") or "").strip()
+    is_auditor = agent_type == EXPECTED_AGENT
+
     report = ""
-    transcript = data.get("transcript_path")
-    if transcript:
-        report = last_agent_text(Path(transcript))[:MAX_REPORT_CHARS]
+    if is_auditor:
+        transcript = data.get("transcript_path")
+        if transcript:
+            report = last_agent_text(Path(transcript))[:MAX_REPORT_CHARS]
 
     record = {
         "ts": now.isoformat(),
-        "agent_type": data.get("agent_type"),
+        "agent_type": agent_type or None,
         "session_id": data.get("session_id"),
         "cwd": str(cwd),
         "verdict": detect_verdict(report) if report else "sem_relatorio",
         "report_path": None,
+        # Sem isto, um subagente qualquer viraria "auditoria" no historico.
+        "identified_as_auditor": is_auditor,
         # Chaves recebidas, para diagnosticar campo ausente sem adivinhacao:
-        # agent_type veio vazio nas auditorias da Fase 0.
+        # agent_type veio vazio em todas as ocorrencias da Fase 0.
         "payload_keys": sorted(k for k in data.keys() if k != "transcript_path"),
     }
 
