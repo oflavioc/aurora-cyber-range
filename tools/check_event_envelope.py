@@ -42,23 +42,33 @@ FORBIDDEN_FIELD = "objective_ids"
 SCANNED_DIRS = ("range-core", "domains")
 PYTHON_SUFFIXES = (".py",)
 
-#: UNICOS segmentos onde o binding evento->objetivo e legitimo: as projecoes
-#: de 09_EVENT_MODEL.md secao 5 (objective_evidence, metrics, calibration) e o
-#: relatorio. Qualquer outro lugar sob range-core/ ou domains/ e emissao.
+#: UNICOS caminhos onde o binding evento->objetivo e legitimo: as camadas de
+#: projecao do core, de 09_EVENT_MODEL.md secao 5, no layout de
+#: 01_ARCHITECTURE.md secao 2.
 #:
-#: Esta lista e a excecao ao invariante, entao vive aqui em cima, nomeada.
-#: Acrescentar segmento aqui AFROUXA a verificacao — mudanca que exige
-#: justificativa contra 09_EVENT_MODEL.md secao 1.2.
-PROJECTION_DIR_PARTS = frozenset({"objectives", "aar", "metrics", "calibration"})
+#: ANCORADOS a partir da raiz, de proposito. Casar o segmento em qualquer
+#: profundidade isentava domains/<adapter>/api/metrics/ — caminho de emissao de
+#: adapter — porque tinha um segmento "metrics" no meio. Depois que a varredura
+#: passou a ser por negacao, esta lista virou a UNICA fronteira do invariante 4:
+#: isencao larga aqui e o mesmo que nao ter verificacao.
+#:
+#: Acrescentar prefixo aqui AFROUXA o invariante e exige justificativa contra
+#: 09_EVENT_MODEL.md secao 1.2.
+PROJECTION_PREFIXES = (
+    ("range-core", "objectives"),
+    ("range-core", "aar"),
+    ("range-core", "metrics"),
+    ("range-core", "calibration"),
+)
 
 RULE = "INVARIANTE 4 - objective_ids no caminho de emissao"
 ADVICE = "O binding evento->objetivo ocorre na projecao, via observability_hooks.yaml."
 
 
 def _is_emission_path(path: Path) -> bool:
-    """Emissao por padrao; projecao apenas quando declarada acima."""
-    relative = path.resolve().relative_to(REPO_ROOT)
-    return not any(part in PROJECTION_DIR_PARTS for part in relative.parts)
+    """Emissao por padrao; projecao so nos prefixos ancorados declarados acima."""
+    parts = path.resolve().relative_to(REPO_ROOT).parts
+    return not any(parts[: len(prefix)] == prefix for prefix in PROJECTION_PREFIXES)
 
 
 def _hits(tree: ast.Module):

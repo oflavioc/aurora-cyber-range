@@ -53,11 +53,17 @@ from _common import (  # noqa: E402
     report,
 )
 
-#: Onde literais de flag e de event_type sao legitimos.
-#: contracts/ guarda as fontes canonicas; */generated/ guarda os artefatos do
-#: codegen; tools/codegen.py e quem os produz.
-AUTHORIZED_DIR_PARTS = frozenset({"contracts", GENERATED_DIR})
+#: Onde literais de flag e de event_type sao legitimos, ANCORADO a partir da
+#: raiz: contracts/ guarda as fontes canonicas, domains/<adapter>/generated/ e
+#: contracts/generated/ guardam os artefatos, tools/codegen.py os produz.
+#:
+#: Casar o segmento em qualquer profundidade autorizava
+#: domains/<adapter>/api/contracts/handler.py a conter literal de flag, so por
+#: ter um segmento "contracts" no meio do caminho. Isencao e a excecao ao
+#: invariante 2: larga demais, ela o anula.
 AUTHORIZED_FILES = frozenset({"tools/codegen.py"})
+CONTRACTS_ROOT = "contracts"
+DOMAINS_ROOT = "domains"
 
 SCANNED_DIRS = ("range-core", "domains")
 PYTHON_SUFFIXES = (".py",)
@@ -70,7 +76,12 @@ def _is_authorized(path: Path) -> bool:
     relative = path.resolve().relative_to(REPO_ROOT)
     if relative.as_posix() in AUTHORIZED_FILES:
         return True
-    return any(part in AUTHORIZED_DIR_PARTS for part in relative.parts)
+    parts = relative.parts
+    # contracts/... (inclui contracts/generated/)
+    if parts[:1] == (CONTRACTS_ROOT,):
+        return True
+    # domains/<adapter>/generated/...
+    return len(parts) > 3 and parts[0] == DOMAINS_ROOT and parts[2] == GENERATED_DIR
 
 
 def _string_constants(tree: ast.Module):

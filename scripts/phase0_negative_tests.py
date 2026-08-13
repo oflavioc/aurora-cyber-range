@@ -131,6 +131,28 @@ def main() -> int:
         expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"],
                     "range-core/engine/_phase0_probe_event.py")
 
+    # Isencao de projecao e ANCORADA. Este caminho tem um segmento "metrics" no
+    # meio, mas e caminho de emissao de adapter: so range-core/metrics/ e
+    # projecao. Isencao casando segmento em qualquer profundidade anulava o
+    # invariante 4 justamente onde ele passou a ser a unica fronteira.
+    with temporary_file(
+        "domains/academus/api/metrics/emit.py",
+        "event = {'event_type': 'PROBE', 'objective_ids': ['OBJ-X']}\n",
+    ):
+        expect_fail("check_event_envelope.py (isencao ancorada)",
+                    [sys.executable, "tools/check_event_envelope.py"],
+                    "domains/academus/api/metrics/emit.py")
+
+    # Mesma correcao no invariante 2: um segmento "contracts" no meio do
+    # caminho nao autoriza literal de flag.
+    with temporary_file("domains/academus/flags.yaml", flags), temporary_file(
+        "domains/academus/api/contracts/handler.py",
+        "FLAG = " + repr(probe_flag) + "\n",
+    ):
+        expect_fail("check_contract_literals.py (isencao ancorada)",
+                    [sys.executable, "tools/check_contract_literals.py"],
+                    "domains/academus/api/contracts/handler.py")
+
     with temporary_file("range-core/_phase0_probe_security.py", "value = eval('1 + 1')\n"):
         expect_fail("check_security_constraints.py", [sys.executable, "tools/check_security_constraints.py"],
                     "range-core/_phase0_probe_security.py")
