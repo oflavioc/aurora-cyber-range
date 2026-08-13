@@ -29,6 +29,20 @@ jobs:
       - name: constantes geradas em dia
         run: python tools/codegen.py --check
 
+      # Prova central da Fase 0: um verificador que nunca falhou contra uma
+      # violacao plantada nao e verificador, e um script que sai com zero. Os
+      # steps acima provam que a arvore esta limpa; este prova que os
+      # verificadores ainda enxergam. Sem ele, um commit que enfraqueca um
+      # verificador mantem o CI verde indefinidamente.
+      #
+      # Fica em `arquitetura`, e nao em job proprio, porque branch protection
+      # exige exatamente os contexts arquitetura, spec_freeze e seguranca
+      # (docs/process/WORKFLOW.md). Um job novo nao seria obrigatorio e
+      # poderia falhar sem bloquear o merge — que e o buraco que este step
+      # existe para fechar.
+      - name: teste negativo dos seis verificadores
+        run: python scripts/phase0_negative_tests.py
+
   spec_freeze:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
