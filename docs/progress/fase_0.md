@@ -769,6 +769,14 @@ O auditor está estruturalmente impedido de executar o teste canônico do item 4
 
 Os cinco modos conhecidos: `|` entre aspas (P8); `merge-base` casando como `merge` e `2>&1` como redirecionamento (P16); `->` entre aspas como redirecionamento (P23); e agora o payload JSON contendo `rm -rf`. Todos são a mesma causa — casamento textual sem tokenização — e nenhum é corrigível por acrescentar exceção sem reintroduzir o problema em outra forma.
 
+**Status: FECHADA em `7a67305`.** Quatro rodadas de correção caso a caso não convergiram, exatamente como a linhagem previa. A causa foi trocada, não o sintoma: `shlex` tokeniza respeitando aspas, `punctuation_chars=True` transforma operador de shell em token próprio, e a decisão passou a olhar a **palavra de comando** de cada segmento. Conteúdo de argumento nunca mais é interpretado como comando.
+
+Os cinco modos passam. O (e) foi verificado ponta a ponta: o smoke test de `PHASE_0_CHECKLIST.md:71-73` agora executa, e o hook segue devolvendo `exit=2` para `rm -rf` real — o auditor deixou de estar impedido de rodar o teste canônico do item que audita.
+
+**A direção inversa não afrouxou, e três buracos fecharam.** A allowlist passou a ser positiva. Redirecionamento de saída só passa para `/dev/null`. A tokenização permitiu bloquear o que o regex não via: `env CMD` como trampolim de execução, `git branch -D`, e `find -exec/-delete`. Crase é negada; entrada que não tokeniza é negada (falha fechada).
+
+**O harness passou a cobrir as duas direções** — 7 probes de leitura legítima e 13 de escrita deliberada. Esta é a lição da linhagem, e vale além deste arquivo: o harness cobria "nega escrita" e nunca "libera leitura", e por isso quatro rodadas seguidas produziram falso bloqueio **sem nenhum teste reprovar**. Um guarda testado só contra o que deve bloquear converge para bloquear tudo. Um probe adicional compara a fonte versionada com a cópia instalada em `~/.claude/hooks/`, que é a que efetivamente roda: divergência silenciosa entre as duas é o pior caso. Ausente a cópia instalada (CI), avisa e segue.
+
 ### P24 — [L4, quarta auditoria] `check_security_constraints.py` não varre os hooks — reconfirma e amplia P9
 
 ```text
