@@ -98,6 +98,36 @@ Da quinta rodada chegou a este registro exatamente **um** achado — o M1, sobre
 
 A causa é **P11**: sem persistência do relatório, cada rodada chega por transcrição manual, e o que não for transcrito não existe para este registro. O mesmo mecanismo produziu a terceira confusão de IDs entre rodadas desta fase — o achado foi inicialmente classificado como decisão do operador, porque chegou sem identificação de rodada e o M1 conhecido até então era o da quarta auditoria.
 
+### Sexta auditoria: PASS, sem BLOCKER e sem HIGH
+
+**Veredito PASS.** 0 BLOCKER, 0 HIGH, 3 MEDIUM, 6 LOW.
+
+Rodada pedida para conferir o conjunto `CODE` contra o critério refinado — "ser mecanismo que aplica a spec" —, já que as três instâncias anteriores da linhagem tinham sido encontradas sob a formulação antiga, uma de cada vez.
+
+| ID | Severidade | Resumo | Destino |
+|---|---|---|---|
+| M1 | MEDIUM | `.gitignore` fora do conjunto `CODE` — quarta instância da linhagem | corrigido em `b2fb8c2` — §6 P27 |
+| M2 | MEDIUM | Deny de secrets sem `Write` | aberta, 3ª rodada — §6 P19 |
+| M3 | MEDIUM | `check_event_envelope.py` só varre `.py` | aberta, 3ª rodada — §6 P20 |
+| L1 | LOW | `tools/README.md` e `README_FIRST.md` desatualizados | aberta, 3ª rodada — §6 P21 |
+| L2 | LOW | `README_FIRST.md` e `PHASE_0_CHECKLIST.md` descrevem o `finalize` anterior ao H2 | aberta, 2ª rodada — §6 P22 |
+| L3 | LOW | Hook do auditor bloqueia leitura legítima — **modo novo, ver abaixo** | aberta, 4ª rodada — §6 P23 |
+| L4 | LOW | `check_security_constraints.py` não varre os hooks | aberta, 3ª rodada — §6 P24 |
+| L5 | LOW | Actions do CI presas a tag major mutável | aberta, 2ª rodada — §6 P25 |
+| L6 | LOW | `.env.example` inexistente, tratado como presente | aberta, 2ª rodada — §6 P17 |
+
+**A varredura da linhagem fechou.** Com `.gitignore` incluído, tudo que resta versionado fora do conjunto `CODE` e fora de `docs/spec/` é documentação descritiva: `CHANGELOG_V3.md`, `README_FIRST.md`, `docs/process/` e `docs/progress/`. A linhagem levou quatro rodadas — P12, P18, P26, P27 — e a quarta instância só apareceu depois de o critério ser corrigido, que é exatamente o argumento que motivou esta auditoria.
+
+**O achado mais notável não é um finding, é o modo novo do L3.** O smoke test canônico prescrito em `PHASE_0_CHECKLIST.md:71-73` — o que valida o item 4 da DoD — **é bloqueado pelo próprio hook que ele testa**, porque `DENIED_ANYWHERE` casa `rm -rf` dentro do payload JSON entre aspas. Reproduzido: `rc=2`, com a mensagem "comando de escrita".
+
+O auditor está estruturalmente impedido de executar o teste canônico do item 4. É a mesma classe do **H4** da primeira auditoria, que foi classificado HIGH justamente por impedir o auditor de rodar a prova central — e sobreviveu quatro rodadas depois dele por estar em uma família tratada como LOW.
+
+### Dois itens de DoD apurados por execução nesta rodada
+
+**Item 5 deixa de ser parcial.** As duas metades foram exercitadas: `Write` em `range-core/nope.py` bloqueado com `exit=2`, e `scenario_bash.py` distinguindo `git log --oneline` (`exit=2`) de `range-cli scenario validate` (`exit=0`). O registro marcava a allowlist de Bash como não exercitada desde o primeiro `fase_0.md`; está exercitada e funciona.
+
+**Item 4 permanece parcial**, agora com cinco modos documentados no L3/P23, incluindo o bloqueio do próprio smoke test canônico.
+
 **Dois desses findings acusam este próprio registro de imprecisão, e ambos procedem:**
 
 - o **M1** contesta a classificação "formalmente conforme" que o §7 O2 dava ao commit inicial misturar `docs/spec/` e `tools/`. O texto normativo do `CLAUDE.md` diz *código*, não "range-core, domains e contracts". O O2 foi corrigido;
@@ -261,8 +291,8 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ parcial — H4 corrigido (harness e hooks liberados), mas comandos de leitura legítimos seguem bloqueados: `\|` entre aspas (§6 P8), `merge-base`, `2>&1`, `for-each-ref`, `sort` (§6 P16) |
-| 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ⚠️ parcial — escopo de Write/Edit verificado; allowlist de Bash (`scenario_bash.py`) **não** exercitada |
+| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ parcial — H4 corrigido, mas cinco modos de bloqueio indevido persistem (§6 P23), incluindo **o próprio smoke test canônico do item 4**, que o hook impede o auditor de executar |
+| 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas na sexta auditoria**: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` distingue `git log --oneline` (`exit=2`) de `range-cli scenario validate` (`exit=0`) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ⚠️ parcial — `Read` e `Edit` de `.env`, `.env.*` e `secrets/**` negados; **`Write` não** (§6 P13). Leitura, que é o risco principal, está coberta; criação e sobrescrita não |
 | 8 | Auto Mode desabilitado para este projeto | ✅ `defaultMode: default`, `disableAutoMode: disable` |
@@ -610,6 +640,8 @@ disponibilidade que não existe.
 
 **Status.** Aberta. A própria auditoria reconhece a lacuna como defensável no tempo — a Fase 0 não tem aplicação e `RANDOM_SEED` é DoD da Fase 1. O defeito imediato é o texto do `WORKFLOW.md` afirmar disponibilidade inexistente, terceira ocorrência da categoria do P10/P15 nesta rodada.
 
+**Reconfirmada na sexta auditoria (L6): segunda rodada.**
+
 ---
 
 As oito pendências seguintes vêm da **quarta auditoria**. IDs a partir de P18, sem colisão com P1–P17. Cinco delas reconfirmam pendências anteriores: o texto novo fica aqui, e a pendência original recebe ponteiro.
@@ -656,7 +688,7 @@ Edit e Write são ferramentas distintas nesta configuração está no próprio a
 settings.json:18 usa "matcher": "Edit|Write".
 ```
 
-**Status.** Aberta. Mesmo defeito de **P13**; segunda auditoria consecutiva a levantá-lo. Mantém o item 7 da DoD (§5) em parcial.
+**Status.** Aberta. Mesmo defeito de **P13**; segunda auditoria consecutiva a levantá-lo. Mantém o item 7 da DoD (§5) em parcial. **Reconfirmada na sexta auditoria (M2): terceira rodada.**
 
 ### P20 — [M4, quarta auditoria] `check_event_envelope.py` só varre `.py` — reconfirma P14
 
@@ -671,7 +703,7 @@ restrição a .py. A lacuna está registrada em fase_0.md P14, mas continua invi
 para quem lê apenas o verificador.
 ```
 
-**Status.** Aberta. Mesmo defeito de **P14**. A auditoria reforça o ponto que o P14 já fazia: registrar a lacuna no `fase_0.md` não a torna visível para quem abre o verificador — a declaração precisa estar no arquivo.
+**Status.** Aberta. Mesmo defeito de **P14**. A auditoria reforça o ponto que o P14 já fazia: registrar a lacuna no `fase_0.md` não a torna visível para quem abre o verificador — a declaração precisa estar no arquivo. **Reconfirmada na sexta auditoria (M3): terceira rodada.**
 
 ### P21 — [L1, quarta auditoria] `tools/README.md` e `README_FIRST.md` desatualizados — reconfirma P15
 
@@ -683,7 +715,7 @@ Evidência: os seis existem e saem 0 (medido nesta sessão). tools/README.md:1 a
 se intitula "verificadores a implementar".
 ```
 
-**Status.** Aberta. Mesmo defeito de **P15**.
+**Status.** Aberta. Mesmo defeito de **P15**. **Reconfirmada na sexta auditoria (L1): terceira rodada.**
 
 ### P22 — [L2, quarta auditoria] `README_FIRST.md` e `PHASE_0_CHECKLIST.md` descrevem o `finalize` anterior ao H2
 
@@ -704,6 +736,8 @@ pelo próprio delta que esta auditoria foi chamada a examinar.
 **Status.** Aberta. **Criada pela minha correção do H2** em `6567b2b`. Mudei o fluxo do script, atualizei o `fase_0.md` e não toquei nos dois textos que descrevem o script para o operador — que são justamente os que ele lê primeiro.
 
 Quarta ocorrência da categoria nesta fase, depois de P10, P15 e P17. As três anteriores eram herdadas do bundle inicial; esta eu produzi, com a categoria já nomeada e registrada duas vezes. Isso a torna a mais informativa das oito.
+
+**Reconfirmada na sexta auditoria (L2): segunda rodada.**
 
 ### P23 — [L3, quarta auditoria] Hook do auditor segue bloqueando leitura legítima — reconfirma P8 e P16
 
@@ -727,6 +761,14 @@ o H4 ser HIGH.
 
 Os três juntos deixam claro que o defeito não é uma lista de casos, e sim a abordagem: `readonly_bash.py` faz casamento textual sem consciência de sintaxe de shell. Corrigir caso a caso vai continuar produzindo achados; o encaminhamento provável é tokenizar o comando antes de decidir.
 
+**Reconfirmada na sexta auditoria (L3): quarta rodada, com o quinto modo — e é o mais grave.**
+
+O smoke test canônico prescrito em `docs/process/PHASE_0_CHECKLIST.md:71-73`, que valida o **item 4 da DoD**, é bloqueado pelo próprio hook que ele testa: `DENIED_ANYWHERE` casa `rm -rf` dentro do payload JSON entre aspas. Reproduzido, `rc=2`, mensagem "comando de escrita".
+
+O auditor está estruturalmente impedido de executar o teste canônico do item 4 — a mesma classe do **H4** da primeira auditoria, que foi classificado HIGH exatamente por impedir o auditor de rodar a prova central. A diferença é que o H4 foi tratado como HIGH e fechado em uma rodada, enquanto este sobreviveu quatro rodadas por estar numa família tratada como LOW.
+
+Os cinco modos conhecidos: `|` entre aspas (P8); `merge-base` casando como `merge` e `2>&1` como redirecionamento (P16); `->` entre aspas como redirecionamento (P23); e agora o payload JSON contendo `rm -rf`. Todos são a mesma causa — casamento textual sem tokenização — e nenhum é corrigível por acrescentar exceção sem reintroduzir o problema em outra forma.
+
 ### P24 — [L4, quarta auditoria] `check_security_constraints.py` não varre os hooks — reconfirma e amplia P9
 
 ```text
@@ -740,7 +782,7 @@ auditor. Nenhum dos seis verificadores olha para esses caminhos. P9 cita só
 .claude/hooks/; user-scope/hooks/ é ampliação.
 ```
 
-**Status.** Aberta. Amplia **P9** para `user-scope/hooks/`.
+**Status.** Aberta. Amplia **P9** para `user-scope/hooks/`. **Reconfirmada na sexta auditoria (L4): terceira rodada.**
 
 Conversava diretamente com o P18: `user-scope/` estava fora do conjunto `CODE` do `spec_freeze` **e** fora do escopo do verificador de segurança — o diretório menos vigiado do repositório, contendo o hook que restringe o auditor. Com o P18 fechado em `ee7731d`, resta a segunda metade: `user-scope/hooks/` e `.claude/hooks/` seguem fora de `SCANNED_DIRS`.
 
@@ -755,7 +797,7 @@ Evidência: actions/checkout@v4 e actions/setup-python@v5 são tags móveis, nã
 python-version: "3.12" está corretamente pinado.
 ```
 
-**Status.** Aberta, **deliberadamente adiada para a Fase 1**. Mexer no `invariants.yml` na véspera de executar os PRs descartáveis que testam esse mesmo workflow adiciona risco sem necessidade: se algo quebrar, quebra exatamente na demonstração dos itens 10 e 11. A decisão de adiar é do operador e está registrada aqui para não parecer esquecimento.
+**Status.** Aberta, **deliberadamente adiada para a Fase 1**. **Reconfirmada na sexta auditoria (L5): segunda rodada.** Mexer no `invariants.yml` na véspera de executar os PRs descartáveis que testam esse mesmo workflow adiciona risco sem necessidade: se algo quebrar, quebra exatamente na demonstração dos itens 10 e 11. A decisão de adiar é do operador e está registrada aqui para não parecer esquecimento.
 
 ---
 
@@ -770,6 +812,45 @@ Houve uma **quinta auditoria**. Dela chegou até este registro exatamente um ach
 **O que o achado expôs, além do próprio caminho.** Ao justificar a inclusão, ficou claro que o critério do conjunto `CODE` estava mal formulado. O comentário do workflow dizia "ser executável", e isso nunca foi literalmente verdade: desde `012ce3a` o conjunto já continha `.claude/agents/scenario-designer.md`, `.claude/agents/spec-guardian.md` e `user-scope/agents/checkpoint-auditor.md` — três markdowns que não executam nada e definem comportamento. O critério real sempre foi **ser mecanismo que aplica a spec**, e a formulação foi corrigida no workflow e na tabela do §6 P12.
 
 **Erro de classificação, corrigido.** Este achado foi registrado inicialmente como decisão do operador, porque chegou sem identificação de rodada e o M1 conhecido até então era o da quarta auditoria, sobre `user-scope/`. É a terceira vez nesta fase que IDs se confundem entre rodadas — as duas anteriores estão em §0 —, e todas as três têm a mesma raiz: **P11**. Enquanto o relatório da auditoria não for persistido, cada rodada chega por transcrição manual, sem rodada nem veredito anexados.
+
+---
+
+### P27 — [M1, sexta auditoria] `.gitignore` fora do conjunto `CODE` — quarta instância da linhagem
+
+```text
+[M1] .gitignore está fora do conjunto CODE do spec_freeze — quarta instância da
+linhagem P12/P18/P26
+Arquivo: .github/workflows/invariants.yml:99-102
+Requisito violado: CLAUDE.md §"A especificação é imutável durante a implementação"
+("Alterar spec e código no mesmo PR é proibido"); docs/process/WORKFLOW.md:25;
+05_SECURITY_REQUIREMENTS.md §6 (".env.example versionado; .env no .gitignore")
+Evidência: medido. git ls-files retorna 39 arquivos versionados; git ls-files --
+range-core/ domains/ contracts/ tools/ scripts/ .claude/ .github/ user-scope/
+CLAUDE.md ':(glob)*.sh' retorna 23, e .gitignore não está entre eles. Os arquivos
+versionados fora do conjunto CODE e fora de docs/spec/ são seis: .gitignore,
+CHANGELOG_V3.md, README_FIRST.md, docs/process/PHASE_0_CHECKLIST.md,
+docs/process/WORKFLOW.md, docs/progress/fase_0.md. Cinco são documentação
+descritiva, e a exclusão deles está justificada em invariants.yml:71-72 e na
+tabela de fase_0.md §6 P12. O .gitignore não é documentação e nunca foi
+classificado em nenhuma das três rodadas da linhagem — não aparece na tabela do
+P12, nem no P18, nem no P26.
+Por que é MEDIUM: pelo critério vigente — "ser mecanismo que aplica a spec"
+(invariants.yml:65) — o .gitignore é mecanismo, não descrição: é ele que executa
+05_SECURITY_REQUIREMENTS.md §6 e §Nunca commitar do CLAUDE.md, e é o objeto
+exclusivo do item 6 da DoD (ground_truth.yaml e GM_NOTES.md não podem estar
+nele). Consequência concreta: um PR que altere
+docs/spec/05_SECURITY_REQUIREMENTS.md e, no mesmo commit, remova .env do
+.gitignore ou acrescente ground_truth.yaml a ele produz CODE=0 e passa no gate.
+Mesma severidade das três instâncias anteriores, pela mesma razão estrutural.
+```
+
+**Status: FECHADA em `b2fb8c2`.** Conjunto `CODE` de 23 para 24 arquivos.
+
+**Fecha a linhagem.** Com `.gitignore` incluído, tudo que resta versionado fora do conjunto `CODE` e fora de `docs/spec/` é documentação descritiva. A varredura pedida no §8 item 1, sob o critério refinado, está feita.
+
+**O que a linhagem inteira ensina.** Quatro instâncias, quatro rodadas — P12 (`tools/`, `scripts/`, `.claude/`, `.github/`), P18 (`user-scope/`), P26 (`CLAUDE.md`), P27 (`.gitignore`). As três primeiras foram encontradas sob a formulação "ser executável", uma por rodada, cada uma parecendo a última. A quarta só apareceu depois de o critério ser reformulado para "ser mecanismo que aplica a spec" e de alguém varrer o conjunto **inteiro** contra ele, em vez de julgar caminho por caminho. Enumerar exceções uma a uma converge devagar; conferir o conjunto todo contra o critério converge de uma vez.
+
+Uma discrepância menor de medição: o finding cita 39 arquivos versionados e a medição local devolve 40 — diferença de um commit de registro entre a auditoria e a correção. A lista dos seis arquivos fora do conjunto bate exatamente, que é a afirmação substantiva.
 
 ---
 
@@ -808,8 +889,9 @@ Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afi
 
 Ordem para fechá-la:
 
-1. **Sexta auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. O motivo não é formalidade: o critério do conjunto `CODE` foi refinado de "ser executável" para "ser mecanismo que aplica a spec" (§6 P26), e **o conjunto atual nunca foi conferido contra o critério novo**. Se houver uma quarta instância da linhagem P12 → P18 → P26, é o critério corrigido que a encontra. Três correções entraram depois da quarta rodada — `7302bd1`, `ee7731d` e `32bdc05` — e as duas últimas tocam o próprio gate que os passos 3 e 4 vão exercitar.
-2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12, P18 e P26 estão fechadas.
+1. **Sétima auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. A sexta fechou a linhagem do conjunto `CODE` (§6 P27), mas a correção que a fechou — `b2fb8c2` — não foi auditada, e ela toca o gate que os passos 3 e 4 vão exercitar.
+2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12, P18, P26 e P27 estão fechadas.
+   - **P23** merece decisão antes das demais: seu quinto modo impede o auditor de executar o smoke test canônico do item 4 da DoD. É a mesma classe do H4, que foi HIGH, e sobreviveu quatro rodadas por estar numa família tratada como LOW.
    - **P11** ainda tem efeito sobre a próxima auditoria: enquanto o mecanismo de captura estiver inerte, o veredito precisa ser colado manualmente;
    - **P25** está deliberadamente adiada para a Fase 1 — mexer no `invariants.yml` na véspera de executar os PRs que testam esse mesmo workflow adiciona risco sem necessidade.
 3. `bash finalize_phase0.sh` — vai até branch protection e **para antes da tag**, imprimindo os comandos dos itens 10 e 11 da DoD.
