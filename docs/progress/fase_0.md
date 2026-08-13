@@ -275,7 +275,7 @@ O script parava de declarar "FASE 0 CONCLUÍDA" e criar `spec-v1.0` sem que 10 e
 
 **Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ✅ **com ressalva** — quatro auditorias: FAIL; PASS com três correções; PASS com dois HIGH; e **PASS sem BLOCKER e sem HIGH** (§0). Por `WORKFLOW.md` §Ciclo por fase, o critério de bloqueio é BLOCKER e HIGH, e a quarta rodada não tem nenhum dos dois. O único MEDIUM que a auditoria pediu para fechar antes dos itens 10 e 11 está corrigido (`7302bd1`).
 
-A ressalva: oito pendências da quarta rodada seguem abertas (§6 P18–P25), e **P18 toca o próprio `spec_freeze`** que os itens 10 e 11 vão demonstrar.
+A ressalva: sete pendências da quarta rodada seguem abertas (§6 P19–P25). A oitava, **P18**, tocava o próprio `spec_freeze` que os itens 10 e 11 vão demonstrar, e por isso foi corrigida em `ee7731d` antes deles.
 
 ### Estado do repositório neste registro
 
@@ -728,7 +728,9 @@ auditor. Nenhum dos seis verificadores olha para esses caminhos. P9 cita só
 .claude/hooks/; user-scope/hooks/ é ampliação.
 ```
 
-**Status.** Aberta. Amplia **P9** para `user-scope/hooks/`. Conversa diretamente com o P18: `user-scope/` está fora do conjunto `CODE` do `spec_freeze` **e** fora do escopo do verificador de segurança — é o diretório menos vigiado do repositório, e contém o hook que restringe o auditor.
+**Status.** Aberta. Amplia **P9** para `user-scope/hooks/`.
+
+Conversava diretamente com o P18: `user-scope/` estava fora do conjunto `CODE` do `spec_freeze` **e** fora do escopo do verificador de segurança — o diretório menos vigiado do repositório, contendo o hook que restringe o auditor. Com o P18 fechado em `ee7731d`, resta a segunda metade: `user-scope/hooks/` e `.claude/hooks/` seguem fora de `SCANNED_DIRS`.
 
 ### P25 — [L5, quarta auditoria] Actions do CI presas a tag major mutável
 
