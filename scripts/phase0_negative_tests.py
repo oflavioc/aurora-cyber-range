@@ -69,8 +69,12 @@ def main() -> int:
     ):
         expect_fail("check_contract_literals.py", [sys.executable, "tools/check_contract_literals.py"])
 
+    # Plantado em range-core/engine/, NAO em um diretorio "api"/"events": a
+    # versao anterior do verificador so varria esses dois segmentos e o probe
+    # antigo passava sem nunca tocar a fronteira real. 01_ARCHITECTURE.md
+    # secao 6 declara o inject-engine como emissor de eventos de effect.
     with temporary_file(
-        "domains/academus/api/_phase0_probe_event.py",
+        "range-core/engine/_phase0_probe_event.py",
         "event = {'event_type': 'PROBE', 'objective_ids': ['OBJ-X']}\n",
     ):
         expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"])

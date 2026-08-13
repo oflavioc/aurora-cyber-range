@@ -54,9 +54,13 @@ def check_flag_literals(path: str, content: str) -> None:
 
 def check_objective_ids_in_events(path: str, content: str) -> None:
     norm = path.replace("\\", "/")
-    if not any(seg in norm for seg in ("/events/", "/api/", "domains/")):
+    # Negacao por padrao, espelhando tools/check_event_envelope.py: todo o core
+    # e todo dominio sao caminho de emissao, exceto projecao e pontuacao. A
+    # allowlist anterior ("/events/", "/api/") nao via engine/, clock/, state/,
+    # telemetry/, evidence/ nem rubrics/.
+    if not any(seg in norm for seg in ("range-core/", "domains/")):
         return
-    if "/objectives/" in norm or "/aar/" in norm:
+    if any(seg in norm for seg in ("/objectives/", "/aar/", "/metrics/", "/calibration/")):
         return
     match = re.search(r"objective_ids", content)
     if match:

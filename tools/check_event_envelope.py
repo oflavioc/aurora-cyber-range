@@ -7,9 +7,15 @@ O binding evento -> objetivo ocorre na projecao, via observability_hooks.yaml.
 Se a aplicacao souber que uma acao satisfaz um objetivo, o dominio passa a
 conhecer o desenho de exercicio e a fronteira core/adapter vaza.
 
-Caminho de emissao varrido: range-core/events/, range-core/api/, qualquer
-*/api/ e todo domains/. Projecao e relatorio ficam de fora — e la que o
-binding e legitimo.
+A varredura e por NEGACAO: todo range-core/ e todo domains/ sao caminho de
+emissao, exceto as camadas de projecao e pontuacao, unico lugar onde o binding
+e legitimo.
+
+A versao anterior usava allowlist de segmentos ("events", "api") e por isso
+nao enxergava range-core/engine/, /clock/, /state/, /telemetry/, /evidence/
+nem /rubrics/ — sendo que 01_ARCHITECTURE.md secao 6 declara o inject-engine
+como emissor de eventos de effect. Allowlist de diretorio falha em silencio a
+cada diretorio novo; negacao por padrao falha para o lado seguro.
 """
 from __future__ import annotations
 
@@ -36,25 +42,23 @@ FORBIDDEN_FIELD = "objective_ids"
 SCANNED_DIRS = ("range-core", "domains")
 PYTHON_SUFFIXES = (".py",)
 
-#: Dentro do caminho de emissao, so estes segmentos justificam a presenca do
-#: campo: sao as camadas de projecao e de relatorio.
+#: UNICOS segmentos onde o binding evento->objetivo e legitimo: as projecoes
+#: de 09_EVENT_MODEL.md secao 5 (objective_evidence, metrics, calibration) e o
+#: relatorio. Qualquer outro lugar sob range-core/ ou domains/ e emissao.
+#:
+#: Esta lista e a excecao ao invariante, entao vive aqui em cima, nomeada.
+#: Acrescentar segmento aqui AFROUXA a verificacao — mudanca que exige
+#: justificativa contra 09_EVENT_MODEL.md secao 1.2.
 PROJECTION_DIR_PARTS = frozenset({"objectives", "aar", "metrics", "calibration"})
-
-#: Segmentos que caracterizam caminho de emissao de evento.
-EMISSION_DIR_PARTS = frozenset({"events", "api"})
 
 RULE = "INVARIANTE 4 - objective_ids no caminho de emissao"
 ADVICE = "O binding evento->objetivo ocorre na projecao, via observability_hooks.yaml."
 
 
 def _is_emission_path(path: Path) -> bool:
+    """Emissao por padrao; projecao apenas quando declarada acima."""
     relative = path.resolve().relative_to(REPO_ROOT)
-    parts = relative.parts
-    if any(part in PROJECTION_DIR_PARTS for part in parts):
-        return False
-    if parts and parts[0] == "domains":
-        return True
-    return any(part in EMISSION_DIR_PARTS for part in parts)
+    return not any(part in PROJECTION_DIR_PARTS for part in relative.parts)
 
 
 def _hits(tree: ast.Module):
