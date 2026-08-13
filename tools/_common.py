@@ -15,8 +15,13 @@ Codigos de saida usados pelos verificadores:
     1  violacao encontrada
     2  erro de ferramenta ou de contrato malformado
 
-Qualquer valor diferente de zero conta como deteccao para
-scripts/phase0_negative_tests.py.
+Os tres codigos sao distintos de proposito, e scripts/phase0_negative_tests.py
+exige EXATAMENTE 1 para contar como deteccao. Um verificador que sai 2 quebrou
+ao ser executado — nao enxergou a violacao — e tratar isso como deteccao faria
+o teste negativo provar o oposto do que promete.
+
+Nao relaxe esta distincao: reportar violacao com 2, ou erro de ferramenta com
+1, derruba a garantia do teste negativo sem que nada fique vermelho.
 """
 from __future__ import annotations
 
