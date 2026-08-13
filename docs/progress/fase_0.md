@@ -60,7 +60,7 @@ PASS sem blocker, mas com dois HIGH — e por `docs/process/WORKFLOW.md` §Ciclo
 |---|---|---|---|
 | H2 | HIGH | `finalize_phase0.sh` declarava "FASE 0 CONCLUÍDA" e criava `spec-v1.0` sem executar os itens 10 e 11 da DoD | corrigido em `6567b2b` |
 | H1 | HIGH | Ramo de `event_type` do invariante 2 e bloco de artefatos de evento do `codegen` sem probe algum | corrigido em `154cb00` |
-| M1 | MEDIUM | `spec_freeze` define "código" como só três diretórios; `tools/`, `scripts/`, `.claude/` e `.github/` ficam fora | **pendência aberta** — §6 P12 |
+| M1 | MEDIUM | `spec_freeze` define "código" como só três diretórios; `tools/`, `scripts/`, `.claude/` e `.github/` ficam fora | corrigido em `012ce3a` — §6 P12 |
 | M2 | MEDIUM | Deny de secrets cobre `Read` e `Edit`, mas não `Write` | **pendência aberta** — §6 P13 |
 | M3 | MEDIUM | `check_event_envelope.py` só varre `.py`; camada web fora do invariante 4, sem declaração | **pendência aberta** — §6 P14 |
 | L1 | LOW | `tools/README.md` e `README_FIRST.md` ainda instruem que os seis verificadores não existem | **pendência aberta** — §6 P15 |
@@ -445,9 +445,26 @@ conforme" — leitura que a auditoria não sustenta: o texto normativo diz "cód
 não "range-core, domains e contracts".
 ```
 
-**Status.** Aberta. O §7 O2 foi corrigido para deixar de classificar a situação como conforme; a **lacuna do gate permanece**. É a mesma separação aplicada ao P11: corrigir o registro não é corrigir o mecanismo.
+**Status: FECHADA em `012ce3a`.** Corrigida **antes** dos itens 10 e 11 da DoD, de propósito: são eles que demonstram o `spec_freeze`, e a tag `spec-v1.0` congela a especificação confiando nesse gate. Demonstrar um gate estreito não é demonstrar o gate que a spec descreve.
 
-**Peso.** Esta é a pendência de maior consequência entre as seis. O H2 da mesma rodada garantiu que a tag só nasça depois de o `spec_freeze` ser demonstrado — mas se a definição de "código" do gate for estreita demais, o que será demonstrado é um gate que deixa passar exatamente o caso que o commit inicial desta fase produziu.
+O critério adotado é **ser executável**, não "tudo que não é `docs/spec/`":
+
+| Entra no conjunto `CODE` | Por quê |
+|---|---|
+| `range-core/`, `domains/`, `contracts/` | conjunto original |
+| `tools/` | os verificadores que a spec normatiza (`01_ARCHITECTURE.md` §2) |
+| `scripts/` | harness negativo e launcher de auditoria |
+| `.claude/` | hooks — o mecanismo que aplica a própria spec |
+| `.github/` | CI, idem |
+| `bootstrap.sh`, `finalize_phase0.sh` | executáveis de raiz, via `:(glob)*.sh` |
+
+`docs/process/` **não** entra: é documentação, e o próprio PR de `spec-change` costuma precisar tocá-la. Verificado que nenhum caminho sob `docs/` casa com o conjunto `CODE`.
+
+O `:(glob)` é necessário: sem o magic glob, `*.sh` casaria em qualquer profundidade, e não apenas na raiz.
+
+**Observação retroativa — o commit inicial desta fase passaria a ser reprovado.** `1073743` tocou `docs/spec/` (11 arquivos) e, simultaneamente, `tools/` (8), `scripts/` (2), `.claude/` (7), `.github/` (1) e dois `.sh` de raiz — `CODE=20`. Sob a regra nova, um PR com esse conteúdo é reprovado.
+
+Isso **não é problema**, e fica registrado porque confunde quem ler o histórico depois: `spec_freeze` roda apenas em `pull_request`, e a Fase 0 nasce direto em `main`, por desenho. O commit inicial nunca passou por PR e nunca passará. A regra vale da tag `spec-v1.0` em diante, quando toda mudança já entra por PR — que é exatamente o regime que ela existe para proteger.
 
 ### P13 — [M2, terceira auditoria] Deny de secrets cobre `Read` e `Edit`, mas não `Write`
 
@@ -580,9 +597,8 @@ Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afi
 Ordem para fechá-la:
 
 1. **Quarta auditoria de checkpoint** sobre o commit corrigido, via `bash scripts/start_checkpoint_audit.sh 0`. O H2 alterou o fluxo de fechamento da própria fase e o H1 alterou o harness; nenhuma auditoria examinou essas mudanças.
-2. Decidir o destino das pendências abertas (§6). São **treze**: quatro declaradas por mim durante a implementação (P1–P4) e nove vindas das auditorias (P8, P9, P11–P17). P5, P6, P7 e P10 estão fechadas. Duas das abertas têm efeito direto sobre os passos seguintes:
-   - **P11** — enquanto o mecanismo de captura estiver inerte, o veredito da auditoria precisa ser colado manualmente;
-   - **P12** — se a definição de "código" do `spec_freeze` continuar restrita a três diretórios, o que o passo 3 vai demonstrar é um gate que deixa passar exatamente o caso que o commit inicial desta fase produziu.
+2. Decidir o destino das pendências abertas (§6). São **doze**: quatro declaradas por mim durante a implementação (P1–P4) e oito vindas das auditorias (P8, P9, P11, P13–P17). P5, P6, P7, P10 e P12 estão fechadas.
+   - **P11** ainda tem efeito direto sobre o passo 1: enquanto o mecanismo de captura estiver inerte, o veredito da auditoria precisa ser colado manualmente.
 3. `bash finalize_phase0.sh` — vai até branch protection e **para antes da tag**, imprimindo os comandos dos itens 10 e 11 da DoD.
 4. Executar os dois PRs descartáveis e confirmar que `spec_freeze` **reprova** nos dois.
 5. Só então `bash finalize_phase0.sh --dod-10-11-verificados`, que cria e publica `spec-v1.0`. Nunca tagueie antes de provar o CI.
