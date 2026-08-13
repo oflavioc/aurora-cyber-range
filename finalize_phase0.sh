@@ -192,25 +192,49 @@ demonstrado.
 
 ITEM 10 — spec_freeze deve REPROVAR spec e codigo no mesmo PR
 
+  Os dois arquivos precisam EXISTIR e estar versionados. Nao use contracts/:
+  ele e OUTPUT da Fase 1 e hoje esta vazio, entao nao ha o que alterar, e
+  'git commit -a' nao estagia arquivo novo. O PR sairia so com docs/spec/,
+  reprovaria pela regra do TITULO — que e a do item 11 — e o item 10
+  continuaria sem demonstracao.
+
+  tools/ serve porque esta no conjunto CODE e ja tem arquivos versionados.
+
   git checkout -b dod10-descartavel
-  # altere um arquivo de docs/spec/ E um de contracts/ no mesmo commit
-  git commit -am "dod10: PR descartavel, spec e codigo juntos"
+  printf '\n<!-- dod10: alteracao descartavel -->\n' >> docs/spec/00_MASTER_SPEC.md
+  printf '\n# dod10: alteracao descartavel\n' >> tools/README.md
+  git add docs/spec/00_MASTER_SPEC.md tools/README.md
+  git commit -m "dod10: PR descartavel, spec e codigo juntos"
   git push -u origin dod10-descartavel
-  gh pr create --title "dod10: PR descartavel" --body "Verificacao da DoD. Fechar sem merge."
-  # ESPERADO: job spec_freeze FALHA com "PR altera spec e codigo no mesmo PR"
+  gh pr create --title "spec-change: dod10 PR descartavel" --body "Verificacao da DoD. Fechar sem merge."
+
+  ESPERADO: spec_freeze FALHA com "PR altera spec e codigo no mesmo PR".
+  O titulo leva o prefixo 'spec-change:' DE PROPOSITO: assim a regra do
+  titulo nao dispara e a unica reprovacao possivel e a de spec+codigo.
+  Confira a mensagem, nao so a cor do job.
+
   gh pr close dod10-descartavel --delete-branch
   git checkout main && git branch -D dod10-descartavel
 
 ITEM 11 — alteracao so de spec exige titulo 'spec-change:'
 
   git checkout -b dod11-descartavel
-  # altere APENAS um arquivo de docs/spec/
-  git commit -am "dod11: PR descartavel, so spec"
+  printf '\n<!-- dod11: alteracao descartavel -->\n' >> docs/spec/00_MASTER_SPEC.md
+  git add docs/spec/00_MASTER_SPEC.md
+  git commit -m "dod11: PR descartavel, so spec"
   git push -u origin dod11-descartavel
   gh pr create --title "dod11: sem o prefixo exigido" --body "Verificacao da DoD. Fechar sem merge."
-  # ESPERADO: job spec_freeze FALHA exigindo titulo iniciando com 'spec-change:'
+
+  ESPERADO: spec_freeze FALHA exigindo titulo iniciando com 'spec-change:'.
+  Aqui nenhum arquivo de codigo e tocado, entao a regra de spec+codigo nao
+  dispara e a unica reprovacao possivel e a do titulo.
+
   gh pr close dod11-descartavel --delete-branch
   git checkout main && git branch -D dod11-descartavel
+
+Os dois PRs sao construidos para que cada um so possa reprovar por UMA das
+duas regras. Se a mensagem de reprovacao nao for a esperada, o item nao foi
+demonstrado — mesmo com o job vermelho.
 
 Se QUALQUER um dos dois PRs passar no spec_freeze, o gate esta furado: nao
 crie a tag e corrija .github/workflows/invariants.yml.
