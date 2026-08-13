@@ -178,8 +178,27 @@ def main() -> int:
 
     # codegen --check deve detectar contrato novo sem artefato gerado correspondente.
     with temporary_file("domains/_phase0_codegen_probe/flags.yaml", flags):
-        expect_fail("codegen.py --check", [sys.executable, "tools/codegen.py", "--check"],
+        expect_fail("codegen.py --check (artefato ausente)",
+                    [sys.executable, "tools/codegen.py", "--check"],
                     "domains/_phase0_codegen_probe/flags.yaml")
+
+    # Ausencia e divergencia sao ramos DIFERENTES do verificador, e T2 de
+    # 06_ACCEPTANCE_TESTS.md fala de constantes DESSINCRONIZADAS — que e o ramo
+    # de divergencia. Ele nao era exercitado por probe nenhum.
+    #
+    # Os dois artefatos sao plantados, e ambos divergentes: com .py e .ts
+    # presentes, o ramo de ausencia nao pode disparar, entao a deteccao so pode
+    # vir da comparacao de conteudo.
+    with temporary_file("domains/_phase0_divergent_probe/flags.yaml", flags), temporary_file(
+        "domains/_phase0_divergent_probe/generated/flags.py",
+        "# artefato fora de sincronia com o contrato\n",
+    ), temporary_file(
+        "domains/_phase0_divergent_probe/generated/flags.ts",
+        "// artefato fora de sincronia com o contrato\n",
+    ):
+        expect_fail("codegen.py --check (artefato divergente)",
+                    [sys.executable, "tools/codegen.py", "--check"],
+                    "domains/_phase0_divergent_probe/generated/flags.py")
 
     print("Todos os seis verificadores falharam contra probes independentes.")
     return 0
