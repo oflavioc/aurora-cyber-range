@@ -1,19 +1,35 @@
 #!/usr/bin/env python3
 """DADOS SINTETICOS — 05_SECURITY_REQUIREMENTS.md secao 3.
 
+Tres categorias, conforme 06_ACCEPTANCE_TESTS.md T15 e
+docs/process/PHASE_0_CHECKLIST.md: IPs, dominios e IDENTIFICADORES.
+
 Nenhum IP roteavel de terceiro, nenhum dominio registrado real em dado de
 cenario, seed ou gerador de evidencia. Enderecos ficam nas faixas privadas ou
 de documentacao (RFC 1918, RFC 5737, RFC 3849); dominios ficam nas faixas
 reservadas a documentacao e teste (RFC 2606, RFC 6761).
+
+Identificador: CPF sintetico deve FALHAR a validacao de digito verificador
+(05_SECURITY_REQUIREMENTS.md secao 3). CPF valido em dado de cenario e
+indistinguivel de CPF real, e e a diferenca entre dado ficticio e dado
+pessoal.
 
 Este e o unico dos seis verificadores que nao opera sobre AST: o alvo e dado,
 nao codigo. A leitura e estrutural mesmo assim — json, csv e o subconjunto
 YAML sao analisados e os VALORES sao percorridos. Nao ha varredura textual do
 arquivo bruto.
 
-Limite conhecido: arquivos sem gramatica declarada (.log, .eml, .txt) nao sao
-cobertos aqui. Quando o evidence-simulator da Fase 9 passar a emiti-los, a
-verificacao correspondente precisa ser projetada junto com o formato.
+Limites conhecidos, declarados de proposito para que a lacuna seja rastreavel
+em vez de silenciosa:
+
+1. Arquivos sem gramatica declarada (.log, .eml, .txt, CEF) nao sao cobertos.
+   Quando o evidence-simulator da Fase 9 passar a emiti-los, a verificacao
+   correspondente precisa ser projetada junto com o formato.
+
+2. Dos identificadores, apenas CPF e verificado — e o unico que
+   05_SECURITY_REQUIREMENTS.md secao 3 nomeia. CNPJ, PIS/PASEP, titulo de
+   eleitor, matricula institucional e RG (que nao tem digito verificador
+   padronizado nacional) ficam de fora ate existir requisito que os nomeie.
 """
 from __future__ import annotations
 
@@ -88,8 +104,17 @@ DATA_SUFFIXES = (".json", ".jsonl", ".yaml", ".yml", ".csv")
 MAX_HOSTNAME_LENGTH = 253
 MAX_LABEL_LENGTH = 63
 
+#: CPF: 11 digitos nus, ou 14 caracteres no formato NNN.NNN.NNN-NN. Apenas
+#: essas duas formas canonicas sao tratadas como candidato, para nao classificar
+#: qualquer numero longo como identificador.
+CPF_DIGITS = 11
+CPF_FORMATTED_LENGTH = 14
+CPF_DOT_POSITIONS = (3, 7)
+CPF_DASH_POSITION = 11
+
 RULE_IP = "DADO SINTETICO - endereco IP fora das faixas permitidas"
 RULE_DOMAIN = "DADO SINTETICO - dominio fora das faixas reservadas"
+RULE_IDENTIFIER = "DADO SINTETICO - CPF passa na validacao de digito verificador"
 
 
 def _scanned_subdirs(root: Path) -> list[str]:
@@ -115,6 +140,35 @@ def _ip_is_allowed(address: ipaddress._BaseAddress) -> bool:
         or address.is_unspecified
         or address.is_reserved
     )
+
+
+def _cpf_candidate(value: str) -> str | None:
+    """Digitos do CPF quando o valor esta numa das duas formas canonicas."""
+    text = value.strip()
+    if len(text) == CPF_DIGITS and text.isdigit():
+        return text
+    if len(text) == CPF_FORMATTED_LENGTH:
+        if all(text[position] == "." for position in CPF_DOT_POSITIONS) and (
+            text[CPF_DASH_POSITION] == "-"
+        ):
+            digits = text.replace(".", "").replace("-", "")
+            if digits.isdigit():
+                return digits
+    return None
+
+
+def _cpf_check_digits_valid(digits: str) -> bool:
+    """Validacao oficial de CPF. Sequencia de digito repetido nunca e valida."""
+    if len(digits) != CPF_DIGITS or len(set(digits)) == 1:
+        return False
+    for size in (9, 10):
+        total = sum(int(digits[i]) * (size + 1 - i) for i in range(size))
+        expected = (total * 10) % 11
+        if expected == 10:
+            expected = 0
+        if expected != int(digits[size]):
+            return False
+    return True
 
 
 def _as_ip(value: str):
@@ -176,6 +230,21 @@ def _hostname_is_allowed(host: str) -> bool:
 
 def _check_string(value: str, source: str, exempt: frozenset[str], violations: list[Violation]):
     if value in exempt:
+        return
+
+    cpf = _cpf_candidate(value)
+    if cpf is not None:
+        if _cpf_check_digits_valid(cpf):
+            violations.append(
+                Violation(
+                    source,
+                    0,
+                    RULE_IDENTIFIER,
+                    f"'{value}' e um CPF valido. 05_SECURITY_REQUIREMENTS secao 3 "
+                    "exige que CPF sintetico FALHE a validacao de digito "
+                    "verificador; caso contrario e indistinguivel de dado real.",
+                )
+            )
         return
 
     address = _as_ip(value)

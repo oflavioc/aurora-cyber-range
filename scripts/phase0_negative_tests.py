@@ -142,6 +142,18 @@ def main() -> int:
         expect_fail("check_synthetic_data.py", [sys.executable, "tools/check_synthetic_data.py"],
                     "scenarios/_phase0_probe/fixture.jsonl")
 
+    # 123.456.789-09 e o CPF de exemplo canonico: sequencia crescente com os
+    # digitos verificadores corretos. Nao e numero plausivelmente emitido, e
+    # serve exatamente para provar que CPF VALIDO e recusado em dado sintetico
+    # (05_SECURITY_REQUIREMENTS secao 3).
+    with temporary_file(
+        "scenarios/_phase0_probe_cpf/alunos.jsonl",
+        '{"nome":"Fulano de Tal","cpf":"123.456.789-09"}\n',
+    ):
+        expect_fail("check_synthetic_data.py (identificador)",
+                    [sys.executable, "tools/check_synthetic_data.py"],
+                    "scenarios/_phase0_probe_cpf/alunos.jsonl")
+
     # codegen --check deve detectar contrato novo sem artefato gerado correspondente.
     with temporary_file("domains/_phase0_codegen_probe/flags.yaml", flags):
         expect_fail("codegen.py --check", [sys.executable, "tools/codegen.py", "--check"],
