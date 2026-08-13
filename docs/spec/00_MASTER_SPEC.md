@@ -144,3 +144,5 @@ Python 3.12 · FastAPI · SQLAlchemy 2.x · Alembic · PostgreSQL 16 · Redis ·
 **Idioma** — inglês para identificadores, tabelas, endpoints, logs, nomes de flag e de evento; português do Brasil para interface, dados sintéticos, cenários, rubricas e documentação.
 
 **Determinismo** — `RANDOM_SEED` fixo em `.env`. Necessário, mas não suficiente: a consistência entre evidências vem do modelo de projeção de fatos (§5.3), não do seed.
+
+<!-- dod11: alteracao descartavel -->
