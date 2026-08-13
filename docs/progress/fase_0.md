@@ -39,6 +39,7 @@ Veredito PASS, com três correções exigidas antes do `finalize` e três pendê
 
 | ID | Severidade | Resumo | Destino |
 |---|---|---|---|
+| M1 | MEDIUM | O registro afirmava capacidade de rastreabilidade que o próprio HEAD desabilitou | **pendência aberta** — §6 P11; texto do §7 O4 corrigido |
 | M3 | MEDIUM | Isenções de caminho casavam qualquer segmento, em qualquer profundidade | corrigido em `76e04c9` |
 | M2 | MEDIUM | `RULE_DIVERGENT` do `codegen` nunca falhou contra violação plantada | corrigido em `8b129d2` |
 | L3 | LOW | Docstring de `_common.py` contradizia o contrato estabelecido pelo H2 | corrigido em `6ed9993` |
@@ -364,6 +365,24 @@ O encaminhamento antecipado neste registro — ancorar em prefixo — foi o adot
 
 A regressão O4 (§7) reforça o argumento: o defeito nasceu em `.claude/hooks/log_audit.py`, e nenhum dos seis verificadores olhava para lá.
 
+### P11 — [M1, segunda auditoria] O registro afirmava capacidade que o próprio HEAD desabilitou
+
+```text
+M1 (segunda auditoria): o registro de progresso afirma capacidade que o próprio
+HEAD desabilitou. O §7 O4 do fase_0.md diz que o relatório vai para
+docs/progress/audit_<timestamp>.md e o veredito para o audit_log.jsonl. Mas o
+c8c2be3 passou a exigir agent_type == "checkpoint-auditor", e o agent_type chega
+vazio — o próprio O5 registra isso. Consequência: o mecanismo de rastreabilidade
+está inerte e o registro afirma o contrário. Nem esta auditoria nem a anterior
+foram persistidas por ele.
+```
+
+**Status.** Aberta. O texto do §7 O4 foi corrigido para descrever o estado real e medido; **o mecanismo continua inerte**. As duas coisas são separadas de propósito: o finding era sobre o registro mentir, e essa parte está resolvida. Fazer a captura funcionar é trabalho que ninguém pediu ainda e que não deve ser inventado dentro de uma correção de texto.
+
+**Por que não basta remover a exigência de `agent_type`.** Ela foi introduzida em `c8c2be3` justamente porque, sem ela, o hook gravava a mensagem final de qualquer subagente como auditoria, com veredito fabricado. Afrouxar volta a fabricar. O problema real é anterior: o launcher invoca o auditor como agente **de topo** (`claude --agent`), não como subagente, então `SubagentStop` provavelmente nunca dispara para ele — o hook está no evento errado.
+
+**Encaminhamento provável.** Capturar no `launcher`, que é quem sabe que está executando uma auditoria e já grava `phase`, `head_sha` e `launcher_exit`, em vez de depender de um hook que precisa adivinhar quem chamou. Isso implica também decidir o destino de `docs/progress/audit_log.jsonl`, hoje em `.gitignore:26` — um registro de auditoria que não entra no repositório não é registro. Enquanto isso não existir, o veredito precisa ser colado manualmente, como foi nas duas primeiras rodadas.
+
 ### P10 — [L3] Docstring de `_common.py` contradizia o contrato do H2 — resolvida
 
 ```text
@@ -387,7 +406,16 @@ Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui
 
 **O3 — o regime de `spec-change` ainda não estava em vigor.** Por `docs/process/WORKFLOW.md`, a especificação passa a ser imutável a partir da tag `spec-v1.0`. Como ela não existe, as edições em `docs/spec/` feitas nesta fase são parte do bundle inicial, não alteração de spec congelada.
 
-**O4 — o resultado da auditoria não sobrevivia à sessão — corrigido em `817e434`.** `log_audit.py` gravava apenas timestamp, `agent_type` e `session_id`. O veredito FAIL e os dez findings de §0 não ficaram em lugar nenhum do repositório, e tiveram de ser recuperados fora dele para que esta correção fosse possível. Duas causas: o relatório do subagente nunca era lido, e a gravação era relativa ao `cwd` — que, para o auditor, é o worktree descartável `.aurora-worktrees/audit`, recriado a cada execução. Havia inclusive uma cópia órfã do `audit_log.jsonl` lá dentro. Agora o relatório vai para `docs/progress/audit_<timestamp>.md` no worktree **principal**, resolvido por `git rev-parse --git-common-dir`, com o veredito no `audit_log.jsonl`.
+**O4 — o resultado da auditoria não sobrevive à sessão. NÃO resolvido — ver §6 P11.** `log_audit.py` gravava apenas timestamp, `agent_type` e `session_id`. Duas tentativas de correção, nenhuma eficaz:
+
+- `817e434` passou a ler o transcript e gravar o relatório em `docs/progress/audit_<timestamp>.md` no worktree principal, resolvido por `git rev-parse --git-common-dir`. Mas `SubagentStop` dispara para **qualquer** subagente, e o hook passou a gravar o texto final de qualquer um como se fosse auditoria, com veredito fabricado;
+- `c8c2be3` corrigiu essa fabricação exigindo `agent_type == "checkpoint-auditor"`. Como `agent_type` chega **vazio** (O5), o ramo que grava o relatório nunca executa.
+
+**Estado real, medido:** nenhum arquivo `docs/progress/audit_*.md` jamais foi gravado. Dos 15 registros do `audit_log.jsonl`, 14 vêm do hook e **zero** foram identificados como auditor. Nem a primeira auditoria nem a segunda foram persistidas por este mecanismo.
+
+O único traço que sobrevive é a linha que o **próprio launcher** grava (`scripts/start_checkpoint_audit.sh:51`): há exatamente uma, com `phase=0`, `head_sha=c8c2be3` e `launcher_exit=0` — a segunda auditoria. E mesmo ela não entra no repositório, porque `docs/progress/audit_log.jsonl` está no `.gitignore:26`.
+
+Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afirmação foi o achado M1 da segunda auditoria e está corrigida aqui.
 
 **O5 — `agent_type` chega vazio no payload de `SubagentStop`.** Os sete registros do `audit_log.jsonl` anteriores a `817e434` têm `agent_type` em branco, então não é possível distinguir, no histórico, quais execuções foram do `checkpoint-auditor`. O campo passou a registrar `payload_keys` para diagnosticar isso sem adivinhação na próxima auditoria.
 
@@ -400,7 +428,7 @@ Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui
 Ordem para fechá-la:
 
 1. **Terceira auditoria de checkpoint** sobre o commit corrigido, via `bash scripts/start_checkpoint_audit.sh 0`. As correções do M3 mudaram a semântica de fronteira dos invariantes 2 e 4, e nenhuma auditoria as examinou — a segunda auditoria as exigiu, não as revisou.
-2. Decidir o destino de P8 (L1) e P9 (L2), as duas pendências que seguem abertas (§6).
+2. Decidir o destino de P8 (L1), P9 (L2) e P11 (M1), as três pendências que seguem abertas (§6). P11 tem efeito sobre a própria auditoria do passo 1: enquanto o mecanismo estiver inerte, o veredito precisa ser colado manualmente.
 3. Só então `bash finalize_phase0.sh`, que fecha os itens 9 a 13. Nunca tagueie antes de provar o CI.
 
 Depois disso, **Fase 1 — Contratos e esqueleto** (`07_IMPLEMENTATION_PHASES.md`), checkpoint ⏸. O kickoff da Fase 1 pede, antes de qualquer código: árvore de diretórios, `contracts/` completo, catálogo de eventos inicial com `truth_layer` de cada tipo, e as três decisões de modelagem mais arriscadas com recomendação. Aguardar aval humano antes de implementar.
