@@ -128,9 +128,14 @@ def _render_typescript(pairs: list[tuple[str, str]], source: str, collection: st
     return "\n".join(lines)
 
 
-def _expected_artifacts() -> dict[Path, str]:
-    """Mapeia caminho do artefato -> conteudo canonico, gerado em memoria."""
-    expected: dict[Path, str] = {}
+def _expected_artifacts() -> dict[Path, tuple[str, str]]:
+    """Mapeia artefato -> (conteudo canonico gerado em memoria, contrato de origem).
+
+    O contrato de origem viaja junto porque a mensagem de violacao precisa
+    citar QUEM exige o artefato, nao apenas qual arquivo falta. Sem isso,
+    quem le a saida nao sabe onde intervir.
+    """
+    expected: dict[Path, tuple[str, str]] = {}
 
     for contract in flag_contract_paths(REPO_ROOT):
         data = parse_yaml(contract)
@@ -144,16 +149,22 @@ def _expected_artifacts() -> dict[Path, str]:
             names.append(entry["name"])
         pairs = _bind(names, source)
         target = contract.parent / GENERATED_DIR
-        expected[target / "flags.py"] = _render_python(pairs, source, "ALL_FLAGS")
-        expected[target / "flags.ts"] = _render_typescript(pairs, source, "ALL_FLAGS")
+        expected[target / "flags.py"] = (_render_python(pairs, source, "ALL_FLAGS"), source)
+        expected[target / "flags.ts"] = (_render_typescript(pairs, source, "ALL_FLAGS"), source)
 
     events_contract = events_contract_path(REPO_ROOT)
     if events_contract.is_file():
         source = rel(events_contract)
         pairs = _bind(list(load_declared_event_types(REPO_ROOT)), source)
         target = events_contract.parent / GENERATED_DIR
-        expected[target / "events.py"] = _render_python(pairs, source, "ALL_EVENT_TYPES")
-        expected[target / "events.ts"] = _render_typescript(pairs, source, "ALL_EVENT_TYPES")
+        expected[target / "events.py"] = (
+            _render_python(pairs, source, "ALL_EVENT_TYPES"),
+            source,
+        )
+        expected[target / "events.ts"] = (
+            _render_typescript(pairs, source, "ALL_EVENT_TYPES"),
+            source,
+        )
 
     return expected
 
@@ -171,14 +182,15 @@ def check() -> int:
 
     for path in sorted(expected, key=lambda p: p.as_posix()):
         target = rel(path)
+        content, source = expected[path]
         if not path.is_file():
             violations.append(
                 Violation(
                     target,
                     0,
                     RULE_MISSING,
-                    "contrato declarado sem artefato correspondente. "
-                    "Regenere as constantes.",
+                    f"exigido por {source}, que declara nomes sem artefato "
+                    "correspondente. Regenere as constantes.",
                 )
             )
             continue
@@ -186,13 +198,13 @@ def check() -> int:
             current = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             return fail(f"{target}: nao foi possivel ler ({exc})")
-        if _normalise(current) != _normalise(expected[path]):
+        if _normalise(current) != _normalise(content):
             violations.append(
                 Violation(
                     target,
                     0,
                     RULE_DIVERGENT,
-                    "conteudo em disco difere do gerado a partir do contrato. "
+                    f"conteudo em disco difere do gerado a partir de {source}. "
                     "Regenere as constantes.",
                 )
             )

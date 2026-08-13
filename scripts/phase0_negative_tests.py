@@ -49,25 +49,60 @@ def temporary_file(relative: str, content: str):
                 pass
 
 
-def expect_fail(label: str, command: list[str]) -> None:
+def _reject(label: str, motivo: str, saida: str) -> None:
+    print(f"FAIL: {label} {motivo}")
+    if saida.strip():
+        print(saida.strip())
+    raise SystemExit(1)
+
+
+def expect_fail(label: str, command: list[str], planted: str) -> None:
+    """Exige DETECCAO, nao apenas saida diferente de zero.
+
+    Aceitar qualquer rc != 0 torna crash de ferramenta (rc=2, contrato
+    malformado, arquivo ilegivel) indistinguivel de deteccao (rc=1). Um
+    verificador que quebra ao ser executado passaria no teste negativo sem
+    nunca ter enxergado a violacao.
+
+    Por isso sao tres exigencias: rc exatamente 1, saida nao vazia, e mencao
+    explicita ao arquivo plantado.
+    """
     result = run(*command)
+    saida = (result.stdout or "") + (result.stderr or "")
+
     if result.returncode == 0:
-        print(f"FAIL: {label} nao detectou a violacao plantada")
-        if result.stdout:
-            print(result.stdout)
-        raise SystemExit(1)
-    print(f"OK: {label} detectou violacao (rc={result.returncode})")
+        _reject(label, "nao detectou a violacao plantada", saida)
+
+    if result.returncode != 1:
+        _reject(
+            label,
+            f"saiu com rc={result.returncode}, esperado 1. "
+            "rc diferente de 1 indica erro de ferramenta, nao deteccao",
+            saida,
+        )
+
+    if planted not in saida.replace("\\", "/"):
+        _reject(
+            label,
+            f"saiu com rc=1 mas nao citou o arquivo plantado '{planted}'. "
+            "Deteccao sem localizacao nao permite intervir",
+            saida,
+        )
+
+    print(f"OK: {label} detectou violacao em {planted} (rc=1)")
 
 
 def main() -> int:
     with temporary_file("range-core/_phase0_probe_bad.py", "from domains.academus import X\n"):
-        expect_fail("check_core_boundary.py", [sys.executable, "tools/check_core_boundary.py"])
+        expect_fail("check_core_boundary.py", [sys.executable, "tools/check_core_boundary.py"],
+                    "range-core/_phase0_probe_bad.py")
 
     flags = """flags:\n  - name: academus.phase0_probe_flag\n    type: boolean\n    default: false\n"""
     with temporary_file("domains/academus/flags.yaml", flags), temporary_file(
         "domains/academus/_phase0_probe_literal.py", "FLAG = 'academus.phase0_probe_flag'\n"
     ):
-        expect_fail("check_contract_literals.py", [sys.executable, "tools/check_contract_literals.py"])
+        expect_fail("check_contract_literals.py", [sys.executable, "tools/check_contract_literals.py"],
+                    "domains/academus/_phase0_probe_literal.py")
 
     # Plantado em range-core/engine/, NAO em um diretorio "api"/"events": a
     # versao anterior do verificador so varria esses dois segmentos e o probe
@@ -77,20 +112,24 @@ def main() -> int:
         "range-core/engine/_phase0_probe_event.py",
         "event = {'event_type': 'PROBE', 'objective_ids': ['OBJ-X']}\n",
     ):
-        expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"])
+        expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"],
+                    "range-core/engine/_phase0_probe_event.py")
 
     with temporary_file("range-core/_phase0_probe_security.py", "value = eval('1 + 1')\n"):
-        expect_fail("check_security_constraints.py", [sys.executable, "tools/check_security_constraints.py"])
+        expect_fail("check_security_constraints.py", [sys.executable, "tools/check_security_constraints.py"],
+                    "range-core/_phase0_probe_security.py")
 
     with temporary_file(
         "scenarios/_phase0_probe/fixture.jsonl",
         '{"src":"8.8.8.8","domain":"google.com"}\n',
     ):
-        expect_fail("check_synthetic_data.py", [sys.executable, "tools/check_synthetic_data.py"])
+        expect_fail("check_synthetic_data.py", [sys.executable, "tools/check_synthetic_data.py"],
+                    "scenarios/_phase0_probe/fixture.jsonl")
 
     # codegen --check deve detectar contrato novo sem artefato gerado correspondente.
     with temporary_file("domains/_phase0_codegen_probe/flags.yaml", flags):
-        expect_fail("codegen.py --check", [sys.executable, "tools/codegen.py", "--check"])
+        expect_fail("codegen.py --check", [sys.executable, "tools/codegen.py", "--check"],
+                    "domains/_phase0_codegen_probe/flags.yaml")
 
     print("Todos os seis verificadores falharam contra probes independentes.")
     return 0
