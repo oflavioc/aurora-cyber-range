@@ -151,12 +151,8 @@ DENIED_ANYWHERE = [
     # Custo aceito e declarado: leitura por caminho absoluto passa a ser
     # bloqueada. E o mesmo custo ja aceito para `..` — o worktree de auditoria E
     # o objeto da auditoria, e ler fora dele mede outra arvore.
-    (r"(?:^|[\s=\"'>])"
-     r"(?!/dev/null\b)"
-     r"(?!~/\.claude/hooks/)"
-     r"(?!\$HOME/\.claude/hooks/)"
-     r"(?:/[^\s\"'/]|[A-Za-z]:[/\\]|~[/\\]|\$HOME[/\\])",
-     "caminho absoluto: alvo fora do worktree de auditoria"),
+    # (a regra de alvo saiu daqui: virou `_alvo_nao_contido`, que RESOLVE contra
+    #  o cwd em vez de casar grafia. Ver o docstring de la.)
     # `git branch` listando e leitura legitima e nao pode ser negado inteiro;
     # so a deleção. O ref store e COMPARTILHADO com o worktree principal:
     # provado por execucao, `git branch -D` rodado de dentro do worktree de
@@ -283,6 +279,72 @@ def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
     return "".join(saida), aspas is None
 
 
+SMOKE_TEST_HOOK = re.compile(r"^(?:~|\$\{?HOME\}?)/\.claude/hooks/[A-Za-z0-9_.-]+\.py$")
+
+
+def _normaliza(caminho: str) -> str:
+    """Grafias equivalentes de um mesmo caminho, no formato do Git Bash."""
+    p = caminho.replace("\\", "/").rstrip("/")
+    m = re.match(r"^([A-Za-z]):(/.*)?$", p)
+    if m:
+        p = "/" + m.group(1).lower() + (m.group(2) or "")
+    return p.lower()
+
+
+def _alvo_nao_contido(cmd: str, cwd: str | None) -> str | None:
+    """RESOLVE o alvo contra o cwd. Nao casa grafia.
+
+    A 17a auditoria me levou a "o invariante e o ALVO, nao a capacidade", e eu
+    implementei... uma checagem de GRAFIA do alvo: neguei `~` e `$HOME`
+    literalmente. A 18a chegou com `${HOME}`, `$USERPROFILE` e `$TEMP`, que sao o
+    mesmo alvo em grafias que eu nao lembrei — **quarta reincidencia da mesma
+    classe, dentro da correcao que a nomeou**.
+
+    Duas mudancas, e as duas trocam enumeracao por decisao:
+
+    1. **Expansao de variavel torna o alvo INDECIDIVEL, entao nega.** Nao importa
+       o nome: `$X` pode valer qualquer coisa no momento da execucao, e um alvo
+       que so se conhece em tempo de execucao nao pode ser provado contido. Isto
+       cobre `$USERPROFILE` e a variavel que ninguem inventou ainda, sem lista.
+
+    2. **Caminho absoluto e RESOLVIDO contra o cwd**, nao negado por comecar com
+       `/`. Era o H2 da 18a: `cat /c/.../.aurora-worktrees/audit/tools/README.md`
+       era bloqueado com a mensagem "alvo FORA do worktree" enquanto o alvo estava
+       DENTRO. Negar por grafia e a mesma inversao que o B1 acusa, cometida no
+       texto da mensagem de erro.
+
+    Sem `cwd` no payload, todo caminho absoluto e tratado como fora: falha
+    fechada, porque nao dar para resolver e o caso em que nao se pode afirmar
+    contencao.
+
+    Excecoes, as duas por necessidade e delimitadas: `/dev/null`, que e descarte;
+    e o smoke test de hook que o PHASE_0_CHECKLIST prescreve, ja allowlistado por
+    nome explicito.
+    """
+    raiz = _normaliza(cwd) if cwd else None
+
+    for token in re.findall(r"[^\s\"'=]+", cmd):
+        alvo = token.lstrip("<>|&")
+        if not alvo or alvo == "/dev/null" or SMOKE_TEST_HOOK.match(alvo):
+            continue
+
+        if "$" in alvo and re.search(r"\$\{?[A-Za-z_]", alvo):
+            return f"expansao de variavel: alvo indecidivel em tempo de verificacao ({alvo})"
+
+        if alvo.startswith("~"):
+            return f"til: alvo fora do worktree de auditoria ({alvo})"
+
+        eh_absoluto = alvo.startswith("/") or re.match(r"^[A-Za-z]:[/\\]", alvo)
+        if not eh_absoluto:
+            continue
+        if raiz is None:
+            return f"caminho absoluto sem cwd para resolver ({alvo})"
+        if not _normaliza(alvo).startswith(raiz):
+            return f"caminho absoluto fora do worktree de auditoria ({alvo})"
+
+    return None
+
+
 def _substituicao_ou_subshell(cmd: str) -> bool:
     """Deteccao de EXECUCAO, com a semantica POSIX de aspas — nao com uma so.
 
@@ -370,6 +432,7 @@ def main() -> int:
     except Exception:
         return 0
 
+    cwd = data.get("cwd")
     cmd = ((data.get("tool_input") or {}).get("command") or "").strip()
     if not cmd:
         return 0
@@ -382,6 +445,17 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
+
+    motivo_alvo = _alvo_nao_contido(cmd, cwd)
+    if motivo_alvo:
+        print(
+            f"BLOQUEADO: checkpoint-auditor sem escrita deliberada ({motivo_alvo}).\n"
+            f"Comando: {cmd}\n"
+            "O worktree de auditoria E o objeto da auditoria; alvo fora dele mede\n"
+            "outra arvore. Reporte o finding; nao corrija.",
+            file=sys.stderr,
+        )
+        return 2
 
     if _substituicao_ou_subshell(cmd):
         print(

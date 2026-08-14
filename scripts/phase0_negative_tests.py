@@ -360,10 +360,23 @@ COMPOSICAO_CARGA = "python -c \"open('/tmp/aurora_probe','w')\""
 
 GRAFIAS_DE_ALVO = [
     ("relativa", "../../CLAUDE.md"),
-    ("absoluta", "/c/Projetos/aurora-cyber-range/CLAUDE.md"),
-    ("absoluta com letra de unidade", "C:/Projetos/aurora-cyber-range/CLAUDE.md"),
+    # FORA da arvore em que o harness roda. A versao anterior usava o caminho do
+    # proprio repositorio, que passou a ser DENTRO do cwd quando a regra virou
+    # resolucao em vez de grafia — o probe reprovou por apontar para o lugar
+    # errado, nao por defeito do hook. Alvo de probe de travessia tem de estar
+    # fora da arvore, e nao so ter aparencia de absoluto.
+    ("absoluta", "/c/probe_fora_do_worktree/CLAUDE.md"),
+    ("absoluta com letra de unidade", "C:/probe_fora_do_worktree/CLAUDE.md"),
     ("til", "~/projeto/CLAUDE.md"),
-    ("variavel de ambiente", "$HOME/projeto/CLAUDE.md"),
+    ("variavel HOME", "$HOME/projeto/CLAUDE.md"),
+    # As TRES abaixo entraram apos o B1 da 18a auditoria. `$HOME` estava negado
+    # LITERALMENTE, entao `${HOME}` com chaves, `$USERPROFILE` e qualquer outra
+    # variavel escapavam. Provam que a regra decide por INDECIDIBILIDADE do alvo
+    # — expansao de variavel torna o destino desconhecido em tempo de
+    # verificacao —, e nao por nome de variavel lembrado.
+    ("variavel HOME com chaves", "${HOME}/projeto/CLAUDE.md"),
+    ("variavel de outro nome", "$USERPROFILE/projeto/CLAUDE.md"),
+    ("variavel que ninguem listou", "${VARIAVEL_QUALQUER}/projeto/CLAUDE.md"),
 ]
 
 #: ALVO CONTIDO no worktree: as MESMAS formas de escrita tem de PASSAR. Sem esta
@@ -377,6 +390,20 @@ ESCRITA_CONTIDA_PASSA = [
     ("pytest --basetemp relativo", "pytest --basetemp=tmp --version"),
     ("mypy --cache-dir relativo", "mypy --cache-dir .mypy_cache --version"),
     ("docker compose config sem alvo", "docker compose config"),
+]
+
+#: ALVO ABSOLUTO DENTRO DO WORKTREE: tem de PASSAR. Era o H2 da 18a auditoria —
+#: `cat <worktree>/tools/README.md` era bloqueado com a mensagem "alvo FORA do
+#: worktree", enquanto o alvo estava DENTRO. A regra negava por GRAFIA, que e a
+#: mesma inversao que o B1 da mesma rodada acusou, cometida no texto do erro.
+#:
+#: Agora o alvo e RESOLVIDO contra o `cwd` do payload. Sem esta direcao, a regra
+#: voltaria a ser "todo caminho absoluto e suspeito", que e enumeracao de grafia
+#: com outro nome.
+ABSOLUTO_CONTIDO_PASSA = [
+    ("leitura por caminho absoluto dentro do worktree", "cat {raiz}/tools/README.md"),
+    ("listagem por caminho absoluto dentro do worktree", "ls {raiz}/scripts"),
+    ("busca por caminho absoluto dentro do worktree", "grep -n x {raiz}/CLAUDE.md"),
 ]
 
 #: Formas de escrita parametrizadas pelo alvo. `{}` recebe cada grafia.
@@ -448,7 +475,12 @@ def _hooks_sob_teste() -> list[tuple[str, Path]]:
 
 
 def _run_readonly_hook(command: str, hook: Path | None = None) -> subprocess.CompletedProcess[str]:
-    payload = json.dumps({"tool_input": {"command": command}})
+    # `cwd` faz parte do payload que o Claude Code envia, e desde a correcao do
+    # H2 da 18a auditoria o hook o usa para RESOLVER o alvo em vez de casar
+    # grafia. Omiti-lo aqui faria o harness medir um hook em modo degradado
+    # (sem cwd, todo caminho absoluto e tratado como fora) e certificar
+    # comportamento diferente do que roda de verdade.
+    payload = json.dumps({"cwd": str(ROOT), "tool_input": {"command": command}})
     return subprocess.run(
         [sys.executable, str(hook or READONLY_HOOK_SOURCE)],
         cwd=ROOT, input=payload, text=True, capture_output=True,
@@ -812,6 +844,8 @@ def main() -> int:
     for label_sep, sep in SEPARADORES_DE_COMANDO:
         expect_hook_blocks(f"composicao por {label_sep}",
                            COMPOSICAO_PREFIXO + sep + COMPOSICAO_CARGA)
+    for label, molde in ABSOLUTO_CONTIDO_PASSA:
+        expect_hook_allows(label, molde.format(raiz=str(ROOT).replace("\\", "/")))
     for label, comando in ESCRITA_CONTIDA_PASSA:
         expect_hook_allows(label, comando)
     for label_forma, molde in ESCRITA_POR_ALVO:
