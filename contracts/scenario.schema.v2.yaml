@@ -793,12 +793,27 @@ x-aurora-invalid-examples:
                 facilitator_thinks_response_was_good: true
               next: A09
 
-  - reason: 'capability_gap sem effects e sem tradeoff na opcao: lacuna como saida sem custo'
+  # A lacuna de capacidade NAO E SAIDA SEM CUSTO: `effects` e `tradeoff`
+  # continuam obrigatorios. Sao duas exigencias distintas, e a fixture unica que
+  # omitia as duas passava provando qualquer uma delas.
+  - reason: 'opcao com capability_gap sem effects: lacuna sem consequencia no mundo simulado'
     rejected_by: schema
     pointer: '#/$defs/option'
     instance:
       id: no_capability
       label: 'Não temos como fazer isso'
+      tradeoff: 'Sessão federada segue ativa até expirar sozinha'
+      capability_gap:
+        control_function: federated_session_revocation
+
+  - reason: 'opcao com capability_gap sem tradeoff: lacuna como saida sem custo'
+    rejected_by: schema
+    pointer: '#/$defs/option'
+    instance:
+      id: no_capability
+      label: 'Não temos como fazer isso'
+      effects:
+        academus.federated_session_active: true
       capability_gap:
         control_function: federated_session_revocation
 

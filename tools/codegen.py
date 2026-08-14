@@ -101,17 +101,31 @@ def _bind(names: list[str], source: str) -> list[tuple[str, str]]:
 
 
 def _render_python(pairs: list[tuple[str, str]], source: str, collection: str) -> str:
-    lines = [HEADER_PY, f"# Fonte canonica: {source}", ""]
+    """Constantes Python ANOTADAS COM `Final`.
+
+    07_IMPLEMENTATION_PHASES.md linha 55 pede constantes TIPADAS em Python e
+    TypeScript. Os artefatos TS ja usavam `export const` e `as const`, que dao
+    tipo literal e imutabilidade; os de Python eram atribuicao de modulo sem
+    anotacao, inferida como `str` mutavel. `Final` fecha a diferenca e faz um
+    type checker recusar reatribuicao. Foi o L2 da segunda auditoria da Fase 1.
+    """
+    lines = [
+        HEADER_PY,
+        f"# Fonte canonica: {source}",
+        "",
+        "from typing import Final",
+        "",
+    ]
     for identifier, name in pairs:
-        lines.append(f'{identifier} = "{name}"')
+        lines.append(f'{identifier}: Final[str] = "{name}"')
     lines.append("")
     if pairs:
-        lines.append(f"{collection} = (")
+        lines.append(f"{collection}: Final[tuple[str, ...]] = (")
         for identifier, _ in pairs:
             lines.append(f"    {identifier},")
         lines.append(")")
     else:
-        lines.append(f"{collection} = ()")
+        lines.append(f"{collection}: Final[tuple[str, ...]] = ()")
     lines.append("")
     return "\n".join(lines)
 

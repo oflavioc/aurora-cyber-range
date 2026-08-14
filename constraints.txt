@@ -1,0 +1,31 @@
+# Fecho transitivo pinado das dependencias de pyproject.toml.
+#
+# `00_MASTER_SPEC.md` secao 8 exige todas as versoes pinadas, e
+# `06_ACCEPTANCE_TESTS.md` T15 ("nenhuma dependencia nao pinada") vale para
+# todas as fases. Pinar so as diretas deixaria o fecho livre — e o argumento que
+# motivou a pinagem NAO e formal: `referencing` resolve os `$ref` entre os
+# contratos e `rpds-py`/`attrs` sustentam a avaliacao de schema. Uma versao nova
+# de qualquer um deles mudaria o resultado do job `contratos`, que e o unico
+# gate do item 1 da DoD, sem nada aparecer em diff neste repositorio.
+#
+# USO: o CI instala com
+#     python -m pip install -e . -c constraints.txt
+#
+# COMO ATUALIZAR: subir versao e MUDANCA EXPLICITA DE COMMIT, igual ao digest
+# das imagens em docker-compose.yml. Edite aqui e em pyproject.toml, reinstale,
+# rode `python scripts/check_contract_examples.py` e
+# `python scripts/check_contract_examples_probes.py`, e registre o motivo.
+#
+# Gerado do fecho real instalado em 2026-08-14, Python 3.12.
+
+alembic==1.19.1
+attrs==26.1.0
+greenlet==3.5.5
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+Mako==1.4.1
+MarkupSafe==3.0.3
+referencing==0.37.0
+rpds-py==2026.6.3
+SQLAlchemy==2.0.52
+typing_extensions==4.16.0

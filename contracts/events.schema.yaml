@@ -24,7 +24,19 @@ x-aurora-schema-version: 1
 
 type: object
 
-# Envelope universal — 09 secao 1.1.
+# Envelope universal — 09 secao 1.1, mais `clock_multiplier` por 00 secao 5.6.
+#
+# `clock_multiplier` NAO consta da lista de 09 secao 1.1, mas 00_MASTER_SPEC.md
+# secao 5.6 e taxativo: "Dois relogios, sempre. Todo evento carrega
+# `exercise_time` e `wall_timestamp`, MAIS `clock_multiplier`". CLAUDE.md
+# ("Autoridade") resolve: em conflito, o MASTER_SPEC prevalece. Nao e escalacao
+# — escalacao e para conflito entre dois documentos NAO-master.
+#
+# 06 T4 e 07 linha 76 repetem a exigencia, e 01 secao 3 explica o custo de
+# perde-la: sem o multiplicador em cada evento, a timeline do AAR nao e
+# reconstruivel. A forma anterior declarava o campo e nao o exigia — H2 da
+# segunda auditoria da Fase 1, a mesma classe do P1-12 na direcao oposta: la o
+# contrato recusava o que a spec exige, aqui aceitava o que ela proibe.
 required:
   - event_id
   - event_type
@@ -32,6 +44,7 @@ required:
   - producer
   - exercise_time
   - wall_timestamp
+  - clock_multiplier
   - simulation_epoch
 
 properties:
@@ -80,9 +93,37 @@ properties:
     type: integer
     minimum: 0
 
-  # 09 secao 1: presente e nulo quando o evento nao projeta fato canonico.
-  fact_id:
-    type: [string, 'null']
+  # -------------------------------------------------------------------------
+  # CORRELACAO — 09 secao 1.
+  #
+  # `fact_id` mora AQUI, nao no topo. A forma anterior o declarava como
+  # propriedade de topo citando "09 secao 1" — que e exatamente a secao onde ele
+  # aparece DENTRO de `correlation`, junto de `scenario_id`, `inject_id` e
+  # `causation_id`. Os outros tres nao existiam no contrato. H1 da primeira
+  # auditoria da Fase 1, repetido na segunda por nao ter sido corrigido nem
+  # registrado.
+  #
+  # A Fase 2 constroi event store, cadeia de causacao e correlacao de branch
+  # sobre este contrato: `causation_id` e `inject_id` sao o que sustenta os dois.
+  #
+  # Nao e obrigatorio — 09 secao 1.1 nao o lista entre os campos exigidos, e um
+  # `exercise_started` nao tem inject nem causa anterior.
+  correlation:
+    $ref: '#/$defs/correlation'
+
+  # `object` e `payload` do envelope de 09 secao 1. Ficam ABERTOS por dentro: a
+  # forma varia por event_type e os schemas de payload chegam na Fase 2. O que
+  # se fecha aqui e a unica regra que vale para todos — `objective_ids` nao
+  # entra em nivel nenhum (09 secao 1.2).
+  object:
+    type: object
+    not:
+      required: [objective_ids]
+
+  payload:
+    type: object
+    not:
+      required: [objective_ids]
 
 # ---------------------------------------------------------------------------
 # PROIBIDO NO ENVELOPE — 09 secao 1.2.
@@ -178,6 +219,37 @@ allOf:
           $ref: '#/$defs/event_type_facilitation'
 
 $defs:
+
+  # -------------------------------------------------------------------------
+  # CORRELACAO — 09 secao 1.
+  #
+  # Fechado por `additionalProperties: false`: os quatro campos sao os que a
+  # spec declara, e chave nova aqui e erro de autoria, nao extensao.
+  #
+  # `inject_id` e `scenario_id` NAO levam `x-aurora-ref`. Eles resolvem contra o
+  # pacote CARREGADO em tempo de execucao, nao contra os exemplos dos contratos:
+  # o envelope nao e documento de pack, e amarra-lo ao mini-pacote de fixture
+  # seria inventar um acoplamento que nao existe. A resolucao real e obrigacao
+  # do event store, na Fase 2 — registrada em x-aurora-linter-rules.
+  # -------------------------------------------------------------------------
+  correlation:
+    type: object
+    additionalProperties: false
+    properties:
+      scenario_id:
+        type: string
+        minLength: 1
+      inject_id:
+        type: string
+        minLength: 1
+      causation_id:
+        type: string
+        minLength: 1
+      # Presente e NULO quando o evento nao projeta fato canonico — e o que
+      # 09 secao 1 mostra. Nulo e ausente significam a mesma coisa aqui, e
+      # aceitar os dois evita obrigar o emissor a escolher.
+      fact_id:
+        type: [string, 'null']
 
   # -------------------------------------------------------------------------
   # CINCO VALORES, QUATRO VERDADES — 00_MASTER_SPEC.md secao 3.1.
@@ -281,6 +353,20 @@ examples:
     wall_timestamp: '2026-08-13T11:47:31-03:00'
     clock_multiplier: 1
     simulation_epoch: 1
+    object:
+      type: audit_trail
+      filter: 'period+user'
+    correlation:
+      scenario_id: ransomware-universidade
+      inject_id: B04
+      causation_id: '01J9E00000000000000000000E'
+      # Nulo porque esta consulta nao projeta fato canonico — 09 secao 1.
+      fact_id:
+    # Mapeamento vazio nao e expressavel no subconjunto YAML da Fase 0 (`{}` e
+    # fluxo), entao o exemplo traz uma chave real. A forma do payload varia por
+    # event_type e seus schemas chegam na Fase 2.
+    payload:
+      rows_returned: 128
 
 # ---------------------------------------------------------------------------
 # Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
@@ -302,6 +388,7 @@ x-aurora-invalid-examples:
       persona: ti
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
       simulation_epoch: 1
 
   - reason: 'truth_layer fora dos cinco valores'
@@ -315,18 +402,87 @@ x-aurora-invalid-examples:
       persona: ti
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
       simulation_epoch: 1
 
-  - reason: 'participant_action sem actor_id e sem persona'
+  # Dois campos ausentes sao DOIS defeitos, e a fixture unica que faltava os
+  # dois passava provando qualquer um deles. Separadas.
+  - reason: 'participant_action sem actor_id'
     rejected_by: schema
     instance:
       event_id: '01J9F000000000000000000003'
       event_type: containment_declared
       truth_layer: participant_action
       producer: academus-api
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 1
+
+  - reason: 'participant_action sem persona'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000003'
+      event_type: containment_declared
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 1
+
+  # H2 da segunda auditoria: o campo era declarado e nao exigido, e nenhuma
+  # fixture forcava a lista de obrigatorios a bater com 00 secao 5.6.
+  - reason: 'sem clock_multiplier: timeline do AAR deixa de ser reconstruivel (00 secao 5.6)'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000008'
+      event_type: audit_query_performed
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      persona: ti
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       simulation_epoch: 1
+
+  # H1: `correlation` e fechado, e chave nova ali e erro de autoria.
+  - reason: 'correlation com chave fora das quatro de 09 secao 1'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000009'
+      event_type: audit_query_performed
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 1
+      correlation:
+        scenario_id: ransomware-universidade
+        objective_id: OBJ-03
+
+  # L1 da primeira e da segunda auditoria: a proibicao de topo nao alcancava
+  # profundidade. `payload` e `object` passaram a recusa-la explicitamente.
+  - reason: 'objective_ids dentro de payload: a proibicao de 09 secao 1.2 nao e so na raiz'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000A'
+      event_type: audit_query_performed
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 1
+      payload:
+        objective_ids: [OBJ-03]
 
   - reason: 'objective_ids no envelope: o binding e da projecao, nao do evento'
     rejected_by: schema
@@ -339,6 +495,7 @@ x-aurora-invalid-examples:
       persona: ti
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
       simulation_epoch: 1
       objective_ids: [OBJ-03]
 
@@ -351,6 +508,7 @@ x-aurora-invalid-examples:
       producer: inject-engine
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
 
   - reason: 'event_type de participante declarado na camada ground_truth'
     rejected_by: schema
@@ -361,6 +519,7 @@ x-aurora-invalid-examples:
       producer: engine
       exercise_time: 'T+01:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
       simulation_epoch: 1
 
   # Zero e VALIDO: e a primeira linha temporal (09 secao 3, 06 secao T3). O que
@@ -374,4 +533,5 @@ x-aurora-invalid-examples:
       producer: engine
       exercise_time: 'T+00:00:00'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
+      clock_multiplier: 1
       simulation_epoch: -1

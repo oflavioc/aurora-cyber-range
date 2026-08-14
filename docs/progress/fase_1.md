@@ -145,9 +145,9 @@ Nove verificações, todas verdes na árvore limpa:
 | Verificação | O que prova | Dependência |
 |---|---|---|
 | os seis verificadores de `tools/` | os quatro invariantes arquiteturais | stdlib |
-| `scripts/phase0_negative_tests.py` | que os seis **reprovam** — 24 leituras, 36 escritas, 112 provas | stdlib |
-| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; 53 negativos são recusados **pela camada que cada um declara** | `jsonschema` |
-| `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em 6 eixos de fixture mentirosa | `jsonschema` |
+| `scripts/phase0_negative_tests.py` | que os seis **reprovam** — **27** leituras, 36 escritas, 112 provas | stdlib |
+| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **59** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito | `jsonschema` |
+| `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em **7** eixos de fixture mentirosa | `jsonschema` |
 
 As duas últimas rodam no job `contratos`, separado, **o único que instala dependência** — ver P1-6 e P1-10.
 
@@ -191,6 +191,9 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-9 | Alembic executável | ✅ fechada, confirmada por execução |
 | P1-10 | `contratos` é o quarto context obrigatório | ✅ resolvida — aplicar no GitHub após o merge |
 | P1-12 | `simulation_epoch` com piso inventado contra critério normativo | ✅ fechada — achado pelo auditor |
+| P1-13 | Achados da auditoria, rodadas 1 e 2 | ✅ BLOCKER/HIGH/MEDIUM/LOW corrigidos, salvo os abaixo |
+| P1-14 | Predicado satisfeito por declaracao (M3) | ⚠️ **aberta, aguarda decisão de modelagem** |
+| P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ⚠️ **escalação aberta, dois não-master** |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -375,6 +378,59 @@ Pelo `checkpoint-auditor`, em contexto fresco, nos primeiros segundos da sessão
 
 **É a defesa que as fixtures não dão.** Sete das oito coisas que a execução dos exemplos encontrou eram incoerências internas; esta é divergência da spec, e nenhum executor de fixture a encontraria, porque ele valida o contrato contra si mesmo. Ver `docs/progress/audit_20260814T223850Z.md`, anotado como launch abortado.
 
+#### P1-13 — Achados da auditoria: duas rodadas, ambas FAIL
+
+Duas auditorias formais rodaram, em contexto fresco e worktree preso ao commit candidato.
+
+| Rodada | Commit | Veredito | Relatório |
+|---|---|---|---|
+| 1 | `59580e6` | FAIL — 2 BLOCKER, 1 HIGH, 1 MEDIUM, 1 LOW | `audit_20260814T224156Z.md` |
+| 2 | `4a7b092` | FAIL — 2 BLOCKER, 3 HIGH, 4 MEDIUM, 3 LOW | `audit_20260814T230744Z.md` |
+
+**A rodada 2 encontrou mais, não menos.** Motivo declarado no próprio relatório: na rodada 1 o auditor **não conseguiu executar nada** — toda tentativa foi recusada pela camada de permissão. Na rodada 2 ele executou os seis verificadores e o harness, e o que ganhou em execução gastou em profundidade de leitura. Três achados da rodada 1 reapareceram na 2 **porque eu não os corrigi nem os registrei entre as rodadas** — H1, M1 e L1. Isso é falha de processo minha: `docs/process/WORKFLOW.md:36` define o ciclo como *"corrigir BLOCKER/HIGH, criar novo commit e reauditar"*, e eu commitei o relatório sem tratar os findings.
+
+##### Corrigidos neste commit
+
+**B2 (rodada 2) — dependências não pinadas.** `pyproject.toml` usava `>=` em três pacotes, contra `00` §8 e `06` T15, **no mesmo commit** em que `docker-compose.yml` pinava imagens por digest e explicava por que tag mutável não é pinagem. A mesma regra aplicada de forma inconsistente a dois artefatos do mesmo commit. Agora: versões exatas, `referencing` declarado explicitamente (era importado direto e vinha por transitividade), e `constraints.txt` fixando o **fecho transitivo** — o CI instala com `-c constraints.txt`. O argumento não é formal: `referencing` é quem resolve os `$ref` entre os contratos, e uma versão nova dele mudaria o resultado do único gate do item 1 da DoD sem nada aparecer em diff.
+
+**H1 (rodadas 1 e 2) — `correlation` ausente do envelope.** O envelope normativo de `09` §1 tem `correlation: {scenario_id, inject_id, causation_id, fact_id}`, e o contrato declarava só `fact_id`, **no topo**, com o comentário citando "09 seção 1" — a seção onde o campo está dentro de `correlation`. Li a seção errado. Corrigido: `correlation` fechado com os quatro campos, mais `object` e `payload`, que também faltavam. `inject_id` e `scenario_id` não levam `x-aurora-ref`: resolvem contra o pacote carregado em execução, não contra o mini-pacote de fixture, e amarrá-los ali seria inventar acoplamento.
+
+**H2 (rodada 2) — evento sem `clock_multiplier` era válido.** `00` §5.6 é taxativo: *"Todo evento carrega `exercise_time` e `wall_timestamp`, mais `clock_multiplier`"*. A lista de `09` §1.1 o omite, e eu segui a lista. `CLAUDE.md` resolve sem escalação: em conflito, o MASTER_SPEC prevalece. É a mesma classe do P1-12 na direção oposta — lá o contrato recusava o que a spec exige, aqui aceitava o que ela proíbe.
+
+**H3 (rodada 2) — o auditor não podia executar a prova central da fase.** O commit criou dois executores em `scripts/`, criou o job que os invoca e os declarou quarto required check, mas não estendeu a allowlist do `readonly_bash.py`. Resultado: o item 1 da DoD — o item que esta fase reabriu justamente por ter sido marcado ✅ por presença — voltava a repousar em relato do implementador. Corrigido por **nome explícito em alternação**, nunca curinga sob `scripts/`: curinga pré-autorizaria o auditor a executar qualquer script que um commit futuro acrescentasse, e o equivalente sob `.claude/hooks/` foi o H1 da sétima auditoria da Fase 0. As duas formas entraram em `LEITURA_LEGITIMA`, para que o bloqueio, se voltar, reprove o harness em vez de aparecer só no relatório do próximo auditor. **27 leituras legítimas**, contra 24.
+
+**M1 (rodadas 1 e 2) — `check_event_envelope.py` só varria Python.** Os outros dois verificadores de código já cobriam `WEB_SUFFIXES`; este saía rc=0 sobre todo o front-end. Verificador que sai zero sobre território que não varre é a mesma classe do B1 da primeira auditoria da Fase 0. Corrigido com varredura lexical de `.ts/.tsx/.js`, deliberadamente conservadora — chave nua `{ objective_ids: [...] }` não é literal de string e escaparia de `iter_web_string_literals`. Com probe próprio: ramo de verificador sem violação plantada é o defeito que ele corrige.
+
+**M2 (rodada 2) — duas cópias das faixas sintéticas, já divergentes.** `evidence.schema.yaml` afirmava que `tools/check_synthetic_data.py` consumia o registro. **Não consome** — o verificador tem constantes próprias, e as listas já tinham divergido: faltavam aqui `2001:db8::/32` (RFC 3849, citada nominalmente por `05` §3) e `example.net`. Afirmação corrigida e listas alinhadas. Unificar as duas fontes fica para a Fase 9, que é quem constrói o gerador.
+
+**M4 (rodada 2) — `observability_hooks.yaml` sem nenhuma camada que o valide.** O arquivo carrega `event_type` e não era varrido por gate nenhum: os seis contratos não o cobrem e a varredura de código nunca alcança `.yaml`. Um `audit_query_perfomed` ali saía rc=0 em todos os gates — exatamente a falha que `09` §4 chama de *"a mais cara possível"*. O invariante 3 diz "nenhum `event_type` fora do catálogo" sem restringir a linguagem do arquivo, então a verificação entrou em `check_contract_literals.py`, com probe.
+
+**L1 (rodadas 1 e 2) — `objective_ids` proibido só na raiz.** `payload` e `object` passaram a recusá-lo explicitamente, com fixture. Continua valendo o registro do auditor: quem de fato aplica o invariante é o AST, em qualquer profundidade.
+
+**L2 (rodada 2) — constantes Python não tipadas.** A DoD pede constantes **tipadas** em Python e TypeScript; os artefatos TS usavam `export const` e `as const`, os de Python eram atribuição sem anotação. Agora `Final[str]` e `Final[tuple[str, ...]]`.
+
+##### O buraco que os findings revelaram no meu próprio executor
+
+Ao acrescentar `clock_multiplier` a `required`, **nenhuma das sete fixtures do envelope reprovou** — e todas deveriam ter reprovado, porque nenhuma o declarava. A causa: a regra de isolamento que eu exigia das fixtures `x-aurora` eu **não exigia das de schema**. Para `rejected_by: schema` eu aceitava qualquer recusa.
+
+Consequência: uma fixture com dois defeitos é recusada e passa, provando qualquer um dos dois — ou **nenhum**, se o defeito que ela nomeia for removido do contrato. É a mesma classe que o executor existe para impedir, dentro do executor.
+
+Corrigido com agrupamento por **sítio de defeito**: erros são agrupados por caminho de instância, e erros de `required` incluem a propriedade ausente — senão dois campos obrigatórios faltando no mesmo objeto contariam como um. Um defeito que produz vários erros (um `event_type` inválido falha no `anyOf` do campo e no `enum` da camada) continua contando como um sítio.
+
+A regra reprovou quatro fixtures que estavam passando, e as quatro foram separadas em uma-por-defeito. **Sétimo eixo de probe** acrescentado, para a regra nova não ser mecanismo sem prova. Os exemplos negativos passaram de 53 para **59**.
+
+##### Abertos, por decisão ou por escopo
+
+**B1 das duas rodadas — item 8 da DoD.** Ver P1-2. O auditor registra que a marcação honesta e a recusa em escrever consumidor artificial estão corretas, e conclui que mesmo assim a fase não fecha: *"as saídas limpas são implementar o consumidor real ou mover o item por `spec-change`; nenhuma delas é 'auditor aceita'"*. Decisão do operador.
+
+**M3 da rodada 2 — predicado de verificação satisfeito por declaração.** `verification_predicates.containment: {all: [{event: containment_declared}]}` valida em todas as camadas. O `x-aurora-ref` resolve contra o catálogo inteiro, que inclui os `*_declared` de `participant_action`, e é exatamente a declaração que o modelo das quatro verdades separa da verificação: TTCD e TTCV colapsariam no mesmo instante e o delta — que `03` §3.2 chama de "o achado" — deixaria de existir sem nada falhar.
+
+O auditor registra com precisão o que **não** é o achado: `vpn_access_revoked` e `identity_scope_disabled` também são `participant_action` e são legítimos no exemplo normativo de `03` §3.1 — são **ações com efeito no mundo**, não afirmações sobre ele. A distinção que falta ao contrato é essa, e ela não existe no catálogo hoje. Fechá-la exige classificar os 32 tipos em ação-com-efeito e declaração, que é decisão de modelagem, não correção. **Aguarda decisão.**
+
+**L3 da rodada 2 — `exercise_timestamp` opcional.** `01` §3 diz "três marcas temporais, nunca uma só"; `09` §1.1 não o lista entre os obrigatórios. **Os dois são documentos não-master**, e `CLAUDE.md` §"Autoridade" manda *parar e perguntar* nesse caso, não resolver por inferência. Diferente do H2, onde o MASTER_SPEC decidia. **Escalação aberta.**
+
+**P25 herdada, reforçada.** O auditor observa que `actions/checkout@v4` e `actions/setup-python@v5` são a mesma classe do B2 e já estão declarados na P25.
+
 ### Abertas
 
 #### P1-2 — `RANDOM_SEED` declarado, não consumido
@@ -399,6 +455,20 @@ O padrão antigo `^[A-Z][0-9]{2}$` sugeria — pelo exemplo `id: A07` / `linha: 
 2. se a letra codifica a linha, **o id vaza a linha**. `03` §5.2 exige que o operador não enxergue que existe Linha B, sob pena de destruir o efeito de triagem sob viés — e o operador vê a fila.
 
 O contrato agora declara o prefixo **sem semântica de linha**. O que ele não resolve é o payload: **se a API da Fase 3 entregar o id do inject ao operador, e os packs continuarem nomeando por linha por hábito, o vazamento volta pela porta dos dados.** Fica apontado para a Fase 3, onde o payload por persona é decidido.
+
+#### P1-14 — Predicado de verificação pode ser satisfeito por declaração
+
+`verification_predicates.containment: {all: [{event: containment_declared}]}` valida em todas as camadas: o `x-aurora-ref` resolve contra o catálogo inteiro, que inclui os `*_declared` de `participant_action`.
+
+TTCD e TTCV colapsariam no mesmo instante, e o delta — que `03` §3.2 chama de "o achado" — deixaria de existir sem nada falhar. É a confusão entre camadas 3 e 4 que `00` §3 existe para impedir, passando pelo contrato que deveria guardá-la.
+
+**Não é "proibir `participant_action` no predicado".** `vpn_access_revoked` e `identity_scope_disabled` são dessa camada e são legítimos no exemplo normativo de `03` §3.1: são **ações com efeito no mundo simulado**, não afirmações sobre ele. A distinção que falta é essa, e ela não existe no catálogo — fechá-la exige classificar os 32 tipos. Decisão de modelagem. Ver P1-13.
+
+#### P1-15 — `exercise_timestamp`: conflito entre dois documentos não-master
+
+`01` §3 diz "três marcas temporais, nunca uma só" e lista `exercise_timestamp`; `09` §1.1 não o inclui entre os campos obrigatórios. O contrato o declara opcional, seguindo `09`.
+
+Os dois são não-master, e `CLAUDE.md` §"Autoridade" manda **parar e perguntar** nesse caso — não resolver por inferência. Diferente do H2, onde `00` §5.6 decidia por ser MASTER. **Escalação, não pendência de implementação.** Ver P1-13.
 
 #### P1-11 — Nenhum driver de banco nem cliente Redis declarado
 
