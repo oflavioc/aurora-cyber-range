@@ -220,6 +220,27 @@ FALSOS_BLOQUEIOS_CONHECIDOS = [
     # Consequencia: verificar o item 6 da DoD por grep no .gitignore exige
     # reescrever o padrao sem o token. Era o H1 da 16a auditoria, que apontou
     # com razao que este caso nao estava nem corrigido nem declarado.
+    # DECLARADOS pela 19a auditoria, e declarados e o que o item 4(e) pede: o
+    # estado fica como a 19a o encontrou, com a superficie dita. Nao sao
+    # corrigidos, por decisao registrada em §6 P40 — parar a iteracao sobre o
+    # item 4. Os dois falham FECHADO: recusam leitura, nao abrem escrita.
+    #
+    # (M1) `>` dentro de argumento citado casa a regra de redirecionamento.
+    # `->` (anotacao de retorno Python) e `=>` (arrow function TS) sao buscas
+    # rotineiras, e o custo cresce na Fase 1, que entrega geradores TypeScript.
+    # A leitura continua obtenivel por outra grafia ou pela ferramenta Grep.
+    ("seta dentro de padrao de busca", r'grep -rn "\-> None:" tools/codegen.py'),
+    ("arrow function dentro de padrao de busca",
+     'grep -n "=>" .github/workflows/invariants.yml'),
+    ("seta dentro de --format do for-each-ref",
+     "git for-each-ref --format='%(refname) -> %(objectname:short)' refs/tags"),
+    # (M2) `git branch` foi removido dos subcomandos na 11a auditoria, porque
+    # muta o ref store compartilhado por -m/-M/-f/-c/-d/-D. Listar ramos passou
+    # a ser feito com `git for-each-ref`, que nao tem forma que mute e esta em
+    # LEITURA_LEGITIMA. O bloqueio de `git branch --list` e consequencia
+    # deliberada dessa remocao, e nao estava declarado.
+    ("git branch --list, removido com a familia que muta ref", "git branch --list"),
+    ("git branch -a", "git branch -a"),
     ("token .env dentro de padrao de busca com outro alvo",
      r'grep -n "ground_truth\\|\\.env" .gitignore'),
 ]
@@ -644,13 +665,30 @@ def allowlist_e_a_revisada() -> None:
     # processo novo. Extrair sem essa distincao acusa `config` e `dryrun` como
     # comandos nao revisados, que foi o primeiro resultado deste probe.
     encontrados: set[str] = set()
-    for corpo in re.findall(r"\^\{SAFE_ENV_PREFIX\}(\([^)]*\)|[A-Za-z][\w-]*)", bloco):
+    # A extracao anterior so enxergava entradas escritas com o literal
+    # `^{SAFE_ENV_PREFIX}`. Uma entrada futura sem esse prefixo entraria na
+    # allowlist SEM reprovar o harness e sem passar por COMANDOS_REVISADOS — o
+    # modo de falha que o docstring acima diz existir para impedir. Era o L2 da
+    # 19a auditoria, e latente, nao atual.
+    #
+    # Agora a ancora e `^` com prefixo OPCIONAL, e o total de entradas e
+    # conferido contra o numero de padroes do bloco: se alguma linha de ALLOWED
+    # nao render comando, o probe reprova em vez de ignora-la em silencio.
+    padroes = re.findall(r'rf?"(\^[^"]*)"', bloco)
+    for corpo in re.findall(
+        r"\^(?:\{SAFE_ENV_PREFIX\})?(\([^)]*\)|[A-Za-z][\w-]*)", bloco
+    ):
         for alternativa in corpo.strip("()").split("|"):
             # `black\s+--check` e `tsc\s+--noEmit` sao comando + restricao: o
             # comando e o token da frente.
             nome = re.match(r"\s*([A-Za-z][\w-]*)", alternativa)
             if nome:
                 encontrados.add(nome.group(1))
+
+    if not padroes:
+        _reject("allowlist do readonly_bash.py",
+                "nenhum padrao reconhecido no bloco ALLOWED — a extracao "
+                "depende da forma como as entradas sao escritas, e a forma mudou", "")
 
     novos = encontrados - COMANDOS_REVISADOS
     if novos:
