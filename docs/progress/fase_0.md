@@ -196,7 +196,13 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 
 **Consequência medida:** a P17 está aberta desde a terceira auditoria, foi reconfirmada em **cinco** rodadas e classificada LOW em todas. Nenhuma delas diagnosticou a causa. O arquivo não faltava por esquecimento — **nenhum agente jamais poderia tê-lo criado**, e o achado se repetia porque a correção era impossível pelo caminho que os agentes têm.
 
-**Não corrigi.** Estreitar deny rule de secrets é decisão do operador, e há um trade-off real:
+**Resolvido por decisão do operador, 2026-08-14, com a autorização explícita de "se for necessário relaxar alguma regra para fins de produtividade, podemos — a prioridade é funcionalidade".**
+
+O deny foi **alinhado ao texto normativo**, não afrouxado além dele: `.env`, `.env.local`, `.env.*.local`, `secrets/**` — exatamente a enumeração de `CLAUDE.md` §Secrets. `.env.example` foi criado com placeholders. **P17 fechada após cinco reconfirmações.**
+
+**Consequência que fica declarada, não escondida:** `.env.production` e `.env.staging` deixam de ser negados, porque a norma não os lista. No mundo real esses arquivos têm segredo. Se o projeto quiser cobri-los, o lugar de dizer isso é `CLAUDE.md` — e aí o mecanismo segue a norma, em vez de a norma ser inferida do mecanismo. **Registrado como pendência de norma, não de código.**
+
+**O trade-off que existia antes da decisão:**
 
 - **alinhar à norma** (`.env`, `.env.local`, `.env.*.local`) devolve a capacidade de criar e ler o exemplo, mas deixa `.env.production` e `.env.staging` fora do deny — a norma não os lista, e no mundo real eles têm segredo;
 - **manter `.env.*`** preserva a proteção larga, e aí o `.env.example` é artefato **humano**: criado uma vez à mão, versionado, nunca editado por agente. Custo: agente também não consegue **ler** o exemplo para saber que variáveis existem.

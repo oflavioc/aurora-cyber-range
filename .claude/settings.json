@@ -6,8 +6,10 @@
     "deny": [
       "Read(.env)",
       "Edit(.env)",
-      "Read(.env.*)",
-      "Edit(.env.*)",
+      "Read(.env.local)",
+      "Edit(.env.local)",
+      "Read(.env.*.local)",
+      "Edit(.env.*.local)",
       "Read(secrets/**)",
       "Edit(secrets/**)"
     ]
