@@ -150,6 +150,14 @@ LEITURA_LEGITIMA = [
     ("-o depois de pipe nao herda o escopo", "git log | grep -o foo"),
     # Parentese CITADO nao e substituicao e nao pode ser bloqueado.
     ("parentese dentro de aspas", 'grep -n "foo(bar)" tools/'),
+    # `.env.example` e PERMITIDO por CLAUDE.md e EXIGIDO versionado por
+    # 05_SECURITY_REQUIREMENTS §6. O hook o bloqueava pelo mesmo overmatch que a
+    # P17 corrigiu em settings.json e que ficou intacto aqui — B1 da 15a.
+    ("leitura do .env.example, que a norma permite", "cat .env.example"),
+    ("grep no .env.example", "grep RANDOM_SEED .env.example"),
+    # `nc` dentro de texto nao e acesso de rede: a fronteira de palavra casava
+    # dentro de uma sequencia escapada. Era o L2 da 15a auditoria.
+    ("nc como substring nao e rede", r'printf "%s" "\nc = 6"'),
 ]
 
 #: MASCARA DE CITACAO — probes ADVERSARIAIS da correcao do P23.
@@ -245,6 +253,12 @@ ESCRITA_DELIBERADA = [
     ("git tag --delete apaga tag", "git tag --delete v1.0"),
     ("git branch -D apaga ref compartilhado com o worktree principal",
      "git branch -D main"),
+    # Secret de verdade continua negado pelo caminho de shell (M2 da 12a). O
+    # alinhamento do B1 da 15a estreitou o padrao a CLAUDE.md §Secrets, e estes
+    # tres provam que estreitar nao abriu nada.
+    ("secret .env por shell", "cat .env"),
+    ("secret .env.local por shell", "cat .env.local"),
+    ("secret .env.<nome>.local por shell", "cat .env.prod.local"),
 ]
 
 #: PROBES POR INVARIANTE, NAO POR GRAFIA. Foi o B2 da decima auditoria: as oito

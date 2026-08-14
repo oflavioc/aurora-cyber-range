@@ -102,7 +102,10 @@ DENIED_ANYWHERE = [
     # casa contra o hifen. Era o falso bloqueio registrado em P16, e merge-base
     # e justamente o que o auditor usa para comparar contra main.
     (r"\bgit\s+(commit|push|add|reset|checkout|switch|merge|rebase|clean|restore)\b(?!-)", "git que altera estado"),
-    (r"\b(curl|wget|nc|ssh|scp)\b", "acesso de rede"),
+    # A fronteira tem de ser INICIO DE COMANDO, nao `\b`: `\b` casava `nc` dentro
+    # de `\nc` — a barra invertida conta como fronteira de palavra —, e um payload
+    # com `\nc = 6` era recusado como "acesso de rede". Era o L2 da 15a auditoria.
+    (r"(?:^|[\s;&|])(curl|wget|nc|ssh|scp)\b", "acesso de rede"),
     (r"\b(pip|npm)\s+install\b", "instalacao de pacote"),
     (r"\bsed\s+-i\b|\bperl\s+-i\b", "edicao in-place"),
     # CONTENCAO, nao enumeracao de flags. Medido em 2026-08-14: das 10 formas
@@ -160,7 +163,13 @@ DENIED_ANYWHERE = [
     # Fase 1, cujo DoD poe RANDOM_SEED em `.env`.
     #
     # `CLAUDE.md` §Secrets diz "nunca leia", sem restringir a ferramenta.
-    (r"(?:^|[\s=\"'/\\])\.env(?:\.[A-Za-z0-9_.-]+)?(?:[\s\"']|$)"
+    # ALINHADO A CLAUDE.md §Secrets: `.env`, `.env.local`, `.env.*.local`.
+    # A versao anterior era `\.env(?:\.[A-Za-z0-9_.-]+)?` e casava `.env.example`,
+    # que a norma PERMITE explicitamente e que 05_SECURITY_REQUIREMENTS §6 exige
+    # versionado. Era o MESMO overmatch da P17, corrigido em .claude/settings.json
+    # no commit 0b425f1 e deixado intacto aqui: dois mecanismos implementando a
+    # mesma norma, divergindo. Foi o B1 da 15a auditoria.
+    (r"(?:^|[\s=\"'/\\])\.env(?:\.local|\.[A-Za-z0-9_.-]+\.local)?(?:[\s\"']|$)"
      r"|(?:^|[\s\"'/\\])secrets[/\\]",
      "leitura de secret por caminho de shell"),
     # SUBSTITUICAO DE COMANDO — quarto eixo, e o unico que nao e composicao nem
