@@ -139,6 +139,24 @@ O auditor está estruturalmente impedido de executar o teste canônico do item 4
 
 Probes passaram de 6 para 8, e a exigência deixou de ser "saiu diferente de zero" e passou a ser "saiu `1` e citou o arquivo plantado".
 
+### Sétima auditoria: FAIL, 1 BLOCKER — a correção do P23 abriu escrita deliberada
+
+Executada sobre `42a4779`. **Veredito FAIL**, 1 BLOCKER, 2 HIGH, 4 MEDIUM, 7 LOW. Relatório integral em `docs/progress/audit_20260814T020307Z.md` — **o primeiro relatório de auditoria a entrar no repositório**; as seis rodadas anteriores viveram no scroll da sessão e foram transcritas à mão.
+
+O **B1** é regressão introduzida pelo commit sob auditoria: a reescrita tokenizada do `readonly_bash.py` liberou `>&` com alvo não-numérico, `sort -o` e `find -fprint0`, todos com travessia `../../` alcançando o worktree principal. O **H1**, comando da allowlist gravando no worktree principal. O **H2**, o harness declarando cobertura que não tinha.
+
+Registrado em §6 **P32**.
+
+### Oitava auditoria: FAIL — o limite do desenho, não mais uma via
+
+Executada sobre `470ced8`. **Veredito FAIL**, 5 MEDIUM, 7 LOW. Relatório em `docs/progress/audit_20260814T030754Z.md`, recuperado com `audit_report.py --recover` depois de a captura automática ter falhado por fechamento da janela.
+
+O achado que encerra o assunto não é um finding numerado: o auditor somou **três vias novas** ao `readonly_bash.py` tokenizado — `\r`, `$(...)` entre aspas duplas e crase entre aspas duplas — e observou que a das aspas é **estrutural**, porque `_blank_quoted` apaga o conteúdo citado antes de procurar crase, enquanto o bash expande as duas coisas dentro de aspas duplas. Cinco instâncias em três rodadas.
+
+E declarou o que muda o método: **enquanto "o bash executaria isto?" for respondida por um parser reimplementado, a completude não é demonstrável — só refutável, uma via por rodada.** Avisou que passaria a gerar construções em vez de rodar os probes do repositório, o que é a postura correta para um auditor.
+
+Consequência: o P23 foi **revertido** e voltou a ser pendência aberta. Ver §6 P23, reaberto.
+
 ---
 
 ## 1. Resumo técnico
@@ -292,22 +310,24 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
 | 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ parcial — H4 corrigido, mas cinco modos de bloqueio indevido persistem (§6 P23), incluindo **o próprio smoke test canônico do item 4**, que o hook impede o auditor de executar |
-| 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas na sexta auditoria**: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` distingue `git log --oneline` (`exit=2`) de `range-cli scenario validate` (`exit=0`) |
+| 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ⚠️ parcial — `Read` e `Edit` de `.env`, `.env.*` e `secrets/**` negados; **`Write` não** (§6 P13). Leitura, que é o risco principal, está coberta; criação e sobrescrita não |
 | 8 | Auto Mode desabilitado para este projeto | ✅ `defaultMode: default`, `disableAutoMode: disable` |
-| 9 | Primeiro push de `main` deixa `arquitetura` e `seguranca` verdes | ⛔ commit inicial existe; **sem push**, sem evidência de CI |
-| 10 | PR descartável confirma que `spec_freeze` falha com spec e código juntos | ⛔ bloqueado por 9 |
-| 11 | PR descartável confirma título `spec-change:` para alteração só de spec | ⛔ bloqueado por 9 |
-| 12 | Branch protection em `main` exige `arquitetura`, `spec_freeze`, `seguranca` | ⛔ bloqueado por 9 |
-| 13 | `spec-v1.0` criada depois de CI e branch protection | ⛔ nenhuma tag existe |
+| 9 | Primeiro push de `main` deixa `arquitetura` e `seguranca` verdes | ✅ **por ATESTAÇÃO DO OPERADOR** — não verificado por auditoria (§6 P34) |
+| 10 | PR descartável confirma que `spec_freeze` falha com spec e código juntos | ✅ **por ATESTAÇÃO DO OPERADOR** — reprovou pela mensagem esperada (§6 P34) |
+| 11 | PR descartável confirma título `spec-change:` para alteração só de spec | ✅ **por ATESTAÇÃO DO OPERADOR** — reprovou pela mensagem esperada (§6 P34) |
+| 12 | Branch protection em `main` exige `arquitetura`, `spec_freeze`, `seguranca` | ✅ **por ATESTAÇÃO DO OPERADOR** — aplicada com `enforce_admins: true` (§6 P34) |
+| 13 | `spec-v1.0` criada depois de CI e branch protection | ✅ **por ATESTAÇÃO DO OPERADOR** — tag publicada (§6 P34) |
 | 14 | `/doctor` sem apontamentos relevantes | ✅ executado nesta sessão, sem achados |
 
 **Quem executa o quê, corrigido após o H2 da terceira auditoria.** `bash finalize_phase0.sh` executa os itens **9, 12 e 13** — push, espera de CI, branch protection e tag. Os itens **10 e 11 são manuais**: exigem PR descartável comprovando que `spec_freeze` reprova spec+código no mesmo PR e que alteração só de spec exige título `spec-change:`.
 
 O script parava de declarar "FASE 0 CONCLUÍDA" e criar `spec-v1.0` sem que 10 e 11 tivessem sido executados. Agora ele para antes da tag, imprime os comandos exatos dos dois PRs descartáveis, e só cria a tag numa segunda invocação explícita: `bash finalize_phase0.sh --dod-10-11-verificados`. A flag é a afirmação do operador de que executou os dois PRs e viu `spec_freeze` reprovar nos dois.
 
-**A Fase 0 não está concluída enquanto os itens 9 a 13 não passarem.**
+**Os itens 9 a 13 estão fechados por ATESTAÇÃO DO OPERADOR, não por verificação.** A distinção é deliberada e não é formalidade: nenhum auditor de checkpoint pode verificá-los com as ferramentas atuais — `gh` não está na allowlist do auditor e execução de CI não é observável de dentro de um worktree. O que está registrado é a declaração do operador de que executou `finalize_phase0.sh`, de que os dois PRs descartáveis reprovaram pela mensagem esperada, e de que a branch protection foi aplicada. Ver §6 P30 para a constatação estrutural e a decisão pendente.
+
+Isto é a terceira camada das quatro (`declaração`), não a segunda (`evidência observável`). Registrar atestação como se fosse verificação seria exatamente o que o `CLAUDE.md` proíbe em "Quatro camadas de verdade".
 
 **Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ✅ **com ressalva** — quatro auditorias: FAIL; PASS com três correções; PASS com dois HIGH; e **PASS sem BLOCKER e sem HIGH** (§0). Por `WORKFLOW.md` §Ciclo por fase, o critério de bloqueio é BLOCKER e HIGH, e a quarta rodada não tem nenhum dos dois. O único MEDIUM que a auditoria pediu para fechar antes dos itens 10 e 11 está corrigido (`7302bd1`).
 
@@ -813,6 +833,22 @@ Os cinco modos passam. O (e) foi verificado ponta a ponta: o smoke test de `PHAS
 
 **A direção inversa não afrouxou, e três buracos fecharam.** A allowlist passou a ser positiva. Redirecionamento de saída só passa para `/dev/null`. A tokenização permitiu bloquear o que o regex não via: `env CMD` como trampolim de execução, `git branch -D`, e `find -exec/-delete`. Crase é negada; entrada que não tokeniza é negada (falha fechada).
 
+**REABERTA na oitava auditoria, e a correção foi REVERTIDA.** O fechamento acima descreve o que foi feito e por quê; o que segue é por que não se sustentou.
+
+**Cinco instâncias em três rodadas.** A sétima auditoria somou duas vias que a tokenização não cobria; a oitava somou três — `\r`, `$(...)` entre aspas duplas, e crase entre aspas duplas. A das aspas é **estrutural**, não descuido: `_blank_quoted` apaga o conteúdo citado **antes** de procurar crase, enquanto o bash **expande** substituição de comando e crase dentro de aspas duplas. A premissa da função está errada, não a sua implementação.
+
+**O argumento que encerra o assunto**, e que vale além deste hook: enquanto *"o bash executaria isto?"* for respondida por um parser reimplementado em ~520 linhas, **a completude não é demonstrável — só refutável**, uma via por rodada. Nenhum conjunto de probes prova ausência de via; cada rodada só consegue exibir mais uma. O auditor avisou que passaria a **gerar construções** em vez de rodar os probes do repositório, e está certo em fazer isso: probe escrito por quem implementou herda os pontos cegos de quem implementou.
+
+**A reversão, e a premissa que ela corrigiu.** O hook voltou à versão em casamento textual. A justificativa era "falso-positiva, irritante e fechada, em vez de silenciosa e aberta" — e a **medição derruba a segunda metade**: a versão antiga erra nas duas direções. Bloqueia 9 leituras legítimas **e** deixa 10 escritas passarem.
+
+O que a versão antiga fecha é a família de **redirecionamento** — `>&`, `>|`, `<>` — porque `>\s*\S` casa todas por acidente, sem saber o que são. O que ela abre é a família de **escrita por flag** — `pytest --junitxml`, `ruff --output-file`, `mypy --junit-xml`, `eslint -o`, `tsc --outFile`, `find -fprint0`, `find -delete`, `git branch -D` — porque casamento textual não olha flag nenhuma.
+
+A escolha real, então, não foi entre "fechada" e "aberta". Foi entre **duas superfícies abertas diferentes**, e a decisão de reverter é defensável por outro motivo: a superfície da versão antiga é **conhecida e estável**, enquanto a da versão tokenizada crescia a cada rodada sem previsão de convergir.
+
+**O harness afirma as quatro combinações**, não as duas confortáveis: 5 leituras liberadas, 24 escritas bloqueadas, **9 falsos bloqueios conhecidos** e **10 buracos conhecidos**. As duas últimas listas são afirmadas como defeito: se o comportamento mudar, o harness reprova e manda migrar a linha para a lista certa. Defeito documentado que sai do harness vira defeito esquecido — e harness que só afirma o que acerta é exatamente o que o H2 puniu.
+
+**O que fica para quem for refazer isto.** O caminho que não foi tentado é não reimplementar o parser: delegar a decisão ao próprio bash (`bash -n`, ou expansão controlada), ou reduzir a superfície a ponto de o parser ser desnecessário — por exemplo, não aceitar pipeline nem substituição de comando, e exigir um comando por chamada. Menos capacidade, mas capacidade **demonstrável**.
+
 **O harness passou a cobrir as duas direções** — 7 probes de leitura legítima e 13 de escrita deliberada. Esta é a lição da linhagem, e vale além deste arquivo: o harness cobria "nega escrita" e nunca "libera leitura", e por isso quatro rodadas seguidas produziram falso bloqueio **sem nenhum teste reprovar**. Um guarda testado só contra o que deve bloquear converge para bloquear tudo. Um probe adicional compara a fonte versionada com a cópia instalada em `~/.claude/hooks/`, que é a que efetivamente roda: divergência silenciosa entre as duas é o pior caso. Ausente a cópia instalada (CI), avisa e segue.
 
 ### P24 — [L4, quarta auditoria] `check_security_constraints.py` não varre os hooks — reconfirma e amplia P9
@@ -923,7 +959,43 @@ Uma verificação possível — resolver cada `NN_DOC.md §X.Y` contra os cabeç
 
 ---
 
-### P28 — [B1 BLOCKER, H1, H2, sétima auditoria] A reescrita por tokens abriu escrita deliberada
+### P33 — [M4, oitava auditoria] O registro guardava evidência falsa para o item 5 da DoD
+
+```text
+[M4] O registro guarda evidencia falsa para o item 5 da DoD
+Arquivo: docs/progress/fase_0.md:295
+Evidencia: o registro afirma que scenario_bash.py distingue git log --oneline
+(exit=2) de range-cli scenario validate (exit=0). Medido nesta rodada:
+range-cli scenario validate -> exit=2; so range-cli scenario validate
+scenarios/academus/pack -> exit=0.
+```
+
+**Status: FECHADA.** Medido de novo e confirmado: `range-cli scenario validate` sem argumento devolve `exit=2`; só com o caminho do pack devolve `exit=0`. A evidência do item 5 foi corrigida para o que foi medido, e não apenas registrada como pendência.
+
+O item 5 **continua ✅**: as duas metades do hook seguem exercitadas, e o `exit=2` para a forma sem argumento é comportamento correto do hook, não defeito. O que estava errado era o texto da evidência.
+
+Vale registrar por que sobreviveu duas rodadas: o **L2 da sétima auditoria** apontou isto, e o registro o marcou explicitamente como "a apurar" — o que é honesto, mas "a apurar" não apura. Uma afirmação errada marcada como não verificada continua sendo lida como evidência por quem passa os olhos na tabela do DoD.
+
+### P34 — [constatação estrutural, oitava auditoria] Os itens 9 a 13 da DoD não são verificáveis por auditoria
+
+**Status: ABERTA — decisão pendente do operador.**
+
+Os itens 9 a 13 (push de `main` com CI verde, os dois PRs descartáveis do `spec_freeze`, branch protection, tag `spec-v1.0`) **não podem ser verificados por nenhum auditor de checkpoint com as ferramentas atuais**. Duas razões, ambas estruturais:
+
+1. **`gh` não está na allowlist do auditor.** Sem ele não há como consultar estado de PR, de check run ou de branch protection.
+2. **Execução de CI não é observável de dentro de um worktree.** O auditor lê um checkout fixado num commit; o que aconteceu no GitHub Actions não deixa rastro nesse checkout.
+
+Por isso os cinco foram fechados por **atestação do operador**, e estão marcados como tal em §5 — não como verificados. É a terceira camada das quatro (`declaração`), não a segunda (`evidência observável`). Registrar atestação como verificação seria violar diretamente "Quatro camadas de verdade" do `CLAUDE.md`.
+
+**Decisão pendente: liberar `gh` de leitura na allowlist do auditor.** Tornaria os itens 9 a 12 verificáveis por evidência em vez de declaração. Custo e risco a pesar antes de decidir:
+
+- `gh` fala com a rede, e acesso de rede está hoje inteiramente negado ao auditor (`DENIED_ANYWHERE`);
+- **não existe forma de expressar "só GET" numa regra de prefixo**: `gh api` cobre POST, DELETE e mutação GraphQL na mesma sintaxe. Uma allowlist de `gh` teria que ser por subcomando explícito (`gh pr view`, `gh run list`, `gh api` **nunca**), e cairia no mesmo problema de completude que derrubou o P23 — desta vez sobre a superfície de subcomandos do `gh`;
+- o auditor passaria a depender de credencial do operador, o que muda o que uma auditoria comprometida pode fazer.
+
+Enquanto a decisão não for tomada, **atestação é o mecanismo, e o registro diz isso em voz alta** em vez de simular verificação.
+
+### P32 — [B1 BLOCKER, H1, H2, sétima auditoria] A reescrita por tokens abriu escrita deliberada
 
 ```text
 [B1] readonly_bash.py libera tres caminhos de escrita que a versao anterior
