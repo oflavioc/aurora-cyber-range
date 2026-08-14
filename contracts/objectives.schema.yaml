@@ -8,169 +8,290 @@
 #
 # Objetivo sem evidencia observavel associada nao entra no AAR como metrica
 # (00 secao 5.7). Impressao de facilitador entra rotulada como nota qualitativa.
-
-schema_version: 1
-contract: objectives
-
-objective_id_pattern: "^OBJ-[0-9]{2}$"
-
-objective:
-  required_fields:
-    - title
-    - competency
-    - rubric
-    - evidence
-  optional_fields:
-    - expected_behavior
-    - scoring
-    - metric_binding
-    - debrief_questions
-
-# ---------------------------------------------------------------------------
-# RUBRICA COM VERSAO — 04 secao 2 e 00 secao 5.8.
 #
-# `required_rubrics` do manifesto inclui a versao. Rubrica ausente ou em versao
-# diferente IMPEDE A CARGA do pack. A ancora BARS e universal e versionada; o
-# que muda entre packs e onde a competencia se manifesta, nao como se pontua.
-# ---------------------------------------------------------------------------
-rubric_pattern: "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
 
-# ---------------------------------------------------------------------------
-# EVIDENCIA — APENAS DUAS CLASSES (03 secao 1.2).
-#
-# `auto`     — emitida pela aplicacao instrumentada, com produtor identificavel.
-#              Declarada em domains/<adapter>/observability_hooks.yaml.
-# `observed` — marcada por avaliador, SEMPRE com pergunta explicita e ancora
-#              BARS. Nunca "de uma nota".
-#
-# NAO EXISTE classe `derived`. Inferencias sao calculadas pelo AAR a partir de
-# eventos `auto`. Ou o sistema observou, ou uma pessoa observou — a ontologia
-# permanece binaria e a proveniencia, rastreavel.
-# ---------------------------------------------------------------------------
-evidence:
-  allowed_classes: [auto, observed]
-  forbidden_classes: [derived]
-  min_classes_present: 1
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/objectives.schema.json'
+title: Objetivos de aprendizagem de um pacote
+x-aurora-contract: objectives
+x-aurora-schema-version: 1
 
-  # Todo item de `auto` e um event_type e DEVE existir em
-  # contracts/events.schema.yaml. Mesma regra do branching (04 secao 6.2): um
-  # event_type com erro de digitacao nunca dispara, o objetivo nunca e
-  # satisfeito, e ninguem percebe ate o exercicio ao vivo.
-  auto:
-    type: sequence
-    of: string
-    must_exist_in_event_catalog: true
+type: object
+required: [objectives]
+additionalProperties: false
 
-  # Todo item de `observed` exige `id` e `prompt_to_evaluator`. Pergunta
-  # explicita e o que separa marcacao ancorada de opiniao.
-  observed:
-    type: sequence
-    of: mapping
-    required_fields: [id, prompt_to_evaluator]
+properties:
+  objectives:
+    type: object
+    minProperties: 1
+    # O teto de 99 objetivos e conhecido e mantido: a spec so exibe OBJ-01 a
+    # OBJ-10 (03 secao 1.3) e nenhum pack se aproxima do limite. Registrado como
+    # nota da D6, nao afrouxado junto com `fact_id` e `inject_id` — la o teto
+    # bloqueava entregavel, aqui nao.
+    propertyNames:
+      pattern: '^OBJ-[0-9]{2}$'
+    additionalProperties:
+      $ref: '#/$defs/objective'
 
-# ---------------------------------------------------------------------------
-# METRICAS — 03 secao 3.
-#
-# Pares declaracao x verificacao, mais as simples sem par. `metric_binding`
-# amarra o objetivo a metrica que o evidencia.
-# ---------------------------------------------------------------------------
-metric_binding:
-  allowed:
-    - TTA
-    - TTT
-    - TTCM
-    - TTCD
-    - TTCV
-    - TTRD
-    - TTRV
-    - TTID
-    - TTIV
-    - calibracao
+$defs:
 
-scoring:
-  levels: [excellent, adequate, poor]
+  objective:
+    type: object
+    required: [title, competency, rubric, evidence]
+    additionalProperties: false
+    properties:
+
+      title:
+        type: string
+        minLength: 1
+
+      competency:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*$'
+
+      # ---------------------------------------------------------------------
+      # RUBRICA COM VERSAO — 04 secao 2 e 00 secao 5.8.
+      #
+      # `required_rubrics` do manifesto inclui a versao. Rubrica ausente ou em
+      # versao diferente IMPEDE A CARGA do pack. A ancora BARS e universal e
+      # versionada; o que muda entre packs e onde a competencia se manifesta,
+      # nao como se pontua.
+      # ---------------------------------------------------------------------
+      rubric:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*\.v[0-9]+$'
+
+      evidence:
+        $ref: '#/$defs/evidence'
+
+      expected_behavior:
+        type: array
+        items:
+          type: string
+          minLength: 1
+
+      scoring:
+        $ref: '#/$defs/scoring'
+
+      metric_binding:
+        $ref: '#/$defs/metric_binding'
+
+      debrief_questions:
+        type: array
+        items:
+          type: string
+          minLength: 1
+
+  # -------------------------------------------------------------------------
+  # EVIDENCIA — APENAS DUAS CLASSES (03 secao 1.2).
+  #
+  # `auto`     — emitida pela aplicacao instrumentada, com produtor identificavel.
+  #              Declarada em domains/<adapter>/observability_hooks.yaml.
+  # `observed` — marcada por avaliador, SEMPRE com pergunta explicita e ancora
+  #              BARS. Nunca "de uma nota".
+  #
+  # NAO EXISTE classe `derived`. Inferencias sao calculadas pelo AAR a partir de
+  # eventos `auto`. Ou o sistema observou, ou uma pessoa observou — a ontologia
+  # permanece binaria e a proveniencia, rastreavel. `additionalProperties: false`
+  # e o que torna `derived` inexpressavel, em vez de apenas desaconselhado.
+  # -------------------------------------------------------------------------
+  evidence:
+    type: object
+    minProperties: 1
+    additionalProperties: false
+    properties:
+
+      # Todo item de `auto` e um event_type e DEVE existir em
+      # contracts/events.schema.yaml. Mesma regra do branching (04 secao 6.2): um
+      # event_type com erro de digitacao nunca dispara, o objetivo nunca e
+      # satisfeito, e ninguem percebe ate o exercicio ao vivo.
+      auto:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: event_catalog
+
+      observed:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/observed_marker'
+
+  # Pergunta explicita e o que separa marcacao ancorada de opiniao.
+  observed_marker:
+    type: object
+    required: [id, prompt_to_evaluator]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*$'
+        x-aurora-unique: true
+      prompt_to_evaluator:
+        type: string
+        minLength: 1
+
+  scoring:
+    type: object
+    minProperties: 1
+    additionalProperties: false
+    properties:
+      excellent:
+        type: string
+        minLength: 1
+      adequate:
+        type: string
+        minLength: 1
+      poor:
+        type: string
+        minLength: 1
+
+  # -------------------------------------------------------------------------
+  # METRICAS — 03 secao 3.
+  #
+  # Pares declaracao x verificacao, mais as simples sem par. `metric_binding`
+  # amarra o objetivo a metrica que o evidencia.
+  # -------------------------------------------------------------------------
+  metric_binding:
+    enum:
+      - TTA
+      - TTT
+      - TTCM
+      - TTCD
+      - TTCV
+      - TTRD
+      - TTRV
+      - TTID
+      - TTIV
+      - calibracao
+
+x-aurora-linter-rules:
+  - 'as tres ancoras BARS — excellent, adequate, poor — sao esperadas quando `scoring` existe (03 secao 1.1)'
+  - '`rubric` deve constar de `required_rubrics` do manifesto, na mesma versao (04 secao 2)'
+  - 'objetivo com `metric_binding: TTRV` exige `service_restoration` computavel no ground truth (D5)'
 
 # ---------------------------------------------------------------------------
 # Exemplo POSITIVO — o OBJ-03 normativo de 03 secao 1.1.
 # ---------------------------------------------------------------------------
-example_valid:
-  objectives:
-    OBJ-03:
-      title: "Reconhecer incidentes concorrentes"
-      competency: incident_triage
-      rubric: incident_triage.v2
-      expected_behavior:
-        - "manter hipóteses concorrentes explicitamente registradas"
-        - "não atribuir alteração de notas ao ransomware sem evidência correlacional"
-      evidence:
-        auto:
-          - audit_query_performed
-          - separate_incident_declared
-        observed:
-          - id: articulated_competing_hypotheses
-            prompt_to_evaluator: "A equipe verbalizou mais de uma hipótese antes de convergir?"
-      scoring:
-        excellent: "<= 25 min e hipótese separada declarada"
-        adequate: "<= 45 min, mesmo sem declaração formal"
-        poor: "atribui Linha B à Linha A sem investigação"
-      metric_binding: TTT
-      debrief_questions:
-        - "Em que momento decidiram que era um único incidente? O que sustentava isso?"
-
-# ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS.
-# ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "evidence.auto referencia event_type fora do catalogo"
-    objectives:
-      OBJ-01:
-        title: "x"
-        competency: escalation
-        rubric: escalation.v1
+examples:
+  - objectives:
+      OBJ-03:
+        title: 'Reconhecer incidentes concorrentes'
+        competency: incident_triage
+        rubric: incident_triage.v2
+        expected_behavior:
+          - 'manter hipóteses concorrentes explicitamente registradas'
+          - 'não atribuir alteração de notas ao ransomware sem evidência correlacional'
         evidence:
-          auto: [incident_declaread]
-
-  - reason: "classe derived nao existe"
-    objectives:
-      OBJ-02:
-        title: "x"
-        competency: escalation
-        rubric: escalation.v1
-        evidence:
-          derived: [algo_inferido]
-
-  - reason: "observed sem prompt_to_evaluator: viraria 'de uma nota'"
-    objectives:
-      OBJ-04:
-        title: "x"
-        competency: analytical_rigor
-        rubric: analytical_rigor.v1
-        evidence:
+          auto:
+            - audit_query_performed
+            - separate_incident_declared
           observed:
-            - id: pensou_bem
+            - id: articulated_competing_hypotheses
+              prompt_to_evaluator: 'A equipe verbalizou mais de uma hipótese antes de convergir?'
+        scoring:
+          excellent: '<= 25 min e hipótese separada declarada'
+          adequate: '<= 45 min, mesmo sem declaração formal'
+          poor: 'atribui Linha B à Linha A sem investigação'
+        metric_binding: TTT
+        debrief_questions:
+          - 'Em que momento decidiram que era um único incidente? O que sustentava isso?'
 
-  - reason: "rubric sem versao: rubrica ausente ou em versao diferente impede a carga"
-    objectives:
-      OBJ-05:
-        title: "x"
-        competency: business_continuity
-        rubric: business_continuity
-        evidence:
-          auto: [continuity_action_taken]
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+# Instancia completa, um defeito, `rejected_by` nomeando quem recusa.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
 
-  - reason: "objetivo sem evidencia: nao entra no AAR como metrica (00 secao 5.7)"
-    objectives:
-      OBJ-06:
-        title: "x"
-        competency: risk_decision
-        rubric: risk_decision.v1
+  - reason: 'classe derived nao existe: a ontologia de evidencia e binaria'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-02:
+          title: 'Coordenar resposta entre areas'
+          competency: cross_functional_coordination
+          rubric: cross_functional_coordination.v1
+          evidence:
+            derived: [algo_inferido]
 
-  - reason: "metric_binding fora do conjunto de metricas de 03 secao 3"
-    objectives:
-      OBJ-07:
-        title: "x"
-        competency: integrity_assurance
-        rubric: integrity_assurance.v1
-        evidence:
-          auto: [integrity_validation_declared]
-        metric_binding: MTTR
+  - reason: 'observed sem prompt_to_evaluator: viraria marcacao "de uma nota"'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-04:
+          title: 'Resistir a viés de confirmação'
+          competency: analytical_rigor
+          rubric: analytical_rigor.v1
+          evidence:
+            observed:
+              - id: pensou_bem
+
+  - reason: 'rubric sem versao: rubrica em versao diferente impede a carga'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-05:
+          title: 'Decidir sobre continuidade do AVA'
+          competency: business_continuity
+          rubric: business_continuity
+          evidence:
+            auto: [continuity_action_taken]
+
+  - reason: 'objetivo sem evidencia: nao entra no AAR como metrica (00 secao 5.7)'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-06:
+          title: 'Decidir sobre suspensão da matrícula'
+          competency: risk_decision
+          rubric: risk_decision.v1
+
+  # Mapeamento vazio nao e expressavel no subconjunto YAML da Fase 0 — `{}` e
+  # fluxo e o parser recusa. A instancia usa `evidence` nulo, que e a forma
+  # possivel da mesma falha, e o schema a recusa por `type: object`.
+  - reason: 'evidence nulo: mesma falha da ausencia, escrita de outro jeito'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-06:
+          title: 'Decidir sobre suspensão da matrícula'
+          competency: risk_decision
+          rubric: risk_decision.v1
+          evidence:
+
+  - reason: 'metric_binding fora do conjunto de metricas de 03 secao 3'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJ-07:
+          title: 'Validar integridade antes de liberar restauração'
+          competency: integrity_assurance
+          rubric: integrity_assurance.v1
+          evidence:
+            auto: [integrity_validation_declared]
+          metric_binding: MTTR
+
+  - reason: 'chave de objetivo fora do padrao OBJ-NN'
+    rejected_by: schema
+    instance:
+      objectives:
+        OBJETIVO-3:
+          title: 'Reconhecer incidentes concorrentes'
+          competency: incident_triage
+          rubric: incident_triage.v2
+          evidence:
+            auto: [audit_query_performed]
+
+  - reason: 'evidence.auto referencia event_type fora do catalogo'
+    rejected_by: 'x-aurora-ref:event_catalog'
+    instance:
+      objectives:
+        OBJ-01:
+          title: 'Classificar severidade e escalar para crise'
+          competency: escalation
+          rubric: escalation.v1
+          evidence:
+            auto: [incident_declaread]

@@ -9,91 +9,176 @@
 # O manifesto existe para duas coisas (08 secao 7): o facilitador saber o que
 # existe, e o teste verificar COBERTURA DE PROJECAO — que todo fato com
 # `projections` declaradas tem os arquivos correspondentes.
+#
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
 
-schema_version: 1
-contract: evidence
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/evidence.schema.json'
+title: MANIFEST.json de evidencia projetada
+x-aurora-contract: evidence
+x-aurora-schema-version: 1
+
+type: object
+required: [generated_from, sources]
+additionalProperties: false
+
+properties:
+
+  generated_from:
+    $ref: '#/$defs/generated_from'
+
+  sources:
+    type: array
+    minItems: 1
+    items:
+      $ref: '#/$defs/source'
+
+$defs:
+
+  # -------------------------------------------------------------------------
+  # PRINCIPIO — 00 secao 5.3 e 08 secao 1.
+  #
+  # Toda evidencia e PROJECAO DETERMINISTICA de fato canonico declarado em
+  # ground_truth.yaml. Nunca gerada independentemente.
+  #
+  # Mesmo seed e NECESSARIO MAS NAO SUFICIENTE: geradores independentes divergem
+  # semanticamente a primeira mudanca de codigo ou de ordem de geracao, e a
+  # divergencia so aparece quando o time azul encontra a contradicao, no meio do
+  # exercicio.
+  #
+  # `ground_truth_hash` e o que amarra o manifesto ao ground truth exato de que
+  # ele saiu: ground truth editado sem rebuild passa a ser detectavel.
+  # -------------------------------------------------------------------------
+  generated_from:
+    type: object
+    required: [pack_id, ground_truth_hash, random_seed]
+    additionalProperties: false
+    properties:
+      pack_id:
+        type: string
+        minLength: 1
+      ground_truth_hash:
+        type: string
+        pattern: '^sha256:[0-9a-f]{64}$'
+      random_seed:
+        type: integer
+
+  source:
+    type: object
+    required: [file, format, delivery_mode, projects_facts, sha256]
+    # Fechado. E o que torna anexo inexpressavel no manifesto (05 secao 2), em
+    # vez de apenas desaconselhado.
+    additionalProperties: false
+    properties:
+
+      file:
+        type: string
+        minLength: 1
+
+      format:
+        $ref: '#/$defs/evidence_format'
+
+      delivery_mode:
+        $ref: '#/$defs/delivery_mode'
+
+      # `projects_facts` obrigatorio e nao vazio: arquivo de evidencia que nao
+      # projeta fato nenhum e conteudo autoral disfarcado de projecao.
+      projects_facts:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_facts
+
+      sha256:
+        type: string
+        pattern: '^[0-9a-f]{64}$'
+
+      window:
+        type: string
+        minLength: 1
+
+      requires_request_delay_minutes:
+        type: integer
+        minimum: 0
+
+    allOf:
+      # 08 secao 5: fonte liberada por inject precisa da janela temporal que ela
+      # cobre, senao o facilitador nao sabe o que esta liberando.
+      - if:
+          required: [delivery_mode]
+          properties:
+            delivery_mode:
+              const: released_by_inject
+        then:
+          required: [window]
+
+      # O atraso configuravel simula dependencia de fornecedor e so faz sentido
+      # sob demanda. Declarado em outro modo, seria campo que nao produz efeito.
+      - if:
+          not:
+            required: [delivery_mode]
+            properties:
+              delivery_mode:
+                const: on_request
+        then:
+          not:
+            required: [requires_request_delay_minutes]
+
+  # -------------------------------------------------------------------------
+  # FORMATOS DE FIO — 08 secao 3.
+  # -------------------------------------------------------------------------
+  evidence_format:
+    enum:
+      - rfc5322
+      - syslog_text
+      - jsonl
+      - cef_syslog
+
+  # -------------------------------------------------------------------------
+  # MODOS DE ENTREGA — 08 secao 5.
+  # -------------------------------------------------------------------------
+  delivery_mode:
+    enum:
+      - pre_positioned
+      - released_by_inject
+      - on_request
 
 # ---------------------------------------------------------------------------
-# PRINCIPIO — 00 secao 5.3 e 08 secao 1.
+# FONTES v1 — 08 secao 3. Registro, nao validacao de instancia.
 #
-# Toda evidencia e PROJECAO DETERMINISTICA de fato canonico declarado em
-# ground_truth.yaml. Nunca gerada independentemente.
-#
-# Mesmo seed e NECESSARIO MAS NAO SUFICIENTE: geradores independentes divergem
-# semanticamente a primeira mudanca de codigo ou de ordem de geracao, e a
-# divergencia so aparece quando o time azul encontra a contradicao, no meio do
-# exercicio.
-#
-# Por isso `projects_facts` e obrigatorio e nao pode ser vazio: arquivo de
-# evidencia que nao projeta fato nenhum e conteudo autoral disfarcado.
-# ---------------------------------------------------------------------------
-required_sections:
-  - generated_from
-  - sources
-
-generated_from:
-  required_fields: [pack_id, ground_truth_hash, random_seed]
-
-source:
-  required_fields:
-    - file
-    - format
-    - delivery_mode
-    - projects_facts
-    - sha256
-  optional_fields:
-    - window
-    - requires_request_delay_minutes
-
-  projects_facts:
-    type: sequence
-    of: string
-    min_items: 1
-    must_exist_in_ground_truth: true
-
-# ---------------------------------------------------------------------------
-# FONTES v1 — 08 secao 3.
-#
-# Conjunto fechado nesta versao. As pos-MVP de 08 secao 4 (firewall, radius,
-# web_application, saas_audit, cloud_audit, edr_timeline) entram por
-# spec-change, quando houver pacote cujo ground truth as exija.
+# Conjunto fechado nesta versao: mapeia a fonte declarada em `projections` de um
+# fato para o formato de fio do arquivo projetado. As pos-MVP de 08 secao 4
+# (firewall, radius, web_application, saas_audit, cloud_audit, edr_timeline)
+# entram por spec-change, quando houver pacote cujo ground truth as exija.
 #
 # DNS, proxy e DHCP foram cortadas deliberadamente: para este ground truth
 # provam pouco — a entrada e credencial phishada sobre VPN, nao C2 por DNS.
 # ---------------------------------------------------------------------------
-formats:
-  email: rfc5322
-  vpn: syslog_text
-  identity_audit: jsonl
-  database_audit: jsonl
-  cef: cef_syslog
-  precursor: jsonl
-
-# ---------------------------------------------------------------------------
-# MODOS DE ENTREGA — 08 secao 5.
-# ---------------------------------------------------------------------------
-delivery_modes:
-  - pre_positioned
-  - released_by_inject
-  - on_request
-
-# `on_request` aceita atraso configuravel, que simula dependencia de
-# fornecedor. E o modo mais realista e o que melhor exercita OBJ-02.
-conditional_fields:
-  on_request:
-    optional: [requires_request_delay_minutes]
-  released_by_inject:
-    required: [window]
+x-aurora-registry:
+  source_formats:
+    email: rfc5322
+    vpn: syslog_text
+    identity_audit: jsonl
+    database_audit: jsonl
+    cef: cef_syslog
+    precursor: jsonl
 
 # ---------------------------------------------------------------------------
 # RESTRICOES DE SEGURANCA — 05 secoes 2, 3 e 4. Nao admitem excecao.
+#
+# Registro consumido pelo evidence-simulator (Fase 9) e por
+# tools/check_synthetic_data.py, que e quem de fato guarda as faixas sobre os
+# arquivos de dado. Nao sao validacao de instancia deste manifesto, e por isso
+# nao aparecem como regra de schema.
 # ---------------------------------------------------------------------------
-security_constraints:
+x-aurora-security-constraints:
+
   # 05 secao 2: sem anexo, sem binario, sem macro, sem script.
   attachments_allowed: false
 
-  # 05 secao 3: IPs so de faixa de documentacao (RFC 5737 / RFC 3849) ou
-  # privada. Guardado por tools/check_synthetic_data.py.
+  # 05 secao 3: IPs so de faixa de documentacao (RFC 5737 / RFC 3849) ou privada.
   allowed_ip_ranges:
     - 192.0.2.0/24
     - 198.51.100.0/24
@@ -120,75 +205,155 @@ security_constraints:
   # 05 secao 4: banner em todo artefato gerado, como comentario na primeira
   # linha, no formato do proprio arquivo.
   banner_required: true
-  banner_text: "AMBIENTE SIMULADO — DADOS FICTÍCIOS"
+  banner_text: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
 
   # 05 secao 2: sem hash de malware real, sem IOC de campanha real.
   real_ioc_allowed: false
 
-# ---------------------------------------------------------------------------
-# Exemplo POSITIVO.
-# ---------------------------------------------------------------------------
-example_valid:
-  generated_from:
-    pack_id: ransomware-universidade
-    ground_truth_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-    random_seed: 424242
-  sources:
-    - file: vpn.log
-      format: syslog_text
-      delivery_mode: released_by_inject
-      window: "T-9d → T-8d"
-      projects_facts: [GT-A-014]
-      sha256: "0000000000000000000000000000000000000000000000000000000000000000"
-    - file: identity_audit.jsonl
-      format: jsonl
-      delivery_mode: pre_positioned
-      projects_facts: [GT-A-014, GT-A-019]
-      sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+x-aurora-linter-rules:
+  - 'cobertura de projecao: todo fato com `projections` tem os arquivos correspondentes (08 secao 7)'
+  - '`format` do arquivo deve casar com o formato declarado para aquela fonte em x-aurora-registry.source_formats'
+  - '`sha256` confere com o conteudo do arquivo — verificado por `range-cli evidence verify`'
+  - 'banner presente na primeira linha de todo artefato gerado (05 secao 4)'
 
 # ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS.
+# Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "projects_facts vazio: arquivo autoral disfarcado de projecao"
-    sources:
-      - file: vpn.log
-        format: syslog_text
-        delivery_mode: pre_positioned
-        projects_facts: []
-
-  - reason: "fact_id inexistente no ground_truth do pack"
-    sources:
-      - file: vpn.log
-        format: syslog_text
-        delivery_mode: pre_positioned
-        projects_facts: [GT-Z-999]
-
-  - reason: "released_by_inject sem window"
+examples:
+  - generated_from:
+      pack_id: ransomware-universidade
+      ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+      random_seed: 424242
     sources:
       - file: vpn.log
         format: syslog_text
         delivery_mode: released_by_inject
+        window: 'T-9d → T-8d'
         projects_facts: [GT-A-014]
-
-  - reason: "anexo em evidencia: proibido por 05 secao 2"
-    sources:
-      - file: phishing.eml
-        format: rfc5322
+        sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+      - file: identity_audit.jsonl
+        format: jsonl
         delivery_mode: pre_positioned
-        projects_facts: [GT-A-001]
-        attachments: [fatura.xlsm]
+        projects_facts: [GT-A-014, GT-A-019]
+        sha256: '1111111111111111111111111111111111111111111111111111111111111111'
+      - file: database_audit.jsonl
+        format: jsonl
+        delivery_mode: on_request
+        requires_request_delay_minutes: 20
+        projects_facts: [GT-B-001]
+        sha256: '2222222222222222222222222222222222222222222222222222222222222222'
 
-  - reason: "formato fora do conjunto v1"
-    sources:
-      - file: dns.log
-        format: syslog_text
-        delivery_mode: pre_positioned
-        projects_facts: [GT-A-014]
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+# Instancia completa, um defeito, `rejected_by` nomeando quem recusa.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
 
-  - reason: "sem sha256: o teste nao teria como verificar cobertura de projecao"
-    sources:
-      - file: vpn.log
-        format: syslog_text
-        delivery_mode: pre_positioned
-        projects_facts: [GT-A-014]
+  - reason: 'projects_facts vazio: arquivo autoral disfarcado de projecao'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          projects_facts: []
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+
+  - reason: 'released_by_inject sem window'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: released_by_inject
+          projects_facts: [GT-A-014]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+
+  - reason: 'anexo em evidencia: proibido por 05 secao 2'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: phishing.eml
+          format: rfc5322
+          delivery_mode: pre_positioned
+          projects_facts: [GT-A-001]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+          attachments: [fatura.xlsm]
+
+  - reason: 'formato fora do conjunto v1'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: captura.pcap
+          format: pcap
+          delivery_mode: pre_positioned
+          projects_facts: [GT-A-014]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+
+  - reason: 'sem sha256: o teste nao teria como verificar cobertura de projecao'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          projects_facts: [GT-A-014]
+
+  - reason: 'atraso de fornecedor declarado fora do modo sob demanda: campo sem efeito'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          projects_facts: [GT-A-014]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+          requires_request_delay_minutes: 20
+
+  - reason: 'sem generated_from: manifesto sem seed nem hash nao e reconstruivel'
+    rejected_by: schema
+    instance:
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          projects_facts: [GT-A-014]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+
+  - reason: 'fact_id inexistente no ground_truth do pack'
+    rejected_by: 'x-aurora-ref:pack_facts'
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          projects_facts: [GT-Z-999]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'

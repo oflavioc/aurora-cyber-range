@@ -8,203 +8,598 @@
 # daqui — o linter compara e recusa divergencia.
 #
 # Excluido do build servido a participantes (05 secao 6).
+#
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
 
-schema_version: 1
-contract: ground_truth
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/ground_truth.schema.json'
+title: Ground truth de um pacote de cenario
+x-aurora-contract: ground_truth
+x-aurora-schema-version: 1
 
-required_sections:
-  - facts
-  - verification_predicates
+type: object
 
 # `line_b_cases` e `threat_actor` sao opcionais: nem todo pacote tem segunda
 # linha nem ator nomeado.
-optional_sections:
-  - line_b_cases
-  - threat_actor
+required: [facts, verification_predicates]
+additionalProperties: false
 
-# ---------------------------------------------------------------------------
-# FATOS — 08 secao 2.
-#
-# Uma realidade, multiplas projecoes (00 secao 5.3). Cada fonte de evidencia e
-# projecao deterministica de um fato canonico, nunca gerada independentemente.
-# Contradicao entre fontes torna-se estruturalmente impossivel.
-# ---------------------------------------------------------------------------
-fact:
-  required_fields:
-    - fact_id
-    - fact_class
-    - exercise_time
-  optional_fields:
-    - actor
-    - action
-    - source_ip
-    - dest
-    - credential_state
-    - mfa
-    - projections
-    - discoverability
-    - records_affected
+properties:
 
-  # Fato SEM `projections` e invisivel ao time azul. Isso e deliberado, e usado
-  # para ensinar limite de deteccao (08 secao 2) — nao e erro de autoria.
-  projections:
-    type: sequence
-    of: string
-    allowed: [vpn, identity_audit, database_audit, email, cef, precursor]
-
-  discoverability:
-    optional_fields: [difficulty, requires]
-    difficulty: [low, medium, high]
-
-fact_id_pattern: "^GT-[A-Z]-[0-9]{3}$"
-
-# ---------------------------------------------------------------------------
-# PREDICADOS DE VERIFICACAO — 03 secao 3.1.
-#
-# Sem esta secao o pack NAO CARREGA: TTCV e TTRV seriam incomputaveis, e o par
-# declaracao x verificacao (00 secao 3, consequencia normativa 2) deixaria de
-# existir. O delta entre os dois e o achado.
-#
-# So podem depender do objetivamente observavel — mesmo criterio de
-# 04 secao 6.1 para branching. Condicao que dependa de juizo tornaria o cenario
-# nao ensaiavel.
-# ---------------------------------------------------------------------------
-verification_predicates:
-  required_keys:
-    - containment
-    - service_restoration
-  combinators: [all, any, not]
-  leaf_types:
-    - event
-    - flag_true
-    - flag_false
-    - absence_of
-    - before
-    - after
-  # `event` referenciado aqui deve existir em contracts/events.schema.yaml. Mesma
-  # regra do branching (04 secao 6.2) e pelo mesmo motivo.
-  event_must_exist_in_catalog: true
-
-# ---------------------------------------------------------------------------
-# LINHA B — 04 secao 3.
-#
-# `defensibility` 0-1 indica quao sustentavel e acusar o caso. Alimenta a
-# calibracao (00 secao 3, consequencia normativa 4): avalia-se a relacao entre
-# confianca declarada e forca real da evidencia, nao a contagem de acertos.
-# ---------------------------------------------------------------------------
-line_b_case:
-  required_fields: [case_id, defensibility, set]
-  optional_fields: [supporting_evidence]
-  defensibility:
-    type: number
-    min: 0
-    max: 1
-  sets:
-    - indevido_comprovado
-    - ambiguo
-    - legitimo_aparencia_suspeita
-
-# ---------------------------------------------------------------------------
-# ATOR DE AMEACA — 05 secao 5.2.
-#
-# PODE ser real e documentado, desde que haja fonte publica citavel declarada e
-# nenhum IOC operacional. Ficcionalizar o ator nao protege ninguem e enfraquece
-# a discussao.
-#
-# Distincao critica: 05 secao 5.1 exige que FORNECEDOR DE PRODUTO seja sempre
-# ficticio. Sao duas regras diferentes com propositos diferentes.
-# ---------------------------------------------------------------------------
-threat_actor:
-  required_fields: [name, sources]
-  optional_fields: [aliases, mitre_id, note_to_facilitator]
-  # `sources` vazio recusa o pack: ator sem fonte publica citavel deixa de ser
-  # fato verificavel e vira ficcao nao declarada.
-  sources:
-    type: sequence
-    of: string
-    min_items: 1
-
-# ---------------------------------------------------------------------------
-# Exemplo POSITIVO.
-# ---------------------------------------------------------------------------
-example_valid:
   facts:
-    - fact_id: GT-A-014
-      fact_class: initial_access
-      actor: svc_academus
-      action: vpn_login
-      source_ip: 198.51.100.42
-      dest: vpn-gw-01
-      exercise_time: "T-17d 02:14"
-      credential_state: compromised
-      mfa: absent
-      projections: [vpn, identity_audit, cef]
-      discoverability:
-        difficulty: medium
-        requires: "correlacionar horário fora de expediente com ausência de MFA"
+    type: array
+    minItems: 1
+    items:
+      $ref: '#/$defs/fact'
 
   verification_predicates:
-    containment:
-      all:
-        - event: vpn_access_revoked
-        - event: identity_scope_disabled
-        - absence_of: exfiltration
-
-    service_restoration:
-      all:
-        - flag_false: academus.enrollment_offline
+    $ref: '#/$defs/verification_predicates'
 
   line_b_cases:
-    - case_id: GC-029
-      defensibility: 1.0
-      set: indevido_comprovado
-      supporting_evidence: [DBA-28391, DBA-28402]
+    type: array
+    items:
+      $ref: '#/$defs/line_b_case'
 
   threat_actor:
-    name: "Qilin"
-    aliases: [Agenda]
-    mitre_id: "S1242"
-    sources:
-      - "MITRE ATT&CK S1242"
-      - "CISA StopRansomware advisory"
-    note_to_facilitator: "Perfil público. Nenhum IOC operacional reproduzido."
+    $ref: '#/$defs/threat_actor'
+
+$defs:
+
+  # -------------------------------------------------------------------------
+  # FATOS — 08 secao 2.
+  #
+  # Uma realidade, multiplas projecoes (00 secao 5.3). Cada fonte de evidencia e
+  # projecao deterministica de um fato canonico, nunca gerada independentemente.
+  # Contradicao entre fontes torna-se estruturalmente impossivel.
+  # -------------------------------------------------------------------------
+  fact:
+    type: object
+    required: [fact_id, fact_class, exercise_time]
+    additionalProperties: false
+    properties:
+
+      # ---------------------------------------------------------------------
+      # fact_id — decisao D6 da Fase 1.
+      #
+      # A spec mostra `GT-A-014` e nunca declara padrao. A forma anterior,
+      # `^GT-[A-Z]-[0-9]{3}$`, era invencao minha e impunha teto de 999 fatos
+      # por linha com linha de um unico caractere. Padrao restrito nao comprava
+      # verificacao: o que pega erro real e UNICIDADE aqui e RESOLUCAO nas tres
+      # referencias — `materializes_facts` de inject (04 secao 5),
+      # `projects_facts` do MANIFEST (08 secao 7) e `fact_check_against` de
+      # media_event (04 secao 7).
+      #
+      # O ponto continua proibido pelo padrao, e nao por estilo: 04 secao 7 usa
+      # o id dentro de um caminho pontuado, `facts.GT-A-020.records_affected`.
+      # ---------------------------------------------------------------------
+      fact_id:
+        type: string
+        pattern: '^GT-[A-Z0-9]+-[0-9]+$'
+        x-aurora-unique: true
+
+      fact_class:
+        type: string
+        minLength: 1
+
+      exercise_time:
+        type: string
+        minLength: 1
+
+      actor:
+        type: string
+      action:
+        type: string
+      dest:
+        type: string
+
+      # Faixa sintetica obrigatoria (05 secao 3): documentacao (RFC 5737) ou
+      # privada. NAO e verificavel por schema — CIDR nao cabe em `pattern` sem
+      # virar regex ilegivel e errada. Quem guarda e tools/check_synthetic_data.py,
+      # sobre os arquivos de dado, e o registro em evidence.schema.yaml.
+      source_ip:
+        type: string
+
+      credential_state:
+        type: string
+      mfa:
+        type: string
+
+      records_affected:
+        type: integer
+        minimum: 0
+
+      # Fato SEM `projections` e invisivel ao time azul. Isso e deliberado, e
+      # usado para ensinar limite de deteccao (08 secao 2) — nao e erro de
+      # autoria, e por isso o campo e opcional em vez de exigido com lista vazia.
+      projections:
+        type: array
+        uniqueItems: true
+        items:
+          enum: [vpn, identity_audit, database_audit, email, cef, precursor]
+
+      discoverability:
+        type: object
+        additionalProperties: false
+        properties:
+          difficulty:
+            enum: [low, medium, high]
+          requires:
+            type: string
+
+  # -------------------------------------------------------------------------
+  # PREDICADOS DE VERIFICACAO — 03 secao 3.1.
+  #
+  # Sem esta secao o pack NAO CARREGA: TTCV e TTRV seriam incomputaveis, e o par
+  # declaracao x verificacao (00 secao 3, consequencia normativa 2) deixaria de
+  # existir. O delta entre os dois e o achado.
+  #
+  # DECISAO D5 DA FASE 1 — `service_restoration` aceita predicado OU
+  # `not_applicable` com motivo.
+  #
+  # A spec declara a obrigatoriedade sobre a SECAO, nunca sobre cada chave; as
+  # duas aparecem no exemplo porque o pack do exemplo tem as duas. Exigir ambas
+  # em todo pack impediria a carga de `fraude-academica-express`, que 04 secao 9
+  # manda entregar e que pode nao ter restauracao de servico em sentido nenhum.
+  #
+  # A chave permanece OBRIGATORIA: omitir continua sendo falha de carga. O que
+  # muda e que inaplicavel deixa de ser indistinguivel de esquecido, e o AAR
+  # pode imprimir "TTRV nao aplicavel" em vez de nulo ou de um zero que parece
+  # medicao. Predicado trivialmente satisfeito seria pior que ausente — viraria
+  # metrica que sempre zera.
+  # -------------------------------------------------------------------------
+  verification_predicates:
+    type: object
+    required: [containment, service_restoration]
+    additionalProperties: false
+    properties:
+      containment:
+        $ref: '#/$defs/predicate'
+      service_restoration:
+        oneOf:
+          - $ref: '#/$defs/predicate'
+          - $ref: '#/$defs/not_applicable'
+
+  not_applicable:
+    type: object
+    required: [not_applicable]
+    additionalProperties: false
+    properties:
+      # Motivo obrigatorio e nao vazio: a declaracao existe para ser lida por
+      # quem revisa o pack e pelo AAR.
+      not_applicable:
+        type: string
+        minLength: 1
+
+  # -------------------------------------------------------------------------
+  # PREDICADO — arvore fechada.
+  #
+  # Cada no e UM combinador ou UMA folha, e nada mais. So podem depender do
+  # objetivamente observavel — mesmo criterio de 04 secao 6.1 para branching.
+  # Condicao que dependa de juizo tornaria o cenario nao ensaiavel, e aqui ela
+  # deixa de ser expressavel: um no como
+  # `facilitator_thinks_response_was_good: true` nao casa com forma nenhuma.
+  # -------------------------------------------------------------------------
+  predicate:
+    oneOf:
+      - $ref: '#/$defs/predicate_all'
+      - $ref: '#/$defs/predicate_any'
+      - $ref: '#/$defs/predicate_not'
+      - $ref: '#/$defs/predicate_event'
+      - $ref: '#/$defs/predicate_flag_true'
+      - $ref: '#/$defs/predicate_flag_false'
+      - $ref: '#/$defs/predicate_absence_of'
+      - $ref: '#/$defs/predicate_before'
+      - $ref: '#/$defs/predicate_after'
+
+  predicate_all:
+    type: object
+    required: [all]
+    additionalProperties: false
+    properties:
+      all:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/predicate'
+
+  predicate_any:
+    type: object
+    required: [any]
+    additionalProperties: false
+    properties:
+      any:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/predicate'
+
+  predicate_not:
+    type: object
+    required: [not]
+    additionalProperties: false
+    properties:
+      not:
+        $ref: '#/$defs/predicate'
+
+  # `event` referenciado aqui deve existir em contracts/events.schema.yaml.
+  # Mesma regra do branching (04 secao 6.2) e pelo mesmo motivo: event_type com
+  # erro de digitacao nunca dispara, o predicado nunca e satisfeito, e TTCV
+  # nunca e computado.
+  predicate_event:
+    type: object
+    required: [event]
+    additionalProperties: false
+    properties:
+      event:
+        type: string
+        x-aurora-ref: event_catalog
+      # 03 secao 3.1 mostra `payload: {principal: svc_academus}` — o predicado
+      # pode exigir nao so o evento mas um evento sobre um principal.
+      payload:
+        type: object
+
+  predicate_flag_true:
+    type: object
+    required: [flag_true]
+    additionalProperties: false
+    properties:
+      flag_true:
+        type: string
+        x-aurora-ref: adapter_flags
+
+  predicate_flag_false:
+    type: object
+    required: [flag_false]
+    additionalProperties: false
+    properties:
+      flag_false:
+        type: string
+        x-aurora-ref: adapter_flags
+
+  # 03 secao 3.1 mostra a forma completa, `{fact_class: exfiltration, since: self}`.
+  # A forma curta em string nomeia so a classe de fato.
+  predicate_absence_of:
+    type: object
+    required: [absence_of]
+    additionalProperties: false
+    properties:
+      absence_of:
+        oneOf:
+          - type: string
+            minLength: 1
+          - type: object
+            required: [fact_class]
+            additionalProperties: false
+            properties:
+              fact_class:
+                type: string
+                minLength: 1
+              since:
+                type: string
+
+  predicate_before:
+    type: object
+    required: [before]
+    additionalProperties: false
+    properties:
+      before:
+        type: string
+        minLength: 1
+
+  predicate_after:
+    type: object
+    required: [after]
+    additionalProperties: false
+    properties:
+      after:
+        type: string
+        minLength: 1
+
+  # -------------------------------------------------------------------------
+  # LINHA B — 04 secao 3.
+  #
+  # `defensibility` 0-1 indica quao sustentavel e acusar o caso. Alimenta a
+  # calibracao (00 secao 3, consequencia normativa 4): avalia-se a relacao entre
+  # confianca declarada e forca real da evidencia, nao a contagem de acertos.
+  # -------------------------------------------------------------------------
+  line_b_case:
+    type: object
+    required: [case_id, defensibility, set]
+    additionalProperties: false
+    properties:
+      # D6: `case_id` nao tinha padrao nenhum enquanto `fact_id` tinha um
+      # estrito. Mesma classe de identificador, mesmo tratamento — legibilidade
+      # sem teto, unicidade como verificacao.
+      case_id:
+        type: string
+        pattern: '^GC-[0-9]+$'
+        x-aurora-unique: true
+      defensibility:
+        type: number
+        minimum: 0
+        maximum: 1
+      set:
+        enum:
+          - indevido_comprovado
+          - ambiguo
+          - legitimo_aparencia_suspeita
+      supporting_evidence:
+        type: array
+        items:
+          type: string
+          minLength: 1
+
+  # -------------------------------------------------------------------------
+  # ATOR DE AMEACA — 05 secao 5.2.
+  #
+  # PODE ser real e documentado, desde que haja fonte publica citavel declarada
+  # e nenhum IOC operacional. Ficcionalizar o ator nao protege ninguem e
+  # enfraquece a discussao.
+  #
+  # Distincao critica: 05 secao 5.1 exige que FORNECEDOR DE PRODUTO seja sempre
+  # ficticio. Sao duas regras diferentes com propositos diferentes.
+  # -------------------------------------------------------------------------
+  threat_actor:
+    type: object
+    required: [name, sources]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        minLength: 1
+      # `sources` vazio recusa o pack: ator sem fonte publica citavel deixa de
+      # ser fato verificavel e vira ficcao nao declarada.
+      sources:
+        type: array
+        minItems: 1
+        items:
+          type: string
+          minLength: 1
+      aliases:
+        type: array
+        items:
+          type: string
+      mitre_id:
+        type: string
+      note_to_facilitator:
+        type: string
+
+x-aurora-linter-rules:
+  - 'GM_NOTES.md nao pode conter fato ausente daqui (00 secao 5.10)'
+  - '`source_ip` dentro da faixa sintetica de 05 secao 3, guardado por tools/check_synthetic_data.py'
+  - '`payload` de predicate_event deve casar com o payload declarado para aquele event_type (Fase 2)'
 
 # ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS.
+# Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "sem verification_predicates: TTCV e TTRV incomputaveis, pack nao carrega"
-    facts:
-      - fact_id: GT-A-001
+examples:
+  - facts:
+      - fact_id: GT-A-014
         fact_class: initial_access
-        exercise_time: "T-1d 00:00"
+        actor: svc_academus
+        action: vpn_login
+        source_ip: 198.51.100.42
+        dest: vpn-gw-01
+        exercise_time: 'T-17d 02:14'
+        credential_state: compromised
+        mfa: absent
+        projections: [vpn, identity_audit, cef]
+        discoverability:
+          difficulty: medium
+          requires: 'correlacionar horário fora de expediente com ausência de MFA'
 
-  - reason: "source_ip fora da faixa de documentacao ou privada (05 secao 3)"
-    facts:
-      - fact_id: GT-A-002
-        fact_class: initial_access
-        exercise_time: "T-1d 00:00"
-        source_ip: 8.8.8.8
+      # Segundo fato do mesmo incidente. Existe aqui porque o exemplo de
+      # evidence.schema.yaml projeta DOIS fatos num arquivo so, e os exemplos
+      # positivos dos seis contratos formam um mini-pacote que precisa ser
+      # coerente entre si — e contra ele que as referencias cruzadas resolvem
+      # em scripts/check_contract_examples.py.
+      - fact_id: GT-A-019
+        fact_class: privilege_escalation
+        actor: svc_academus
+        action: identity_scope_expanded
+        exercise_time: 'T-16d 03:02'
+        projections: [identity_audit]
 
-  - reason: "defensibility fora de 0-1"
-    line_b_cases:
-      - case_id: GC-999
-        defensibility: 1.4
-        set: ambiguo
-
-  - reason: "set fora do conjunto fechado"
-    line_b_cases:
-      - case_id: GC-998
-        defensibility: 0.5
-        set: talvez
-
-  - reason: "predicado referencia event_type fora do catalogo"
     verification_predicates:
       containment:
         all:
-          - event: vpn_acess_revoked
+          - event: vpn_access_revoked
+          - event: identity_scope_disabled
+            payload:
+              principal: svc_academus
+          - absence_of:
+              fact_class: exfiltration
+              since: self
+      service_restoration:
+        all:
+          - flag_false: academus.enrollment_offline
+          - flag_false: academus.lms_degraded
 
-  - reason: "threat_actor sem fonte publica citavel"
+    line_b_cases:
+      - case_id: GC-029
+        defensibility: 1.0
+        set: indevido_comprovado
+        supporting_evidence: [DBA-28391, DBA-28402]
+
     threat_actor:
-      name: "Grupo Fictício X"
-      sources: []
+      name: 'Qilin'
+      aliases: [Agenda]
+      mitre_id: 'S1242'
+      sources:
+        - 'MITRE ATT&CK S1242'
+        - 'CISA StopRansomware advisory'
+      note_to_facilitator: 'Perfil público. Nenhum IOC operacional reproduzido.'
+
+  # Segundo exemplo positivo — D5. Pack sem indisponibilidade de servico, que e
+  # a forma que `fraude-academica-express` pode ter.
+  - facts:
+      - fact_id: GT-B-001
+        fact_class: grade_tampering
+        actor: coord_exatas
+        action: grade_update
+        exercise_time: 'T-3d 19:40'
+        projections: [database_audit]
+
+    verification_predicates:
+      containment:
+        all:
+          - flag_true: academus.grade_integrity_suspect
+      service_restoration:
+        not_applicable: 'fraude de notas sem indisponibilidade de serviço: TTRV não se aplica'
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+#
+# Cada uma e COMPLETA e carrega UM defeito, o nomeado em `reason`. `rejected_by`
+# nomeia QUEM recusa: `schema` para JSON Schema puro, `x-aurora-*` para as
+# regras de referencia executadas pelo loader (Fase 2). Sem isso, um executor
+# que rodasse so o schema daria por provado o que nao provou.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
+
+  - reason: 'sem verification_predicates: TTCV e TTRV incomputaveis, pack nao carrega'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+
+  - reason: 'service_restoration ausente: omitir continua sendo falha de carga (D5)'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+
+  - reason: 'not_applicable sem motivo: declaracao vazia nao e declaracao (D5)'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: ''
+
+  - reason: 'defensibility fora de 0-1'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+      line_b_cases:
+        - case_id: GC-999
+          defensibility: 1.4
+          set: ambiguo
+
+  - reason: 'set fora do conjunto fechado'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+      line_b_cases:
+        - case_id: GC-998
+          defensibility: 0.5
+          set: talvez
+
+  - reason: 'condicao de predicado que depende de juizo: cenario deixa de ser ensaiavel'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - facilitator_thinks_response_was_good: true
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
+  - reason: 'threat_actor sem fonte publica citavel'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+      threat_actor:
+        name: 'Grupo Fictício X'
+        sources: []
+
+  - reason: 'predicado referencia event_type fora do catalogo'
+    rejected_by: 'x-aurora-ref:event_catalog'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_acess_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
+  - reason: 'predicado referencia flag nao declarada no adapter'
+    rejected_by: 'x-aurora-ref:adapter_flags'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          all:
+            - flag_false: academus.flag_que_nao_existe
+
+  - reason: 'fact_id duplicado: as referencias deixariam de resolver para um fato so'
+    rejected_by: 'x-aurora-unique'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+        - fact_id: GT-A-001
+          fact_class: exfiltration
+          exercise_time: 'T-1d 04:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'

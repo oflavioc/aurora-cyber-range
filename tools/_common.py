@@ -503,12 +503,21 @@ def load_declared_flags(root: Path) -> dict[str, str]:
     return declared
 
 
+#: Prefixo dos `$defs` que carregam o catalogo, um por truth_layer.
+EVENT_TYPE_DEF_PREFIX = "event_type_"
+
+
 def load_declared_event_types(root: Path) -> dict[str, str]:
     """Mapeia event_type -> contrato que o declara.
 
-    O catalogo so existe a partir da Fase 1. Ausente devolve conjunto vazio;
-    presente em forma nao reconhecida levanta erro, em vez de devolver vazio e
-    enfraquecer o verificador em silencio.
+    O contrato e JSON Schema (decisao D4 da Fase 1). O catalogo vive nos `$defs`
+    prefixados `event_type_`, um por truth_layer, cada um um `enum` de strings.
+    Ler o `enum` diretamente evita manter uma segunda copia da lista so para o
+    codegen — a lista que o validador usa e a mesma que gera as constantes.
+
+    O catalogo so existe a partir da Fase 1. Contrato ausente devolve conjunto
+    vazio; presente em forma nao reconhecida levanta erro, em vez de devolver
+    vazio e enfraquecer o verificador em silencio.
     """
     path = events_contract_path(root)
     if not path.is_file():
@@ -518,42 +527,30 @@ def load_declared_event_types(root: Path) -> dict[str, str]:
     if not isinstance(data, dict):
         raise ContractError(f"{source}: esperado mapeamento no topo")
 
-    container = None
-    for key in ("event_types", "events", "catalog"):
-        if key in data:
-            container = data[key]
-            break
-    if container is None:
+    defs = data.get("$defs")
+    if not isinstance(defs, dict):
+        raise ContractError(f"{source}: '$defs' ausente ou nao e mapeamento")
+
+    layer_defs = sorted(k for k in defs if k.startswith(EVENT_TYPE_DEF_PREFIX))
+    if not layer_defs:
         raise ContractError(
-            f"{source}: nenhuma das chaves 'event_types', 'events' ou 'catalog' encontrada"
+            f"{source}: nenhum '$defs/{EVENT_TYPE_DEF_PREFIX}<truth_layer>' encontrado"
         )
 
     names: dict[str, str] = {}
-
-    def absorb(value, where: str) -> None:
-        if isinstance(value, str):
+    for key in layer_defs:
+        entry = defs[key]
+        if not isinstance(entry, dict):
+            raise ContractError(f"{source}: '$defs/{key}' deve ser um mapeamento")
+        values = entry.get("enum")
+        if not isinstance(values, list) or not values:
+            raise ContractError(f"{source}: '$defs/{key}' sem 'enum' nao vazio")
+        for value in values:
+            if not isinstance(value, str) or not value:
+                raise ContractError(f"{source}: '$defs/{key}' com entrada nao textual")
+            if value in names:
+                raise ContractError(f"{source}: event_type duplicado no catalogo: '{value}'")
             names[value] = source
-        elif isinstance(value, dict):
-            name = value.get("name") or value.get("event_type")
-            if not isinstance(name, str) or not name:
-                raise ContractError(f"{source}: entrada em {where} sem 'name' ou 'event_type'")
-            names[name] = source
-        else:
-            raise ContractError(f"{source}: entrada em {where} com forma nao reconhecida")
-
-    if isinstance(container, list):
-        for entry in container:
-            absorb(entry, "catalogo")
-    elif isinstance(container, dict):
-        for truth_layer, entries in container.items():
-            if entries is None:
-                continue
-            if not isinstance(entries, list):
-                raise ContractError(f"{source}: '{truth_layer}' deve ser uma sequencia")
-            for entry in entries:
-                absorb(entry, f"'{truth_layer}'")
-    else:
-        raise ContractError(f"{source}: catalogo deve ser sequencia ou mapeamento")
 
     return names
 

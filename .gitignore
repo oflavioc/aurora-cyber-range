@@ -12,6 +12,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Artefato de `pip install -e .` (pyproject.toml chegou na Fase 1, P1-6).
+*.egg-info/
+
 # Node / build
 node_modules/
 dist/

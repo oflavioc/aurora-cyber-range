@@ -740,17 +740,21 @@ def main() -> int:
 
     flags = """flags:\n  - name: academus.phase0_probe_flag\n    type: boolean\n    default: false\n"""
 
-    # Catalogo minimo no formato de 09_EVENT_MODEL.md secao 4.1, agrupado por
-    # truth_layer. Ate aqui nenhum probe plantava contracts/events.schema.yaml,
-    # entao load_declared_event_types() devolvia sempre {} e METADE do
-    # invariante 2 — o ramo de event_type — nunca foi exercitada. O bloco de
-    # artefatos de evento do codegen tambem nunca era alcancado.
+    # Catalogo minimo na forma que load_declared_event_types() le: JSON Schema
+    # com um `$defs/event_type_<truth_layer>` por camada, cada um um `enum`
+    # (decisao D4 da Fase 1). Ate aqui nenhum probe plantava
+    # contracts/events.schema.yaml, entao load_declared_event_types() devolvia
+    # sempre {} e METADE do invariante 2 — o ramo de event_type — nunca foi
+    # exercitada. O bloco de artefatos de evento do codegen tambem nunca era
+    # alcancado.
     eventos = (
-        "event_types:\n"
-        "  ground_truth:\n"
-        "    - fact_materialized\n"
-        "  participant_action:\n"
-        "    - containment_declared\n"
+        "$defs:\n"
+        "  event_type_ground_truth:\n"
+        "    enum:\n"
+        "      - fact_materialized\n"
+        "  event_type_participant_action:\n"
+        "    enum:\n"
+        "      - containment_declared\n"
     )
     probe_event_type = "containment_declared"
     with temporary_file("domains/academus/flags.yaml", flags), temporary_file(

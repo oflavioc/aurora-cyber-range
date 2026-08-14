@@ -1,4 +1,4 @@
-# CONTRATO — Catalogo de eventos
+# CONTRATO — Envelope de evento e catalogo fechado
 #
 # Autoridade: 09_EVENT_MODEL.md secoes 1, 2 e 4.
 #
@@ -10,29 +10,22 @@
 # nunca e satisfeito, a branch nunca ramifica — e ninguem percebe ate o
 # exercicio ao vivo. E a falha mais cara possivel.
 #
-# `tools/_common.py::load_declared_event_types` le este arquivo pela chave
-# `event_types`, agrupada por truth_layer. `tools/codegen.py` gera as constantes
-# em contracts/generated/events.py e events.ts.
-
-schema_version: 1
-contract: events
-
-# ---------------------------------------------------------------------------
-# CINCO VALORES, QUATRO VERDADES — 00_MASTER_SPEC.md secao 3.1.
+# `tools/_common.py::load_declared_event_types` le o catalogo pelos `$defs`
+# prefixados `event_type_`. `tools/codegen.py` gera as constantes em
+# contracts/generated/events.py e events.ts.
 #
-# As quatro primeiras camadas afirmam algo sobre o INCIDENTE. `facilitation`
-# afirma algo sobre a MAQUINA DE EXERCICIO, e por isso e ortogonal ao modelo em
-# vez de ser uma quinta camada dele.
-# ---------------------------------------------------------------------------
-truth_layers:
-  - ground_truth
-  - observable_evidence
-  - participant_action
-  - evaluator_assessment
-  - facilitation
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
+
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/events.schema.json'
+title: Envelope de evento
+x-aurora-contract: events
+x-aurora-schema-version: 1
+
+type: object
 
 # Envelope universal — 09 secao 1.1.
-required_envelope_fields:
+required:
   - event_id
   - event_type
   - truth_layer
@@ -41,12 +34,46 @@ required_envelope_fields:
   - wall_timestamp
   - simulation_epoch
 
-# actor_id e persona sao obrigatorios quando a camada e de pessoa.
-conditional_envelope_fields:
-  participant_action:
-    required: [actor_id, persona]
-  evaluator_assessment:
-    required: [actor_id, persona]
+properties:
+  event_id:
+    type: string
+    minLength: 1
+  event_type:
+    $ref: '#/$defs/event_type'
+  truth_layer:
+    $ref: '#/$defs/truth_layer'
+  producer:
+    type: string
+    minLength: 1
+  actor_id:
+    type: string
+    minLength: 1
+  persona:
+    type: string
+    minLength: 1
+
+  # Tres marcas temporais, nunca uma so — 01_ARCHITECTURE.md secao 3.
+  exercise_time:
+    type: string
+    minLength: 1
+  exercise_timestamp:
+    type: string
+  wall_timestamp:
+    type: string
+    minLength: 1
+  clock_multiplier:
+    type: number
+    exclusiveMinimum: 0
+
+  # Rollback nunca apaga historia: gera evento explicito e nova epoch
+  # (00_MASTER_SPEC.md secao 6). Epoch e o que separa as linhas temporais.
+  simulation_epoch:
+    type: integer
+    minimum: 1
+
+  # 09 secao 1: presente e nulo quando o evento nao projeta fato canonico.
+  fact_id:
+    type: [string, 'null']
 
 # ---------------------------------------------------------------------------
 # PROIBIDO NO ENVELOPE — 09 secao 1.2.
@@ -56,109 +83,284 @@ conditional_envelope_fields:
 # uma consulta satisfaz OBJ-03, o dominio passaria a conhecer o desenho de
 # exercicio e a fronteira core/adapter vazaria.
 #
-# Guardado por tools/check_event_envelope.py.
+# Guardado tambem por tools/check_event_envelope.py, por AST, no ponto de
+# emissao. Aqui a garantia e sobre o documento; la, sobre o codigo.
 # ---------------------------------------------------------------------------
-forbidden_envelope_fields:
-  - objective_ids
+not:
+  required: [objective_ids]
 
-event_types:
+# `additionalProperties` fica ABERTO de proposito: o payload varia por
+# event_type e seus schemas chegam na Fase 2. Fechar agora recusaria todo evento
+# com payload.
 
-  ground_truth:
-    - fact_materialized
-    - attack_stage_reached
-    - verification_predicate_satisfied
+allOf:
+  # actor_id e persona sao obrigatorios quando a camada e de pessoa — 09 secao 1.1.
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: participant_action
+    then:
+      required: [actor_id, persona]
 
-  observable_evidence:
-    - evidence_source_released
-    - evidence_source_accessed
-    - telemetry_emitted
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: evaluator_assessment
+    then:
+      required: [actor_id, persona]
 
-  participant_action:
-    - inject_viewed
-    - audit_query_performed
-    - evidence_source_opened
-    - incident_declared
-    # Declarar que sao DOIS incidentes e acao distinta de declarar UM: e o
-    # objeto do OBJ-03. Acrescentado no spec-change
-    # `facilitation-e-separate-incident`.
-    - separate_incident_declared
-    - classification_declared
-    - containment_declared
-    - service_restoration_declared
-    - integrity_validation_declared
-    - assessment_submitted
-    - communication_submitted
-    - regulatory_notice_submitted
-    - continuity_action_taken
-    - vpn_access_revoked
-    - identity_scope_disabled
-    - decision_made
-    - capability_gap_declared
+  # ---------------------------------------------------------------------------
+  # event_type PERTENCE a camada declarada.
+  #
+  # Nada verificava isto antes: `containment_declared` com truth_layer
+  # `ground_truth` passava. Seria acao de participante gravada como verdade do
+  # incidente — a confusao exata que 00 secao 3 existe para impedir.
+  # ---------------------------------------------------------------------------
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: ground_truth
+    then:
+      properties:
+        event_type:
+          $ref: '#/$defs/event_type_ground_truth'
 
-  evaluator_assessment:
-    - bars_score_submitted
-    - observed_marker_set
-    - qualitative_note_added
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: observable_evidence
+    then:
+      properties:
+        event_type:
+          $ref: '#/$defs/event_type_observable_evidence'
 
-  facilitation:
-    - inject_fired
-    - rollback_performed
-    - branch_selected
-    - exercise_started
-    - exercise_paused
-    - exercise_reset
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: participant_action
+    then:
+      properties:
+        event_type:
+          $ref: '#/$defs/event_type_participant_action'
+
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: evaluator_assessment
+    then:
+      properties:
+        event_type:
+          $ref: '#/$defs/event_type_evaluator_assessment'
+
+  - if:
+      required: [truth_layer]
+      properties:
+        truth_layer:
+          const: facilitation
+    then:
+      properties:
+        event_type:
+          $ref: '#/$defs/event_type_facilitation'
+
+$defs:
+
+  # -------------------------------------------------------------------------
+  # CINCO VALORES, QUATRO VERDADES — 00_MASTER_SPEC.md secao 3.1.
+  #
+  # As quatro primeiras camadas afirmam algo sobre o INCIDENTE. `facilitation`
+  # afirma algo sobre a MAQUINA DE EXERCICIO, e por isso e ortogonal ao modelo
+  # em vez de ser uma quinta camada dele.
+  # -------------------------------------------------------------------------
+  truth_layer:
+    enum:
+      - ground_truth
+      - observable_evidence
+      - participant_action
+      - evaluator_assessment
+      - facilitation
+
+  event_type:
+    anyOf:
+      - $ref: '#/$defs/event_type_ground_truth'
+      - $ref: '#/$defs/event_type_observable_evidence'
+      - $ref: '#/$defs/event_type_participant_action'
+      - $ref: '#/$defs/event_type_evaluator_assessment'
+      - $ref: '#/$defs/event_type_facilitation'
+
+  event_type_ground_truth:
+    enum:
+      - fact_materialized
+      - attack_stage_reached
+      - verification_predicate_satisfied
+
+  event_type_observable_evidence:
+    enum:
+      - evidence_source_released
+      - evidence_source_accessed
+      - telemetry_emitted
+
+  event_type_participant_action:
+    enum:
+      - inject_viewed
+      - audit_query_performed
+      - evidence_source_opened
+      - incident_declared
+      # Declarar que sao DOIS incidentes e acao distinta de declarar UM: e o
+      # objeto do OBJ-03. Acrescentado no spec-change
+      # `facilitation-e-separate-incident`.
+      - separate_incident_declared
+      - classification_declared
+      - containment_declared
+      - service_restoration_declared
+      - integrity_validation_declared
+      - assessment_submitted
+      - communication_submitted
+      - regulatory_notice_submitted
+      - continuity_action_taken
+      - vpn_access_revoked
+      - identity_scope_disabled
+      - decision_made
+      - capability_gap_declared
+
+  event_type_evaluator_assessment:
+    enum:
+      - bars_score_submitted
+      - observed_marker_set
+      - qualitative_note_added
+
+  event_type_facilitation:
+    enum:
+      - inject_fired
+      - rollback_performed
+      - branch_selected
+      - exercise_started
+      - exercise_paused
+      - exercise_reset
+
+  # -------------------------------------------------------------------------
+  # Taxonomia de motivo de rollback — 09 secao 3.1.
+  #
+  # Rotulo sem consequencia nao serve. Cada motivo tem efeito definido no AAR e
+  # nas metricas, e o conjunto e fechado pelo mesmo motivo do catalogo. O
+  # payload de `rollback_performed` chega na Fase 2 e referencia este $def.
+  # -------------------------------------------------------------------------
+  rollback_reason:
+    enum:
+      - technical_failure
+      - rehearsal
+      - facilitation
+      - adjudication
 
 # ---------------------------------------------------------------------------
-# Taxonomia de motivo de rollback — 09 secao 3.1.
-#
-# Rotulo sem consequencia nao serve. Cada motivo tem efeito definido no AAR e
-# nas metricas, e o conjunto e fechado pelo mesmo motivo do catalogo.
+# Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
-rollback_reasons:
-  - technical_failure
-  - rehearsal
-  - facilitation
-  - adjudication
-
-# ---------------------------------------------------------------------------
-# Exemplo POSITIVO — envelope valido.
-# ---------------------------------------------------------------------------
-example_valid:
-  event_id: "01J9F000000000000000000000"
-  event_type: audit_query_performed
-  truth_layer: participant_action
-  producer: academus-api
-  actor_id: "user-123"
-  persona: ti
-  exercise_time: "T+01:12:04"
-  exercise_timestamp: "2026-08-13T10:12:04"
-  wall_timestamp: "2026-08-13T11:47:31-03:00"
-  clock_multiplier: 1
-  simulation_epoch: 1
-
-# ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS — cada um deve ser recusado.
-# ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "event_type fora do catalogo fechado"
-    event_type: audit_query_perfomed
-    truth_layer: participant_action
-
-  - reason: "truth_layer fora dos cinco valores"
-    event_type: incident_declared
-    truth_layer: belief
-
-  - reason: "participant_action sem actor_id e sem persona"
-    event_type: containment_declared
-    truth_layer: participant_action
-    producer: academus-api
-
-  - reason: "objective_ids no envelope: o binding e da projecao, nao do evento"
+examples:
+  - event_id: '01J9F000000000000000000000'
     event_type: audit_query_performed
     truth_layer: participant_action
-    objective_ids: [OBJ-03]
+    producer: academus-api
+    actor_id: 'user-123'
+    persona: ti
+    exercise_time: 'T+01:12:04'
+    exercise_timestamp: '2026-08-13T10:12:04'
+    wall_timestamp: '2026-08-13T11:47:31-03:00'
+    clock_multiplier: 1
+    simulation_epoch: 1
 
-  - reason: "sem simulation_epoch: rollback nao teria como marcar a linha temporal"
-    event_type: inject_fired
-    truth_layer: facilitation
-    producer: inject-engine
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+#
+# Cada uma e COMPLETA e carrega UM defeito, o nomeado em `reason`. Instancia
+# parcial falharia por campo obrigatorio ausente e nao provaria nada sobre o
+# motivo declarado — teste que passa sem provar o requisito.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
+
+  - reason: 'event_type fora do catalogo fechado'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000001'
+      event_type: audit_query_perfomed
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 1
+
+  - reason: 'truth_layer fora dos cinco valores'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000002'
+      event_type: incident_declared
+      truth_layer: belief
+      producer: gm-console
+      actor_id: 'user-123'
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 1
+
+  - reason: 'participant_action sem actor_id e sem persona'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000003'
+      event_type: containment_declared
+      truth_layer: participant_action
+      producer: academus-api
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 1
+
+  - reason: 'objective_ids no envelope: o binding e da projecao, nao do evento'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000004'
+      event_type: audit_query_performed
+      truth_layer: participant_action
+      producer: academus-api
+      actor_id: 'user-123'
+      persona: ti
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 1
+      objective_ids: [OBJ-03]
+
+  - reason: 'sem simulation_epoch: rollback nao teria como marcar a linha temporal'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000005'
+      event_type: inject_fired
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+
+  - reason: 'event_type de participante declarado na camada ground_truth'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000006'
+      event_type: containment_declared
+      truth_layer: ground_truth
+      producer: engine
+      exercise_time: 'T+01:12:04'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 1
+
+  - reason: 'simulation_epoch zero: epoch comeca em 1'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000007'
+      event_type: exercise_started
+      truth_layer: facilitation
+      producer: engine
+      exercise_time: 'T+00:00:00'
+      wall_timestamp: '2026-08-13T11:47:31-03:00'
+      simulation_epoch: 0

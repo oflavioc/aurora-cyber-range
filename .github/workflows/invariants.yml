@@ -140,3 +140,49 @@ jobs:
 
       - name: dados sinteticos em faixa de documentacao
         run: python tools/check_synthetic_data.py
+
+  # ---------------------------------------------------------------------------
+  # Job SEPARADO de proposito — pendencia P1-6.
+  #
+  # E o unico job que instala dependencia. Os jobs `arquitetura` e `seguranca`
+  # continuam stdlib puro, sem `pip install`: o gate que a Fase 0 construiu em
+  # dezenove rodadas nao ganha dependencia, porque um gate que depende da
+  # aplicacao que ele julga deixa de ser gate.
+  #
+  # SER JOB SEPARADO E SER CONTEXT OBRIGATORIO SAO INDEPENDENTES. Este e o
+  # QUARTO required status check de docs/process/WORKFLOW.md, junto com
+  # `arquitetura`, `spec_freeze` e `seguranca`. Exigi-lo na branch protection
+  # nao faz o `arquitetura` instalar nada.
+  #
+  # A protecao e aplicada DEPOIS do merge do PR que cria este job: o GitHub so
+  # aceita exigir um check que ja apareceu em algum run.
+  # ---------------------------------------------------------------------------
+  contratos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: dependencias da aplicacao
+        run: python -m pip install --disable-pip-version-check -e .
+
+      # Item 1 da DoD da Fase 1. Conter exemplo nao e validar exemplo: aqui os
+      # exemplos positivos precisam validar e os negativos precisam ser
+      # recusados PELA CAMADA QUE CADA UM DECLARA em `rejected_by`.
+      - name: exemplos dos contratos
+        run: python scripts/check_contract_examples.py
+
+      # Mesma prova central do harness da Fase 0, aplicada ao executor: um
+      # executor de fixtures que nunca reprovou contra defeito plantado prova
+      # que a arvore passa, nao que ele pega alguma coisa.
+      - name: teste negativo do executor de exemplos
+        run: python scripts/check_contract_examples_probes.py
+
+      # P1-9: Alembic estava inicializado em arquivo e nunca executavel —
+      # `import alembic` resolvia para o diretorio do proprio repositorio como
+      # namespace package. Com a dependencia declarada, isto passa a ser
+      # verificavel, e falha se o env.py quebrar.
+      - name: alembic executavel
+        run: python -m alembic.config --help
