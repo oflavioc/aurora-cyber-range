@@ -213,7 +213,25 @@ Latente nesta fase, porque nenhum desses arquivos existe. **Exposição real na 
 
 **P35 não cobre esta rodada**, e o auditor apontou sozinho pela segunda vez: B1 é omissão de três separadores de uma lista, corrigível em uma linha, não a propriedade universal indecidível. Condição 3.
 
-### P11 FECHADO por atestação do operador — a prova por artefato vem na próxima captura
+### P11 FECHADO por evidência versionada — a prova por artefato chegou
+
+**A captura da 12ª rodada gravou, no `audit_log.jsonl` versionado:**
+
+```json
+{"head_sha": "218bb77206888b4002681d270a0aecac68b30afa", "verdict": "FAIL",
+ "recovered": true, "manual_recovery": false, "capture_via": "launcher-trap",
+ "report_path": "docs/progress/audit_20260814T053247Z.md"}
+```
+
+**`manual_recovery: false` e `capture_via: launcher-trap`** — o operador digitou `/exit` e o relatório de 15 KB entrou no repositório sem nenhum comando manual. É a primeira captura a passar pelo código que distingue os dois caminhos, e ela distinguiu.
+
+**O P11 deixa de ser atestação e passa a ser a segunda camada de verdade: evidência observável, versionada, verificável por quem não estava na sessão.** Foi o que o M1 da 12ª auditoria exigiu, e a exigência estava certa — a rodada anterior tinha o comportamento, não tinha o artefato.
+
+**Treze rodadas para fechar, e o desenho da correção é a lição.** A pendência não foi resolvida por fazer a captura funcionar; ela já funcionava na 11ª rodada. Foi resolvida por tornar o resultado **distinguível no registro** — enquanto `recovered: true` significava as duas coisas, funcionar e não funcionar produziam o mesmo artefato, e nenhuma quantidade de execuções bem-sucedidas teria fechado a pendência. Vale para além do P11: **um mecanismo que não deixa rastro distinguível não é verificável, por mais que funcione.** É a mesma razão por que os itens 9 a 13 seguem em atestação.
+
+**O que fecha junto.** As cinco confusões de ID desta fase — §0 e §6 P26, P32 — tinham todas a mesma raiz: sem relatório persistido, cada rodada chegava por transcrição manual, e o que não fosse transcrito não existia para este arquivo. A partir daqui, cada rodada deixa relatório versionado com `head_sha`, `session_id` e veredito.
+
+### Como o P11 estava registrado até aqui — atestação, e por quê
 
 **2026-08-14, primeira vez em onze rodadas.** O operador digitou `/exit` na sessão do auditor e o launcher imprimiu, sozinho:
 
@@ -224,7 +242,9 @@ Veredito detectado: FAIL
 
 18 KB, com `head_sha` e `session_id` corretos. **Nenhum comando manual.** As onze rodadas anteriores dependeram de transcrição ou de `--recover` digitado à mão, e é dessa pendência que saíram as **cinco** confusões de ID desta fase.
 
-**Camada de verdade, rotulada após o M1 da 12ª auditoria.** O parágrafo acima é **declaração do operador** — terceira camada —, não evidência observável. O auditor mediu as 51 linhas do `audit_log.jsonl`: **zero** com `manual_recovery`, **zero** com `"recovered": false`. A correção que distingue captura automática de recuperação manual entrou no commit **seguinte** ao da captura que fechou o P11, então nenhum artefato do repositório sustenta a afirmação. Ela é aceita pelo mesmo critério dos itens 9 a 13 — e agora carrega o mesmo rótulo, que era o que faltava. **A prova por artefato é a próxima captura**: se ela gravar `manual_recovery: false`, o P11 passa de atestação a evidência.
+**Camada de verdade, rotulada após o M1 da 12ª auditoria — e resolvida na captura seguinte.** O parágrafo acima era **declaração do operador**, terceira camada. O auditor mediu as 51 linhas do `audit_log.jsonl`: **zero** com `manual_recovery`, **zero** com `"recovered": false`. A correção que distingue captura automática de recuperação manual entrou no commit **seguinte** ao da captura que fechou o P11, então nenhum artefato sustentava a afirmação — e o M1 estava certo em exigir o rótulo.
+
+**A captura seguinte forneceu o artefato** (ver a seção acima): `manual_recovery: false`, `capture_via: launcher-trap`. A pendência foi de declaração a evidência em uma rodada, e o caminho — rotular honestamente em vez de defender a afirmação — é o que tornou a diferença visível.
 
 **Uma ressalva medida, e ela vira correção.** O log gravou `"recovered": true` mesmo nesta captura automática, porque o launcher chama `audit_report.py --recover` **no próprio trap de saída** (`start_checkpoint_audit.sh:88`) — o mesmo caminho de código da recuperação manual. Ou seja: **o campo que deveria provar o P11 não distinguia os dois casos**, e teria mantido a pendência ambígua para sempre. Foi essa exata ambiguidade que produziu a contradição apontada pelo M4 da nona auditoria entre a mensagem do commit ("capturado automaticamente") e o log (`recovered: true`) — os dois estavam certos, e o campo é que era cego.
 
