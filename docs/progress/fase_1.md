@@ -190,6 +190,7 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-8 | Pinagem por digest | ✅ fechada |
 | P1-9 | Alembic executável | ✅ fechada, confirmada por execução |
 | P1-10 | `contratos` é o quarto context obrigatório | ✅ resolvida — aplicar no GitHub após o merge |
+| P1-12 | `simulation_epoch` com piso inventado contra critério normativo | ✅ fechada — achado pelo auditor |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -353,6 +354,26 @@ A primeira redação declarava as duas restrições **incompatíveis** e escolhi
 É uma variante das §1.2 e §1.3, e a mais difícil de pegar sozinho: ali a forma foi cumprida no lugar da propriedade; aqui uma propriedade real foi defendida contra um conflito inexistente. As duas produzem o mesmo resultado — mecanismo presente, garantia ausente — e esta ainda vem acompanhada de uma justificativa que parece rigor.
 
 **Regra adotada:** antes de registrar duas restrições como incompatíveis, escrever qual pergunta cada uma responde. Se as perguntas forem diferentes, não há conflito a aceitar.
+
+#### P1-12 — `simulation_epoch` tinha piso inventado contra critério normativo: FECHADA
+
+O contrato declarava `simulation_epoch: minimum: 1`. **Invenção minha, e desta vez contra texto normativo explícito.**
+
+`09_EVENT_MODEL.md` §3 desenha `epoch 0` antes do primeiro rollback e `epoch 1` depois dele. E `06_ACCEPTANCE_TESTS.md` T3 exige que *"evento de `participant_action` gravado na **epoch 0** continua legível após rollback, marcado com sua epoch"*.
+
+**Consequência se tivesse passado:** o contrato recusaria todo evento da primeira linha temporal — inclusive o evento que o teste de aceitação T3 obriga a existir. Um contrato tornando insatisfazível um critério de aceitação da fase seguinte.
+
+Pior: o exemplo negativo `'simulation_epoch zero: epoch comeca em 1'` era uma fixture **executável** afirmando como defeito aquilo que a spec exige como válido. A execução dos exemplos, que fechou o item 1 da DoD, não pega isso — o executor prova que a fixture é recusada pela camada que ela declara, não que a regra por trás dela esteja certa. **Fixture executável prova consistência interna, não fidelidade à spec.** Para isso serve o auditor.
+
+Corrigido: `minimum: 0`, e a fixture passou a testar epoch **negativo**, que é o que de fato não existe.
+
+Uma segunda invenção da mesma classe foi encontrada na varredura que este achado motivou: `max_paths_per_branch: minimum: 2`. `04` §2 exibe o valor `2` num exemplo e nunca declara piso; quem desliga ramificação já o faz por `max_branch_points_per_line: 0`. Relaxado para `1`.
+
+##### Como apareceu
+
+Pelo `checkpoint-auditor`, em contexto fresco, nos primeiros segundos da sessão — antes mesmo de eu ter conseguido rodá-la direito. O launch foi feito por engano dentro de um pipe em background, onde o modo interativo não funciona, e encerrado; a captura registrou `indeterminado` em vez de inventar veredito, e o fragmento preservado continha a observação. Verifiquei contra a spec antes de aceitá-la — o achado procede por `09` §3 e `06` T3, não por autoridade de quem o disse.
+
+**É a defesa que as fixtures não dão.** Sete das oito coisas que a execução dos exemplos encontrou eram incoerências internas; esta é divergência da spec, e nenhum executor de fixture a encontraria, porque ele valida o contrato contra si mesmo. Ver `docs/progress/audit_20260814T223850Z.md`, anotado como launch abortado.
 
 ### Abertas
 

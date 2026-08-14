@@ -151,9 +151,12 @@ $defs:
       max_branch_points_per_line:
         type: integer
         minimum: 0
+      # `04` secao 2 exibe o valor 2 num exemplo e nunca declara piso. Um
+      # `minimum: 2` seria a mesma invencao que as decisoes D6 e D7 desfizeram:
+      # quem desliga ramificacao ja o faz por `max_branch_points_per_line: 0`.
       max_paths_per_branch:
         type: integer
-        minimum: 2
+        minimum: 1
       reconvergence_required:
         type: boolean
 
