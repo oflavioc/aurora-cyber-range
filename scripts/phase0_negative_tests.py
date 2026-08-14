@@ -121,6 +121,24 @@ LEITURA_LEGITIMA = [
     ("verificador com prefixo de ambiente seguro",
      "PYTHONDONTWRITEBYTECODE=1 python tools/check_core_boundary.py"),
     ("harness negativo (este arquivo)", "python scripts/phase0_negative_tests.py"),
+
+    # M1 (setima auditoria): o prefixo de descritor `2` nao pode vazar para a
+    # lista de palavras. Vazava, e bloqueava a prova central da fase sempre que
+    # o auditor suprimia stderr.
+    ("prova central com stderr suprimido",
+     "python scripts/phase0_negative_tests.py 2>/dev/null"),
+    ("verificador com stderr suprimido",
+     "python tools/check_core_boundary.py 2>/dev/null"),
+
+    # L3 (setima auditoria): leitura pura de git que estava fora da allowlist.
+    ("git cat-file", "git cat-file -p HEAD"),
+    ("git merge-base (comparacao contra main)", "git merge-base main HEAD"),
+    # Aspas obrigatorias: `%(refname)` sem elas e erro de sintaxe no proprio
+    # bash, porque parenteses sao especiais. Sem aspas o hook tambem bloqueia,
+    # pelo lado seguro — parenteses viram separador de segmento.
+    ("git for-each-ref", "git for-each-ref --format='%(refname)' refs/heads"),
+    ("git tag listando", "git tag"),
+    ("git tag --list", "git tag --list"),
 ]
 
 #: Escrita deliberada: a protecao nao pode ter sido afrouxada pela tokenizacao.
@@ -181,6 +199,14 @@ ESCRITA_DELIBERADA = [
     # Escrita POSICIONAL: nenhuma flag envolvida, entao allowlist de flags
     # sozinha nao cobriria. `uniq entrada saida` grava em saida.
     ("escrita posicional: uniq", "uniq entrada.txt ../../CLAUDE.md"),
+
+    # L3, direcao inversa: os subcomandos novos nao podem trazer as formas que
+    # ESCREVEM junto. `git tag <nome>` cria; `git tag -d` apaga.
+    ("git tag com operando cria tag", "git tag v9.9.9"),
+    ("git tag -d apaga tag", "git tag -d v1.0"),
+    ("git tag --delete apaga tag", "git tag --delete v1.0"),
+    ("git for-each-ref nao aceita flag desconhecida",
+     "git for-each-ref --python --shell"),
 ]
 
 

@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -168,21 +169,57 @@ def last_agent_text(transcript: Path) -> str:
     return latest
 
 
-def detect_verdict(report: str) -> str:
-    """Veredito por melhor esforco. 'indeterminado' quando ambiguo."""
-    upper = report.upper()
-    has_fail = "FAIL" in upper
-    has_pass = "PASS" in upper
-    if has_fail and not has_pass:
-        return "FAIL"
-    if has_pass and not has_fail:
-        return "PASS"
-    if has_fail and has_pass:
-        # Relatorio que cita os dois: FAIL prevalece, porque qualquer BLOCKER e
-        # FAIL (docs/process/WORKFLOW.md) e o custo de errar para o lado
-        # otimista e declarar concluida uma fase que nao passou.
-        return "FAIL"
-    return "indeterminado"
+#: Linha de veredito: inicio de linha, com ou sem `#` de titulo e com ou sem
+#: enfase. Prosa que apenas mencione a palavra no meio de um paragrafo nao casa.
+_VERDICT_LINE = re.compile(r"^\s{0,3}#{0,6}\s*\**\s*VEREDITO\b(.*)$", re.IGNORECASE)
+_WORD_PASS = re.compile(r"\bPASS\b")
+_WORD_FAIL = re.compile(r"\bFAIL\b")
+
+
+def detect_verdict(report: str) -> tuple[str, str | None]:
+    """Veredito extraido da LINHA de veredito. Devolve (veredito, motivo).
+
+    A versao anterior contava presenca de "PASS"/"FAIL" no texto INTEIRO e, com
+    os dois presentes, devolvia FAIL. O formato obrigatorio do auditor tem
+    `## VEREDITO: PASS | FAIL` como linha literal — entao TODO relatorio contem
+    as duas palavras, e todo PASS era arquivado como FAIL. O mecanismo que
+    acabou de eliminar a transcricao manual registraria a primeira aprovacao
+    capturada automaticamente como reprovacao.
+
+    Agora o veredito sai da linha de veredito especificamente. Sem linha, ou com
+    linha ambigua, grava-se `indeterminado` COM O MOTIVO — nunca um palpite. O
+    relatorio segue sendo a fonte autoritativa; este campo e indice, e indice
+    que chuta e pior que indice ausente.
+    """
+    if not report.strip():
+        return "sem_relatorio", "relatorio vazio"
+
+    achados: list[tuple[str, str]] = []
+    for linha in report.splitlines():
+        casou = _VERDICT_LINE.match(linha)
+        if not casou:
+            continue
+        resto = re.sub(r"[*_`:#|]", " ", casou.group(1)).upper()
+        tem_pass = bool(_WORD_PASS.search(resto))
+        tem_fail = bool(_WORD_FAIL.search(resto))
+        if tem_pass and tem_fail:
+            return "indeterminado", f"linha de veredito cita PASS e FAIL: {linha.strip()[:120]}"
+        if tem_fail:
+            achados.append(("FAIL", linha.strip()))
+        elif tem_pass:
+            achados.append(("PASS", linha.strip()))
+        else:
+            return "indeterminado", f"linha de veredito sem PASS nem FAIL: {linha.strip()[:120]}"
+
+    if not achados:
+        return "indeterminado", "nenhuma linha de veredito encontrada no relatorio"
+    distintos = {veredito for veredito, _ in achados}
+    if len(distintos) > 1:
+        return "indeterminado", (
+            "linhas de veredito discordantes: "
+            + " | ".join(linha[:60] for _, linha in achados)
+        )
+    return achados[0][0], None
 
 
 def persist(root: Path, record: dict, report: str, stamp: str) -> Path | None:
@@ -316,6 +353,10 @@ def main() -> int:
         if report:
             motivo = ""
 
+    veredito, veredito_motivo = (
+        detect_verdict(report) if report else ("sem_relatorio", motivo or "relatorio vazio")
+    )
+
     record = {
         "ts": now.isoformat(),
         "phase": int(args.phase),
@@ -324,7 +365,10 @@ def main() -> int:
         "mode": args.mode,
         "launcher_exit": args.launcher_exit,
         "recovered": bool(args.recover),
-        "verdict": detect_verdict(report) if report else "sem_relatorio",
+        "verdict": veredito,
+        # Por que o veredito e o que e. Preenchido quando ele NAO saiu limpo de
+        # uma linha de veredito — indice que chuta e pior que indice ausente.
+        "verdict_reason": veredito_motivo,
         "report_path": None,
         "capture_error": motivo or None,
         "source": "launcher",
