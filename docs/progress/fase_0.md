@@ -785,7 +785,13 @@ O auditor está estruturalmente impedido de executar o teste canônico do item 4
 
 Os cinco modos conhecidos: `|` entre aspas (P8); `merge-base` casando como `merge` e `2>&1` como redirecionamento (P16); `->` entre aspas como redirecionamento (P23); e agora o payload JSON contendo `rm -rf`. Todos são a mesma causa — casamento textual sem tokenização — e nenhum é corrigível por acrescentar exceção sem reintroduzir o problema em outra forma.
 
-**Status: FECHADA em `7a67305`.** Quatro rodadas de correção caso a caso não convergiram, exatamente como a linhagem previa. A causa foi trocada, não o sintoma: `shlex` tokeniza respeitando aspas, `punctuation_chars=True` transforma operador de shell em token próprio, e a decisão passou a olhar a **palavra de comando** de cada segmento. Conteúdo de argumento nunca mais é interpretado como comando.
+**Status: FECHADA em `60a7fa7`.** Quatro rodadas de correção caso a caso não convergiram, exatamente como a linhagem previa. A causa foi trocada, não o sintoma: `shlex` tokeniza respeitando aspas, `punctuation_chars=True` transforma operador de shell em token próprio, e a decisão passou a olhar a **palavra de comando** de cada segmento. Conteúdo de argumento nunca mais é interpretado como comando.
+
+> **Correção de referência, e o que ela ensina.** Este parágrafo citava `7a67305`. Aquele SHA existia no branch `fase-0-manutencao-p11-p23`, criado sobre a `main` anterior; o trabalho foi recriado sobre `edd9527` e o commit do P23 passou a ser `60a7fa7`. Ao apagar o branch antigo, `7a67305` deixou de pertencer a qualquer ref e virou referência morta dentro de um documento versionado.
+>
+> **Referência a SHA dentro de documento versionado é frágil sob rebase**, e a fragilidade é assimétrica: o documento é reescrito por quem edita, mas o SHA é reescrito por uma operação que ninguém associa a editar documento. A correção foi feita em commit próprio, e não emendando o commit de registro, justamente porque emendar recriaria os commits seguintes — incluindo o `60a7fa7` que este texto passa a citar. A correção invalidaria a própria referência que ela cria.
+>
+> **Daqui em diante, considerar citar por assunto do commit** (`fase-0 [P23]: readonly_bash.py decide por tokens`) em vez de hash. O assunto sobrevive a rebase, a cherry-pick e a recriação de branch; o hash não sobrevive a nenhum dos três.
 
 Os cinco modos passam. O (e) foi verificado ponta a ponta: o smoke test de `PHASE_0_CHECKLIST.md:71-73` agora executa, e o hook segue devolvendo `exit=2` para `rm -rf` real — o auditor deixou de estar impedido de rodar o teste canônico do item que audita.
 
