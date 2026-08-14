@@ -41,7 +41,13 @@ ALLOWED = [
     # log_audit.py saiu da lista porque foi removido do projeto (M1 da nona).
     rf"^{SAFE_ENV_PREFIX}python\s+(?:~/|\$HOME/)?\.claude/hooks/"
     rf"(?:check_architecture|scenario_scope|scenario_bash)\.py\s*$",
-    rf"^{SAFE_ENV_PREFIX}(ls|cat|head|tail|wc|grep|rg|find|tree|diff|stat)\b",
+    # `find` SAIU. Ele escreve por acao (-delete) e por flag (-fprint, -fprint0,
+    # -fls) com alvo posicional arbitrario, e nao ha como policiar o alvo por
+    # texto: `..`, caminho absoluto, `~` e `$HOME` sao a mesma escrita em quatro
+    # grafias, e fechar uma revela a seguinte — foi o B1 da decima auditoria.
+    # `git ls-files`, `rg` e `ls` cobrem o uso real de leitura. Superficie
+    # grande demais para o valor; o desenho tokenizado da setima ja o removera.
+    rf"^{SAFE_ENV_PREFIX}(ls|cat|head|tail|wc|grep|rg|tree|diff|stat)\b",
     # printf entra porque os smoke tests alimentam o hook por pipe
     # (printf '{...}' | python .claude/hooks/x.py) e cada segmento do pipe e
     # validado isoladamente. Sem escrita: redirecionamento ja e negado acima.
@@ -80,6 +86,20 @@ DENIED_ANYWHERE = [
     # provado por execucao, `git branch -D` rodado de dentro do worktree de
     # auditoria apagou o ramo visivel do repositorio principal.
     (r"\bgit\s+branch\b[^;&|]*\s-{1,2}(?:[dD]|delete)\b", "git branch que apaga ref compartilhado"),
+    # FLAGS DE ESCRITA dos comandos que continuam allowlistados porque rodar
+    # teste e linter e o trabalho do auditor: pytest, ruff, mypy, eslint, tsc.
+    #
+    # Isto E enumeracao, e a enumeracao aqui e defensavel onde a de alvos nao
+    # era: a superficie e FECHADA POR COMANDO — sao as flags de saida que essas
+    # cinco ferramentas documentam —, enquanto a de alvos era aberta, porque
+    # qualquer caminho tem infinitas grafias. Flag nova encontrada e finding
+    # pelo item 4(d) da DoD, nao defeito aceito.
+    (r"(?:^|\s)(?:-o|--output-file|--outfile|--outFile|--out-dir|--outDir"
+     r"|--junitxml|--junit-xml|--tsBuildInfoFile|--declarationDir"
+     r"|--cobertura-xml-report|--html-report|--txt-report|--xml-report"
+     r"|--linecount-report|--lineprecision-report|--any-exprs-report"
+     r"|--xslt-html-report|--xslt-txt-report)(?:[=\s]|$)",
+     "flag de escrita em arquivo"),
 ]
 
 

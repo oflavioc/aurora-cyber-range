@@ -181,6 +181,46 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima auditoria: FAIL, 2 BLOCKER — a correção do B1 repetiu o erro que ela fechava
+
+Executada sobre `2065d244`. Relatório em `docs/progress/audit_20260814T044412Z.md`. **Rodada comprometida por minha culpa, e mesmo assim a mais útil da fase.**
+
+**O que eu quebrei.** Lancei o launcher em segundo plano, sem terminal. A sessão do auditor subiu, mas a camada de permissão recusou **toda** execução — o auditor não conseguiu rodar um único comando. Depois, ao "limpar" o que eu julgava um lançamento travado, **removi o worktree com a sessão viva dentro**. É o M1 do relatório. Onze dos catorze itens da DoD saíram NÃO VERIFICADO, e por isso **esta rodada não vale como gate**. O relatório sobreviveu porque `audit_report.py` grava estado antes da sessão — a função que o P11 existe para prover, exercida pelo acidente que ela previa.
+
+**B1 — e ele procede, medido.** A correção de contenção do commit anterior negava `..` e **deixava caminho absoluto, `~` e `$HOME` abertos**. Sete das oito formas declaradas fechadas reabriam trocando a grafia do mesmo alvo. Medido aqui, todas com `rc=0`:
+
+```text
+find . -fprint0 /c/Projetos/aurora-cyber-range/tools/codegen.py
+pytest --junitxml=/c/Projetos/aurora-cyber-range/CLAUDE.md
+find /c/Projetos/aurora-cyber-range -delete
+find . -fprint0 ~/.claude/hooks/readonly_bash.py
+python -m pytest --junitxml=$HOME/.claude/hooks/readonly_bash.py
+```
+
+A última **sobrescreve o hook instalado do próprio auditor** — precisamente o comprometimento que a colocação em escopo de usuário existe para impedir (`WORKFLOW.md` §Por que o auditor não mora no repositório).
+
+**B2** — o harness provava as oito com o literal `../../` e nenhum probe usava alvo absoluto: ficava verde certificando uma contenção que não existia. E declarava `find . -delete` como "contida" enquanto a mesma allowlist aprovava `find /c/Projetos/... -delete`, violando o critério de admissão que o próprio arquivo fixava.
+
+**A lição, e ela é sobre mim.** Eu escrevi que "o invariante não é a flag, é o alvo" e então **policiei uma grafia do alvo**. Um alvo tem infinitas grafias; policiá-lo por texto é sempre refutável, que é literalmente o argumento que matou o item 4 antigo. Repeti a classe de erro dentro da correção que deveria encerrá-la, e o registro anterior chegou a dizer "duas regras, não oito" como se fosse profundidade.
+
+**O que se verifica por texto não é contenção, é ausência de capacidade.** Correção:
+
+| | Antes | Agora |
+|---|---|---|
+| `find` na allowlist | sim — escreve por ação e por flag, alvo posicional arbitrário | **removido**; `git ls-files`, `rg` e `ls` cobrem a leitura |
+| flags de saída de `pytest`/`ruff`/`mypy`/`eslint`/`tsc` | liberadas | **negadas**, enumeradas por comando |
+| probes de travessia | 8, todos com `../../` | 8 formas **× 4 grafias** = 32 provas de invariante |
+| probes contra a cópia instalada | nenhum — só a fonte versionada | **as duas**, quando a cópia existe (H4) |
+| escritas não bloqueadas | 2, declaradas "contidas" | **0** |
+
+A enumeração de flags é defensável onde a de alvos não era: a superfície é **fechada por comando** — são as flags de saída que essas cinco ferramentas documentam —, enquanto a de alvos é aberta. Flag nova é finding pelo item 4(d), não defeito aceito.
+
+**H2 fechado: `Write` entrou no deny de secrets.** Era P13, reconfirmada como P19 e reaberta em três rodadas desde então. Seis rodadas aberta, fechada em uma linha.
+
+**H3 é o P36 acontecendo ao vivo.** O auditor apontou que `2065d244` alterou `PHASE_0_CHECKLIST.md` — o documento que define a DoD — no mesmo commit que ela julga, fora de qualquer gate, porque `docs/process/` não está no conjunto `CODE` do `spec_freeze`. É a pendência adiada para depois da Fase 1, **encontrada por um auditor independente que não sabia que ela estava registrada**. Isso eleva a prioridade dela: deixa de ser observação minha e passa a ser achado externo reproduzido.
+
+**O que a rodada custou e o que ensinou sobre o método.** Uma auditoria sem execução, com o worktree destruído no meio, ainda assim encontrou dois BLOCKER reais por leitura de regex — e o segundo deles é sobre o oráculo que deveria ter pego o primeiro. Vale registrar o que o próprio auditor escreveu: *"nada nesta auditoria é prova de execução; B1 e B2 derivam de leitura de regex e da allowlist, não de comando executado."* Ele declarou o limite e acertou mesmo assim. A medição posterior confirmou.
+
 **O que a nona rodada provou sobre o método.** O auditor gerou construções em vez de confiar na lista, e a lista estava certa quanto ao *quê* e errada quanto ao *tanto faz*: dizia "10 buracos" e tratava todos como equivalentes. A distinção que faltava — **contido no worktree × alcança o worktree principal** — não estava em lugar nenhum, e é ela que separa defeito aceitável de finding. Entrou no critério de admissão do harness e na condição (c) do item 4 reformulado.
 
 ---

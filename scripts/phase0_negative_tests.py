@@ -180,22 +180,40 @@ ESCRITA_DELIBERADA = [
     ("git tag com operando cria tag", "git tag v9.9.9"),
     ("git tag -d apaga tag", "git tag -d v1.0"),
     ("git tag --delete apaga tag", "git tag --delete v1.0"),
-    # As oito abaixo eram BURACOS_CONHECIDOS ate 2026-08-14. A medicao mostrou
-    # que TODAS escrevem FORA do worktree de auditoria, e escrita que alcanca o
-    # worktree principal nao pode ser declarada: derrota o proposito do hook,
-    # que e impedir correcao ACIDENTAL, nao so conter adversario.
-    # Fechadas por contencao (`..` negado) e por regra de ref compartilhado,
-    # nao por enumeracao de flags. Ver fase_0.md §6 P32.
-    ("travessia via find -fprint0", "find . -fprint0 ../../tools/codegen.py"),
-    ("travessia via pytest --junitxml", "pytest --junitxml=../../CLAUDE.md"),
-    ("travessia via python -m pytest --junitxml",
-     "python -m pytest --junitxml=../../CLAUDE.md"),
-    ("travessia via ruff --output-file", "ruff check --output-file ../../CLAUDE.md ."),
-    ("travessia via mypy --junit-xml", "mypy --junit-xml ../../CLAUDE.md ."),
-    ("travessia via eslint -o", "eslint -o ../../CLAUDE.md ."),
-    ("travessia via tsc --outFile", "tsc --noEmit --outFile ../../CLAUDE.md"),
     ("git branch -D apaga ref compartilhado com o worktree principal",
      "git branch -D main"),
+]
+
+#: PROBES POR INVARIANTE, NAO POR GRAFIA. Foi o B2 da decima auditoria: as oito
+#: provas de travessia usavam todas o literal `../../` e certificavam a grafia,
+#: nao a propriedade. Trocando `../../X` pelo caminho absoluto do mesmo arquivo,
+#: as sete de escrita por flag reabriam e o harness seguia verde.
+#:
+#: A licao e a mesma das nove rodadas anteriores, cometida dentro da correcao
+#: que deveria encerra-la: um alvo tem infinitas grafias, entao policiar alvo e
+#: sempre refutavel. O que se verifica e a AUSENCIA DE CAPACIDADE DE ESCRITA no
+#: comando allowlistado — `find` saiu da allowlist, e as flags de saida das
+#: cinco ferramentas que ficaram estao negadas.
+#:
+#: Cada forma abaixo e testada nas QUATRO grafias do mesmo alvo. Um probe que
+#: so cobre a grafia lembrada nao prova ausencia das grafias esquecidas.
+GRAFIAS_DE_ALVO = [
+    ("relativa", "../../CLAUDE.md"),
+    ("absoluta", "/c/Projetos/aurora-cyber-range/CLAUDE.md"),
+    ("til", "~/.claude/hooks/readonly_bash.py"),
+    ("variavel de ambiente", "$HOME/.claude/hooks/readonly_bash.py"),
+]
+
+#: Formas de escrita parametrizadas pelo alvo. `{}` recebe cada grafia.
+ESCRITA_POR_ALVO = [
+    ("find -fprint0 (find fora da allowlist)", "find . -fprint0 {}"),
+    ("find -delete com alvo explicito", "find {} -delete"),
+    ("pytest --junitxml", "pytest --junitxml={}"),
+    ("python -m pytest --junitxml", "python -m pytest --junitxml={}"),
+    ("ruff --output-file", "ruff check --output-file {} ."),
+    ("mypy --junit-xml", "mypy --junit-xml {} ."),
+    ("eslint -o", "eslint -o {} ."),
+    ("tsc --outFile", "tsc --noEmit --outFile {}"),
 ]
 
 #: BURACOS conhecidos: escrita deliberada que o hook NAO bloqueia. Afirmados
@@ -212,47 +230,72 @@ ESCRITA_DELIBERADA = [
 #: ESCRITA_DELIBERADA. Restam as duas contidas. Declarar as outras oito teria
 #: sido usar a disciplina de declaracao para legitimar exatamente o que ela
 #: existe para impedir.
-BURACOS_CONHECIDOS = [
-    # Destroi o proprio worktree de auditoria, que e descartavel por desenho:
-    # o launcher o remove ao terminar. Nao alcanca o worktree principal.
-    ("find com acao de escrita, contida no worktree", "find . -delete"),
-    # Alvo relativo sem travessia: escreve dentro do worktree de auditoria.
-    ("escrita por flag: find -fprint0, alvo contido", "find . -fprint0 out.txt"),
-]
+#: VAZIA desde 2026-08-14, e isso e resultado, nao omissao. As duas ultimas
+#: entradas — `find . -delete` e `find . -fprint0 out.txt` — eram declaradas
+#: como contidas no worktree. O B2 da decima auditoria mostrou que a mesma
+#: allowlist aprovava os gemeos NAO contidos com alvo absoluto, entao a
+#: declaracao de contencao era falsa: usava-se a honestidade da lista para
+#: legitimar exatamente o que o criterio de admissao proibia.
+#:
+#: Resolvido tirando `find` da allowlist, nao ajustando a declaracao. Nenhuma
+#: forma de escrita conhecida passa hoje. Se uma aparecer, entra aqui SOMENTE
+#: se passar no criterio de admissao acima; caso contrario e finding.
+BURACOS_CONHECIDOS: list[tuple[str, str]] = []
 
 
-def _run_readonly_hook(command: str) -> subprocess.CompletedProcess[str]:
+def _hooks_sob_teste() -> list[tuple[str, Path]]:
+    """Fonte versionada SEMPRE; copia instalada TAMBEM, quando existir.
+
+    Era o H4 da decima auditoria: todos os probes rodavam so contra
+    READONLY_HOOK_SOURCE. Combinado com o B1 — que permitia sobrescrever
+    ~/.claude/hooks/readonly_bash.py —, o harness podia passar verde contra uma
+    fonte integra enquanto o hook EM EXECUCAO fora alterado. A fonte nao e o
+    que roda; a copia instalada e.
+
+    Em CI nao ha escopo de usuario e so a fonte e testada, o que fica dito na
+    saida em vez de suposto.
+    """
+    alvos = [("fonte versionada", READONLY_HOOK_SOURCE)]
+    if READONLY_HOOK_INSTALLED.exists():
+        alvos.append(("copia instalada", READONLY_HOOK_INSTALLED))
+    return alvos
+
+
+def _run_readonly_hook(command: str, hook: Path | None = None) -> subprocess.CompletedProcess[str]:
     payload = json.dumps({"tool_input": {"command": command}})
     return subprocess.run(
-        [sys.executable, str(READONLY_HOOK_SOURCE)],
+        [sys.executable, str(hook or READONLY_HOOK_SOURCE)],
         cwd=ROOT, input=payload, text=True, capture_output=True,
     )
 
 
 def expect_hook_allows(label: str, command: str) -> None:
-    result = _run_readonly_hook(command)
-    if result.returncode != 0:
-        _reject(
-            f"readonly_bash.py {label}",
-            f"BLOQUEOU leitura legitima (rc={result.returncode}). "
-            f"Comando: {command}",
-            (result.stdout or "") + (result.stderr or ""),
-        )
+    for origem, hook in _hooks_sob_teste():
+        result = _run_readonly_hook(command, hook)
+        if result.returncode != 0:
+            _reject(
+                f"readonly_bash.py [{origem}] {label}",
+                f"BLOQUEOU leitura legitima (rc={result.returncode}). "
+                f"Comando: {command}",
+                (result.stdout or "") + (result.stderr or ""),
+            )
     print(f"OK: readonly_bash.py liberou leitura legitima - {label}")
 
 
 def expect_hook_blocks(label: str, command: str) -> None:
-    result = _run_readonly_hook(command)
-    saida = (result.stdout or "") + (result.stderr or "")
-    if result.returncode != 2:
-        _reject(
-            f"readonly_bash.py {label}",
-            f"NAO bloqueou escrita deliberada (rc={result.returncode}, esperado 2). "
-            f"Comando: {command}",
-            saida,
-        )
-    if not saida.strip():
-        _reject(f"readonly_bash.py {label}", "bloqueou sem explicar o motivo", saida)
+    for origem, hook in _hooks_sob_teste():
+        result = _run_readonly_hook(command, hook)
+        saida = (result.stdout or "") + (result.stderr or "")
+        if result.returncode != 2:
+            _reject(
+                f"readonly_bash.py [{origem}] {label}",
+                f"NAO bloqueou escrita deliberada (rc={result.returncode}, esperado 2). "
+                f"Comando: {command}",
+                saida,
+            )
+        if not saida.strip():
+            _reject(f"readonly_bash.py [{origem}] {label}",
+                    "bloqueou sem explicar o motivo", saida)
     print(f"OK: readonly_bash.py bloqueou escrita deliberada - {label}")
 
 
@@ -506,6 +549,10 @@ def main() -> int:
         expect_hook_allows(label, comando)
     for label, comando in ESCRITA_DELIBERADA:
         expect_hook_blocks(label, comando)
+    # O invariante nas quatro grafias do mesmo alvo (B2 da decima auditoria).
+    for label_forma, molde in ESCRITA_POR_ALVO:
+        for label_grafia, alvo in GRAFIAS_DE_ALVO:
+            expect_hook_blocks(f"{label_forma} [grafia {label_grafia}]", molde.format(alvo))
     for label, comando in FALSOS_BLOQUEIOS_CONHECIDOS:
         expect_hook_blocks_known_defect(label, comando)
     for label, comando in BURACOS_CONHECIDOS:
@@ -516,7 +563,10 @@ def main() -> int:
     print(
         "\nTodos os seis verificadores falharam contra probes independentes.\n"
         f"readonly_bash.py: libera {len(LEITURA_LEGITIMA)} leituras legitimas e "
-        f"bloqueia {len(ESCRITA_DELIBERADA)} escritas deliberadas.\n"
+        f"bloqueia {len(ESCRITA_DELIBERADA)} escritas deliberadas, mais "
+        f"{len(ESCRITA_POR_ALVO)} formas x {len(GRAFIAS_DE_ALVO)} grafias de alvo "
+        f"= {len(ESCRITA_POR_ALVO) * len(GRAFIAS_DE_ALVO)} provas de invariante.\n"
+        f"Hooks exercitados: {', '.join(o for o, _ in _hooks_sob_teste())}.\n"
         f"DEFEITOS ABERTOS, afirmados e nao escondidos (P23 reaberto): "
         f"{len(FALSOS_BLOQUEIOS_CONHECIDOS)} leituras legitimas bloqueadas e "
         f"{len(BURACOS_CONHECIDOS)} escritas nao bloqueadas."
