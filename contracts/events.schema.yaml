@@ -67,9 +67,18 @@ properties:
 
   # Rollback nunca apaga historia: gera evento explicito e nova epoch
   # (00_MASTER_SPEC.md secao 6). Epoch e o que separa as linhas temporais.
+  #
+  # COMECA EM ZERO. 09 secao 3 desenha `epoch 0` antes do primeiro rollback e
+  # `epoch 1` depois dele, e 06 secao T3 exige normativamente que "evento de
+  # participant_action gravado na EPOCH 0 continua legivel apos rollback". Um
+  # piso em 1 recusaria todo evento da primeira linha temporal — inclusive o
+  # evento que aquele teste de aceitacao obriga a existir.
+  #
+  # A forma anterior deste contrato declarava `minimum: 1`, invencao minha
+  # contra criterio normativo explicito. Achado pelo checkpoint-auditor.
   simulation_epoch:
     type: integer
-    minimum: 1
+    minimum: 0
 
   # 09 secao 1: presente e nulo quando o evento nao projeta fato canonico.
   fact_id:
@@ -354,7 +363,9 @@ x-aurora-invalid-examples:
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       simulation_epoch: 1
 
-  - reason: 'simulation_epoch zero: epoch comeca em 1'
+  # Zero e VALIDO: e a primeira linha temporal (09 secao 3, 06 secao T3). O que
+  # nao existe e epoch anterior a ela.
+  - reason: 'simulation_epoch negativo: nao existe linha temporal antes da primeira'
     rejected_by: schema
     instance:
       event_id: '01J9F000000000000000000007'
@@ -363,4 +374,4 @@ x-aurora-invalid-examples:
       producer: engine
       exercise_time: 'T+00:00:00'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
-      simulation_epoch: 0
+      simulation_epoch: -1
