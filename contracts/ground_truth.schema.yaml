@@ -225,6 +225,23 @@ $defs:
   # Mesma regra do branching (04 secao 6.2) e pelo mesmo motivo: event_type com
   # erro de digitacao nunca dispara, o predicado nunca e satisfeito, e TTCV
   # nunca e computado.
+  #
+  # E SO `state_effect` — 03 secao 3.1, acrescentado pelo spec-change
+  # `effect-class-marcas-temporais-e-seed`.
+  #
+  # `containment: {all: [{event: containment_declared}]}` era pack valido. Nele
+  # TTCD e TTCV medem o mesmo instante, o delta que 03 secao 3.2 chama de "o
+  # achado" deixa de existir, e NADA FALHA: a metrica segue sendo calculada, so
+  # que mede a si mesma. A consequencia normativa 2 de 00 secao 3 seria anulada
+  # por autoria de cenario.
+  #
+  # A distincao NAO e de camada: `vpn_access_revoked` e `identity_scope_disabled`
+  # sao `participant_action` como `containment_declared`, e sao legitimos aqui —
+  # sao acoes com efeito no mundo, nao afirmacoes sobre ele.
+  #
+  # O branching NAO tem esta restricao, de proposito: ramificar sobre o que a
+  # equipe DECLAROU e desenho legitimo de cenario. O que nao pode e VERIFICAR
+  # contra declaracao.
   predicate_event:
     type: object
     required: [event]
@@ -232,7 +249,7 @@ $defs:
     properties:
       event:
         type: string
-        x-aurora-ref: event_catalog
+        x-aurora-ref: event_catalog_state_effect
       # 03 secao 3.1 mostra `payload: {principal: svc_academus}` — o predicado
       # pode exigir nao so o evento mas um evento sobre um principal.
       payload:
@@ -558,8 +575,11 @@ x-aurora-invalid-examples:
         name: 'Grupo Fictício X'
         sources: []
 
+  # A folha `event` do predicado resolve contra o SUBCONJUNTO `state_effect`,
+  # nao contra o catalogo inteiro (03 secao 3.1). Um typo continua sendo
+  # recusado, agora por essa regra.
   - reason: 'predicado referencia event_type fora do catalogo'
-    rejected_by: 'x-aurora-ref:event_catalog'
+    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
     instance:
       facts:
         - fact_id: GT-A-001
@@ -569,6 +589,25 @@ x-aurora-invalid-examples:
         containment:
           all:
             - event: vpn_acess_revoked
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
+  # O ACHADO DA SEGUNDA AUDITORIA, agora recusado.
+  #
+  # Este pack era valido: TTCD e TTCV mediriam o mesmo instante, o delta que
+  # 03 secao 3.2 chama de "o achado" deixaria de existir, e NADA falharia — a
+  # metrica seguiria sendo calculada, so que medindo a si mesma.
+  - reason: 'contencao verificada por declaracao: TTCD e TTCV colapsam no mesmo instante'
+    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: containment_declared
         service_restoration:
           not_applicable: 'sem serviço derrubado'
 

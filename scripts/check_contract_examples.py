@@ -41,7 +41,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 # O mesmo parser que o CI usa para ler os contratos. Usar outro validaria uma
 # arvore diferente da que os verificadores enxergam.
-from _common import parse_yaml, rel  # noqa: E402
+from _common import ContractError, parse_yaml, rel  # noqa: E402
 
 try:
     from jsonschema import Draft202012Validator
@@ -86,6 +86,28 @@ def build_registries(contracts: dict) -> dict:
     for chave in _walk_defs(eventos, "event_type_"):
         catalogo.update(eventos["$defs"][chave]["enum"])
 
+    # `effect_class` — 09 secao 4.0. A tabela e uma SEGUNDA lista dos mesmos 32
+    # tipos, entao a cobertura exata e verificada aqui: sem isso ela divergiria
+    # do catalogo em silencio, que e a classe de defeito que o proprio
+    # `effect_class` existe para fechar.
+    registro = (eventos.get("x-aurora-registry") or {})
+    classes = registro.get("effect_class") or {}
+    validos = set(registro.get("effect_class_values") or [])
+    faltando = sorted(catalogo - set(classes))
+    sobrando = sorted(set(classes) - catalogo)
+    fora = sorted({v for v in classes.values() if v not in validos})
+    if faltando or sobrando or fora:
+        partes = []
+        if faltando:
+            partes.append(f"sem effect_class: {faltando}")
+        if sobrando:
+            partes.append(f"effect_class para tipo fora do catalogo: {sobrando}")
+        if fora:
+            partes.append(f"valor de effect_class fora do conjunto: {fora}")
+        raise ContractError("contracts/events.schema.yaml: " + "; ".join(partes))
+
+    state_effect = {n for n, c in classes.items() if c == "state_effect"}
+
     flags = {}
     for caminho in sorted((REPO_ROOT / "domains").glob("*/flags.yaml")):
         dados = parse_yaml(caminho) or {}
@@ -112,6 +134,7 @@ def build_registries(contracts: dict) -> dict:
 
     return {
         "event_catalog": catalogo,
+        "event_catalog_state_effect": state_effect,
         "adapter_flags": set(flags),
         "pack_facts": fatos,
         "pack_objectives": objetivos,
@@ -364,7 +387,15 @@ def main(argv: list[str] | None = None) -> int:
     registry = Registry().with_resources(
         [(id_, Resource.from_contents(s)) for id_, s in sorted(por_id.items())]
     )
-    registros = build_registries(contratos)
+    # Erro de contrato — cobertura de `effect_class`, por exemplo — sai com a
+    # mesma mensagem limpa e o mesmo rc=1 de uma fixture reprovada. Traceback
+    # daria rc=1 tambem, mas `expect_fail` exige mensagem que localize o
+    # problema: deteccao sem localizacao nao permite intervir.
+    try:
+        registros = build_registries(contratos)
+    except ContractError as exc:
+        print(f"\nFALHAS: 1\n\n  {exc}\n", file=sys.stderr)
+        return 1
 
     falhas = []
     positivos = negativos = 0

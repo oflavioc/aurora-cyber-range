@@ -89,6 +89,20 @@ PROBES = [
         "defeitos distintos, esperado 1",
     ),
     (
+        "effect_class sem cobrir o catalogo inteiro",
+        "events.schema.yaml",
+        "    containment_declared: declaration\n",
+        "",
+        "sem effect_class",
+    ),
+    (
+        "effect_class com valor fora do conjunto declarado",
+        "events.schema.yaml",
+        "    vpn_access_revoked: state_effect\n",
+        "    vpn_access_revoked: efeito_colateral\n",
+        "valor de effect_class fora do conjunto",
+    ),
+    (
         "fixture negativa sem `rejected_by`",
         "objectives.schema.yaml",
         "  - reason: 'classe derived nao existe: a ontologia de evidencia e binaria'\n"
