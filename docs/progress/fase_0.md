@@ -181,7 +181,39 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
-### P11 FECHADO — o relatório sobreviveu à sessão sem intervenção
+### Décima segunda auditoria: FAIL, 2 BLOCKER — o terceiro eixo, que nenhum probe tocava
+
+Executada sobre `218bb77`, worktree íntegro, execução real do começo ao fim.
+
+**B1 — `\n`, `\r` e `&` não estavam no separador de segmentos.** `re.split(r"\|\||&&|;|\|", cmd)` cobria quatro separadores; o bash honra sete. E a omissão era **total**, não parcial: como cada segmento é validado isoladamente, bastava a **primeira palavra** ser allowlistada para todo o resto passar sem validação nenhuma.
+
+Medido, com `rc=0` em todos:
+
+```text
+pytest --version\npython -c "open('<qualquer caminho>','w')"
+pytest --version\rpython -c "..."
+pytest --version & python -c "..."
+```
+
+Alvos que passaram: `CLAUDE.md`, `tools/`, `docs/spec/00_MASTER_SPEC.md` e **a cópia instalada do próprio hook**. Nem a regra de `..` nem a de flags de saída alcançavam — o alvo é absoluto e não há flag. O auditor provou a escrita ponta a ponta com sentinela em `%TEMP%`, deliberadamente fora do repositório.
+
+**B2 — o eixo que faltava.** As 33 provas de escrita e as 32 de grafia de alvo eram **todas de segmento único**. O eixo do **alvo** estava coberto desde a 10ª; o eixo do **comando** passou a estar na 11ª com `allowlist_e_a_revisada()`; o eixo da **composição** — como comandos são encadeados — não era exercitado por probe nenhum. O harness imprimia "0 escritas não bloqueadas" com o B1 aberto, e a célula da DoD citava esse número como evidência.
+
+Correção: **`SEPARADORES_DE_COMANDO`**, sete separadores, cada um testado como prefixo legítimo (`git status`) seguido de carga de escrita. O prefixo legítimo é o ponto — sem ele o probe passaria pela regra do próprio comando de escrita e não pela composição, que foi exatamente o defeito do probe `env rm -rf x` punido na 11ª.
+
+**Três eixos, três rodadas, e o padrão fica visível.** Alvo, comando, composição. Cada rodada expôs um eixo que o harness não variava, e em cada uma a lista estava "completa" segundo quem a escreveu. Não há razão para supor que três são todos — mas os três agora são asseridos, e um eixo asserido não regride em silêncio.
+
+**M2 — o deny de secrets era escopado por ferramenta.** `.claude/settings.json` nega `Read`/`Edit` de `.env` e `secrets/`, e essas regras valem para as **ferramentas de arquivo** do Claude Code. `cat .env`, `head .env.local`, `grep -r x secrets/` e `stat .env` passavam pelo Bash — medidos com `rc=0`. `CLAUDE.md` §Secrets diz *"nunca leia"*, sem restringir a ferramenta. Fechado no hook.
+
+Latente nesta fase, porque nenhum desses arquivos existe. **Exposição real na Fase 1**, cujo DoD põe `RANDOM_SEED` em `.env` — e é a segunda vez que a distinção "regra de ferramenta ≠ regra de caminho" aparece nesta fase, depois do `Write(...)` inerte. As duas vêm de supor comportamento de plataforma sem exercitá-lo.
+
+**M1 procede, e é sobre o registro do P11 abaixo.** O auditor mediu o `audit_log.jsonl`: zero linhas com `manual_recovery`, zero com `"recovered": false`. O mecanismo `--via launcher-trap` existe no código, mas **entrou no commit seguinte à captura que fechou o P11** — então nenhum artefato do repositório sustenta a afirmação. A seção abaixo é **atestação do operador**, e agora está rotulada como tal, no mesmo padrão dos itens 9 a 13. A prova por artefato vem na próxima captura.
+
+**H1** é `docs/process/` fora do conjunto `CODE` — registrado como P36 na branch `spec-change/dod-item-4-limite-declarado`, adiado por decisão do operador. Terceira rodada consecutiva a levantá-lo por auditor independente.
+
+**P35 não cobre esta rodada**, e o auditor apontou sozinho pela segunda vez: B1 é omissão de três separadores de uma lista, corrigível em uma linha, não a propriedade universal indecidível. Condição 3.
+
+### P11 FECHADO por atestação do operador — a prova por artefato vem na próxima captura
 
 **2026-08-14, primeira vez em onze rodadas.** O operador digitou `/exit` na sessão do auditor e o launcher imprimiu, sozinho:
 
@@ -191,6 +223,8 @@ Veredito detectado: FAIL
 ```
 
 18 KB, com `head_sha` e `session_id` corretos. **Nenhum comando manual.** As onze rodadas anteriores dependeram de transcrição ou de `--recover` digitado à mão, e é dessa pendência que saíram as **cinco** confusões de ID desta fase.
+
+**Camada de verdade, rotulada após o M1 da 12ª auditoria.** O parágrafo acima é **declaração do operador** — terceira camada —, não evidência observável. O auditor mediu as 51 linhas do `audit_log.jsonl`: **zero** com `manual_recovery`, **zero** com `"recovered": false`. A correção que distingue captura automática de recuperação manual entrou no commit **seguinte** ao da captura que fechou o P11, então nenhum artefato do repositório sustenta a afirmação. Ela é aceita pelo mesmo critério dos itens 9 a 13 — e agora carrega o mesmo rótulo, que era o que faltava. **A prova por artefato é a próxima captura**: se ela gravar `manual_recovery: false`, o P11 passa de atestação a evidência.
 
 **Uma ressalva medida, e ela vira correção.** O log gravou `"recovered": true` mesmo nesta captura automática, porque o launcher chama `audit_report.py --recover` **no próprio trap de saída** (`start_checkpoint_audit.sh:88`) — o mesmo caminho de código da recuperação manual. Ou seja: **o campo que deveria provar o P11 não distinguia os dois casos**, e teria mantido a pendência ambígua para sempre. Foi essa exata ambiguidade que produziu a contradição apontada pelo M4 da nona auditoria entre a mensagem do commit ("capturado automaticamente") e o log (`recovered: true`) — os dois estavam certos, e o campo é que era cego.
 
