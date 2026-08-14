@@ -130,6 +130,20 @@ DENIED_ANYWHERE = [
     (r"(?:^|[\s=\"'/\\])\.env(?:\.[A-Za-z0-9_.-]+)?(?:[\s\"']|$)"
      r"|(?:^|[\s\"'/\\])secrets[/\\]",
      "leitura de secret por caminho de shell"),
+    # SUBSTITUICAO DE COMANDO — quarto eixo, e o unico que nao e composicao nem
+    # alvo nem comando: o conteudo de `$(...)` e de crase EXECUTA, mas fica
+    # DENTRO do segmento, entao o segmento inteiro casa pela primeira palavra.
+    # `echo $(python -c "...")` saia rc=0 e executava Python arbitrario, com o
+    # processo resultante tendo permissao de escrita em tools/codegen.py do
+    # worktree principal — o auditor podia reescrever os verificadores que audita.
+    #
+    # A oitava auditoria ja encontrara esta via no desenho tokenizado; a reversao
+    # a reintroduziu SEM entra-la na lista de defeitos declarados. Regressao por
+    # reversao que ninguem rastreou — e a razao de o harness agora exercitar o
+    # eixo em vez de confiar na memoria de quem reverteu.
+    #
+    # `%(refname)` do for-each-ref nao casa: e `%(`, nao `$(`.
+    (r"\$\(|`", "substituicao de comando"),
 ]
 
 

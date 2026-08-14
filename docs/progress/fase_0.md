@@ -181,6 +181,62 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### P17 nunca fechou por um motivo mecânico: o deny é mais largo que a norma e torna `.env.example` incriável
+
+**Descoberto ao tentar criar o arquivo, 2026-08-14.** A ferramenta recusou: *"File is in a directory that is denied by your permission settings."*
+
+**A regra e a norma não batem:**
+
+| | Caminhos |
+|---|---|
+| `CLAUDE.md` §Secrets | `.env`, `.env.local`, `.env.*.local`, `secrets/` — e diz explicitamente: ***"`.env.example` é permitido e deve conter apenas placeholders"*** |
+| `.claude/settings.json:9-10` | `.env`, **`.env.*`**, `secrets/**` |
+
+`.env.*` casa `.env.example`. **O mecanismo proíbe o que o texto normativo permite** — e não por engano de digitação: `.env.*` é mais largo que a enumeração da norma, que fala em `.env.*.local`.
+
+**Consequência medida:** a P17 está aberta desde a terceira auditoria, foi reconfirmada em **cinco** rodadas e classificada LOW em todas. Nenhuma delas diagnosticou a causa. O arquivo não faltava por esquecimento — **nenhum agente jamais poderia tê-lo criado**, e o achado se repetia porque a correção era impossível pelo caminho que os agentes têm.
+
+**Não corrigi.** Estreitar deny rule de secrets é decisão do operador, e há um trade-off real:
+
+- **alinhar à norma** (`.env`, `.env.local`, `.env.*.local`) devolve a capacidade de criar e ler o exemplo, mas deixa `.env.production` e `.env.staging` fora do deny — a norma não os lista, e no mundo real eles têm segredo;
+- **manter `.env.*`** preserva a proteção larga, e aí o `.env.example` é artefato **humano**: criado uma vez à mão, versionado, nunca editado por agente. Custo: agente também não consegue **ler** o exemplo para saber que variáveis existem.
+
+A segunda opção é defensável como postura, mas então `CLAUDE.md` deveria dizer que o exemplo é criado pelo operador, e a P17 deveria estar marcada como "aguardando ação humana" em vez de reaparecer como LOW a cada rodada. **É a lacuna entre norma e mecanismo que precisa fechar, não o arquivo.**
+
+**A classe é a mesma de duas outras desta fase.** `Write(...)` inerte no deny e o deny de secrets contornável por `cat` vieram de supor comportamento de plataforma sem exercitá-lo. Esta vem do inverso — a plataforma faz **mais** do que a norma manda —, e a lição é a mesma: **regra de mecanismo e texto normativo divergem em silêncio até alguém exercitar a fronteira.**
+
+### Décima terceira auditoria: FAIL, 1 BLOCKER, 1 HIGH — o quarto eixo, e uma regressão por reversão que ninguém rastreou
+
+Executada sobre `1a4aa9e`. Relatório em `docs/progress/audit_20260814T054640Z.md`, **capturado automaticamente** — primeira rodada em que o artefato entra no repositório sem intervenção.
+
+**B1 — substituição de comando.** `$(...)` e crase **executam sem sair do segmento**, então a validação por primeira palavra nunca os enxerga. Medido, `rc=0` em todos:
+
+```text
+echo $(python -c "print(1)")        which $(python -c "print(1)")
+echo `python -c "print(1)"`         printf %s $(python -c "print(1)")
+```
+
+O auditor foi além da decisão do hook e mediu a consequência: o processo resultante tinha `os.access(..., W_OK) == True` sobre `tools/codegen.py` do worktree principal. **O auditor podia reescrever os verificadores que audita.** Nenhuma das regras de contenção alcançava, porque dentro do `$()` o alvo é absoluto e não há flag.
+
+**E esta via já tinha sido encontrada.** A oitava auditoria a achou no desenho tokenizado; a reversão do P23 a reintroduziu **sem entrá-la na lista de defeitos declarados**. É a primeira regressão-por-reversão registrada nesta fase, e o mecanismo que deveria pegá-la — a lista de defeitos afirmados — falhou porque ninguém migrou o achado ao reverter. Um defeito conhecido que sai do harness vira defeito esquecido; foi exatamente o que a condição 4(e) do item 4 reformulado diz, aplicado a si mesmo.
+
+**H1 — o probe de substituição não exercitava substituição.** A entrada era `("execucao dentro de substituicao de comando", "git ls-files \`rm -rf x\`")`, e bloqueava pela regra do token `rm`: **medido, dá `rc=2` idêntico sem a crase**. Nada nele dependia da substituição.
+
+É a **terceira** instância da mesma armadilha — antes dela o `env rm -rf x` e, antes, a grafia única de alvo. E a segunda que eu deixei no arquivo **enquanto documentava o defeito idêntico duas linhas acima**. A regra que faltava está agora escrita no código: **a carga de um probe de eixo não pode conter token denylistado**, senão o probe passa pela regra do token e não pelo eixo.
+
+**Quarto eixo, e o padrão dos eixos se confirma:**
+
+| Rodada | Eixo | O que o harness não variava |
+|---|---|---|
+| 10ª | alvo | uma grafia só (`../../`) |
+| 11ª | comando | conjunto fixo, lembrado |
+| 12ª | composição | segmento único, sempre |
+| 13ª | **substituição** | nenhum probe real; o que havia era rótulo |
+
+**M2/P24 fechado, e custou zero.** `check_security_constraints.py` não varria `.claude/hooks/` nem `user-scope/hooks/` — na Fase 0, praticamente todo o código executável do repositório, incluindo o arquivo que decide o que o auditor pode rodar. Aberta desde a quarta auditoria, na terceira reconfirmação. **Medido antes de incluir: a árvore sai `rc=0`.** Cinco rodadas de LOW/MEDIUM para uma mudança de uma linha sem custo — o que é um argumento contra deixar pendência barata envelhecer.
+
+**M1** é a tabela de rodadas desatualizada; ver a nota na própria tabela. **L1** é o `.env.example`, e virou achado próprio (abaixo).
+
 ### Décima segunda auditoria: FAIL, 2 BLOCKER — o terceiro eixo, que nenhum probe tocava
 
 Executada sobre `218bb77`, worktree íntegro, execução real do começo ao fim.
@@ -528,7 +584,15 @@ Isto é a terceira camada das quatro (`declaração`), não a segunda (`evidênc
 | 6ª | PASS, 0 BLOCKER, 0 HIGH |
 | **7ª** | **FAIL**, 1 BLOCKER |
 | **8ª** | **FAIL** |
-| **9ª** | **FAIL**, 1 BLOCKER (o B1 fechado neste commit) |
+| **9ª** | **FAIL**, 1 BLOCKER |
+| **10ª** | **FAIL**, 2 BLOCKER — rodada comprometida por mim (worktree destruído no meio) |
+| **11ª** | **FAIL**, 2 BLOCKER |
+| **12ª** | **FAIL**, 2 BLOCKER |
+| **13ª** | **FAIL**, 1 BLOCKER, 1 HIGH |
+
+**Esta tabela ficou desatualizada em três rodadas** — foi o M1 da 13ª auditoria, e é a **terceira** instância da mesma classe: o H3 da 9ª puniu "item 15 ✅ com leitura de duas rodadas atrás", eu corrigi, e o defeito voltou com leitura de três rodadas atrás. O status ⛔ do item 15 seguiu correto o tempo todo, o que limitou o dano; o que subdeclarava era a **contagem de reprovações**.
+
+A causa é estrutural, não descuido: a tabela é mantida à mão enquanto `docs/progress/audit_log.jsonl` já tem a mesma informação por artefato, com `head_sha` e veredito. Enquanto as duas fontes existirem em paralelo, elas vão divergir de novo. **Fica registrado como o próximo candidato a mecanizar** — a tabela deveria ser derivada do log, não digitada.
 
 `docs/progress/audit_log.jsonl` confirma `"verdict": "FAIL"` nas três últimas linhas. Marcar ✅ deixava quem consultasse só a tabela concluir que o checkpoint passou — que é a classe de defeito do próprio P33, no item vizinho.
 

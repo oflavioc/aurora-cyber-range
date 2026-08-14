@@ -166,7 +166,13 @@ ESCRITA_DELIBERADA = [
     ("execucao arbitraria via python -c", "python -c 'import os'"),
     ("edicao in-place", "sed -i s/a/b/ file"),
     ("escrita no corpo de um laco", "for f in a; do rm $f; done"),
-    ("execucao dentro de substituicao de comando", "git ls-files `rm -rf x`"),
+    # O probe anterior era ("execucao dentro de substituicao de comando",
+    # "git ls-files `rm -rf x`") e bloqueava pela regra do token `rm` — daria
+    # rc=2 identico SEM a crase, medido. Nada nele dependia da substituicao.
+    # Terceira instancia da mesma classe (env, crase, e a de `..` antes delas), e
+    # a segunda que eu deixei no arquivo enquanto documentava o defeito duas
+    # linhas acima. Ver SUBSTITUICOES abaixo, que exercita o eixo de verdade.
+    ("token de escrita dentro de crase", "git ls-files `rm -rf x`"),
     # O probe anterior era `env rm -rf x` e levava este mesmo rotulo. Ele passava
     # pela regra do token `rm` — nada nele exercitava `env`. Probe que passa pelo
     # motivo errado carrega o nome da propriedade que NAO mede: era o B2 da 11a
@@ -223,6 +229,22 @@ ESCRITA_DELIBERADA = [
 #: carga de escrita. O prefixo legitimo e o ponto: sem ele o probe passaria pela
 #: regra do proprio comando de escrita, e nao pela composicao — que foi o defeito
 #: do probe `env rm -rf x` punido pelo B2 da 11a rodada.
+#: QUARTO EIXO: substituicao de comando. Nao e composicao — nao ha separador —,
+#: nao e alvo e nao e comando: o conteudo de `$(...)` ou de crase EXECUTA sem
+#: sair do segmento, entao a validacao por primeira palavra nunca o enxerga.
+#:
+#: A carga aqui NAO PODE conter token denylistado. Se contiver, o probe passa
+#: pela regra do token e nao pela substituicao — foi exatamente o defeito do
+#: probe antigo (`git ls-files \`rm -rf x\``, que dava rc=2 igual sem a crase) e,
+#: antes dele, do `env rm -rf x`. Terceira vez que a mesma armadilha aparece:
+#: probe cujo nome anuncia a propriedade que ele nao mede.
+SUBSTITUICOES = [
+    ("dolar-parenteses", 'echo $(python -c "print(1)")'),
+    ("crase", 'echo `python -c "print(1)"`'),
+    ("dolar-parenteses apos printf", 'printf %s $(python -c "print(1)")'),
+    ("dolar-parenteses apos which", 'which $(python -c "print(1)")'),
+]
+
 SEPARADORES_DE_COMANDO = [
     ("ponto e virgula", ";"),
     ("pipe", "|"),
@@ -654,6 +676,9 @@ def main() -> int:
     for label, comando in ESCRITA_DELIBERADA:
         expect_hook_blocks(label, comando)
     # O invariante nas quatro grafias do mesmo alvo (B2 da decima auditoria).
+    # Eixo da substituicao de comando (B1/H1 da 13a auditoria).
+    for label_sub, cmd_sub in SUBSTITUICOES:
+        expect_hook_blocks(f"substituicao por {label_sub}", cmd_sub)
     # Eixo da composicao (B1/B2 da 12a auditoria).
     for label_sep, sep in SEPARADORES_DE_COMANDO:
         expect_hook_blocks(f"composicao por {label_sep}",

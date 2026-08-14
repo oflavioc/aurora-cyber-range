@@ -33,7 +33,12 @@ from _common import (  # noqa: E402
     report,
 )
 
-SCANNED_DIRS = ("range-core", "domains", "tools", "scripts")
+# `.claude/` e `user-scope/` entram porque na Fase 0 os hooks sao praticamente
+# TODO o codigo executavel do repositorio: sem eles o verificador de seguranca
+# nao olhava para o arquivo que decide o que o auditor pode rodar. Era P9,
+# ampliada como P24, aberta desde a quarta auditoria e reconfirmada tres vezes.
+# Medido antes de incluir: a arvore atual sai rc=0, entao o custo e zero.
+SCANNED_DIRS = ("range-core", "domains", "tools", "scripts", ".claude", "user-scope")
 PYTHON_SUFFIXES = (".py",)
 
 #: Chamadas a builtin proibidas: executam codigo montado em tempo de execucao.
