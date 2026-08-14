@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Captura e persistencia do relatorio de auditoria de checkpoint.
 
-Modulo compartilhado por dois chamadores:
+Chamado por `scripts/start_checkpoint_audit.sh`, que invoca o auditor como
+agente de TOPO (`claude --agent`).
 
-- `scripts/start_checkpoint_audit.sh` usa a CLI. E o caminho REAL: o launcher
-  invoca o auditor como agente de TOPO (`claude --agent`);
-- `.claude/hooks/log_audit.py` importa as funcoes. E o caminho hipotetico, que
-  so existe se o auditor um dia for despachado como SUBAGENTE.
+O hook `SubagentStop` que antes importava estas funcoes foi removido junto com
+`.claude/hooks/log_audit.py` — era inalcancavel por este launcher e sujava a
+arvore versionada, bloqueando a auditoria seguinte. Se o `checkpoint-auditor`
+um dia for despachado como SUBAGENTE, `detect_verdict`, `select_report`,
+`agent_text_blocks`, `main_worktree_root` e `persist` continuam aqui e servem a
+esse caminho sem alteracao.
 
 Por que a captura vive no launcher e nao no hook
 ------------------------------------------------
@@ -138,9 +141,9 @@ def find_transcript(session_id: str) -> Path | None:
     return matches[0] if matches else None
 
 
-def last_agent_text(transcript: Path) -> str:
-    """Ultimo bloco de texto emitido pelo agente, do transcript JSONL."""
-    latest = ""
+def agent_text_blocks(transcript: Path) -> list[str]:
+    """Blocos de texto emitidos pelo agente, em ordem, do transcript JSONL."""
+    blocos: list[str] = []
     try:
         with transcript.open(encoding="utf-8") as handle:
             for line in handle:
@@ -163,15 +166,43 @@ def last_agent_text(transcript: Path) -> str:
                 ]
                 joined = "\n".join(t for t in texts if t.strip())
                 if joined.strip():
-                    latest = joined
+                    blocos.append(joined)
     except Exception:
-        return ""
-    return latest
+        return []
+    return blocos
+
+
+def select_report(blocos: list[str]) -> tuple[str, str | None]:
+    """Escolhe o bloco que E o relatorio. Devolve (texto, motivo-da-degradacao).
+
+    Pegar o ULTIMO bloco parece obvio e esta errado para o caso real. A sessao
+    de auditoria e interativa de proposito: o operador acompanha, pergunta e o
+    auditor responde DEPOIS de emitir o relatorio. Na oitava rodada o relatorio
+    era o bloco 8 de 11, e o ultimo bloco era a resposta a uma pergunta de
+    acompanhamento — 8130 chars de conversa no lugar de 18474 de relatorio.
+
+    Criterio: o ultimo bloco que contenha uma LINHA de veredito. E o mesmo
+    ancoradouro que `detect_verdict` usa, entao os dois concordam por
+    construcao. Sem nenhum bloco assim, cai no ultimo texto e REGISTRA a
+    degradacao — capturar conversa achando que e relatorio, calado, e pior.
+    """
+    if not blocos:
+        return "", "transcript nao rendeu texto de agente"
+    for bloco in reversed(blocos):
+        if _VERDICT_LINE.search(bloco):
+            return bloco, None
+    return blocos[-1], (
+        "nenhum bloco do agente tem linha de veredito; capturado o ultimo texto "
+        "da sessao, que pode ser conversa e nao o relatorio"
+    )
 
 
 #: Linha de veredito: inicio de linha, com ou sem `#` de titulo e com ou sem
 #: enfase. Prosa que apenas mencione a palavra no meio de um paragrafo nao casa.
-_VERDICT_LINE = re.compile(r"^\s{0,3}#{0,6}\s*\**\s*VEREDITO\b(.*)$", re.IGNORECASE)
+#: MULTILINE porque serve a dois usos: `.match()` linha a linha em
+#: `detect_verdict`, e `.search()` sobre um bloco inteiro em `select_report`.
+_VERDICT_LINE = re.compile(r"^\s{0,3}#{0,6}\s*\**\s*VEREDITO\b(.*)$",
+                           re.IGNORECASE | re.MULTILINE)
 _WORD_PASS = re.compile(r"\bPASS\b")
 _WORD_FAIL = re.compile(r"\bFAIL\b")
 
@@ -340,9 +371,12 @@ def main() -> int:
     if transcript is None:
         motivo = f"transcript da sessao {args.session_id} nao encontrado"
     else:
-        report = last_agent_text(transcript)[:MAX_REPORT_CHARS]
+        escolhido, degradacao = select_report(agent_text_blocks(transcript))
+        report = escolhido[:MAX_REPORT_CHARS]
         if not report:
             motivo = f"transcript {transcript.name} nao rendeu texto de agente"
+        elif degradacao:
+            motivo = degradacao
 
     if not report and args.fallback_text:
         bruto = Path(args.fallback_text)
