@@ -32,7 +32,7 @@ que a Fase 0 construiu nao ganhe dependencia.
 
 from __future__ import annotations
 
-import json
+import re
 import sys
 from pathlib import Path
 
@@ -279,6 +279,36 @@ class AuroraChecker:
                     )
 
 
+#: "'x' is a required property" — a propriedade que falta, para distinguir dois
+#: campos obrigatorios ausentes como DOIS defeitos, e nao um.
+_FALTA = re.compile(r"^'(?P<prop>[^']+)' is a required property$")
+
+
+def sitios_de_defeito(erros) -> set:
+    """Agrupa erros de schema por SITIO DE DEFEITO.
+
+    Um defeito costuma produzir mais de um erro: `event_type` fora do catalogo
+    falha no `anyOf` do campo e no `enum` da camada ao mesmo tempo. Contar erros
+    puniria a fixture correta. Contar SITIOS nao: os dois erros apontam para o
+    mesmo caminho de instancia.
+
+    Para `required` o sitio inclui a propriedade ausente, senao dois campos
+    obrigatorios faltando no mesmo objeto contariam como um. Foi assim que
+    `clock_multiplier` — exigido por 00 secao 5.6 e ausente do `required` ate o
+    H2 da segunda auditoria — pode ser acrescentado sem que nenhuma das sete
+    fixtures do envelope reprovasse: cada uma passou a carregar DOIS defeitos e
+    continuou sendo recusada.
+    """
+    sitios = set()
+    for e in erros:
+        prop = None
+        if e.validator == "required":
+            m = _FALTA.match(e.message)
+            prop = m.group("prop") if m else e.message
+        sitios.add((tuple(str(p) for p in e.absolute_path), prop))
+    return sitios
+
+
 def _esc(chave: str) -> str:
     """Escapa `~` e `/` num segmento de JSON Pointer (RFC 6901)."""
     return chave.replace("~", "~0").replace("/", "~1")
@@ -399,6 +429,22 @@ def main(argv: list[str] | None = None) -> int:
                         f"{rotulo}\n    declara `rejected_by: schema` "
                         f"mas o schema ACEITA a instancia{extra}"
                     )
+                else:
+                    # UM defeito por fixture, tambem do lado do schema. A regra
+                    # de isolamento existia so para as fixtures x-aurora; sem
+                    # ela aqui, uma instancia com dois defeitos e recusada e
+                    # passa, provando qualquer um dos dois — ou nenhum, se o que
+                    # ela nomeia for removido do contrato.
+                    sitios = sitios_de_defeito(validador_para(ponteiro).iter_errors(instancia))
+                    if len(sitios) > 1:
+                        detalhe = ", ".join(
+                            f"{'/'.join(c) or '<raiz>'}{f' [{p} ausente]' if p else ''}"
+                            for c, p in sorted(sitios, key=lambda s: (s[0], s[1] or ""))
+                        )
+                        falhas.append(
+                            f"{rotulo}\n    recusada por {len(sitios)} defeitos distintos, "
+                            f"esperado 1: {detalhe}"
+                        )
             elif declarado.startswith("x-aurora"):
                 if recusa_schema:
                     falhas.append(

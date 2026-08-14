@@ -22,17 +22,36 @@ version = "0.1.0"
 description = "Cyber range de exercício de crise institucional"
 requires-python = ">=3.12"
 
+# VERSÕES EXATAS, não faixas — `00_MASTER_SPEC.md` §8 ("todas as versões
+# pinadas") e `06_ACCEPTANCE_TESTS.md` T15 ("nenhuma dependência não pinada"),
+# que vale para TODAS as fases.
+#
+# A primeira redação usava `>=`, no mesmo commit em que `docker-compose.yml`
+# pinava as imagens por digest e explicava por que tag mutável não é pinagem.
+# A mesma regra, aplicada de forma inconsistente a dois artefatos do mesmo
+# commit. Foi o B2 da segunda auditoria da Fase 1.
+#
+# O argumento é concreto, não formal: o job `contratos` é o único gate que
+# sustenta o item 1 da DoD, e uma versão nova de `jsonschema` que mude
+# resolução de `$ref`, avaliação de `oneOf` ou a API de `referencing` mudaria o
+# resultado desse gate sem nada aparecer em diff neste repositório.
 dependencies = [
     # Valida os contratos de `contracts/` e executa os exemplos positivos e
     # negativos. Decisão D4 da Fase 1: os contratos são JSON Schema 2020-12, e
     # a alternativa era um interpretador escrito à mão — que é a mesma decisão
     # com outro nome.
-    "jsonschema>=4.21",
+    "jsonschema==4.26.0",
+
+    # DECLARADO EXPLICITAMENTE, e não herdado por transitividade de
+    # `jsonschema`: `scripts/check_contract_examples.py` o importa direto, e é
+    # ele quem resolve os `$ref` entre os contratos. Dependência que o código
+    # importa e o manifesto não declara é pinagem que não existe.
+    "referencing==0.37.0",
 
     # Migrations. Modelos chegam na Fase 5; aqui o que se resolve é a P1-9,
     # Alembic inicializado em arquivo e nunca executável.
-    "alembic>=1.13",
-    "sqlalchemy>=2.0",
+    "alembic==1.19.1",
+    "sqlalchemy==2.0.52",
 ]
 
 [build-system]

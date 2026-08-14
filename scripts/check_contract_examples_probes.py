@@ -76,6 +76,19 @@ PROBES = [
         "ja recusa",
     ),
     (
+        "fixture de schema com dois defeitos: nao isola nenhum",
+        "events.schema.yaml",
+        "  - reason: 'truth_layer fora dos cinco valores'\n"
+        "    rejected_by: schema\n"
+        "    instance:\n"
+        "      event_id: '01J9F000000000000000000002'",
+        "  - reason: 'truth_layer fora dos cinco valores'\n"
+        "    rejected_by: schema\n"
+        "    instance:\n"
+        "      event_id: ''",
+        "defeitos distintos, esperado 1",
+    ),
+    (
         "fixture negativa sem `rejected_by`",
         "objectives.schema.yaml",
         "  - reason: 'classe derived nao existe: a ontologia de evidencia e binaria'\n"

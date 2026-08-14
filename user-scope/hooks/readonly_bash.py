@@ -38,7 +38,29 @@ ALLOWED = [
     # sendo o ponto: nenhum outro caminho sob scripts/ e liberado, e nenhum outro
     # sufixo passa. Sem isto, rodar a PROVA CENTRAL com stderr suprimido era
     # falso bloqueio — um dos onze do P23, e o mais caro deles.
-    rf"^{SAFE_ENV_PREFIX}python\s+scripts/phase0_negative_tests\.py(?:\s+2>\s*/dev/null)?\s*$",
+    #
+    # A Fase 1 acrescentou DUAS provas centrais da mesma natureza:
+    # `check_contract_examples.py`, que executa os exemplos dos seis contratos
+    # (item 1 da DoD), e `check_contract_examples_probes.py`, que prova que
+    # aquele executor reprova contra defeito plantado. Sem elas na lista, o
+    # auditor da Fase 1 nao pode executar o mecanismo que fecha o item 1 e volta
+    # a avaliar por leitura de codigo — que e exatamente o modo de auditar que o
+    # item existe para nao aceitar. Foi o H3 da segunda auditoria da Fase 1.
+    #
+    # NOMES EXPLICITOS EM ALTERNACAO, nao curinga sob scripts/. Um
+    # `scripts/[A-Za-z0-9_]+\.py` pre-autorizaria o auditor a executar qualquer
+    # script que um commit futuro acrescentasse, inclusive um que escrevesse —
+    # e o curinga equivalente sob .claude/hooks/ foi o H1 da setima auditoria.
+    # Script novo que precise ser executado pelo auditor entra aqui por nome, no
+    # commit que o cria.
+    #
+    # SEM ARGUMENTO. `check_contract_examples.py` aceita um diretorio alternativo
+    # de contratos, mas quem o usa e o probe, por subprocess de Python — que o
+    # hook nao intercepta. O auditor roda as duas formas sem argumento, entao
+    # admitir um token arbitrario afrouxaria a ancora `$` sem ganho nenhum.
+    rf"^{SAFE_ENV_PREFIX}python\s+scripts/"
+    rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes)"
+    rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
     # travessia como .claude/hooks/../../x.py nao casa.
     # NOME EXPLICITO, nao curinga. O curinga pre-autorizava o auditor a executar

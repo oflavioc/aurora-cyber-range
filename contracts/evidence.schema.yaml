@@ -168,10 +168,18 @@ x-aurora-registry:
 # ---------------------------------------------------------------------------
 # RESTRICOES DE SEGURANCA — 05 secoes 2, 3 e 4. Nao admitem excecao.
 #
-# Registro consumido pelo evidence-simulator (Fase 9) e por
-# tools/check_synthetic_data.py, que e quem de fato guarda as faixas sobre os
-# arquivos de dado. Nao sao validacao de instancia deste manifesto, e por isso
-# nao aparecem como regra de schema.
+# QUEM CONSOME, HOJE: o evidence-simulator da Fase 9, que ainda nao existe.
+#
+# `tools/check_synthetic_data.py` NAO LE ESTE REGISTRO. Ele declara as faixas em
+# constantes proprias, e e ele quem de fato guarda os arquivos de dado. A versao
+# anterior deste bloco afirmava que o verificador o consumia — afirmacao falsa,
+# e as duas listas ja tinham divergido: o verificador cobre `2001:db8::/32`
+# (RFC 3849, citada nominalmente por 05 secao 3) e `example.net`, que faltavam
+# aqui. Alinhados abaixo. M2 da segunda auditoria da Fase 1.
+#
+# Duas copias da mesma norma, com uma delas declarando sincronia que nao existe,
+# e a forma de divergirem em silencio: na Fase 9 o gerador seguiria este arquivo
+# e o CI julgaria pela constante. Unificar e a pendencia P1-13.
 # ---------------------------------------------------------------------------
 x-aurora-security-constraints:
 
@@ -186,6 +194,9 @@ x-aurora-security-constraints:
     - 10.0.0.0/8
     - 172.16.0.0/12
     - 192.168.0.0/16
+    # RFC 3849 — faixa de documentacao IPv6. Faltava aqui e existia no
+    # verificador.
+    - 2001:db8::/32
 
   # 05 secao 2: dominios apenas de faixa reservada a documentacao. Nenhuma URL
   # clicavel para host existente.
@@ -193,6 +204,7 @@ x-aurora-security-constraints:
     - .example
     - .example.com
     - .example.org
+    - .example.net
     - .invalid
     - .test
 

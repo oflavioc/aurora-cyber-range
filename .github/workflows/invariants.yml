@@ -165,8 +165,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: dependencias da aplicacao
-        run: python -m pip install --disable-pip-version-check -e .
+      # `-c constraints.txt` fixa o FECHO TRANSITIVO, nao so as diretas. Sem
+      # ele, `referencing` — que resolve os $ref entre os contratos — e
+      # `rpds-py` entrariam em qualquer versao, e o resultado deste gate
+      # mudaria sem nada aparecer em diff. B2 da segunda auditoria da Fase 1.
+      - name: dependencias da aplicacao, pinadas
+        run: python -m pip install --disable-pip-version-check -e . -c constraints.txt
 
       # Item 1 da DoD da Fase 1. Conter exemplo nao e validar exemplo: aqui os
       # exemplos positivos precisam validar e os negativos precisam ser

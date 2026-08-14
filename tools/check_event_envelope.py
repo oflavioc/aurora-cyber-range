@@ -20,6 +20,7 @@ cada diretorio novo; negacao por padrao falha para o lado seguro.
 from __future__ import annotations
 
 import ast
+import re
 import sys
 from pathlib import Path
 
@@ -31,6 +32,7 @@ from _common import (  # noqa: E402
     ContractError,
     Violation,
     fail,
+    WEB_SUFFIXES,
     iter_files,
     parse_python,
     rel,
@@ -86,9 +88,53 @@ def _hits(tree: ast.Module):
             yield node.lineno, "parametro"
 
 
+#: `objective_ids` como TOKEN, nao como string literal. Em TS/TSX o campo
+#: aparece como chave nua — `{ objective_ids: [...] }` —, que
+#: `iter_web_string_literals` nao enxerga porque nao e literal de string.
+_TOKEN_WEB = re.compile(rf"\b{FORBIDDEN_FIELD}\b")
+
+
+def _hits_web(path: Path):
+    """Ocorrencias do campo proibido em arquivo TS/TSX/JS.
+
+    LEXICAL, nao AST: a stdlib nao traz analisador de TypeScript, e a mesma
+    limitacao ja esta documentada em check_contract_literals.py. Deliberadamente
+    CONSERVADOR — qualquer ocorrencia do token em caminho de emissao e violacao,
+    inclusive em comentario. O campo e proibido no envelope inteiro (09 secao
+    1.2); nao ha uso legitimo dele aqui que valha um falso negativo.
+
+    Sem esta varredura, o invariante 4 saia rc=0 sobre todo o front-end: os
+    outros dois verificadores de codigo ja cobriam WEB_SUFFIXES e este nao —
+    verificador que sai zero sobre territorio que nao varre, a mesma classe do
+    B1 da primeira auditoria da Fase 0. Latente enquanto nao ha `.ts` na arvore,
+    real na Fase 4. Foi o M1 da primeira e da segunda auditoria da Fase 1.
+    """
+    try:
+        texto = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ContractError(f"{rel(path)}: nao foi possivel ler ({exc})") from exc
+    for numero, linha in enumerate(texto.splitlines(), start=1):
+        if _TOKEN_WEB.search(linha):
+            yield numero, "campo em codigo web"
+
+
 def main() -> int:
     violations: list[Violation] = []
     try:
+        for path in iter_files(REPO_ROOT, SCANNED_DIRS, WEB_SUFFIXES):
+            if not _is_emission_path(path):
+                continue
+            source = rel(path)
+            for line, kind in _hits_web(path):
+                violations.append(
+                    Violation(
+                        source,
+                        line,
+                        RULE,
+                        f"'{FORBIDDEN_FIELD}' presente como {kind}. {ADVICE}",
+                    )
+                )
+
         for path in iter_files(REPO_ROOT, SCANNED_DIRS, PYTHON_SUFFIXES):
             if not _is_emission_path(path):
                 continue

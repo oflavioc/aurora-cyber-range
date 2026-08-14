@@ -330,13 +330,32 @@ x-aurora-invalid-examples:
           effect_ui: 'Estado ordinal do serviço de matrícula'
           reversible: true
 
-  - reason: 'number sem min e max: dominio nao declarado (D7)'
+  # Duas ausencias sao dois defeitos: a fixture unica que faltava `min` E `max`
+  # passava provando qualquer um dos dois, ou nenhum.
+  - reason: 'number sem min: dominio sem piso (D7)'
     rejected_by: schema
     instance:
       flags:
         - name: academus.lms_session_drop_rate
           type: number
           default: 0
+          max: 1
+          category: performance
+          domain_area: academic
+          severity_weight: 5
+          wallboard_group: 'AVA'
+          consumers: [academus-api]
+          effect_ui: 'Fração de sessões derrubadas por minuto'
+          reversible: true
+
+  - reason: 'number sem max: nem faixa nem `unbounded` declarado (D7)'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.lms_session_drop_rate
+          type: number
+          default: 0
+          min: 0
           category: performance
           domain_area: academic
           severity_weight: 5

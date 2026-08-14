@@ -121,6 +121,17 @@ LEITURA_LEGITIMA = [
     ("verificador com prefixo de ambiente seguro",
      "PYTHONDONTWRITEBYTECODE=1 python tools/check_core_boundary.py"),
     ("harness negativo (este arquivo)", "python scripts/phase0_negative_tests.py"),
+    # As duas provas centrais que a Fase 1 acrescentou. Sem elas na allowlist o
+    # auditor nao consegue executar o mecanismo que fecha o item 1 da DoD e
+    # volta a avaliar por leitura — foi o H3 da segunda auditoria da fase. Estao
+    # aqui para que o bloqueio, se voltar, reprove o harness em vez de aparecer
+    # so no relatorio do proximo auditor.
+    ("executor de exemplos dos contratos",
+     "python scripts/check_contract_examples.py"),
+    ("teste negativo do executor de exemplos",
+     "python scripts/check_contract_examples_probes.py"),
+    ("executor de exemplos com stderr descartado",
+     "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
     ("git merge-base (comparacao contra main)", "git merge-base main HEAD"),
     ("git for-each-ref", "git for-each-ref --format='%(refname)' refs/heads"),
@@ -784,6 +795,36 @@ def main() -> int:
     ):
         expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"],
                     "range-core/engine/_phase0_probe_event.py")
+
+    # observability_hooks.yaml carrega event_type e nao era varrido por gate
+    # nenhum: nem os seis contratos o validam, nem a varredura de codigo alcanca
+    # .yaml. Era a falha que 09 secao 4 chama de "a mais cara possivel", saindo
+    # rc=0. M4 da segunda auditoria da Fase 1.
+    hooks_ruins = (
+        "hooks:\n"
+        "  - event_type: audit_query_perfomed\n"
+        "    trigger: \"probe\"\n"
+        "    producer: academus-api\n"
+    )
+    with temporary_file("domains/academus/observability_hooks.yaml", hooks_ruins):
+        expect_fail("check_contract_literals.py (hook fora do catalogo)",
+                    [sys.executable, "tools/check_contract_literals.py"],
+                    "domains/academus/observability_hooks.yaml")
+
+    # O invariante 4 tem DOIS ramos desde a Fase 1: AST em Python e varredura
+    # lexical em TS/TSX. So o de Python tinha probe, e o de TS nem existia — o
+    # verificador saia rc=0 sobre todo o front-end enquanto os outros dois ja
+    # cobriam WEB_SUFFIXES. Foi o M1 das duas auditorias da Fase 1.
+    #
+    # Chave NUA, nao string: `{ objective_ids: [...] }` e a forma que um literal
+    # de string nao alcanca, e e a forma que um componente React escreveria.
+    with temporary_file(
+        "range-core/web/_phase0_probe_event.tsx",
+        "export const envelope = { event_type: 'PROBE', objective_ids: ['OBJ-X'] };\n",
+    ):
+        expect_fail("check_event_envelope.py (web)",
+                    [sys.executable, "tools/check_event_envelope.py"],
+                    "range-core/web/_phase0_probe_event.tsx")
 
     # Isencao de projecao e ANCORADA. Este caminho tem um segmento "metrics" no
     # meio, mas e caminho de emissao de adapter: so range-core/metrics/ e

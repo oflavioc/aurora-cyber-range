@@ -37,6 +37,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 from _common import (  # noqa: E402
+    parse_yaml,
     GENERATED_DIR,
     REPO_ROOT,
     WEB_SUFFIXES,
@@ -70,6 +71,8 @@ PYTHON_SUFFIXES = (".py",)
 
 RULE_DECLARED = "INVARIANTE 2 - literal de contrato no codigo"
 RULE_UNDECLARED = "INVARIANTE 2 - literal com forma de flag nao declarada"
+#: Invariante 3: event_type fora do catalogo, em YAML de instrumentacao.
+RULE_HOOK_EVENT = "INVARIANTE 3 - event_type de hook fora do catalogo"
 
 
 def _is_authorized(path: Path) -> bool:
@@ -156,6 +159,38 @@ def main() -> int:
                     node.value, source, node.lineno,
                     declared_flags, declared_events, adapters, violations,
                 )
+
+        # ---------------------------------------------------------------
+        # observability_hooks.yaml — 09_EVENT_MODEL.md secao 6.
+        #
+        # Este arquivo CARREGA event_type e nao era varrido por ninguem: a
+        # varredura de codigo cobre .py e WEB_SUFFIXES, nunca .yaml, e nenhum
+        # dos seis contratos o valida (01 secao 2 fixa o conjunto em seis).
+        # `audit_query_perfomed` aqui saia rc=0 em todos os gates.
+        #
+        # E exatamente a falha que 09 secao 4 chama de "a mais cara possivel":
+        # o event_type com erro de digitacao nunca dispara, a evidencia `auto`
+        # do objetivo nunca e coletada, e ninguem percebe ate o exercicio ao
+        # vivo. O invariante 3 diz "nenhum event_type fora do catalogo" sem
+        # restringir a linguagem do arquivo. M4 da segunda auditoria da Fase 1.
+        # ---------------------------------------------------------------
+        for path in sorted((REPO_ROOT / "domains").glob("*/observability_hooks.yaml")):
+            dados = parse_yaml(path) or {}
+            source = rel(path)
+            for posicao, hook in enumerate(dados.get("hooks") or [], start=1):
+                if not isinstance(hook, dict):
+                    continue
+                nome = hook.get("event_type")
+                if isinstance(nome, str) and nome and nome not in declared_events:
+                    violations.append(
+                        Violation(
+                            source,
+                            posicao,
+                            RULE_HOOK_EVENT,
+                            f"hook {posicao}: event_type '{nome}' nao esta no catalogo "
+                            f"de contracts/events.schema.yaml.",
+                        )
+                    )
 
         for path in iter_files(REPO_ROOT, SCANNED_DIRS, WEB_SUFFIXES):
             if _is_authorized(path):
