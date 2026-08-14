@@ -854,6 +854,29 @@ Uma discrepância menor de medição: o finding cita 39 arquivos versionados e a
 
 ---
 
+### P28 a P31 — [revisão de referências cruzadas, spec-change `ator-real-e-finalidade-comercial`] Quatro referências por número de seção apontam para a seção errada
+
+**Status: ABERTAS. Não corrigidas de propósito.**
+
+Encontradas ao varrer o repositório atrás de referências cruzadas por número de seção, antes de inserir a §8 nova no `03_EXERCISE_DESIGN.md`. A varredura era necessária porque inserir seção no meio de um documento desloca tudo depois dela — e ao conferir uma a uma, quatro já estavam erradas **antes** da inserção.
+
+Nenhuma foi agravada pela mudança. Três das quatro apontam para `03_EXERCISE_DESIGN.md`, e nenhuma delas para a §8 — que era a única seção deslocada. É por isso que o spec-change quebrou exatamente uma referência (`07_IMPLEMENTATION_PHASES.md:216`, corrigida no mesmo PR) e não cinco.
+
+Ficam fora daquele PR por decisão explícita do operador: são pré-existentes e misturá-las inflaria o diff de um `spec-change:`, que precisa permanecer auditável linha a linha. Viram PR próprio.
+
+| ID | Local | Diz | Deveria dizer |
+|---|---|---|---|
+| **P28** | `01_ARCHITECTURE.md:207` | três papéis, `03_EXERCISE_DESIGN.md` §6 | **§7** — §6 é *Personas*; os três papéis de facilitação são §7 |
+| **P29** | `02_DOMAIN_ACADEMUS.md:50` | ações `declare_*`, `03_EXERCISE_DESIGN.md` §3.1 | **§3.4** — §3.1 é *Predicados de verificação*; a tabela de ações de declaração é §3.4 |
+| **P30** | `02_DOMAIN_ACADEMUS.md:126` | dashboards por persona, `03_EXERCISE_DESIGN.md` §5 | **§6** — §5 é *Calibração (Linha B)*; personas é §6 |
+| **P31** | `09_EVENT_MODEL.md:69` | predicado próprio, `03_EXERCISE_DESIGN.md` §3.2 | **§3.1** — §3.1 define os predicados; §3.2 trata da leitura do delta |
+
+**O que o conjunto sugere.** As quatro são do mesmo tipo: referência escrita por memória do conteúdo, não por conferência do número. P29 e P31 chegam a apontar para a subseção vizinha da correta. Nenhum verificador cobre isso hoje — `tools/` valida fronteira de import, literais de contrato, envelope de evento e dado sintético, e nenhum valida se `<doc> §<n>` existe e trata do que a frase afirma. É a mesma classe de falha silenciosa do `event_type` inexistente: não quebra nada, só manda o leitor para o lugar errado.
+
+Uma verificação possível — resolver cada `NN_DOC.md §X.Y` contra os cabeçalhos do arquivo alvo e falhar quando a seção não existe — pegaria zero das quatro, porque todas apontam para seções que existem. Pegar essas exige comparar a frase com o conteúdo da seção, o que não é mecanizável barato. Registrado para não se perder, sem propor gate.
+
+---
+
 ## 7. Observações levantadas durante a fase
 
 Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui e se perderiam de outro modo.

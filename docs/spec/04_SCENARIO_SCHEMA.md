@@ -127,7 +127,29 @@ Sem `verification_predicates`, o pack não carrega — TTCV e TTRV seriam incomp
         label: "Manter no ar sob monitoramento"
         effects: { academus.lms_session_drop_rate: 0.6 }
         tradeoff: "Preserva calendário; amplia janela de exposição"
+      - id: no_federated_revocation
+        label: "Não temos como revogar a sessão federada no tempo do exercício"
+        effects: { academus.lms_session_drop_rate: 0.6 }
+        tradeoff: "Exposição persiste; a equipe registra a lacuna em vez de simular capacidade"
+        capability_gap:                                  # opcional
+          control_function: federated_session_revocation # função, nunca produto
+          objectives_affected: [OBJ-05]
+          metric_impacted: TTCV
 ```
+
+### 5.1 `capability_gap`
+
+Campo **opcional** na opção. Quando presente, marca que a opção declara **ausência de capacidade**, não escolha de curso de ação. Ver `03_EXERCISE_DESIGN.md` §8.3.
+
+| Campo | Conteúdo |
+|---|---|
+| `control_function` | Função de controle ausente, em inglês e snake_case. **Nunca nome de produto ou de fornecedor** (`05_SECURITY_REQUIREMENTS.md` §5.1) |
+| `objectives_affected` | Objetivos de aprendizagem impactados pela ausência |
+| `metric_impacted` | Sigla da métrica afetada, quando houver |
+
+`effects` e `tradeoff` continuam obrigatórios: a lacuna tem consequência no mundo simulado e não é saída sem custo. Escolher esta opção emite `decision_made`, como qualquer outra, **e também** `capability_gap_declared` (`09_EVENT_MODEL.md` §4.1) — o primeiro preserva a uniformidade da trilha de decisões, o segundo carrega os campos acima para a projeção do AAR.
+
+`control_function` é **vocabulário aberto** nesta versão do schema. Fechá-lo agora seria inventar taxonomia antes de haver dados: a consolidação em vocabulário controlado fica para quando existirem packs suficientes para revelar quais funções de fato se repetem.
 
 ## 6. Branching
 
@@ -162,6 +184,7 @@ branches:
 - Branch sem `reconverge_at` é recusado
 - **Todo `event` referenciado em `when` deve existir no catálogo de eventos.** Um `event_type` com erro de digitação nunca dispara: a branch silenciosamente não ramifica e ninguém percebe até o exercício ao vivo. É a falha mais cara possível
 - Todo `option` referenciado deve existir no `decision_point` indicado
+- **Todo objetivo em `objectives_affected` de um `capability_gap` deve existir em `objectives.yaml`.** Mesma classe do `event_type` inexistente e pelo mesmo motivo: o erro de digitação não falha em lugar nenhum — a lacuna simplesmente não é atribuída a objetivo algum e some do AAR, e ninguém percebe até o exercício ao vivo
 
 ## 7. Eventos de mídia
 

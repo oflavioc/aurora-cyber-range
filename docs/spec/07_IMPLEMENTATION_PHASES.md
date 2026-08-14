@@ -213,7 +213,7 @@ estado restaurado; evento de rollback registrado
 - [ ] Personas recebem conteúdo divergente conforme `information_distribution.yaml`
 - [ ] AAR compara número comunicado com ground truth e marca divergência
 - [ ] AAR renderiza epochs separadas com motivo de rollback
-- [ ] AAR tem as onze seções de `03_EXERCISE_DESIGN.md` §8
+- [ ] AAR tem as doze seções de `03_EXERCISE_DESIGN.md` §9
 - [ ] Notas do facilitador aparecem rotuladas como qualitativas, separadas das métricas
 
 ---
