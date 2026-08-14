@@ -195,6 +195,8 @@ Pior que o bloqueio: ele **não estava na lista de defeitos afirmados**, e o har
 
 **M1 e M2 ficam abertos**, os dois registrados: falta probe para a extensão de `SCANNED_DIRS`, e `docs/process/` segue fora do gate — que é o P36 da branch de `spec-change`, adiado para depois da Fase 1.
 
+**Divergência de modo de permissão — resolvida, e não era mecanismo.** O auditor da 12ª rodada registrou que a sessão rodava em plan mode embora o launcher use `--permission-mode default`, e declarou não conseguir atribuir a causa. **Era o operador alternando o modo com `alt+tab` durante a sessão.** Fica registrado porque o auditor tratou como risco de reprodutibilidade e porque a resposta só existia fora do repositório — nenhuma leitura de código a alcançaria. É o mesmo padrão das cinco correções de premissa desta fase: **quando a causa está fora da árvore, medir a árvore não encontra.**
+
 ---
 
 ## O passo (a) do P35 encerra aqui, por decisão do operador
