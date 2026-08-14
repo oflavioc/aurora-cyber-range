@@ -34,7 +34,11 @@ ALLOWED = [
     # fora dos verificadores e os remove ao terminar. E escrita instrumental do
     # proprio teste, nao escrita deliberada do auditor. Nenhum outro caminho sob
     # scripts/ e liberado.
-    rf"^{SAFE_ENV_PREFIX}python\s+scripts/phase0_negative_tests\.py\s*$",
+    # `(?:\s+2>/dev/null)?` admite so o descarte de stderr. A ancora `$` continua
+    # sendo o ponto: nenhum outro caminho sob scripts/ e liberado, e nenhum outro
+    # sufixo passa. Sem isto, rodar a PROVA CENTRAL com stderr suprimido era
+    # falso bloqueio — um dos onze do P23, e o mais caro deles.
+    rf"^{SAFE_ENV_PREFIX}python\s+scripts/phase0_negative_tests\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
     # travessia como .claude/hooks/../../x.py nao casa.
     # NOME EXPLICITO, nao curinga. O curinga pre-autorizava o auditor a executar
@@ -44,7 +48,7 @@ ALLOWED = [
     # Fechado no codigo em 2026-08-14, para o registro voltar a ser verdadeiro.
     # log_audit.py saiu da lista porque foi removido do projeto (M1 da nona).
     rf"^{SAFE_ENV_PREFIX}python\s+(?:~/|\$HOME/)?\.claude/hooks/"
-    rf"(?:check_architecture|scenario_scope|scenario_bash)\.py\s*$",
+    rf"(?:check_architecture|scenario_scope|scenario_bash)\.py(?:\s+2>\s*/dev/null)?\s*$",
     # `find` SAIU. Ele escreve por acao (-delete) e por flag (-fprint, -fprint0,
     # -fls) com alvo posicional arbitrario, e nao ha como policiar o alvo por
     # texto: `..`, caminho absoluto, `~` e `$HOME` sao a mesma escrita em quatro
@@ -66,10 +70,32 @@ ALLOWED = [
     # sozinho, listando o ambiente, tambem deixa de passar — e melhor assim,
     # porque despeja variaveis de ambiente na transcricao da auditoria.
     rf"^{SAFE_ENV_PREFIX}(pwd|echo|printf|which)\b",
+    # `git tag` SEM operando LISTA; com operando CRIA. O casamento textual
+    # distingue os dois casos com precisao aqui, porque a forma de leitura e
+    # fechada: nada depois de `tag`, ou apenas `--list`/`-l` com padrao.
+    # `git tag v9.9.9` e `git tag -d` nao casam e seguem bloqueados. Eram dois
+    # dos onze falsos bloqueios do P23, e o item 13 da DoD depende de listar tag.
+    rf"^{SAFE_ENV_PREFIX}git\s+tag\s*$",
+    rf"^{SAFE_ENV_PREFIX}git\s+tag\s+(?:--list|-l)\b",
+    # FILTROS DE LEITURA. Nenhum escreve sem flag de saida, e as flags de saida
+    # que eles tem (`sort -o`, `sort --output=`) ja caem na negacao de flags.
+    #
+    # `uniq` NAO entra: ele escreve por POSICIONAL — `uniq entrada saida` —, que
+    # e a mesma familia do `find -fprint0` e nao tem flag para negar. `sort -u`
+    # cobre o uso. O desenho da setima auditoria ja o removera pelo mesmo motivo;
+    # o probe allowlist_e_a_revisada() forcou a revisao antes de ele voltar.
+    # Sem eles, `git ls-files | sort` era falso bloqueio — o segundo segmento do
+    # pipe nao casava nada, e pipeline com filtro e a forma normal de auditar.
+    rf"^{SAFE_ENV_PREFIX}(sort|cut|tr|nl|rev|comm|join|column|fold|basename|dirname)\b",
 ]
 
 DENIED_ANYWHERE = [
-    (r">\s*\S|>>\s*\S", "redirecionamento de saida para arquivo"),
+    # `/dev/null` e descarte, nao escrita: nada persiste. `&1`/`&2` sao
+    # duplicacao de descritor, tambem sem arquivo. Sem estas isencoes, tres dos
+    # onze falsos bloqueios do P23 vinham daqui — `2>/dev/null` no verificador,
+    # no harness e no git — e cada um empurrava a auditoria para inferencia.
+    # A negacao continua valendo para QUALQUER outro alvo.
+    (r">>?\s*(?!/dev/null\b)(?!&[12]\b)\S", "redirecionamento de saida para arquivo"),
     (r"\|\s*tee\b", "escrita via tee"),
     (r"\b(rm|mv|cp|chmod|chown|mkdir|touch|truncate)\b", "comando de escrita"),
     # (?!-) impede que `merge-base` case como `merge`: o \b depois de "merge"
@@ -147,6 +173,62 @@ DENIED_ANYWHERE = [
 ]
 
 
+SEPARADORES = r"\|\||&&|;|\||\n|\r|&"
+
+
+def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
+    """Devolve (texto com separadores DENTRO de aspas neutralizados, confiavel).
+
+    O `|` de `grep -n "a\\|b"` nunca foi pipe: e conteudo citado. Tratar todo
+    `|` como separador foi a raiz de P8 -> P16 -> P23, cinco rodadas de falso
+    bloqueio, e cada falso bloqueio empurra a auditoria de medicao para
+    inferencia — a degradacao que fez o H4 da primeira rodada ser HIGH.
+
+    A mascara serve APENAS para achar onde os segmentos comecam e terminam.
+    `DENIED_ANYWHERE` continua rodando contra o comando CRU, entao nada que
+    aconteca aqui pode liberar escrita que a negacao pegaria — inclusive
+    `$(...)` e crase dentro de aspas, negados desde a 13a auditoria.
+
+    A oitava auditoria reprovou a tentativa anterior de fazer isto porque ela
+    apagava o conteudo citado ANTES de procurar substituicao, e o bash expande
+    `$()` dentro de aspas duplas. Aqui a ordem e a inversa: nega primeiro no
+    cru, mascara depois, e so para delimitar.
+
+    Devolve confiavel=False quando o parse pode divergir do bash — aspas nao
+    fechadas ou aspas escapadas com barra invertida. Nesses casos o chamador
+    usa o texto cru, que acha MAIS separadores: falha para o lado seguro.
+    """
+    if re.search(r"\\['\"]", cmd):
+        return cmd, False
+
+    saida: list[str] = []
+    aspas: str | None = None
+    for ch in cmd:
+        if aspas is None:
+            if ch in "\"'":
+                aspas = ch
+            saida.append(ch)
+        elif ch == aspas:
+            aspas = None
+            saida.append(ch)
+        else:
+            saida.append("\x00" if ch in "|&;\n\r" else ch)
+    return "".join(saida), aspas is None
+
+
+def _segmentos(cmd: str) -> list[str]:
+    base, confiavel = _mascara_de_citacao(cmd)
+    if not confiavel:
+        base = cmd
+    partes: list[str] = []
+    inicio = 0
+    for m in re.finditer(SEPARADORES, base):
+        partes.append(cmd[inicio:m.start()])
+        inicio = m.end()
+    partes.append(cmd[inicio:])
+    return partes
+
+
 def main() -> int:
     try:
         data = json.load(sys.stdin)
@@ -174,10 +256,10 @@ def main() -> int:
     # alcancavam: o alvo e absoluto e nao ha flag.
     #
     # Alternancia ordenada do mais longo para o mais curto: `||` antes de `|`,
-    # `&&` antes de `&`. Custo aceito: separador dentro de string entre aspas
-    # tambem parte o comando — e falso bloqueio, afirmado no harness, nunca
-    # falso negativo.
-    for segment in re.split(r"\|\||&&|;|\||\n|\r|&", cmd):
+    # `&&` antes de `&`. O custo que isto tinha — separador dentro de aspas
+    # partindo o comando — deixou de existir: `_segmentos` ignora separador
+    # citado, e cai para o texto cru quando o parse pode divergir do bash.
+    for segment in _segmentos(cmd):
         seg = segment.strip()
         if not seg:
             continue

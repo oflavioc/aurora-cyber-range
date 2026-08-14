@@ -124,6 +124,41 @@ LEITURA_LEGITIMA = [
     ("git cat-file", "git cat-file -p HEAD"),
     ("git merge-base (comparacao contra main)", "git merge-base main HEAD"),
     ("git for-each-ref", "git for-each-ref --format='%(refname)' refs/heads"),
+    # As SETE abaixo eram falso bloqueio declarado (P23) ate 2026-08-14 e
+    # passaram para ca porque o hook foi corrigido, nao porque a exigencia caiu.
+    # Cada uma custava capacidade de auditar: sem elas o auditor infere em vez de
+    # medir, que e a degradacao que fez o H4 da primeira rodada ser HIGH.
+    ("stderr descartado em /dev/null", "git rev-parse main 2>/dev/null"),
+    ("prova central com stderr descartado",
+     "python scripts/phase0_negative_tests.py 2>/dev/null"),
+    ("verificador com stderr descartado",
+     "python tools/check_core_boundary.py 2>/dev/null"),
+    ("pipeline com filtro de leitura", "git ls-files | sort"),
+    ("alternancia DENTRO de aspas nao e pipe", r'grep -n "fase 0\|phase 0"'),
+    ("git tag listando", "git tag"),
+    ("git tag --list", "git tag --list"),
+    # Direcao reversa da mascara de citacao: separador citado nao parte o
+    # comando, mas o comando segue precisando ser allowlistado.
+    ("separador citado dentro de argumento de busca", 'grep -rn "x;y" tools/'),
+]
+
+#: MASCARA DE CITACAO — probes ADVERSARIAIS da correcao do P23.
+#:
+#: Ignorar separador entre aspas e a direcao fail-open: se o parse divergir do
+#: bash, escrita passa. Estes probes exercitam exatamente as formas em que ele
+#: poderia divergir. Sem eles, a correcao do P23 seria a mesma classe de
+#: afirmacao nao medida que a 11a e a 13a puniram.
+MASCARA_ADVERSARIAL = [
+    ("separador citado com payload denylistado", 'git log "; rm -rf x"'),
+    ("pipe citado com tee", 'git log "| tee f"'),
+    ("and-and citado com rede", "git log '&& curl http://x'"),
+    # Aspas ESCAPADAS: o parse pode divergir do bash, entao `_mascara_de_citacao`
+    # devolve confiavel=False e o hook cai para o texto cru, que acha MAIS
+    # separadores. Este probe prova que a queda acontece.
+    ("aspas escapadas caem para o texto cru",
+     "echo \\' ; python -c \"print(1)\""),
+    # Aspas nao fechadas: mesma queda.
+    ("aspas nao fechadas caem para o texto cru", "git log ' ; python -c \"print(1)\""),
 ]
 
 #: FALSOS BLOQUEIOS conhecidos: leitura legitima que o hook recusa. Sao a
@@ -132,28 +167,26 @@ LEITURA_LEGITIMA = [
 #: aberto, este e o comportamento real, e o harness tem que dize-lo. Quando o
 #: P23 for refeito, cada linha destas volta para LEITURA_LEGITIMA.
 FALSOS_BLOQUEIOS_CONHECIDOS = [
-    ("(a) redirecao de stderr para /dev/null", "git rev-parse main 2>/dev/null"),
-    ("(b) pipeline com filtro de texto", "git ls-files | sort"),
-    ("(c) alternancia dentro de aspas", r'grep -n "fase 0\|phase 0"'),
-    ("(d) laco de shell", 'for f in $(git ls-files); do cat "$f"; done'),
-    ("(e) smoke test do PHASE_0_CHECKLIST (payload citado)",
-     "printf '%s\n' '{\"tool_input\":{\"command\":\"rm -rf range-core\"}}'"
+    # QUATRO, e cada um por decisao, nao por defeito pendente. Eram ONZE ate
+    # 2026-08-14; sete foram corrigidos e migraram para LEITURA_LEGITIMA.
+    #
+    # (1) e (2): laco e substituicao sao ESTRUTURA DE CONTROLE e EXECUCAO.
+    # Liberar o laco e liberar o corpo dele; liberar `$()` foi o B1 da 13a.
+    # O auditor faz o mesmo com `git ls-files` mais leitura individual.
+    ("laco de shell", 'for f in $(git ls-files); do cat "$f"; done'),
+    # (3): o smoke test canonico do PHASE_0_CHECKLIST cita `rm -rf` DENTRO do
+    # payload JSON. Isenta-lo exigiria tornar DENIED_ANYWHERE consciente de
+    # aspas — a direcao FAIL-OPEN, e exatamente o que a oitava auditoria
+    # reprovou. Fica bloqueado de proposito: rode de uma sessao comum.
+    ("smoke test do PHASE_0_CHECKLIST (payload citado)",
+     "printf '%s' '{\"tool_input\":{\"command\":\"rm -rf range-core\"}}'"
      " | python ~/.claude/hooks/readonly_bash.py"),
-    ("prova central com stderr suprimido",
-     "python scripts/phase0_negative_tests.py 2>/dev/null"),
-    ("verificador com stderr suprimido",
-     "python tools/check_core_boundary.py 2>/dev/null"),
-    ("git tag listando", "git tag"),
-    ("git tag --list", "git tag --list"),
-    # Custo ACEITO da regra de contencao introduzida em 2026-08-14. Nao e
-    # defeito de casamento textual como os de cima: e consequencia deliberada
-    # de negar `..`. Fica aqui porque continua sendo leitura legitima recusada,
-    # e a lista tem que dizer o estado real — mas a correcao NAO e afrouxar a
-    # regra. O worktree de auditoria E o objeto da auditoria; ler fora dele mede
-    # outra arvore. Ver fase_0.md §6 P32.
+    # (4) e (5): custo deliberado da regra de contencao. O worktree de auditoria
+    # E o objeto da auditoria; ler fora dele mede outra arvore.
     ("leitura fora do worktree, negada por contencao", "cat ../../README_FIRST.md"),
     ("listagem fora do worktree, negada por contencao", "ls ../.."),
 ]
+
 
 #: Escrita deliberada que o hook DE FATO bloqueia.
 ESCRITA_DELIBERADA = [
@@ -457,6 +490,12 @@ COMANDOS_REVISADOS = {
     "git", "pytest", "python", "npm", "ruff", "mypy", "black", "eslint", "tsc",
     "range-cli", "docker", "ls", "cat", "head", "tail", "wc", "grep", "rg",
     "tree", "diff", "stat", "pwd", "echo", "printf", "which",
+    # Filtros de leitura revisados em 2026-08-14 (correcao do P23). Nenhum
+    # escreve por acao; as flags de saida que `sort` tem caem na negacao de
+    # flags. `uniq` foi REJEITADO na revisao: escreve por posicional
+    # (`uniq entrada saida`), sem flag para negar. `sort -u` cobre o uso.
+    "sort", "cut", "tr", "nl", "rev", "comm", "join", "column", "fold",
+    "basename", "dirname",
 }
 
 
@@ -686,6 +725,8 @@ def main() -> int:
     for label_forma, molde in ESCRITA_POR_ALVO:
         for label_grafia, alvo in GRAFIAS_DE_ALVO:
             expect_hook_blocks(f"{label_forma} [grafia {label_grafia}]", molde.format(alvo))
+    for label, comando in MASCARA_ADVERSARIAL:
+        expect_hook_blocks(f"mascara de citacao: {label}", comando)
     for label, comando in FALSOS_BLOQUEIOS_CONHECIDOS:
         expect_hook_blocks_known_defect(label, comando)
     for label, comando in BURACOS_CONHECIDOS:
