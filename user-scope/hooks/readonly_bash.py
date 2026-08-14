@@ -13,7 +13,11 @@ ALLOWED = [
     # escreva: entram sem depender do desenho tokenizado que foi revertido.
     # `git tag` NAO entra: sem operando lista, com operando CRIA, e este
     # casamento textual nao distingue os dois — `git tag -d` passaria.
-    rf"^{SAFE_ENV_PREFIX}git\s+(diff|log|show|status|branch|rev-parse|ls-files|cat-file|merge-base|for-each-ref)\b",
+    # `branch` SAIU dos subcomandos. Listar ramos se faz com for-each-ref, que
+    # nao tem forma que mute. `git branch` muta o ref store COMPARTILHADO com o
+    # repositorio principal por -m, -M, -f e -c, alem de -d/-D — negar so a
+    # delecao era enumerar quatro quintos de uma familia (B1c da 11a auditoria).
+    rf"^{SAFE_ENV_PREFIX}git\s+(diff|log|show|status|rev-parse|ls-files|cat-file|merge-base|for-each-ref)\b",
     rf"^{SAFE_ENV_PREFIX}(pytest|python\s+-m\s+pytest)\b",
     rf"^{SAFE_ENV_PREFIX}npm\s+(test|run\s+test|run\s+lint|run\s+typecheck)\b",
     rf"^{SAFE_ENV_PREFIX}(ruff|mypy|black\s+--check|eslint|tsc\s+--noEmit)\b",
@@ -51,7 +55,17 @@ ALLOWED = [
     # printf entra porque os smoke tests alimentam o hook por pipe
     # (printf '{...}' | python .claude/hooks/x.py) e cada segmento do pipe e
     # validado isoladamente. Sem escrita: redirecionamento ja e negado acima.
-    rf"^{SAFE_ENV_PREFIX}(pwd|echo|printf|which|env)\b",
+    # `env` SAIU, e era o pior buraco do arquivo: allowlistado sem nenhuma
+    # restricao sobre o que invoca, ele e execucao arbitraria — `env python -c
+    # "open(...,'w').write(...)"` escrevia em qualquer caminho, em qualquer
+    # grafia, sem depender de flag nenhuma. O probe `python -c` bloqueia; bastava
+    # prefixar com env. Era o B1a da 11a auditoria.
+    #
+    # A remocao nao custa nada: SAFE_ENV_PREFIX ja aceita VAR=valor antes do
+    # comando, entao `PYTHONDONTWRITEBYTECODE=1 pytest` continua passando. `env`
+    # sozinho, listando o ambiente, tambem deixa de passar — e melhor assim,
+    # porque despeja variaveis de ambiente na transcricao da auditoria.
+    rf"^{SAFE_ENV_PREFIX}(pwd|echo|printf|which)\b",
 ]
 
 DENIED_ANYWHERE = [
@@ -98,7 +112,12 @@ DENIED_ANYWHERE = [
      r"|--junitxml|--junit-xml|--tsBuildInfoFile|--declarationDir"
      r"|--cobertura-xml-report|--html-report|--txt-report|--xml-report"
      r"|--linecount-report|--lineprecision-report|--any-exprs-report"
-     r"|--xslt-html-report|--xslt-txt-report)(?:[=\s]|$)",
+     r"|--xslt-html-report|--xslt-txt-report"
+     # `--output` do git: diff, log e show aceitam todos, e nenhum estava
+     # enumerado. A justificativa anterior — "sao as flags de saida que essas
+     # CINCO ferramentas documentam" — esquecia a sexta familia allowlistada,
+     # que e a maior delas. B1b da 11a auditoria.
+     r"|--output)(?:[=\s]|$)",
      "flag de escrita em arquivo"),
 ]
 
