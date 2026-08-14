@@ -46,6 +46,16 @@ Este é o modelo central do sistema. Confundir duas destas camadas invalida o AA
 
 **Consequência normativa 4 — calibração importa mais que recall.** Avalia-se a relação entre confiança declarada e força real da evidência, não a contagem de acertos.
 
+### 3.1 `facilitation` — quinto valor de `truth_layer`, não quinta verdade
+
+As quatro camadas acima são verdades **sobre o incidente**. Os eventos da máquina de exercício — disparo de inject, rollback, seleção de branch, start/pause/reset — não são nenhuma delas: não afirmam o que ocorreu no incidente, o que é descobrível, o que a equipe declarou nem o que o avaliador julgou. Afirmam o que o **facilitador** fez com a simulação.
+
+`truth_layer` admite, por isso, **cinco valores**: os quatro acima mais `facilitation`. O modelo das quatro verdades permanece com quatro camadas — `facilitation` é ortogonal a ele, e é a razão de ser um valor à parte em vez de ser espremido em um dos quatro.
+
+Mapear `inject_fired` para `ground_truth` misturaria máquina de exercício com fato do incidente, que é exatamente a confusão que este modelo existe para impedir. `01_ARCHITECTURE.md` §4 já reconhece "Facilitation Audit" como camada de estado própria, com reversibilidade **nunca**, igual a `participant_action`.
+
+Eventos `facilitation` entram no AAR como linha de operação do exercício, nunca como evidência de desempenho da equipe.
+
 ## 4. Cadeia pedagógica
 
 ```
