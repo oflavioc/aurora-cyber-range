@@ -119,6 +119,17 @@ DENIED_ANYWHERE = [
      # que e a maior delas. B1b da 11a auditoria.
      r"|--output)(?:[=\s]|$)",
      "flag de escrita em arquivo"),
+    # SECRETS pelo caminho do Bash. `.claude/settings.json` nega `Read`/`Edit` de
+    # `.env` e `secrets/`, mas essas regras valem para as FERRAMENTAS de arquivo
+    # do Claude Code — nao para `cat`, `head`, `grep` ou `stat`, que estao
+    # allowlistados aqui e liam tudo. Era o M2 da 12a auditoria: latente nesta
+    # fase, porque nenhum desses arquivos existe ainda, e exposicao real na
+    # Fase 1, cujo DoD poe RANDOM_SEED em `.env`.
+    #
+    # `CLAUDE.md` §Secrets diz "nunca leia", sem restringir a ferramenta.
+    (r"(?:^|[\s=\"'/\\])\.env(?:\.[A-Za-z0-9_.-]+)?(?:[\s\"']|$)"
+     r"|(?:^|[\s\"'/\\])secrets[/\\]",
+     "leitura de secret por caminho de shell"),
 ]
 
 
@@ -141,7 +152,18 @@ def main() -> int:
             )
             return 2
 
-    for segment in re.split(r"\|\||&&|;|\|", cmd):
+    # SEPARADORES QUE O BASH HONRA. `\n`, `\r` e `&` faltavam, e a omissao era
+    # total: como cada segmento e validado isoladamente, bastava a PRIMEIRA
+    # palavra ser allowlistada para todo o resto passar sem validacao nenhuma.
+    # `pytest --version\npython -c "open(<qualquer caminho>,'w')"` saia rc=0.
+    # Era o B1 da 12a auditoria, e nem a regra de `..` nem a de flags de saida
+    # alcancavam: o alvo e absoluto e nao ha flag.
+    #
+    # Alternancia ordenada do mais longo para o mais curto: `||` antes de `|`,
+    # `&&` antes de `&`. Custo aceito: separador dentro de string entre aspas
+    # tambem parte o comando — e falso bloqueio, afirmado no harness, nunca
+    # falso negativo.
+    for segment in re.split(r"\|\||&&|;|\||\n|\r|&", cmd):
         seg = segment.strip()
         if not seg:
             continue

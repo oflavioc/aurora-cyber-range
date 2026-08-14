@@ -211,6 +211,33 @@ ESCRITA_DELIBERADA = [
 #:
 #: Cada forma abaixo e testada nas QUATRO grafias do mesmo alvo. Um probe que
 #: so cobre a grafia lembrada nao prova ausencia das grafias esquecidas.
+#: TERCEIRO EIXO: composicao. As 33 provas de escrita e as 32 de grafia eram
+#: todas de SEGMENTO UNICO. O eixo do alvo estava coberto, o eixo do comando
+#: passou a estar com allowlist_e_a_revisada(), e o de COMO OS COMANDOS SAO
+#: ENCADEADOS nao era exercitado por probe nenhum — foi por ele que passou o B1
+#: da 12a auditoria: `\n`, `\r` e `&` nao estavam no separador de segmentos, e
+#: como cada segmento e validado isoladamente, bastava a primeira palavra ser
+#: allowlistada para o resto passar inteiro.
+#:
+#: Cada separador que o bash honra e testado com um prefixo LEGITIMO seguido de
+#: carga de escrita. O prefixo legitimo e o ponto: sem ele o probe passaria pela
+#: regra do proprio comando de escrita, e nao pela composicao — que foi o defeito
+#: do probe `env rm -rf x` punido pelo B2 da 11a rodada.
+SEPARADORES_DE_COMANDO = [
+    ("ponto e virgula", ";"),
+    ("pipe", "|"),
+    ("and-and", "&&"),
+    ("or-or", "||"),
+    ("nova linha", "\n"),
+    ("retorno de carro", "\r"),
+    ("e-comercial (background)", " & "),
+]
+
+#: Prefixo allowlistado + carga que DEVE ser bloqueada, qualquer que seja o
+#: separador entre os dois.
+COMPOSICAO_PREFIXO = "git status"
+COMPOSICAO_CARGA = "python -c \"open('/tmp/aurora_probe','w')\""
+
 GRAFIAS_DE_ALVO = [
     ("relativa", "../../CLAUDE.md"),
     ("absoluta", "/c/Projetos/aurora-cyber-range/CLAUDE.md"),
@@ -627,6 +654,10 @@ def main() -> int:
     for label, comando in ESCRITA_DELIBERADA:
         expect_hook_blocks(label, comando)
     # O invariante nas quatro grafias do mesmo alvo (B2 da decima auditoria).
+    # Eixo da composicao (B1/B2 da 12a auditoria).
+    for label_sep, sep in SEPARADORES_DE_COMANDO:
+        expect_hook_blocks(f"composicao por {label_sep}",
+                           COMPOSICAO_PREFIXO + sep + COMPOSICAO_CARGA)
     for label_forma, molde in ESCRITA_POR_ALVO:
         for label_grafia, alvo in GRAFIAS_DE_ALVO:
             expect_hook_blocks(f"{label_forma} [grafia {label_grafia}]", molde.format(alvo))
