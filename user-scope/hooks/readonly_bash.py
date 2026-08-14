@@ -189,11 +189,10 @@ DENIED_ANYWHERE = [
     # o erro que a 14a auditoria expos — `$(` e crase estavam listados, `<(`
     # nao, e `cat <(python -c ...)` executava com permissao de escrita sobre
     # tools/codegen.py do worktree principal e sobre o hook instalado.
-    (r"`", "substituicao de comando por crase"),
 ]
 
 
-SEPARADORES = r"\|\||&&|;|\||\n|\r|&"
+SEPARADORES = r"\|\||&&|;|\||\n|\r|(?<![>&])&(?![>&])"
 
 
 def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
@@ -236,26 +235,72 @@ def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
     return "".join(saida), aspas is None
 
 
-def _parentese_fora_de_aspas(cmd: str) -> bool:
-    """PROPRIEDADE, nao lista de sigilos.
+def _substituicao_ou_subshell(cmd: str) -> bool:
+    """Deteccao de EXECUCAO, com a semantica POSIX de aspas — nao com uma so.
 
-    Toda forma de substituicao e de subshell do bash exige PARENTESE NAO CITADO:
-    `$(cmd)`, `<(cmd)`, `>(cmd)`, `(cmd)`, `$((...))`. Enumerar os sigilos
-    produziu exatamente o padrao que treze rodadas ja tinham ensinado — a 13a
-    listou `$(` e crase, a 14a chegou com `<(` e com subshell puro `(cmd)`.
+    ASPAS SIMPLES suprimem tudo. ASPAS DUPLAS **nao suprimem** `$(...)` nem
+    crase: `echo "$(whoami)"` executa. Essa e a unica distincao que importa
+    aqui, e ignora-la foi o B1 da 16a auditoria.
 
-    O auditor nao precisa de parentese fora de aspas em nenhum comando legitimo:
-    `--format='%(refname)'` e `grep -n "foo(bar)"` tem os parenteses DENTRO de
-    aspas, e continuam passando.
+    A versao anterior chamava `_mascara_de_citacao`, que trata os dois tipos de
+    aspas igualmente, e perguntava se sobrara `(`. Como `"$( )"` era mascarado,
+    a substituicao sumia antes do teste — e a allowlist inteira ficava
+    contornavel por uma reescrita mecanica: `echo $(cmd)` bloqueado,
+    `echo "$(cmd)"` liberado, com o mesmo efeito.
 
-    Parse duvidoso — aspas escapadas ou nao fechadas — bloqueia. Aqui a queda e
-    para o lado FECHADO, ao contrario da queda em `_segmentos`: nao enxergar um
-    parentese e liberar execucao, e nao enxergar um separador e so bloquear mais.
+    **Este e o defeito que a oitava auditoria ja havia descrito**, no desenho
+    tokenizado: apagar o conteudo citado antes de procurar substituicao, quando
+    o bash expande dentro de aspas duplas. Eu li aquele registro, escrevi no
+    docstring anterior que a ordem aqui era "a inversa" e portanto segura, e
+    reintroduzi a mesma falha ao acrescentar a checagem de parentese sobre o
+    texto mascarado. Terceira reincidencia da mesma classe nesta fase.
+
+    O que cada contexto executa:
+
+    | contexto        | `$(`  | crase | `(` sozinho |
+    |-----------------|-------|-------|-------------|
+    | fora de aspas   | exec  | exec  | subshell    |
+    | aspas duplas    | exec  | exec  | literal     |
+    | aspas simples   | literal | literal | literal   |
+
+    Por isso `grep -n "foo(bar)"` e `--format='%(refname)'` seguem liberados: o
+    parentese sozinho e literal nos dois tipos de aspas.
+
+    Parse duvidoso — aspas escapadas ou nao fechadas — devolve True. A queda e
+    para o lado FECHADO, ao contrario da queda em `_segmentos`: nao enxergar
+    substituicao libera execucao; nao enxergar separador so bloqueia mais.
+
+    LIMITE DECLARADO: `${ cmd; }` do bash 5.3 nao e coberto. Nao ha `(`, e a
+    forma nao existia quando a allowlist foi desenhada. Fica dito aqui em vez de
+    suposto ausente.
     """
-    mascarado, confiavel = _mascara_de_citacao(cmd)
-    if not confiavel:
+    if re.search(r"\\['\"]", cmd):
         return True
-    return "(" in mascarado or ")" in mascarado
+
+    aspas: str | None = None
+    i, n = 0, len(cmd)
+    while i < n:
+        ch = cmd[i]
+        if aspas == "'":
+            if ch == "'":
+                aspas = None
+        elif aspas == '"':
+            if ch == '"':
+                aspas = None
+            elif ch == "`":
+                return True
+            elif ch == "$" and i + 1 < n and cmd[i + 1] == "(":
+                return True
+        else:
+            if ch in "\"'":
+                aspas = ch
+            elif ch == "`":
+                return True
+            elif ch in "()":
+                return True
+        i += 1
+
+    return aspas is not None
 
 
 def _segmentos(cmd: str) -> list[str]:
@@ -290,12 +335,13 @@ def main() -> int:
             )
             return 2
 
-    if _parentese_fora_de_aspas(cmd):
+    if _substituicao_ou_subshell(cmd):
         print(
             "BLOQUEADO: checkpoint-auditor sem escrita deliberada "
-            "(parentese fora de aspas: substituicao ou subshell).\n"
+            "(substituicao de comando ou subshell).\n"
             f"Comando: {cmd}\n"
-            "Parentese dentro de aspas e permitido. Reporte o finding; nao corrija.",
+            "Parentese literal entre aspas e permitido; $() e crase nao,\n"
+            "nem dentro de aspas duplas. Reporte o finding; nao corrija.",
             file=sys.stderr,
         )
         return 2

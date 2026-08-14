@@ -150,6 +150,16 @@ LEITURA_LEGITIMA = [
     ("-o depois de pipe nao herda o escopo", "git log | grep -o foo"),
     # Parentese CITADO nao e substituicao e nao pode ser bloqueado.
     ("parentese dentro de aspas", 'grep -n "foo(bar)" tools/'),
+    # `2>&1` e duplicacao de descritor, nao escrita. O separador partia em `&` e
+    # deixava o segmento `1`, nao allowlistado. Era o H1 da 16a auditoria, e o
+    # agravante era o registro: `2>&1` fora nomeado candidato a defeito afirmado
+    # e depois SUMIU da lista sem ser corrigido nem declarado — literalmente o
+    # modo de falha que a condicao 4(e) nomeia.
+    ("duplicacao de descritor 2>&1", "git log --oneline -1 2>&1"),
+    ("2>&1 no verificador", "python tools/check_core_boundary.py 2>&1"),
+    # Aspas SIMPLES suprimem substituicao: e literal, e tem de passar.
+    ("substituicao suprimida por aspas simples", "echo '$(whoami)'"),
+    ("cifrao e parentese literais em aspas simples", "grep -n 'a$(b)c' tools/"),
     # `.env.example` e PERMITIDO por CLAUDE.md e EXIGIDO versionado por
     # 05_SECURITY_REQUIREMENTS §6. O hook o bloqueava pelo mesmo overmatch que a
     # P17 corrigiu em settings.json e que ficou intacto aqui — B1 da 15a.
@@ -203,6 +213,15 @@ FALSOS_BLOQUEIOS_CONHECIDOS = [
     # E o objeto da auditoria; ler fora dele mede outra arvore.
     ("leitura fora do worktree, negada por contencao", "cat ../../README_FIRST.md"),
     ("listagem fora do worktree, negada por contencao", "ls ../.."),
+    # DECLARADO, nao corrigido, e a decisao esta dita: a regra de secret casa
+    # `.env` em qualquer posicao, inclusive dentro de um PADRAO DE BUSCA cujo
+    # alvo real e outro arquivo. Isentar conteudo citado seria fail-open —
+    # `cat ".env"` e leitura de secret de verdade —, entao o custo fica.
+    # Consequencia: verificar o item 6 da DoD por grep no .gitignore exige
+    # reescrever o padrao sem o token. Era o H1 da 16a auditoria, que apontou
+    # com razao que este caso nao estava nem corrigido nem declarado.
+    ("token .env dentro de padrao de busca com outro alvo",
+     r'grep -n "ground_truth\\|\\.env" .gitignore'),
 ]
 
 
@@ -296,26 +315,32 @@ ESCRITA_DELIBERADA = [
 #: antes dele, do `env rm -rf x`. Terceira vez que a mesma armadilha aparece:
 #: probe cujo nome anuncia a propriedade que ele nao mede.
 SUBSTITUICOES = [
-    ("dolar-parenteses", 'echo $(python -c "print(1)")'),
-    ("crase", 'echo `python -c "print(1)"`'),
-    ("dolar-parenteses apos printf", 'printf %s $(python -c "print(1)")'),
-    ("dolar-parenteses apos which", 'which $(python -c "print(1)")'),
-    # As QUATRO abaixo entraram apos o B1 da 14a auditoria. A lista anterior
-    # tinha so `$(` e crase, e o docstring definia o eixo PELA GRAFIA — "o
-    # conteudo de `$(...)` ou de crase EXECUTA". `cat <(python -c ...)` nao era
-    # nenhuma das duas e executava, com permissao de escrita sobre
-    # tools/codegen.py do worktree principal e sobre o hook instalado.
-    #
-    # A correcao no hook nao foi acrescentar `<(` a lista: foi trocar a
-    # enumeracao de sigilos pela PROPRIEDADE — parentese fora de aspas. Estes
-    # probes existem para que a propriedade seja exercitada, e nao apenas
-    # afirmada no comentario, que e a distincao que a 11a, a 13a e a 14a
-    # cobraram tres vezes.
+    #: EIXO POR CONTEXTO DE ASPAS, nao por sigilo nem por grafia.
+    #:
+    #: A lista anterior tinha oito entradas e TODAS fora de aspas. O B1 da 16a
+    #: auditoria mostrou que `echo "$(whoami)"` executa: aspas DUPLAS nao
+    #: suprimem substituicao, so as SIMPLES suprimem. Uma reescrita mecanica
+    #: contornava a allowlist inteira, e o harness imprimia "0 escritas nao
+    #: bloqueadas" com o buraco aberto.
+    #:
+    #: Cada forma e agora exercitada nos DOIS contextos que executam — fora de
+    #: aspas e dentro de aspas duplas — e a supressao por aspas simples e
+    #: provada na direcao oposta, em LEITURA_LEGITIMA.
+    ("dolar-parenteses, sem aspas", 'echo $(python -c "print(1)")'),
+    ("dolar-parenteses, em ASPAS DUPLAS", 'echo "$(python -c 1)"'),
+    ("crase, sem aspas", 'echo `python -c 1`'),
+    ("crase, em ASPAS DUPLAS", 'echo "`python -c 1`"'),
+    ("substituicao com alvo no worktree principal, em aspas duplas",
+     'echo "$(cat /c/Projetos/aurora-cyber-range/CLAUDE.md)"'),
+    ("substituicao readmitindo comando fora da allowlist, em aspas duplas",
+     'echo "$(find . -delete)"'),
     ("substituicao de processo <(", 'cat <(python -c "print(1)")'),
     ("substituicao de processo >(", 'cat >(python -c "print(1)")'),
     ("substituicao de processo em dois argumentos", "diff <(git log) <(git log)"),
     ("subshell puro, sem sigilo nenhum", "ls (echo x)"),
+    ("aritmetica, que tambem e parentese executavel", "echo $((1+1))"),
 ]
+
 
 
 SEPARADORES_DE_COMANDO = [
