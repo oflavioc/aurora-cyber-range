@@ -183,6 +183,45 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima sexta auditoria: FAIL, 2 BLOCKER — a reincidência que a oitava já tinha descrito
+
+Executada sobre `f72f9b1`, a primeira árvore com a DoD nova e o código juntos. Relatório em `docs/progress/audit_20260814T160502Z.md`.
+
+**B1 — `"$(...)"` executa dentro de aspas duplas.** Em POSIX shell, só aspas **simples** suprimem substituição. Medido:
+
+| Comando | Antes |
+|---|---|
+| `echo $(whoami)` | bloqueado |
+| `echo "$(whoami)"` | **executava** |
+| `echo "$(find . -delete)"` | **executava** — readmitindo o comando que saíra da allowlist |
+| `echo "$(cat /c/Projetos/.../CLAUDE.md)"` | **executava** — alcançando o worktree principal |
+
+Uma reescrita mecânica contornava a allowlist inteira. As 32 provas de invariante de alvo eram todas anuláveis pondo aspas em volta.
+
+**E este defeito já estava descrito neste arquivo.** A oitava auditoria o registrou sobre o desenho tokenizado: *"`_blank_quoted` apaga o conteúdo citado antes de procurar crase, enquanto o bash expande as duas coisas dentro de aspas duplas. A premissa da função está errada, não a sua implementação."*
+
+Eu li esse parágrafo. Escrevi no docstring da correção da 14ª que **a ordem aqui era "a inversa" e portanto segura** — e então acrescentei a checagem de parêntese sobre o texto mascarado, que é literalmente a mesma premissa errada. **Terceira reincidência da mesma classe nesta fase, e a primeira em que o registro já continha a resposta.**
+
+**Corrigido por semântica, não por mais uma grafia.** `_substituicao_ou_subshell` varre o comando com o estado de aspas real:
+
+| contexto | `$(` | crase | `(` sozinho |
+|---|---|---|---|
+| fora de aspas | executa | executa | subshell |
+| aspas duplas | **executa** | **executa** | literal |
+| aspas simples | literal | literal | literal |
+
+Por isso `grep -n "foo(bar)"` e `--format='%(refname)'` seguem liberados, e `echo '$(whoami)'` também — aspas simples suprimem de verdade. Parse duvidoso fecha.
+
+**B2 — o harness não media o eixo que declarava.** As oito entradas de `SUBSTITUICOES` usavam **exclusivamente formas fora de aspas**. O eixo passou a ser exercitado **por contexto de aspas**: cada forma nos dois contextos que executam, mais a supressão por aspas simples provada na direção oposta.
+
+**H1 — `2>&1` sumiu sem ser corrigido nem declarado.** Ele fora nomeado candidato a defeito afirmado e desapareceu da lista. É o modo de falha que a condição 4(e) nomeia com todas as letras: *defeito documentado que sai do harness vira defeito esquecido*. **Corrigido**: o separador não parte mais em `&` quando ele é duplicação de descritor.
+
+O segundo caso do H1 — `.env` casando dentro de um padrão de busca cujo alvo é outro arquivo — **fica declarado, não corrigido**. Isentar conteúdo citado seria fail-open: `cat ".env"` é leitura de secret de verdade. O custo está na lista.
+
+**Resultado: 24 leituras legítimas liberadas, 36 escritas bloqueadas, 0 não bloqueadas, 5 falsos bloqueios declarados.**
+
+**M1, M2 e L1 procedem e ficam registrados.** A contagem de pendências não fecha (26 enumeradas contra "vinte e sete" escrito, e P34 fora das duas listas); `docs/process/` segue fora do gate (P37, adiada); e a mensagem de `f72f9b1` cita P32/P33/P34 onde o conteúdo entregue é P36/P37/P38 — a renumeração, que a mensagem de commit não pode mais corrigir por ser imutável.
+
 ### Décima quinta auditoria: FAIL, 1 BLOCKER — e a decisão de encerrar o passo (a)
 
 Executada sobre `c47759b`. Relatório em `docs/progress/audit_20260814T153038Z.md`.
