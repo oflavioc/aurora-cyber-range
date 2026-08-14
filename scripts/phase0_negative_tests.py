@@ -361,8 +361,22 @@ COMPOSICAO_CARGA = "python -c \"open('/tmp/aurora_probe','w')\""
 GRAFIAS_DE_ALVO = [
     ("relativa", "../../CLAUDE.md"),
     ("absoluta", "/c/Projetos/aurora-cyber-range/CLAUDE.md"),
-    ("til", "~/.claude/hooks/readonly_bash.py"),
-    ("variavel de ambiente", "$HOME/.claude/hooks/readonly_bash.py"),
+    ("absoluta com letra de unidade", "C:/Projetos/aurora-cyber-range/CLAUDE.md"),
+    ("til", "~/projeto/CLAUDE.md"),
+    ("variavel de ambiente", "$HOME/projeto/CLAUDE.md"),
+]
+
+#: ALVO CONTIDO no worktree: as MESMAS formas de escrita tem de PASSAR. Sem esta
+#: direcao, a negacao de caminho absoluto viraria "bloqueia tudo e passa no
+#: teste", que e o guarda que quatro rodadas produziram por so testar bloqueio.
+#: O worktree de auditoria e descartavel por desenho — o launcher o recria — e
+#: escrita contida nele nao alcanca nada que a auditoria julgue.
+ESCRITA_CONTIDA_PASSA = [
+    ("ruff --fix com alvo relativo", "ruff check --fix ."),
+    ("eslint --fix com alvo relativo", "eslint --fix src/"),
+    ("pytest --basetemp relativo", "pytest --basetemp=tmp --version"),
+    ("mypy --cache-dir relativo", "mypy --cache-dir .mypy_cache --version"),
+    ("docker compose config sem alvo", "docker compose config"),
 ]
 
 #: Formas de escrita parametrizadas pelo alvo. `{}` recebe cada grafia.
@@ -375,6 +389,17 @@ ESCRITA_POR_ALVO = [
     ("mypy --junit-xml", "mypy --junit-xml {} ."),
     ("eslint -o", "eslint -o {} ."),
     ("tsc --outFile", "tsc --noEmit --outFile {}"),
+    # As SEIS abaixo entraram apos o B1 da 17a auditoria. Nenhuma e flag de
+    # SAIDA — sao escrita in-place, diretorio de trabalho e cache —, e por isso
+    # nenhuma caia na enumeracao de flags. Elas provam o eixo do ALVO: o que as
+    # contem nao e conhecer a flag, e sim o alvo nao poder sair do worktree.
+    ("ruff --fix, escrita in-place", "ruff check --fix {}"),
+    ("ruff format, escrita in-place", "ruff format {}"),
+    ("eslint --fix, escrita in-place", "eslint --fix {}"),
+    ("pytest --basetemp, que REMOVE o diretorio", "pytest --basetemp={} --version"),
+    ("mypy --cache-dir", "mypy --cache-dir {} --version"),
+    ("docker compose config -o, comando fora do escopo de flags",
+     "docker compose config -o {}"),
 ]
 
 #: BURACOS conhecidos: escrita deliberada que o hook NAO bloqueia. Afirmados
@@ -787,6 +812,8 @@ def main() -> int:
     for label_sep, sep in SEPARADORES_DE_COMANDO:
         expect_hook_blocks(f"composicao por {label_sep}",
                            COMPOSICAO_PREFIXO + sep + COMPOSICAO_CARGA)
+    for label, comando in ESCRITA_CONTIDA_PASSA:
+        expect_hook_allows(label, comando)
     for label_forma, molde in ESCRITA_POR_ALVO:
         for label_grafia, alvo in GRAFIAS_DE_ALVO:
             expect_hook_blocks(f"{label_forma} [grafia {label_grafia}]", molde.format(alvo))
