@@ -55,6 +55,46 @@ from pathlib import Path
 
 MAX_REPORT_CHARS = 200_000
 
+#: Estado do lancamento, gravado ANTES da sessao comecar. E o que torna a
+#: captura recuperavel: se o processo do launcher morrer sem executar nada
+#: depois da sessao — fechar a janela mata sem dar chance a trap EXIT — o
+#: operador roda `--recover` e o arquivo diz qual sessao capturar.
+#:
+#: Fica FORA do Git (.gitignore). Arquivo de estado versionado sujaria a arvore
+#: e bloquearia a verificacao de tree limpo do proprio launcher — foi
+#: exatamente o que o audit_log.jsonj versionado + hook SubagentStop causaram.
+SESSION_FILE_NAME = ".last_audit_session"
+
+
+def session_file(root: Path) -> Path:
+    return root / "docs" / "progress" / SESSION_FILE_NAME
+
+
+def write_session(root: Path, info: dict) -> None:
+    path = session_file(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def read_session(root: Path) -> dict | None:
+    try:
+        return json.loads(session_file(root).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def git_toplevel(start: Path) -> Path:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            check=False, text=True, capture_output=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except Exception:
+        pass
+    return start
+
 
 def claude_config_dir() -> Path:
     override = os.environ.get("CLAUDE_CONFIG_DIR")
@@ -184,6 +224,9 @@ def alerta_captura_falhou(motivo: str, session_id: str) -> None:
         "docs/progress/fase_<n>.md antes de seguir.",
         "",
         "Registrado em docs/progress/audit_log.jsonl com verdict=sem_relatorio.",
+        "",
+        "Se a sessao ainda existir, tente recuperar antes de transcrever:",
+        "    python scripts/audit_report.py --recover",
     ]
     # Largura dimensionada pelo conteudo: motivo longo nao pode quebrar a moldura,
     # que e justamente o que faz o aviso ser notado no fim de um script longo.
@@ -197,12 +240,18 @@ def alerta_captura_falhou(motivo: str, session_id: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", required=True)
-    parser.add_argument("--session-id", required=True)
-    parser.add_argument("--phase", required=True)
-    parser.add_argument("--head-sha", required=True)
-    parser.add_argument("--mode", required=True, choices=["interactive", "headless"])
-    parser.add_argument("--launcher-exit", required=True, type=int)
+    parser.add_argument("--begin", action="store_true",
+                        help="Grava o estado do lancamento e sai. Chamado ANTES da sessao.")
+    parser.add_argument("--recover", action="store_true",
+                        help="Captura a ultima sessao lancada, lendo o estado gravado "
+                             "por --begin. E o comando que o operador roda quando a "
+                             "captura automatica nao aconteceu.")
+    parser.add_argument("--root")
+    parser.add_argument("--session-id")
+    parser.add_argument("--phase")
+    parser.add_argument("--head-sha")
+    parser.add_argument("--mode", choices=["interactive", "headless"])
+    parser.add_argument("--launcher-exit", type=int)
     parser.add_argument(
         "--fallback-text",
         help="Arquivo com a saida crua da sessao. So no modo headless, onde o "
@@ -210,7 +259,41 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    root = main_worktree_root(Path(args.root).resolve())
+    root = main_worktree_root(
+        Path(args.root).resolve() if args.root else git_toplevel(Path.cwd())
+    )
+
+    if args.begin:
+        write_session(root, {
+            "session_id": args.session_id,
+            "phase": args.phase,
+            "head_sha": args.head_sha,
+            "mode": args.mode,
+            "fallback_text": args.fallback_text,
+        })
+        return 0
+
+    if args.recover:
+        saved = read_session(root)
+        if not saved or not saved.get("session_id"):
+            print(
+                "Nao ha lancamento de auditoria registrado em "
+                f"docs/progress/{SESSION_FILE_NAME}. Nada a recuperar.",
+                file=sys.stderr,
+            )
+            return 1
+        args.session_id = saved["session_id"]
+        args.phase = saved.get("phase") or "0"
+        args.head_sha = saved.get("head_sha") or "desconhecido"
+        args.mode = saved.get("mode") or "interactive"
+        if args.fallback_text is None:
+            args.fallback_text = saved.get("fallback_text")
+
+    faltando = [n for n, v in (("--session-id", args.session_id), ("--phase", args.phase),
+                               ("--head-sha", args.head_sha), ("--mode", args.mode))
+                if not v]
+    if faltando:
+        parser.error("faltam argumentos: " + ", ".join(faltando))
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
 
@@ -240,6 +323,7 @@ def main() -> int:
         "session_id": args.session_id,
         "mode": args.mode,
         "launcher_exit": args.launcher_exit,
+        "recovered": bool(args.recover),
         "verdict": detect_verdict(report) if report else "sem_relatorio",
         "report_path": None,
         "capture_error": motivo or None,
