@@ -181,6 +181,46 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima quinta auditoria: FAIL, 1 BLOCKER — e a decisão de encerrar o passo (a)
+
+Executada sobre `c47759b`. Relatório em `docs/progress/audit_20260814T153038Z.md`.
+
+**B1 procede, e é meu.** O hook bloqueava `cat .env.example` — arquivo que `CLAUDE.md` §Secrets **permite** e que `05_SECURITY_REQUIREMENTS.md` §6 **exige versionado**. É o **mesmo overmatch da P17** que eu corrigi em `.claude/settings.json` no commit `0b425f1` e deixei intacto no hook: **dois mecanismos implementando a mesma norma, divergindo**. Corrigido — o padrão agora é exatamente `.env`, `.env.local`, `.env.*.local`.
+
+Pior que o bloqueio: ele **não estava na lista de defeitos afirmados**, e o harness imprimiu "4 leituras legítimas bloqueadas" na execução em que existia um quinto. A contagem publicada na célula da DoD era falsa.
+
+**L2 corrigido junto:** `nc` casava dentro de `\nc`, porque a barra invertida conta como fronteira de palavra. A regra de rede passa a exigir início de comando.
+
+**H1 é justo e fica aberto por decisão.** O eixo de **leitura** continua sendo lista escrita à mão, enquanto o de escrita virou propriedade. Um falso bloqueio não lembrado passa pelo harness sem reprovar — foi assim que o B1 passou. Convertê-lo em propriedade é problema em aberto: "isto é leitura legítima?" não tem definição mecânica como "isto tem parêntese fora de aspas?" tem. **Fica registrado como limite conhecido, não como pendência a fechar nesta fase.**
+
+**M1 e M2 ficam abertos**, os dois registrados: falta probe para a extensão de `SCANNED_DIRS`, e `docs/process/` segue fora do gate — que é o P36 da branch de `spec-change`, adiado para depois da Fase 1.
+
+---
+
+## O passo (a) do P35 encerra aqui, por decisão do operador
+
+**Seis rodadas — 9ª a 15ª — sem uma única PASS, e o motivo não é qualidade decrescente.**
+
+**O que as seis rodadas de fato produziram:**
+
+| Rodada | Achado central | Correção |
+|---|---|---|
+| 9ª | 10 buracos de escrita declarados | contenção |
+| 10ª | travessia por grafia absoluta, `~`, `$HOME` | remoção de `find`; ausência de capacidade |
+| 11ª | `env` como execução arbitrária | remoção; **probe que asserta a allowlist** |
+| 12ª | `\n`, `\r`, `&` não separavam | eixo da composição |
+| 13ª | `$()` e crase | eixo da substituição |
+| 14ª | `<(`, `>(`, subshell | **propriedade** no lugar de enumeração |
+| 15ª | overmatch de `.env.example` | alinhamento à norma |
+
+**Escritas não bloqueadas: de 10 para 0. Falsos bloqueios: de 11 para 4.** O trabalho valeu; o que não termina é o laço.
+
+**Por que ele não termina, dito sem eufemismo.** O item 4 vigente exige uma propriedade universal sobre todos os comandos de shell possíveis, e casamento textual só a refuta. Toda rodada acha mais uma via — isso é a definição do desenho, não defeito das rodadas. **A condição 3 do P35 — "qualquer BLOCKER de outra natureza reprova como sempre" — nunca pôde ser satisfeita**, porque todas as seis rodadas produziram um BLOCKER concreto ao lado do problema definicional. A saída que o P35 criou nunca ficou usável.
+
+**E estamos endurecendo além do propósito declarado.** O próprio item 4 reformulado diz que o hook existe para *impedir que o auditor corrija por acidente*, **não** para conter adversário. Um auditor que descobre `cat <(python -c ...)` não corrige por acidente — ataca de propósito. Para o modelo de ameaça declarado, e para um exercício acadêmico com cenários simulados, o hook cumpre a função desde a 10ª rodada.
+
+**Decisão do operador: prioridade é funcionalidade.** A ordem do P35 é **invertida** — ver §6 P35, addendum.
+
 ### Décima quarta auditoria: FAIL, 2 BLOCKER — enumerar sigilo era o mesmo erro de enumerar grafia
 
 Executada sobre `ab5fcd4`. Relatório em `docs/progress/audit_20260814T144610Z.md`.
