@@ -181,6 +181,37 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### P11 FECHADO — o relatório sobreviveu à sessão sem intervenção
+
+**2026-08-14, primeira vez em onze rodadas.** O operador digitou `/exit` na sessão do auditor e o launcher imprimiu, sozinho:
+
+```text
+Relatorio capturado: docs/progress/audit_20260814T051115Z.md
+Veredito detectado: FAIL
+```
+
+18 KB, com `head_sha` e `session_id` corretos. **Nenhum comando manual.** As onze rodadas anteriores dependeram de transcrição ou de `--recover` digitado à mão, e é dessa pendência que saíram as **cinco** confusões de ID desta fase.
+
+**Uma ressalva medida, e ela vira correção.** O log gravou `"recovered": true` mesmo nesta captura automática, porque o launcher chama `audit_report.py --recover` **no próprio trap de saída** (`start_checkpoint_audit.sh:88`) — o mesmo caminho de código da recuperação manual. Ou seja: **o campo que deveria provar o P11 não distinguia os dois casos**, e teria mantido a pendência ambígua para sempre. Foi essa exata ambiguidade que produziu a contradição apontada pelo M4 da nona auditoria entre a mensagem do commit ("capturado automaticamente") e o log (`recovered: true`) — os dois estavam certos, e o campo é que era cego.
+
+Corrigido: o launcher passa `--via launcher-trap`, e o log ganha `manual_recovery`, verdadeiro **só** quando o operador teve de recuperar à mão. `recovered` fica como está, para não reescrever a leitura das linhas antigas.
+
+### `Write(...)` no deny de secrets não existe — P13/P19 eram premissa falsa, e o H2 da décima auditoria estava errado
+
+Ao encerrar a sessão, o próprio Claude Code respondeu:
+
+```text
+Permission deny rule (.claude/settings.json): Write(.env) is not matched by file
+permission checks — only Edit(path) rules are. Use Edit(.env) instead
+(Edit rules cover all file-editing tools).
+```
+
+**`Edit(.env)` já cobre a ferramenta `Write`.** Nunca houve lacuna. A pendência nasceu como **P13** na terceira auditoria, foi reconfirmada como **P19** na quarta, reapareceu em três rodadas seguintes, foi listada como HIGH pela décima, e o item 7 da DoD ficou marcado ⚠️ parcial durante seis rodadas — tudo sobre um buraco que não existia.
+
+**Eu implementei o H2 sem verificar a premissa**, e as três regras `Write(...)` que acrescentei eram inertes: não negavam nada e passaram a emitir aviso a cada sessão. Removidas. O item 7 é **PASS desde sempre**, e o que faltava não era regra, era conferir o comportamento da ferramenta antes de acreditar no finding.
+
+**A lição é a mesma das seis correções do §6 P32, e mais dura, porque desta vez a fonte de verdade estava disponível o tempo todo.** Seis auditorias adversariais concordaram entre si sobre uma propriedade da plataforma que nenhuma delas mediu — e a plataforma respondeu na primeira vez que alguém a exercitou. Um finding repetido por muitas rodadas ganha aparência de fato verificado; concordância entre auditores não é medição. **Auditor também é terceira camada de verdade quando fala do que não executou.**
+
 ### Décima primeira auditoria: FAIL, 2 BLOCKER — a tese refutada dentro do próprio arquivo
 
 Executada sobre `8b4d627`, com worktree íntegro do começo ao fim e execução real. Foi a rodada mais bem instrumentada da fase: o auditor rodou os seis verificadores, o harness completo e os smoke tests, e mediu por execução, não por leitura.
@@ -412,7 +443,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⛔ **FALHA declarada, nas duas direções** — números do harness deste commit. **Escrita:** 33 formas bloqueadas mais 32 provas de invariante (8 formas × 4 grafias de alvo), e **0 não bloqueadas** — `BURACOS_CONHECIDOS` está vazia. **Leitura:** 5 liberadas, **11 falsos bloqueios** afirmados. O item não passa, e a definição que ele usa é insatisfazível por desenho — reformulada no `spec-change` do item 4. *(Esta célula ficou desatualizada por um commit, dizendo "2 não bloqueadas" depois de elas irem a zero: foi o H1 da 11ª auditoria, e é a reabertura do H2 da 9ª no commit seguinte ao que o fechou.)* |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
-| 7 | `.env`/secrets negados em `.claude/settings.json` | ⚠️ parcial — `Read` e `Edit` de `.env`, `.env.*` e `secrets/**` negados; **`Write` não** (§6 P13). Leitura, que é o risco principal, está coberta; criação e sobrescrita não |
+| 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS, e sempre foi** — `Read`/`Edit` de `.env`, `.env.*` e `secrets/**` negados, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. A marcação ⚠️ parcial durou seis rodadas (P13, P19) sobre uma lacuna inexistente; a própria plataforma recusou as regras `Write(...)` como inertes na primeira vez que foram exercitadas |
 | 8 | Auto Mode desabilitado para este projeto | ✅ `defaultMode: default`, `disableAutoMode: disable` |
 | 9 | Primeiro push de `main` deixa `arquitetura` e `seguranca` verdes | ✅ **por ATESTAÇÃO DO OPERADOR** — não verificado por auditoria (§6 P34) |
 | 10 | PR descartável confirma que `spec_freeze` falha com spec e código juntos | ✅ **por ATESTAÇÃO DO OPERADOR** — reprovou pela mensagem esperada (§6 P34) |

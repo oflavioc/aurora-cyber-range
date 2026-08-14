@@ -9,10 +9,7 @@
       "Read(.env.*)",
       "Edit(.env.*)",
       "Read(secrets/**)",
-      "Edit(secrets/**)",
-      "Write(.env)",
-      "Write(.env.*)",
-      "Write(secrets/**)"
+      "Edit(secrets/**)"
     ]
   },
   "hooks": {

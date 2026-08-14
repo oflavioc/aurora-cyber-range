@@ -320,6 +320,14 @@ def main() -> int:
     parser.add_argument("--head-sha")
     parser.add_argument("--mode", choices=["interactive", "headless"])
     parser.add_argument("--launcher-exit", type=int)
+    # `recovered` sozinho nao distingue captura AUTOMATICA de recuperacao
+    # MANUAL: o launcher chama --recover no proprio trap de saida, entao toda
+    # captura ficava marcada recovered=true. Isso tornou o log incapaz de
+    # provar o P11, que e exatamente "o relatorio sobrevive sem intervencao" —
+    # e produziu a contradicao que o M4 da 9a auditoria apontou entre a mensagem
+    # do commit e o log. `--via` diz de onde veio.
+    parser.add_argument("--via", choices=["launcher-trap", "manual"],
+                        default="manual")
     parser.add_argument(
         "--fallback-text",
         help="Arquivo com a saida crua da sessao. So no modo headless, onde o "
@@ -399,6 +407,9 @@ def main() -> int:
         "mode": args.mode,
         "launcher_exit": args.launcher_exit,
         "recovered": bool(args.recover),
+        # true so quando o operador teve de rodar a recuperacao a mao.
+        "manual_recovery": bool(args.recover) and args.via == "manual",
+        "capture_via": args.via,
         "verdict": veredito,
         # Por que o veredito e o que e. Preenchido quando ele NAO saiu limpo de
         # uma linha de veredito — indice que chuta e pior que indice ausente.
