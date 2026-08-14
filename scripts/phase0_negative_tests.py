@@ -138,6 +138,49 @@ ESCRITA_DELIBERADA = [
     ("env como trampolim de execucao", "env rm -rf x"),
     ("flag destrutiva de git branch", "git branch -D main"),
     ("find com acao de escrita", "find . -delete"),
+
+    # --- B1 (BLOCKER, setima auditoria) -----------------------------------
+    # A reescrita por tokens abriu tres caminhos de escrita que a versao em
+    # regex fechava. Os 13 probes acima cobriam redirecionamento SO na forma
+    # `>`: o harness declarava provar que a protecao nao afrouxou, passava
+    # verde, e tres afrouxamentos estavam presentes. Probe que so cobre a forma
+    # que voce lembrou nao prova ausencia das formas que voce esqueceu.
+    ("redirecionamento na forma >&", "ls >& out.txt"),
+    ("redirecionamento na forma &>", "ls &> out.txt"),
+    ("redirecionamento na forma &>>", "ls &>> out.txt"),
+    ("redirecionamento na forma >|", "ls >| out.txt"),
+    ("redirecionamento na forma <>", "ls <> out.txt"),
+    ("escrita por flag: sort -o", "git ls-files | sort -o out.txt"),
+    ("escrita por flag: find -fprint0", "find . -fprint0 out.txt"),
+
+    # Travessia: os alvos alcancam o worktree PRINCIPAL a partir do worktree de
+    # auditoria — CLAUDE.md e os proprios verificadores de tools/.
+    ("travessia via >&", "ls >& ../../CLAUDE.md"),
+    ("travessia via sort -o", "git ls-files | sort -o ../../CLAUDE.md"),
+    ("travessia via find -fprint0", "find . -fprint0 ../../tools/codegen.py"),
+
+    # H1: allowlistar um script e allowlistar o que ele FAZ. log_audit.py grava
+    # incondicionalmente no worktree principal via persist().
+    ("script de hook que grava sem condicao", "python .claude/hooks/log_audit.py"),
+
+    # --- B1, superficie completa ------------------------------------------
+    # Os tres vetores do auditor eram parte de uma familia maior: TODO comando
+    # da allowlist que aceita flag de saida escreve. Nenhum deles precisa de
+    # redirecionamento nem de comando fora da allowlist.
+    ("escrita por flag: pytest --junitxml", "pytest --junitxml=../../CLAUDE.md"),
+    ("escrita por flag: python -m pytest --junitxml",
+     "python -m pytest --junitxml=../../CLAUDE.md"),
+    ("escrita por flag: ruff --output-file", "ruff check --output-file ../../CLAUDE.md ."),
+    ("escrita por flag: mypy --junit-xml", "mypy --junit-xml ../../CLAUDE.md ."),
+    ("escrita por flag: eslint -o", "eslint -o ../../CLAUDE.md ."),
+    # --noEmit presente satisfazia a checagem antiga, que ignorava o resto da
+    # linha: classificar em vez de identificar, outra vez.
+    ("escrita por flag: tsc --outFile", "tsc --noEmit --outFile ../../CLAUDE.md"),
+    ("escrita por flag: sort --output= (forma longa)",
+     "git ls-files | sort --output=../../CLAUDE.md"),
+    # Escrita POSICIONAL: nenhuma flag envolvida, entao allowlist de flags
+    # sozinha nao cobriria. `uniq entrada saida` grava em saida.
+    ("escrita posicional: uniq", "uniq entrada.txt ../../CLAUDE.md"),
 ]
 
 
