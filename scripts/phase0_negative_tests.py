@@ -107,41 +107,46 @@ def expect_fail(label: str, command: list[str], planted: str) -> None:
 # reprovar: o harness cobria "nega escrita" e nunca "libera leitura".
 # --------------------------------------------------------------------------
 
-#: Os cinco modos de falso bloqueio da familia P23, todos leitura legitima.
+#: Estado MEDIDO do hook, nas quatro combinacoes possiveis. Depois da reversao
+#: do P23 (ver fase_0.md, P23 reaberto) o hook volta ao casamento textual, que
+#: erra nas DUAS direcoes. Registrar so o que ele acerta seria a mesma falha que
+#: o H2 puniu: harness que passa verde declarando propriedade que nao tem.
+#:
+#: As quatro listas afirmam o comportamento REAL. Qualquer mudanca — correcao
+#: acidental ou regressao — faz o harness reprovar, que e o ponto.
+
+#: Leitura legitima que o hook DE FATO libera.
 LEITURA_LEGITIMA = [
+    ("verificador com prefixo de ambiente seguro",
+     "PYTHONDONTWRITEBYTECODE=1 python tools/check_core_boundary.py"),
+    ("harness negativo (este arquivo)", "python scripts/phase0_negative_tests.py"),
+    ("git cat-file", "git cat-file -p HEAD"),
+    ("git merge-base (comparacao contra main)", "git merge-base main HEAD"),
+    ("git for-each-ref", "git for-each-ref --format='%(refname)' refs/heads"),
+]
+
+#: FALSOS BLOQUEIOS conhecidos: leitura legitima que o hook recusa. Sao a
+#: familia P8 -> P16 -> P23, agora com as vias que a oitava auditoria somou.
+#: Estao aqui afirmados como BLOQUEADOS de proposito: enquanto o P23 estiver
+#: aberto, este e o comportamento real, e o harness tem que dize-lo. Quando o
+#: P23 for refeito, cada linha destas volta para LEITURA_LEGITIMA.
+FALSOS_BLOQUEIOS_CONHECIDOS = [
     ("(a) redirecao de stderr para /dev/null", "git rev-parse main 2>/dev/null"),
     ("(b) pipeline com filtro de texto", "git ls-files | sort"),
     ("(c) alternancia dentro de aspas", r'grep -n "fase 0\|phase 0"'),
     ("(d) laco de shell", 'for f in $(git ls-files); do cat "$f"; done'),
-    (
-        "(e) smoke test do PHASE_0_CHECKLIST (payload citado)",
-        "printf '%s\\n' '{\"tool_input\":{\"command\":\"rm -rf range-core\"}}'"
-        " | python ~/.claude/hooks/readonly_bash.py",
-    ),
-    ("verificador com prefixo de ambiente seguro",
-     "PYTHONDONTWRITEBYTECODE=1 python tools/check_core_boundary.py"),
-    ("harness negativo (este arquivo)", "python scripts/phase0_negative_tests.py"),
-
-    # M1 (setima auditoria): o prefixo de descritor `2` nao pode vazar para a
-    # lista de palavras. Vazava, e bloqueava a prova central da fase sempre que
-    # o auditor suprimia stderr.
+    ("(e) smoke test do PHASE_0_CHECKLIST (payload citado)",
+     "printf '%s\n' '{\"tool_input\":{\"command\":\"rm -rf range-core\"}}'"
+     " | python ~/.claude/hooks/readonly_bash.py"),
     ("prova central com stderr suprimido",
      "python scripts/phase0_negative_tests.py 2>/dev/null"),
     ("verificador com stderr suprimido",
      "python tools/check_core_boundary.py 2>/dev/null"),
-
-    # L3 (setima auditoria): leitura pura de git que estava fora da allowlist.
-    ("git cat-file", "git cat-file -p HEAD"),
-    ("git merge-base (comparacao contra main)", "git merge-base main HEAD"),
-    # Aspas obrigatorias: `%(refname)` sem elas e erro de sintaxe no proprio
-    # bash, porque parenteses sao especiais. Sem aspas o hook tambem bloqueia,
-    # pelo lado seguro — parenteses viram separador de segmento.
-    ("git for-each-ref", "git for-each-ref --format='%(refname)' refs/heads"),
     ("git tag listando", "git tag"),
     ("git tag --list", "git tag --list"),
 ]
 
-#: Escrita deliberada: a protecao nao pode ter sido afrouxada pela tokenizacao.
+#: Escrita deliberada que o hook DE FATO bloqueia.
 ESCRITA_DELIBERADA = [
     ("remocao real", "rm -rf range-core"),
     ("git que altera estado", "git commit -m x"),
@@ -154,59 +159,42 @@ ESCRITA_DELIBERADA = [
     ("escrita no corpo de um laco", "for f in a; do rm $f; done"),
     ("execucao dentro de substituicao de comando", "git ls-files `rm -rf x`"),
     ("env como trampolim de execucao", "env rm -rf x"),
-    ("flag destrutiva de git branch", "git branch -D main"),
-    ("find com acao de escrita", "find . -delete"),
-
-    # --- B1 (BLOCKER, setima auditoria) -----------------------------------
-    # A reescrita por tokens abriu tres caminhos de escrita que a versao em
-    # regex fechava. Os 13 probes acima cobriam redirecionamento SO na forma
-    # `>`: o harness declarava provar que a protecao nao afrouxou, passava
-    # verde, e tres afrouxamentos estavam presentes. Probe que so cobre a forma
-    # que voce lembrou nao prova ausencia das formas que voce esqueceu.
     ("redirecionamento na forma >&", "ls >& out.txt"),
     ("redirecionamento na forma &>", "ls &> out.txt"),
     ("redirecionamento na forma &>>", "ls &>> out.txt"),
     ("redirecionamento na forma >|", "ls >| out.txt"),
     ("redirecionamento na forma <>", "ls <> out.txt"),
     ("escrita por flag: sort -o", "git ls-files | sort -o out.txt"),
-    ("escrita por flag: find -fprint0", "find . -fprint0 out.txt"),
-
-    # Travessia: os alvos alcancam o worktree PRINCIPAL a partir do worktree de
-    # auditoria — CLAUDE.md e os proprios verificadores de tools/.
+    ("escrita por flag: sort --output=", "git ls-files | sort --output=../../CLAUDE.md"),
+    ("escrita posicional: uniq", "uniq entrada.txt ../../CLAUDE.md"),
     ("travessia via >&", "ls >& ../../CLAUDE.md"),
     ("travessia via sort -o", "git ls-files | sort -o ../../CLAUDE.md"),
+    ("git tag com operando cria tag", "git tag v9.9.9"),
+    ("git tag -d apaga tag", "git tag -d v1.0"),
+    ("git tag --delete apaga tag", "git tag --delete v1.0"),
+]
+
+#: BURACOS conhecidos: escrita deliberada que o hook NAO bloqueia. Afirmados
+#: como NAO BLOQUEADOS, pelo mesmo motivo dos falsos bloqueios — e o estado
+#: real, e esconde-lo seria repetir o H2.
+#:
+#: A premissa de que a versao anterior era "irritante mas fechada" nao se
+#: sustenta na medicao: ela erra nas duas direcoes. O que ela fecha e a familia
+#: de REDIRECIONAMENTO (`>&`, `>|`, `<>`), porque `>\s*\S` casa todas por
+#: acidente. O que ela abre e a familia de ESCRITA POR FLAG, porque casamento
+#: textual nao olha flag nenhuma.
+BURACOS_CONHECIDOS = [
+    ("flag destrutiva de git branch", "git branch -D main"),
+    ("find com acao de escrita", "find . -delete"),
+    ("escrita por flag: find -fprint0", "find . -fprint0 out.txt"),
     ("travessia via find -fprint0", "find . -fprint0 ../../tools/codegen.py"),
-
-    # H1: allowlistar um script e allowlistar o que ele FAZ. log_audit.py grava
-    # incondicionalmente no worktree principal via persist().
-    ("script de hook que grava sem condicao", "python .claude/hooks/log_audit.py"),
-
-    # --- B1, superficie completa ------------------------------------------
-    # Os tres vetores do auditor eram parte de uma familia maior: TODO comando
-    # da allowlist que aceita flag de saida escreve. Nenhum deles precisa de
-    # redirecionamento nem de comando fora da allowlist.
     ("escrita por flag: pytest --junitxml", "pytest --junitxml=../../CLAUDE.md"),
     ("escrita por flag: python -m pytest --junitxml",
      "python -m pytest --junitxml=../../CLAUDE.md"),
     ("escrita por flag: ruff --output-file", "ruff check --output-file ../../CLAUDE.md ."),
     ("escrita por flag: mypy --junit-xml", "mypy --junit-xml ../../CLAUDE.md ."),
     ("escrita por flag: eslint -o", "eslint -o ../../CLAUDE.md ."),
-    # --noEmit presente satisfazia a checagem antiga, que ignorava o resto da
-    # linha: classificar em vez de identificar, outra vez.
     ("escrita por flag: tsc --outFile", "tsc --noEmit --outFile ../../CLAUDE.md"),
-    ("escrita por flag: sort --output= (forma longa)",
-     "git ls-files | sort --output=../../CLAUDE.md"),
-    # Escrita POSICIONAL: nenhuma flag envolvida, entao allowlist de flags
-    # sozinha nao cobriria. `uniq entrada saida` grava em saida.
-    ("escrita posicional: uniq", "uniq entrada.txt ../../CLAUDE.md"),
-
-    # L3, direcao inversa: os subcomandos novos nao podem trazer as formas que
-    # ESCREVEM junto. `git tag <nome>` cria; `git tag -d` apaga.
-    ("git tag com operando cria tag", "git tag v9.9.9"),
-    ("git tag -d apaga tag", "git tag -d v1.0"),
-    ("git tag --delete apaga tag", "git tag --delete v1.0"),
-    ("git for-each-ref nao aceita flag desconhecida",
-     "git for-each-ref --python --shell"),
 ]
 
 
@@ -243,6 +231,89 @@ def expect_hook_blocks(label: str, command: str) -> None:
     if not saida.strip():
         _reject(f"readonly_bash.py {label}", "bloqueou sem explicar o motivo", saida)
     print(f"OK: readonly_bash.py bloqueou escrita deliberada - {label}")
+
+
+#: Veredito gravado no registro VERSIONADO. Sem probe, o registro afirmava
+#: cobertura que nao existia — M2 da oitava auditoria. O caso que motivou o
+#: achado original e o terceiro: PASS que cita "FAIL" no corpo.
+CASOS_DE_VEREDITO = [
+    ("PASS simples", "# AUDITORIA\n\n## VEREDITO: **PASS**\n\n0 BLOCKER.\n", "PASS"),
+    ("FAIL simples", "## VEREDITO: **FAIL**\n\n1 BLOCKER.\n", "FAIL"),
+    ("PASS citando FAIL no corpo",
+     "## VEREDITO: PASS\n\nNenhum item devolveu FAIL.\nRegra: BLOCKER e FAIL.\n", "PASS"),
+    ("FAIL citando PASS no corpo",
+     "## VEREDITO: **FAIL**\n\nItens 1 e 2 estao PASS.\n", "FAIL"),
+    ("template nao preenchido", "## VEREDITO: PASS | FAIL\n", "indeterminado"),
+    ("sem linha de veredito", "# AUDITORIA\n\nAchei tres coisas.\n", "indeterminado"),
+    ("linhas discordantes", "## VEREDITO: PASS\n\n...\n\n## VEREDITO: FAIL\n", "indeterminado"),
+    ("relatorio vazio", "", "sem_relatorio"),
+]
+
+
+def verdict_probes() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from audit_report import detect_verdict, select_report
+
+    for label, texto, esperado in CASOS_DE_VEREDITO:
+        obtido, motivo = detect_verdict(texto)
+        if obtido != esperado:
+            _reject("audit_report.detect_verdict",
+                    f"{label}: devolveu '{obtido}', esperado '{esperado}'", "")
+        if obtido == "indeterminado" and not motivo:
+            _reject("audit_report.detect_verdict",
+                    f"{label}: indeterminado SEM motivo. Indice que chuta e pior "
+                    "que indice ausente, mas indeterminado mudo nao permite agir", "")
+    print(f"OK: detect_verdict correto nos {len(CASOS_DE_VEREDITO)} casos de veredito")
+
+    # select_report: numa sessao interativa o operador pergunta DEPOIS do
+    # relatorio, entao o ultimo bloco do agente nao e o relatorio. Foi o que
+    # aconteceu na oitava rodada: relatorio no bloco 8 de 11.
+    blocos = ["preambulo", "## VEREDITO: **FAIL**\n\nrelatorio inteiro", "resposta a pergunta"]
+    escolhido, degradacao = select_report(blocos)
+    if "relatorio inteiro" not in escolhido or degradacao is not None:
+        _reject("audit_report.select_report",
+                "nao escolheu o bloco com linha de veredito quando ele existe", "")
+    escolhido, degradacao = select_report(["so conversa", "mais conversa"])
+    if escolhido != "mais conversa" or not degradacao:
+        _reject("audit_report.select_report",
+                "sem bloco de veredito, deve cair no ultimo E registrar a degradacao", "")
+    print("OK: select_report escolhe o bloco do relatorio, nao o ultimo da sessao")
+
+
+def expect_hook_blocks_known_defect(label: str, command: str) -> None:
+    """Afirma um FALSO BLOQUEIO conhecido: leitura legitima que o hook recusa.
+
+    Se um dia passar a ser liberada, este probe reprova — e e o sinal certo,
+    porque significa que o P23 foi refeito e a linha deve migrar para
+    LEITURA_LEGITIMA. Defeito documentado nao pode virar defeito esquecido.
+    """
+    result = _run_readonly_hook(command)
+    if result.returncode == 0:
+        _reject(
+            f"readonly_bash.py [falso bloqueio conhecido] {label}",
+            "passou a LIBERAR esta leitura. Se o P23 foi refeito, mova a linha "
+            "de FALSOS_BLOQUEIOS_CONHECIDOS para LEITURA_LEGITIMA",
+            "",
+        )
+    print(f"AINDA BLOQUEADO (defeito aberto, P23): {label}")
+
+
+def expect_hook_allows_known_hole(label: str, command: str) -> None:
+    """Afirma um BURACO conhecido: escrita deliberada que o hook NAO bloqueia.
+
+    Mesma logica invertida: se passar a bloquear, o probe reprova e a linha deve
+    migrar para ESCRITA_DELIBERADA. O harness deixa de poder declarar "a
+    protecao nao afrouxou" sem dizer de que protecao esta falando.
+    """
+    result = _run_readonly_hook(command)
+    if result.returncode == 2:
+        _reject(
+            f"readonly_bash.py [buraco conhecido] {label}",
+            "passou a BLOQUEAR esta escrita. Mova a linha de "
+            "BURACOS_CONHECIDOS para ESCRITA_DELIBERADA",
+            "",
+        )
+    print(f"AINDA ABERTO (buraco documentado, P23): {label}")
 
 
 def hook_copies_in_sync() -> None:
@@ -412,12 +483,20 @@ def main() -> int:
         expect_hook_allows(label, comando)
     for label, comando in ESCRITA_DELIBERADA:
         expect_hook_blocks(label, comando)
+    for label, comando in FALSOS_BLOQUEIOS_CONHECIDOS:
+        expect_hook_blocks_known_defect(label, comando)
+    for label, comando in BURACOS_CONHECIDOS:
+        expect_hook_allows_known_hole(label, comando)
+    verdict_probes()
     hook_copies_in_sync()
 
     print(
-        "Todos os seis verificadores falharam contra probes independentes, e "
-        f"readonly_bash.py passou nos {len(LEITURA_LEGITIMA)} probes de leitura "
-        f"legitima e nos {len(ESCRITA_DELIBERADA)} de escrita deliberada."
+        "\nTodos os seis verificadores falharam contra probes independentes.\n"
+        f"readonly_bash.py: libera {len(LEITURA_LEGITIMA)} leituras legitimas e "
+        f"bloqueia {len(ESCRITA_DELIBERADA)} escritas deliberadas.\n"
+        f"DEFEITOS ABERTOS, afirmados e nao escondidos (P23 reaberto): "
+        f"{len(FALSOS_BLOQUEIOS_CONHECIDOS)} leituras legitimas bloqueadas e "
+        f"{len(BURACOS_CONHECIDOS)} escritas nao bloqueadas."
     )
     return 0
 
