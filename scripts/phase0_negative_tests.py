@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -166,7 +167,20 @@ ESCRITA_DELIBERADA = [
     ("edicao in-place", "sed -i s/a/b/ file"),
     ("escrita no corpo de um laco", "for f in a; do rm $f; done"),
     ("execucao dentro de substituicao de comando", "git ls-files `rm -rf x`"),
-    ("env como trampolim de execucao", "env rm -rf x"),
+    # O probe anterior era `env rm -rf x` e levava este mesmo rotulo. Ele passava
+    # pela regra do token `rm` — nada nele exercitava `env`. Probe que passa pelo
+    # motivo errado carrega o nome da propriedade que NAO mede: era o B2 da 11a
+    # auditoria, e o trampolim real estava aberto. Agora o comando invocado por
+    # `env` nao e negado por si; so a remocao de `env` da allowlist bloqueia.
+    ("env como trampolim de execucao arbitraria", "env python -c \"print('x')\""),
+    ("env como trampolim de escrita", "env python -c \"open('x','w')\""),
+    ("env como trampolim de shell", "env sh -c 'echo oi'"),
+    ("git branch -m muta ref compartilhado", "git branch -m aaa bbb"),
+    ("git branch -f muta ref compartilhado", "git branch -f main HEAD"),
+    ("git branch -c muta ref compartilhado", "git branch -c aaa bbb"),
+    ("git diff --output escreve arquivo", "git diff --output=out.txt HEAD~1 HEAD"),
+    ("git log --output escreve arquivo", "git log --output=out.txt"),
+    ("git show --output escreve arquivo", "git show --output=out.txt HEAD"),
     ("redirecionamento na forma >&", "ls >& out.txt"),
     ("redirecionamento na forma &>", "ls &> out.txt"),
     ("redirecionamento na forma &>>", "ls &>> out.txt"),
@@ -353,7 +367,10 @@ def expect_hook_blocks_known_defect(label: str, command: str) -> None:
     porque significa que o P23 foi refeito e a linha deve migrar para
     LEITURA_LEGITIMA. Defeito documentado nao pode virar defeito esquecido.
     """
-    result = _run_readonly_hook(command)
+    # M1 da 11a auditoria: estas duas familias rodavam so contra a fonte
+    # versionada. O argumento do H4 — a fonte nao e o que roda — vale igual
+    # para afirmacao de defeito conhecido. A copia instalada manda.
+    result = _run_readonly_hook(command, _hooks_sob_teste()[-1][1])
     if result.returncode == 0:
         _reject(
             f"readonly_bash.py [falso bloqueio conhecido] {label}",
@@ -371,7 +388,10 @@ def expect_hook_allows_known_hole(label: str, command: str) -> None:
     migrar para ESCRITA_DELIBERADA. O harness deixa de poder declarar "a
     protecao nao afrouxou" sem dizer de que protecao esta falando.
     """
-    result = _run_readonly_hook(command)
+    # M1 da 11a auditoria: estas duas familias rodavam so contra a fonte
+    # versionada. O argumento do H4 — a fonte nao e o que roda — vale igual
+    # para afirmacao de defeito conhecido. A copia instalada manda.
+    result = _run_readonly_hook(command, _hooks_sob_teste()[-1][1])
     if result.returncode == 2:
         _reject(
             f"readonly_bash.py [buraco conhecido] {label}",
@@ -380,6 +400,63 @@ def expect_hook_allows_known_hole(label: str, command: str) -> None:
             "",
         )
     print(f"AINDA ABERTO (buraco documentado, P23): {label}")
+
+
+#: Conjunto REVISADO de comandos allowlistados. Cada nome aqui foi examinado
+#: quanto a capacidade de escrita; a lista e o registro dessa revisao.
+COMANDOS_REVISADOS = {
+    "git", "pytest", "python", "npm", "ruff", "mypy", "black", "eslint", "tsc",
+    "range-cli", "docker", "ls", "cat", "head", "tail", "wc", "grep", "rg",
+    "tree", "diff", "stat", "pwd", "echo", "printf", "which",
+}
+
+
+def allowlist_e_a_revisada() -> None:
+    """Afirma o CONJUNTO da allowlist, nao apenas comandos lembrados.
+
+    Onze rodadas mostraram o mesmo padrao: o harness prova as formas que quem
+    escreveu lembrou, e a auditoria seguinte encontra uma que ele nao lembrou.
+    A matriz de grafias corrigiu isso no eixo do ALVO e manteve fixo o eixo do
+    COMANDO — foi o B2 da 11a auditoria, que encontrou `env`, `git --output` e
+    `git branch -m` fora de qualquer probe.
+
+    "Lembrei de todos os comandos?" nao e decidivel. "A allowlist e o conjunto
+    que foi revisado?" e. Este probe troca a pergunta indecidivel pela
+    decidivel: acrescentar comando a allowlist REPROVA o harness ate que o
+    comando entre em COMANDOS_REVISADOS, o que forca a revisao de capacidade de
+    escrita a acontecer no momento da mudanca, e nao na auditoria seguinte.
+    """
+    fonte = READONLY_HOOK_SOURCE.read_text(encoding="utf-8")
+    bloco = fonte.split("ALLOWED = [", 1)[1].split("\n]", 1)[0]
+
+    # So a PRIMEIRA posicao de cada padrao e um comando; o que vem depois sao
+    # subcomandos (docker compose ps, range-cli scenario validate) e nao abrem
+    # processo novo. Extrair sem essa distincao acusa `config` e `dryrun` como
+    # comandos nao revisados, que foi o primeiro resultado deste probe.
+    encontrados: set[str] = set()
+    for corpo in re.findall(r"\^\{SAFE_ENV_PREFIX\}(\([^)]*\)|[A-Za-z][\w-]*)", bloco):
+        for alternativa in corpo.strip("()").split("|"):
+            # `black\s+--check` e `tsc\s+--noEmit` sao comando + restricao: o
+            # comando e o token da frente.
+            nome = re.match(r"\s*([A-Za-z][\w-]*)", alternativa)
+            if nome:
+                encontrados.add(nome.group(1))
+
+    novos = encontrados - COMANDOS_REVISADOS
+    if novos:
+        _reject(
+            "allowlist do readonly_bash.py",
+            f"contem comando(s) NAO REVISADO(S): {sorted(novos)}. "
+            "Acrescente a COMANDOS_REVISADOS somente apos examinar se o comando "
+            "tem caminho de escrita — por acao, por flag ou por invocacao de "
+            "outro processo. Foi assim que `env` passou onze rodadas",
+            "",
+        )
+    sumidos = COMANDOS_REVISADOS - encontrados
+    print(
+        f"OK: allowlist e o conjunto revisado ({len(encontrados)} comandos)"
+        + (f"; removidos desde a ultima revisao: {sorted(sumidos)}" if sumidos else "")
+    )
 
 
 def hook_copies_in_sync() -> None:
@@ -557,6 +634,7 @@ def main() -> int:
         expect_hook_blocks_known_defect(label, comando)
     for label, comando in BURACOS_CONHECIDOS:
         expect_hook_allows_known_hole(label, comando)
+    allowlist_e_a_revisada()
     verdict_probes()
     hook_copies_in_sync()
 

@@ -181,6 +181,40 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima primeira auditoria: FAIL, 2 BLOCKER — a tese refutada dentro do próprio arquivo
+
+Executada sobre `8b4d627`, com worktree íntegro do começo ao fim e execução real. Foi a rodada mais bem instrumentada da fase: o auditor rodou os seis verificadores, o harness completo e os smoke tests, e mediu por execução, não por leitura.
+
+**B1 — três vias, todas confirmadas, mais duas que a verificação posterior somou.** O commit anterior declarava a tese *"o que se verifica por texto não é contenção, é ausência de capacidade"*, e a tese foi refutada **no próprio arquivo que a implementava**: `find` saiu da allowlist, e ficaram lá `env` e `git`, ambos com capacidade de escrita.
+
+| Via | Medido |
+|---|---|
+| `env python -c "open('x','w')"` | `rc=0` — **execução arbitrária**; `env` estava allowlistado sem nenhuma restrição sobre o que invoca. O probe `python -c` bloqueava; bastava prefixar com `env` |
+| `git diff --output=…` | `rc=0` — e `git show`/`git log` também, que a auditoria não citou e a verificação encontrou |
+| `git branch -m/-M/-f/-c` | `rc=0` — negar só `-d/-D` era enumerar um quinto de uma família que muta o ref store compartilhado |
+
+A justificativa que eu escrevera — *"a superfície é fechada por comando, são as flags de saída que essas **cinco** ferramentas documentam"* — esquecia a sexta família allowlistada, `git`, que é a maior de todas. `env` é pior que qualquer flag: é execução arbitrária, e permitia sobrescrever o próprio hook instalado do auditor.
+
+**B2 — um probe que passava pelo motivo errado.** A entrada rotulada *"env como trampolim de execucao"* usava `env rm -rf x` e passava pela regra do token `rm`; **nada nela exercitava `env`**. Um probe que carrega o nome da propriedade que não mede é pior que nenhum probe: ele ocupa o lugar dela na lista. E a matriz de 32 provas variava a grafia do **alvo** mantendo fixo o conjunto de **comandos** — o mesmo erro do B2 anterior, num eixo diferente. `BURACOS_CONHECIDOS` vazia foi apresentada como resultado, e estava vazia por as formas não terem sido procuradas.
+
+**Correção, e desta vez ela troca a pergunta em vez de estender a lista.**
+
+- `env` **removido**. Não custa nada: `SAFE_ENV_PREFIX` já aceita `VAR=valor` antes do comando, então `PYTHONDONTWRITEBYTECODE=1 pytest` segue passando.
+- `git branch` **removido** dos subcomandos. `for-each-ref` lista ramos e não muta.
+- `--output` **negado**, cobrindo `git diff`/`log`/`show`.
+- Os probes de defeito e buraco conhecido passam a rodar contra a **cópia instalada** (M1) — antes só `expect_hook_allows`/`expect_hook_blocks` o faziam.
+- **`allowlist_e_a_revisada()`** — o probe estrutural que faltava.
+
+**Por que esse último é a mudança que importa.** Onze rodadas repetiram o mesmo padrão: o harness prova as formas que quem escreveu lembrou, e a rodada seguinte encontra uma que ele não lembrou. *"Lembrei de todos os comandos?"* **não é decidível**. *"A allowlist é o conjunto que foi revisado?"* **é**. O probe afirma o conjunto: acrescentar comando à allowlist reprova o harness até que ele entre em `COMANDOS_REVISADOS`, o que força a revisão de capacidade de escrita a acontecer **no momento da mudança**, não na auditoria seguinte. Foi assim que `env` sobreviveu onze rodadas — nunca houve um momento em que alguém tivesse de justificá-lo.
+
+Ele mordeu na primeira execução, acusando três nomes; eram subcomandos que a extração confundia com comandos, e a extração foi corrigida. Um probe que não acusa nada ao nascer não prova que a lista está limpa.
+
+**H1, H3 e M2 são erros meus de registro, e todos da mesma família.** A célula do item 4 na tabela §5 continuava dizendo *"32 bloqueadas, 2 não bloqueadas"* depois de o commit anterior levar as não bloqueadas a zero — reabrindo, no commit seguinte, exatamente o H2 que a nona auditoria fechara. E a narrativa da décima rodada adiava um achado *"para o P36"*, que **não existe nesta branch**: é a numeração da branch de `spec-change`, e aqui a série vai até P35. Referência pendurada criada pela minha própria renumeração — a quinta confusão de IDs da fase.
+
+**O limite, dito pelo auditor e aceito aqui.** *"Provei que três vias existem; não provei que são as únicas. Enquanto a pergunta 'o bash executaria isto?' for respondida por casamento textual, a completude não é demonstrável — só refutável, e refutei mais três."* É a mesma conclusão da oitava rodada, agora com o corolário prático: **a resposta não é fechar a próxima via, é reduzir a superfície e tornar o conjunto asserido.**
+
+**P35 não cobre esta rodada, e o auditor apontou isso sem que ninguém pedisse.** Pela condição 3 da própria decisão, qualquer BLOCKER de outra natureza reprova como sempre — e B2 em particular não é sobre a definição do item 4, é sobre o oráculo afirmar propriedade que não tem. **O merge não procede com esta rodada.**
+
 ### Décima auditoria: FAIL, 2 BLOCKER — a correção do B1 repetiu o erro que ela fechava
 
 Executada sobre `2065d244`. Relatório em `docs/progress/audit_20260814T044412Z.md`. **Rodada comprometida por minha culpa, e mesmo assim a mais útil da fase.**
@@ -217,7 +251,7 @@ A enumeração de flags é defensável onde a de alvos não era: a superfície �
 
 **H2 fechado: `Write` entrou no deny de secrets.** Era P13, reconfirmada como P19 e reaberta em três rodadas desde então. Seis rodadas aberta, fechada em uma linha.
 
-**H3 é o P36 acontecendo ao vivo.** O auditor apontou que `2065d244` alterou `PHASE_0_CHECKLIST.md` — o documento que define a DoD — no mesmo commit que ela julga, fora de qualquer gate, porque `docs/process/` não está no conjunto `CODE` do `spec_freeze`. É a pendência adiada para depois da Fase 1, **encontrada por um auditor independente que não sabia que ela estava registrada**. Isso eleva a prioridade dela: deixa de ser observação minha e passa a ser achado externo reproduzido.
+**H3 é o `docs/process/` fora do conjunto `CODE`, acontecendo ao vivo.** *(A versão anterior deste parágrafo adiava o achado "para o P36", que não existe nesta branch — a série aqui vai até P35, e P36 é a numeração da branch `spec-change/dod-item-4-limite-declarado`, onde a pendência de fato está registrada. Referência pendurada, apontada pelo H3 da 11ª auditoria.)* O auditor apontou que `2065d244` alterou `PHASE_0_CHECKLIST.md` — o documento que define a DoD — no mesmo commit que ela julga, fora de qualquer gate, porque `docs/process/` não está no conjunto `CODE` do `spec_freeze`. É a pendência adiada para depois da Fase 1, **encontrada por um auditor independente que não sabia que ela estava registrada**. Isso eleva a prioridade dela: deixa de ser observação minha e passa a ser achado externo reproduzido.
 
 **O que a rodada custou e o que ensinou sobre o método.** Uma auditoria sem execução, com o worktree destruído no meio, ainda assim encontrou dois BLOCKER reais por leitura de regex — e o segundo deles é sobre o oráculo que deveria ter pego o primeiro. Vale registrar o que o próprio auditor escreveu: *"nada nesta auditoria é prova de execução; B1 e B2 derivam de leitura de regex e da allowlist, não de comando executado."* Ele declarou o limite e acertou mesmo assim. A medição posterior confirmou.
 
@@ -375,7 +409,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⛔ **FALHA declarada, nas duas direções** — números do harness deste commit, não de rodadas anteriores. **Escrita:** 32 formas bloqueadas, **2 não bloqueadas** e afirmadas como defeito contido (`find -delete` e `find -fprint0` com alvo dentro do worktree). As 8 que escreviam **fora** do worktree foram fechadas em 2026-08-14 por regra de contenção — era o B1 da nona auditoria (§6 P32). **Leitura:** 5 liberadas, **11 falsos bloqueios** afirmados, dois deles custo aceito da regra de contenção. O item não passa, e a definição que ele usa é insatisfazível por desenho — reformulada no `spec-change` do item 4 (§6 P35) |
+| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⛔ **FALHA declarada, nas duas direções** — números do harness deste commit. **Escrita:** 33 formas bloqueadas mais 32 provas de invariante (8 formas × 4 grafias de alvo), e **0 não bloqueadas** — `BURACOS_CONHECIDOS` está vazia. **Leitura:** 5 liberadas, **11 falsos bloqueios** afirmados. O item não passa, e a definição que ele usa é insatisfazível por desenho — reformulada no `spec-change` do item 4. *(Esta célula ficou desatualizada por um commit, dizendo "2 não bloqueadas" depois de elas irem a zero: foi o H1 da 11ª auditoria, e é a reabertura do H2 da 9ª no commit seguinte ao que o fechou.)* |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ⚠️ parcial — `Read` e `Edit` de `.env`, `.env.*` e `secrets/**` negados; **`Write` não** (§6 P13). Leitura, que é o risco principal, está coberta; criação e sobrescrita não |
