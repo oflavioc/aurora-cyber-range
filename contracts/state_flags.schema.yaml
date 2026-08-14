@@ -2,185 +2,391 @@
 #
 # Autoridade: 01_ARCHITECTURE.md secao 5.
 #
-# Escrito no subconjunto YAML estrito que tools/_common.py aceita: mapeamentos e
-# sequencias em bloco, sequencias em fluxo, escalares simples, documento unico.
-# Sem ancoras, aliases, merge keys ou escalares multilinha. Um parser tolerante
-# seria pior que grep: faria o verificador passar por ter lido o contrato errado,
-# em silencio.
-
-schema_version: 1
-contract: state_flags
-
-# ---------------------------------------------------------------------------
-# Namespacing — 01_ARCHITECTURE.md secao 5.1
+# Valida `domains/<adapter>/flags.yaml`.
 #
-# `core.*` para o motor, `<adapter>.*` para dominios. Existe para que dois
-# dominios possam coexistir sem colisao de nome.
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
+
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/state_flags.schema.json'
+title: Flags de estado de um adapter
+x-aurora-contract: state_flags
+x-aurora-schema-version: 1
+
+type: object
+required: [flags]
+additionalProperties: false
+
+properties:
+  flags:
+    type: array
+    minItems: 1
+    items:
+      $ref: '#/$defs/flag'
+
+$defs:
+
+  flag:
+    type: object
+
+    required:
+      - name
+      - type
+      - default
+      - category
+      - domain_area
+      - severity_weight
+      - wallboard_group
+      - consumers
+      - effect_ui
+      - reversible
+
+    # Fechado. Campo nao previsto aqui e erro de autoria, nao extensao: o
+    # wallboard e o codegen operam por convencao sobre este conjunto.
+    additionalProperties: false
+
+    properties:
+
+      # -------------------------------------------------------------------
+      # Namespacing — 01_ARCHITECTURE.md secao 5.1
+      #
+      # `core.*` para o motor, `<adapter>.*` para dominios. Existe para que dois
+      # dominios possam coexistir sem colisao de nome.
+      # -------------------------------------------------------------------
+      name:
+        type: string
+        pattern: '^(core|[a-z][a-z0-9_]*)\.[a-z][a-z0-9_]*$'
+        x-aurora-unique: true
+
+      # -------------------------------------------------------------------
+      # Sistema de tipos — decisao D3 da Fase 1.
+      #
+      # 01_ARCHITECTURE.md secao 5.2 exemplifica apenas `boolean`, mas o inject
+      # de 04_SCENARIO_SCHEMA.md secao 5 atribui
+      # `academus.lms_session_drop_rate: 0.4`, e essa flag consta de
+      # `required_flags` no manifesto. O contrato precisa declarar o conjunto, e
+      # 04 secao 4 proibe alterar semantica de campo dentro da mesma
+      # schema_version — errar aqui custa migracao.
+      #
+      # `string` livre NAO entra, por decisao: e o tipo que o codegen nao
+      # consegue tipar de forma util em TypeScript, que o wallboard nao sabe
+      # renderizar por convencao (01 secao 5.3), e que permitiria valor nunca
+      # declarado. `enum` cobre estado ordinal — degradado / offline /
+      # restaurado — sem abrir essa porta.
+      # -------------------------------------------------------------------
+      type:
+        enum: [boolean, number, enum]
+
+      # O tipo de `default` e amarrado ao valor de `type` no `allOf` abaixo.
+      default:
+        description: 'boolean, number ou string conforme `type`'
+
+      # -------------------------------------------------------------------
+      # DOMINIO DECLARADO — decisao D7 da Fase 1.
+      #
+      # `number` exige `min` e `max`. A forma anterior os declarava opcionais,
+      # contra a propria justificativa escrita ao lado: flag numerica sem
+      # dominio nao e validavel na escrita, torna a checagem de `effects` de
+      # inject uma verificacao de tipo sem faixa, e deixa o wallboard sem escala
+      # para renderizar.
+      #
+      # `max: unbounded` mantem expressavel a grandeza sem teto — uma contagem,
+      # por exemplo — mas exige que o autor declare isso de proposito. Ausencia
+      # e esquecimento deixam de ser indistinguiveis.
+      #
+      # `min` nao aceita `unbounded`: nao ha grandeza de simulacao sem piso
+      # neste modelo. Se aparecer, e schema_version nova com evidencia, nao
+      # afrouxamento aqui.
+      # -------------------------------------------------------------------
+      min:
+        type: number
+      max:
+        oneOf:
+          - type: number
+          - const: unbounded
+
+      # `enum` exige `values`. Sem eles o conjunto ordinal nao existe.
+      values:
+        type: array
+        minItems: 2
+        uniqueItems: true
+        items:
+          type: string
+
+      # -------------------------------------------------------------------
+      # Taxonomia — 01_ARCHITECTURE.md secao 5.2 e 5.3.
+      #
+      # Conjuntos FECHADOS. Sao eles que habilitam wallboard gerado por
+      # convencao, codificacao visual por categoria, indice de saude
+      # institucional e AAR segmentado. Valor novo aqui exige spec-change, nao
+      # commit de implementacao.
+      # -------------------------------------------------------------------
+      category:
+        enum:
+          - availability
+          - integrity
+          - confidentiality
+          - identity
+          - performance
+          - narrative
+          - regulatory
+
+      domain_area:
+        enum:
+          - academic
+          - financial
+          - research
+          - identity
+          - infrastructure
+          - communication
+
+      severity_weight:
+        type: number
+        minimum: 0
+        maximum: 10
+
+      wallboard_group:
+        type: string
+        minLength: 1
+
+      # `consumers` nomeia servicos que leem ou escrevem a flag. 01 secao 5.4:
+      # nenhum servico le ou escreve flag nao declarada. Vazio significaria flag
+      # que ninguem observa.
+      consumers:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+
+      effect_ui:
+        type: string
+        minLength: 1
+
+      reversible:
+        type: boolean
+
+    allOf:
+
+      - if:
+          required: [type]
+          properties:
+            type:
+              const: boolean
+        then:
+          properties:
+            default:
+              type: boolean
+          not:
+            anyOf:
+              - required: [values]
+              - required: [min]
+              - required: [max]
+
+      - if:
+          required: [type]
+          properties:
+            type:
+              const: number
+        then:
+          required: [min, max]
+          properties:
+            default:
+              type: number
+          not:
+            required: [values]
+
+      - if:
+          required: [type]
+          properties:
+            type:
+              const: enum
+        then:
+          required: [values]
+          properties:
+            default:
+              type: string
+          not:
+            anyOf:
+              - required: [min]
+              - required: [max]
+
 # ---------------------------------------------------------------------------
-name_pattern: "^(core|[a-z][a-z0-9_]*)\\.[a-z][a-z0-9_]*$"
-
-required_fields:
-  - name
-  - type
-  - default
-  - category
-  - domain_area
-  - severity_weight
-  - wallboard_group
-  - consumers
-  - effect_ui
-  - reversible
-
+# Regras que dependem de relacao entre campos irmaos e nao sao expressaveis em
+# JSON Schema. Obrigacao do loader de pack (Fase 2), nao garantia deste arquivo.
 # ---------------------------------------------------------------------------
-# Sistema de tipos — decisao D3 da Fase 1.
-#
-# 01_ARCHITECTURE.md secao 5.2 exemplifica apenas `boolean`, mas o inject de
-# 04_SCENARIO_SCHEMA.md secao 5 atribui `academus.lms_session_drop_rate: 0.4`, e
-# essa flag consta de `required_flags` no manifesto. O contrato precisa declarar
-# o conjunto, e 04 secao 4 proibe alterar semantica de campo dentro da mesma
-# schema_version — errar aqui custa migracao.
-#
-# `string` livre NAO entra, por decisao: e o tipo que o codegen nao consegue
-# tipar de forma util em TypeScript, que o wallboard nao sabe renderizar por
-# convencao (01 secao 5.3), e que permitiria valor nunca declarado. `enum` cobre
-# estado ordinal — degradado / offline / restaurado — sem abrir essa porta.
-# ---------------------------------------------------------------------------
-types:
-  - boolean
-  - number
-  - enum
-
-# `enum` exige `values`; `number` aceita `min` e `max` opcionais. Sem dominio
-# declarado, `severity_weight` e taxas nao teriam faixa verificavel.
-conditional_fields:
-  enum:
-    required: [values]
-  number:
-    optional: [min, max]
-
-# ---------------------------------------------------------------------------
-# Taxonomia — 01_ARCHITECTURE.md secao 5.2 e 5.3.
-#
-# Conjuntos FECHADOS. Sao eles que habilitam wallboard gerado por convencao,
-# codificacao visual por categoria, indice de saude institucional e AAR
-# segmentado. Valor novo aqui exige spec-change, nao commit de implementacao.
-# ---------------------------------------------------------------------------
-categories:
-  - availability
-  - integrity
-  - confidentiality
-  - identity
-  - performance
-  - narrative
-  - regulatory
-
-domain_areas:
-  - academic
-  - financial
-  - research
-  - identity
-  - infrastructure
-  - communication
-
-severity_weight:
-  type: number
-  min: 0
-  max: 10
-
-# `consumers` nomeia servicos que leem ou escrevem a flag. 01 secao 5.4: nenhum
-# servico le ou escreve flag nao declarada.
-consumers:
-  type: sequence
-  of: string
-  min_items: 1
-
-reversible:
-  type: boolean
+x-aurora-linter-rules:
+  - '`default` de flag `enum` deve constar de `values`'
+  - '`default` de flag `number` deve estar entre `min` e `max`'
+  - '`min` deve ser menor que `max` quando `max` e numerico'
 
 # ---------------------------------------------------------------------------
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
-example_valid:
-  flags:
-    - name: academus.enrollment_offline
-      type: boolean
-      default: false
-      category: availability
-      domain_area: academic
-      severity_weight: 8
-      wallboard_group: "Matrícula"
-      consumers: [academus-api, academus-web, wallboard]
-      effect_ui: "Portal de matrícula retorna 503 com página de manutenção"
-      reversible: true
-
-    - name: academus.lms_session_drop_rate
-      type: number
-      default: 0
-      min: 0
-      max: 1
-      category: performance
-      domain_area: academic
-      severity_weight: 5
-      wallboard_group: "AVA"
-      consumers: [academus-api, wallboard]
-      effect_ui: "Fração de sessões do AVA derrubadas por minuto"
-      reversible: true
-
-    - name: academus.enrollment_service_state
-      type: enum
-      values: [normal, degraded, offline, restoring]
-      default: normal
-      category: availability
-      domain_area: academic
-      severity_weight: 7
-      wallboard_group: "Matrícula"
-      consumers: [academus-api, wallboard]
-      effect_ui: "Estado ordinal do serviço de matrícula no telão"
-      reversible: true
-
-# ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS — cada um deve ser recusado, com o motivo nomeado.
-#
-# Existem no contrato porque a DoD da Fase 1 exige que os contratos "validem
-# exemplos positivos e negativos". Contrato sem exemplo negativo nao prova que
-# recusa nada — e a mesma licao do harness da Fase 0.
-# ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "name sem namespace"
-    flags:
-      - name: enrollment_offline
+examples:
+  - flags:
+      - name: academus.enrollment_offline
         type: boolean
         default: false
+        category: availability
+        domain_area: academic
+        severity_weight: 8
+        wallboard_group: 'Matrícula'
+        consumers: [academus-api, academus-web, wallboard]
+        effect_ui: 'Portal de matrícula retorna 503 com página de manutenção'
+        reversible: true
 
-  - reason: "category fora do conjunto fechado"
-    flags:
-      - name: academus.x
-        type: boolean
-        default: false
-        category: disponibilidade
+      - name: academus.lms_session_drop_rate
+        type: number
+        min: 0
+        max: 1
+        default: 0
+        category: performance
+        domain_area: academic
+        severity_weight: 5
+        wallboard_group: 'AVA'
+        consumers: [academus-api, wallboard]
+        effect_ui: 'Fração de sessões do AVA derrubadas por minuto'
+        reversible: true
 
-  - reason: "type fora do conjunto: string livre nao e permitido"
-    flags:
-      - name: academus.banner_text
-        type: string
-        default: ""
-
-  - reason: "enum sem values"
-    flags:
-      - name: academus.state
+      - name: academus.enrollment_service_state
         type: enum
+        values: [normal, degraded, offline, restoring]
         default: normal
+        category: availability
+        domain_area: academic
+        severity_weight: 7
+        wallboard_group: 'Matrícula'
+        consumers: [academus-api, wallboard]
+        effect_ui: 'Estado ordinal do serviço de matrícula no telão'
+        reversible: true
 
-  - reason: "severity_weight fora da faixa 0-10"
-    flags:
-      - name: academus.y
-        type: boolean
-        default: false
-        severity_weight: 11
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+#
+# Cada uma e COMPLETA e carrega UM defeito, o nomeado em `reason`. Instancia
+# parcial falharia por campo obrigatorio ausente e nao provaria nada sobre o
+# motivo declarado.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
 
-  - reason: "consumers vazio: flag que ninguem le nem escreve"
-    flags:
-      - name: academus.z
-        type: boolean
-        default: false
-        consumers: []
+  - reason: 'name sem namespace'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: enrollment_offline
+          type: boolean
+          default: false
+          category: availability
+          domain_area: academic
+          severity_weight: 8
+          wallboard_group: 'Matrícula'
+          consumers: [academus-api]
+          effect_ui: 'Portal de matrícula fora do ar'
+          reversible: true
+
+  - reason: 'category fora do conjunto fechado'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.enrollment_offline
+          type: boolean
+          default: false
+          category: disponibilidade
+          domain_area: academic
+          severity_weight: 8
+          wallboard_group: 'Matrícula'
+          consumers: [academus-api]
+          effect_ui: 'Portal de matrícula fora do ar'
+          reversible: true
+
+  - reason: 'type fora do conjunto: string livre nao e permitido'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.banner_text
+          type: string
+          default: ''
+          category: narrative
+          domain_area: communication
+          severity_weight: 1
+          wallboard_group: 'Comunicação'
+          consumers: [academus-web]
+          effect_ui: 'Texto livre no banner'
+          reversible: true
+
+  - reason: 'enum sem values'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.enrollment_service_state
+          type: enum
+          default: normal
+          category: availability
+          domain_area: academic
+          severity_weight: 7
+          wallboard_group: 'Matrícula'
+          consumers: [academus-api]
+          effect_ui: 'Estado ordinal do serviço de matrícula'
+          reversible: true
+
+  - reason: 'number sem min e max: dominio nao declarado (D7)'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.lms_session_drop_rate
+          type: number
+          default: 0
+          category: performance
+          domain_area: academic
+          severity_weight: 5
+          wallboard_group: 'AVA'
+          consumers: [academus-api]
+          effect_ui: 'Fração de sessões derrubadas por minuto'
+          reversible: true
+
+  - reason: 'severity_weight fora da faixa 0-10'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.portal_defaced
+          type: boolean
+          default: false
+          category: narrative
+          domain_area: communication
+          severity_weight: 11
+          wallboard_group: 'Portal'
+          consumers: [academus-web]
+          effect_ui: 'Portal exibe página de desfiguração'
+          reversible: true
+
+  - reason: 'consumers vazio: flag que ninguem le nem escreve'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.portal_defaced
+          type: boolean
+          default: false
+          category: narrative
+          domain_area: communication
+          severity_weight: 4
+          wallboard_group: 'Portal'
+          consumers: []
+          effect_ui: 'Portal exibe página de desfiguração'
+          reversible: true
+
+  - reason: 'campo nao previsto no contrato'
+    rejected_by: schema
+    instance:
+      flags:
+        - name: academus.portal_defaced
+          type: boolean
+          default: false
+          category: narrative
+          domain_area: communication
+          severity_weight: 4
+          wallboard_group: 'Portal'
+          consumers: [academus-web]
+          effect_ui: 'Portal exibe página de desfiguração'
+          reversible: true
+          decay_minutes: 30

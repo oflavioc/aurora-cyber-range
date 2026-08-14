@@ -6,292 +6,853 @@
 # da mesma schema_version. Engine declara SUPPORTED_SCHEMA_VERSIONS = [N, N-1];
 # pack em N-1 carrega com migracao em memoria e aviso no boot; anterior a N-1 e
 # recusado com instrucao de migracao.
+#
+# A RAIZ deste schema valida `manifest.yaml`. Os arquivos irmaos do pack tem
+# ponteiro proprio, declarado em `x-aurora-documents`.
+#
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
 
-schema_version: 2
-contract: scenario
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/scenario.schema.v2.json'
+title: Manifesto de pacote de cenario
+x-aurora-contract: scenario
+x-aurora-schema-version: 2
 
 # ---------------------------------------------------------------------------
 # ESTRUTURA DO PACOTE — 04 secao 1.
 # ---------------------------------------------------------------------------
-package_files:
-  required:
-    - manifest.yaml
-    - ground_truth.yaml
-    - objectives.yaml
-    - injects.yaml
-  optional:
-    - GM_NOTES.md
-    - information_distribution.yaml
-    - branches.yaml
-    - evidence/
-    - media/
+x-aurora-documents:
+  manifest.yaml: '#'
+  injects.yaml: '#/$defs/injects_document'
+  branches.yaml: '#/$defs/branches_document'
 
-# GM_NOTES.md NAO PODE conter fato ausente do ground truth (00 secao 5.10). O
-# linter compara e recusa divergencia.
-gm_notes_must_not_exceed_ground_truth: true
+x-aurora-registry:
+  package_files:
+    required:
+      - manifest.yaml
+      - ground_truth.yaml
+      - objectives.yaml
+      - injects.yaml
+    optional:
+      - GM_NOTES.md
+      - information_distribution.yaml
+      - branches.yaml
+      - evidence/
+      - media/
 
 # ---------------------------------------------------------------------------
 # MANIFESTO — 04 secao 2.
 # ---------------------------------------------------------------------------
-manifest:
-  required_fields:
-    - schema_version
-    - pack_id
-    - title
-    - domain
-    - min_engine_version
-    - duration_minutes
-    - personas
-    - required_flags
-    - required_rubrics
-  optional_fields:
-    - audience
-    - lines
-    - evidence_sources
-    - branch_policy
-    - calibration
+type: object
 
-  # required_rubrics INCLUI A VERSAO. Rubrica ausente ou em versao diferente
-  # impede a carga (04 secao 2).
-  required_rubrics:
-    type: sequence
-    of: string
-    item_pattern: "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+required:
+  - schema_version
+  - pack_id
+  - title
+  - domain
+  - min_engine_version
+  - duration_minutes
+  - personas
+  - required_flags
+  - required_rubrics
+
+additionalProperties: false
+
+properties:
+
+  schema_version:
+    const: 2
+
+  pack_id:
+    type: string
+    pattern: '^[a-z][a-z0-9-]*$'
+
+  title:
+    type: string
+    minLength: 1
+
+  domain:
+    type: string
+    pattern: '^[a-z][a-z0-9_]*$'
+
+  min_engine_version:
+    type: string
+    pattern: '^[0-9]+\.[0-9]+$'
+
+  duration_minutes:
+    type: integer
+    minimum: 1
+
+  # `audience` e `lines` NAO tem conjunto fechado declarado na spec — ela exibe
+  # `executivo`, `mista` e `[A, B, ruido]` sem nunca fechar o vocabulario.
+  # Fecha-los aqui seria repetir a invencao que as decisoes D5 e D6 desfizeram.
+  audience:
+    type: string
+    minLength: 1
+
+  lines:
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      minLength: 1
+
+  personas:
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      pattern: '^[a-z][a-z0-9_]*$'
 
   # Pack e validado contra as flags do seu adapter no boot; flag desconhecida
   # impede subida do engine (01 secao 5.4).
   required_flags:
-    type: sequence
-    of: string
-    must_exist_in_adapter_flags: true
+    type: array
+    uniqueItems: true
+    items:
+      type: string
+      x-aurora-ref: adapter_flags
+
+  # required_rubrics INCLUI A VERSAO. Rubrica ausente ou em versao diferente
+  # impede a carga (04 secao 2).
+  required_rubrics:
+    type: array
+    minItems: 1
+    uniqueItems: true
+    items:
+      type: string
+      pattern: '^[a-z][a-z0-9_]*\.v[0-9]+$'
+
+  # Conjunto fechado por 08 secao 3, o mesmo de `projections` no ground truth.
+  evidence_sources:
+    type: array
+    uniqueItems: true
+    items:
+      enum: [vpn, identity_audit, database_audit, email, cef, precursor]
 
   branch_policy:
-    required_fields:
+    $ref: '#/$defs/branch_policy'
+
+  calibration:
+    $ref: '#/$defs/calibration'
+
+$defs:
+
+  branch_policy:
+    type: object
+    required:
       - max_branch_points_per_line
       - max_paths_per_branch
       - reconvergence_required
+    additionalProperties: false
+    properties:
+      max_branch_points_per_line:
+        type: integer
+        minimum: 0
+      max_paths_per_branch:
+        type: integer
+        minimum: 2
+      reconvergence_required:
+        type: boolean
 
   calibration:
-    required_fields: [threshold]
-    threshold:
-      type: number
-      min: 0
-      max: 1
+    type: object
+    required: [threshold]
+    additionalProperties: false
+    properties:
+      # Brier maximo para considerar integridade validada (TTIV) — 04 secao 2.
+      threshold:
+        type: number
+        minimum: 0
+        maximum: 1
 
-# ---------------------------------------------------------------------------
-# INJECT — 04 secao 5.
-#
-# EFEITOS SAO DECLARATIVOS (00 secao 5.2): injects declaram estado desejado,
-# nunca executam acao imperativa. E o que torna rollback e idempotencia
-# possiveis — aplicar o mesmo inject duas vezes produz projecao identica
-# (01 secao 5.4).
-# ---------------------------------------------------------------------------
-inject:
-  required_fields:
-    - id
-    - t_relative
-    - titulo_operacional
-  optional_fields:
-    - linha
-    - titulo
-    - descricao_facilitador
-    - texto_para_plateia
-    - objectives
-    - effects
-    - materializes_facts
-    - evidence_release
-    - reveals
-    - decision_point
-    - media_event
-    - noise
+  # -------------------------------------------------------------------------
+  # injects.yaml
+  # -------------------------------------------------------------------------
+  injects_document:
+    type: object
+    required: [injects]
+    additionalProperties: false
+    properties:
+      injects:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/inject'
 
-  # OBJETIVO OBRIGATORIO, salvo `noise: true` explicito (00 secao 4).
-  # Inject sem objetivo associado e ruido deliberado ou ERRO DE AUTORIA — o
-  # linter recusa a ambiguidade entre os dois.
-  objectives_required_unless_noise: true
+  # -------------------------------------------------------------------------
+  # INJECT — 04 secao 5.
+  #
+  # EFEITOS SAO DECLARATIVOS (00 secao 5.2): injects declaram estado desejado,
+  # nunca executam acao imperativa. E o que torna rollback e idempotencia
+  # possiveis — aplicar o mesmo inject duas vezes produz projecao identica
+  # (01 secao 5.4).
+  # -------------------------------------------------------------------------
+  inject:
+    type: object
+    required: [id, t_relative, titulo_operacional]
+    additionalProperties: false
+    properties:
 
-  # Chave de `effects` deve ser flag declarada no adapter; valor deve respeitar
-  # o tipo declarado em state_flags.schema.yaml.
-  effects:
-    type: mapping
-    key_must_exist_in_adapter_flags: true
-    value_must_match_declared_type: true
+      # ---------------------------------------------------------------------
+      # id — decisao D6 da Fase 1.
+      #
+      # A forma anterior, `^[A-Z][0-9]{2}$`, era invencao minha: teto de 99
+      # injects e prefixo de um unico caractere. `ransomware-universidade` tem
+      # Linhas A + B + ruido (04 secao 9), e `ruido` nao e uma letra — o inject
+      # de ruido nao teria id possivel se o prefixo acompanhasse a linha.
+      #
+      # O PREFIXO NAO CARREGA SEMANTICA DE LINHA, e isso e deliberado. A linha
+      # e `linha`, visivel so ao facilitador. Se a letra do id codificasse a
+      # linha, o id vazaria a linha para quem ve a fila — e 03 secao 5.2 exige
+      # que o operador nao enxergue que existe Linha B, sob pena de destruir o
+      # efeito de triagem sob viés. Ver a pendencia apontada para a Fase 3 em
+      # docs/progress/fase_1.md.
+      # ---------------------------------------------------------------------
+      id:
+        type: string
+        pattern: '^[A-Z]+[0-9]+$'
+        x-aurora-unique: true
 
-  # `linha` e visivel APENAS ao facilitador. `titulo_operacional` e o unico
-  # rotulo visivel ao operador (04 secao 5).
-  linha_visibility: facilitator_only
+      t_relative:
+        type: string
+        minLength: 1
+
+      # `titulo_operacional` e o unico rotulo visivel ao operador (04 secao 5).
+      titulo_operacional:
+        type: string
+        minLength: 1
+
+      # `linha` e visivel APENAS ao facilitador.
+      linha:
+        type: string
+        minLength: 1
+
+      titulo:
+        type: string
+      descricao_facilitador:
+        type: string
+      texto_para_plateia:
+        type: string
+
+      objectives:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_objectives
+
+      # Chave de `effects` deve ser flag declarada no adapter; valor deve
+      # respeitar o tipo declarado em state_flags.schema.yaml.
+      effects:
+        type: object
+        minProperties: 1
+        propertyNames:
+          x-aurora-ref: adapter_flags
+        x-aurora-effects-match-flag-types: true
+
+      materializes_facts:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_facts
+
+      evidence_release:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items:
+          type: string
+          minLength: 1
+
+      reveals:
+        $ref: '#/$defs/reveals'
+
+      decision_point:
+        $ref: '#/$defs/decision_point'
+
+      media_event:
+        $ref: '#/$defs/media_event'
+
+      noise:
+        type: boolean
+
+    # OBJETIVO OBRIGATORIO, salvo `noise: true` explicito (00 secao 4). Inject
+    # sem objetivo associado e ruido deliberado ou ERRO DE AUTORIA — e a
+    # ambiguidade entre os dois que fica recusada aqui.
+    if:
+      required: [noise]
+      properties:
+        noise:
+          const: true
+    else:
+      required: [objectives]
 
   reveals:
-    required_fields: [persona, content]
-    optional_fields: [confidence]
-    confidence: [low, medium, high]
+    type: object
+    required: [persona, content]
+    additionalProperties: false
+    properties:
+      persona:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*$'
+      content:
+        type: string
+        minLength: 1
+      confidence:
+        enum: [low, medium, high]
 
-inject_id_pattern: "^[A-Z][0-9]{2}$"
+  # -------------------------------------------------------------------------
+  # DECISION POINT e CAPABILITY GAP — 04 secoes 5 e 5.1.
+  # -------------------------------------------------------------------------
+  decision_point:
+    type: object
+    required: [id, question, options]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        minLength: 1
+        x-aurora-unique: true
+      question:
+        type: string
+        minLength: 1
+      options:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/option'
+      objectives:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_objectives
+      timer_minutes:
+        type: integer
+        minimum: 1
+
+  option:
+    type: object
+    # `effects` e `tradeoff` sao obrigatorios inclusive na opcao que declara
+    # lacuna: a lacuna tem consequencia no mundo simulado e NAO E SAIDA SEM
+    # CUSTO.
+    required: [id, label, effects, tradeoff]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*$'
+      label:
+        type: string
+        minLength: 1
+      effects:
+        type: object
+        propertyNames:
+          x-aurora-ref: adapter_flags
+        x-aurora-effects-match-flag-types: true
+      tradeoff:
+        type: string
+        minLength: 1
+      capability_gap:
+        $ref: '#/$defs/capability_gap'
+
+  # `capability_gap` marca que a opcao declara AUSENCIA DE CAPACIDADE, nao
+  # escolha de curso de acao.
+  #
+  # Escolher a opcao emite `decision_made` como qualquer outra, E TAMBEM
+  # `capability_gap_declared` — o primeiro preserva a uniformidade da trilha de
+  # decisoes, o segundo carrega os campos para a projecao do AAR.
+  capability_gap:
+    type: object
+    required: [control_function]
+    additionalProperties: false
+    properties:
+
+      # NUNCA nome de produto ou de fornecedor (05 secao 5.1). Lacunas sao
+      # nomeadas por FUNCAO DE CONTROLE. Um exercicio em que a resposta certa
+      # aponta para um fornecedor deixa de medir a capacidade da equipe e passa
+      # a medir se ela adivinhou o vendor.
+      #
+      # O padrao NAO distingue funcao de controle de nome de produto —
+      # `produto_xyz_edr` casa com ele. Quem recusa e revisao humana e o linter
+      # da Fase 7, e por isso a regra esta em x-aurora-linter-rules e nao entre
+      # os exemplos negativos: declarar ali o que nenhuma camada recusa seria
+      # fixture que passa sem provar nada.
+      #
+      # Vocabulario ABERTO nesta versao do schema (04 secao 5.1). Fecha-lo agora
+      # seria inventar taxonomia antes de haver dados.
+      control_function:
+        type: string
+        pattern: '^[a-z][a-z0-9_]*$'
+
+      # Todo objetivo aqui deve existir em objectives.yaml. Mesma classe do
+      # event_type inexistente e pelo mesmo motivo: o erro de digitacao nao
+      # falha em lugar nenhum, a lacuna simplesmente nao e atribuida a objetivo
+      # algum e some do AAR (04 secao 6.2).
+      objectives_affected:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_objectives
+
+      metric_impacted:
+        $ref: 'https://aurora-cyber-range.local/contracts/objectives.schema.json#/$defs/metric_binding'
+
+  # -------------------------------------------------------------------------
+  # branches.yaml — 04 secao 6.
+  # -------------------------------------------------------------------------
+  branches_document:
+    type: object
+    required: [branches]
+    additionalProperties: false
+    properties:
+      branches:
+        type: array
+        items:
+          $ref: '#/$defs/branch'
+
+  branch:
+    type: object
+    # `reconverge_at` obrigatorio: branch sem reconvergencia e recusada
+    # (04 secao 6.2).
+    required: [id, at_inject, evaluate, reconverge_at]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        minLength: 1
+        x-aurora-unique: true
+      at_inject:
+        type: string
+        x-aurora-ref: pack_injects
+      reconverge_at:
+        type: string
+        x-aurora-ref: pack_injects
+      line:
+        type: string
+        minLength: 1
+      evaluate:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/branch_arm'
+
+  branch_arm:
+    type: object
+    required: [id, next]
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+        minLength: 1
+      next:
+        type: string
+        x-aurora-ref: pack_injects
+      when:
+        $ref: '#/$defs/branch_condition'
+      default:
+        type: boolean
+
+  # -------------------------------------------------------------------------
+  # CONDICAO DE BRANCH — arvore fechada, 04 secao 6.1.
+  #
+  # CONDICOES SO PODEM DEPENDER DO OBJETIVAMENTE OBSERVAVEL. Qualquer condicao
+  # que dependa de juizo torna o cenario nao ensaiavel e nao determinista — e
+  # aqui ela deixa de ser expressavel, em vez de ficar proibida por prosa.
+  # -------------------------------------------------------------------------
+  branch_condition:
+    oneOf:
+      - $ref: '#/$defs/branch_all'
+      - $ref: '#/$defs/branch_any'
+      - $ref: '#/$defs/branch_not'
+      - $ref: '#/$defs/branch_event'
+      - $ref: '#/$defs/branch_decision'
+      - $ref: '#/$defs/branch_option'
+      - $ref: '#/$defs/branch_flag'
+      - $ref: '#/$defs/branch_before'
+      - $ref: '#/$defs/branch_after'
+
+  branch_all:
+    type: object
+    required: [all]
+    additionalProperties: false
+    properties:
+      all:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/branch_condition'
+
+  branch_any:
+    type: object
+    required: [any]
+    additionalProperties: false
+    properties:
+      any:
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/branch_condition'
+
+  branch_not:
+    type: object
+    required: [not]
+    additionalProperties: false
+    properties:
+      not:
+        $ref: '#/$defs/branch_condition'
+
+  branch_event:
+    type: object
+    required: [event]
+    additionalProperties: false
+    properties:
+      event:
+        type: string
+        x-aurora-ref: event_catalog
+      payload:
+        type: object
+
+  branch_decision:
+    type: object
+    required: [decision]
+    additionalProperties: false
+    properties:
+      decision:
+        type: string
+        minLength: 1
+
+  branch_option:
+    type: object
+    required: [option]
+    additionalProperties: false
+    properties:
+      option:
+        type: string
+        x-aurora-ref: pack_decision_options
+
+  branch_flag:
+    type: object
+    required: [flag]
+    additionalProperties: false
+    properties:
+      flag:
+        type: string
+        x-aurora-ref: adapter_flags
+      equals:
+        description: 'boolean, number ou string conforme o tipo declarado da flag'
+
+  branch_before:
+    type: object
+    required: [before]
+    additionalProperties: false
+    properties:
+      before:
+        type: string
+        minLength: 1
+
+  branch_after:
+    type: object
+    required: [after]
+    additionalProperties: false
+    properties:
+      after:
+        type: string
+        minLength: 1
+
+  # -------------------------------------------------------------------------
+  # EVENTO DE MIDIA — 04 secao 7.
+  # -------------------------------------------------------------------------
+  media_event:
+    type: object
+    required: [type, deadline_minutes, requires_response]
+    additionalProperties: false
+    properties:
+      type:
+        enum:
+          - press_call
+          - investigative
+          - viral_post
+          - protest
+          - union
+      deadline_minutes:
+        type: integer
+        minimum: 1
+      requires_response:
+        type: boolean
+      outlet:
+        type: string
+      reporter:
+        type: string
+      objectives:
+        type: array
+        uniqueItems: true
+        items:
+          type: string
+          x-aurora-ref: pack_objectives
+
+      # Permite ao AAR comparar automaticamente o numero comunicado com o ground
+      # truth — a assimetria entre o que foi dito fora e o que de fato ocorreu.
+      #
+      # O caminho pontuado de 04 secao 7 e a razao de `fact_id` nao poder conter
+      # ponto: `facts.GT-A-020.records_affected` deixaria de ser desambiguavel.
+      fact_check_against:
+        type: string
+        pattern: '^facts\.GT-[A-Z0-9]+-[0-9]+\.[a-z][a-z0-9_]*$'
 
 # ---------------------------------------------------------------------------
-# DECISION POINT e CAPABILITY GAP — 04 secoes 5 e 5.1.
-# ---------------------------------------------------------------------------
-decision_point:
-  required_fields: [id, question, options]
-  optional_fields: [objectives, timer_minutes]
-
-option:
-  required_fields: [id, label, effects, tradeoff]
-  optional_fields: [capability_gap]
-
-# `capability_gap` marca que a opcao declara AUSENCIA DE CAPACIDADE, nao escolha
-# de curso de acao. `effects` e `tradeoff` continuam obrigatorios: a lacuna tem
-# consequencia no mundo simulado e NAO E SAIDA SEM CUSTO.
+# Validacao obrigatoria do linter — 04 secao 6.2 e 5.1.
 #
-# Escolher a opcao emite `decision_made` como qualquer outra, E TAMBEM
-# `capability_gap_declared` — o primeiro preserva a uniformidade da trilha de
-# decisoes, o segundo carrega os campos para a projecao do AAR.
-capability_gap:
-  required_fields: [control_function]
-  optional_fields: [objectives_affected, metric_impacted]
-
-  # NUNCA nome de produto ou de fornecedor (05 secao 5.1). Lacunas sao nomeadas
-  # por FUNCAO DE CONTROLE. Um exercicio em que a resposta certa aponta para um
-  # fornecedor deixa de medir a capacidade da equipe e passa a medir se ela
-  # adivinhou o vendor.
-  control_function:
-    type: string
-    pattern: "^[a-z][a-z0-9_]*$"
-    vendor_name_forbidden: true
-
-  # Vocabulario ABERTO nesta versao do schema (04 secao 5.1). Fecha-lo agora
-  # seria inventar taxonomia antes de haver dados.
-  controlled_vocabulary: false
-
-  # Todo objetivo aqui deve existir em objectives.yaml. Mesma classe do
-  # event_type inexistente e pelo mesmo motivo: o erro de digitacao nao falha em
-  # lugar nenhum, a lacuna simplesmente nao e atribuida a objetivo algum e some
-  # do AAR (04 secao 6.2).
-  objectives_affected:
-    must_exist_in_objectives: true
+# Estas dependem de relacao entre documentos ou de julgamento, e nao sao
+# garantia deste arquivo. Obrigacao do `range-cli scenario lint` (Fase 7).
+# ---------------------------------------------------------------------------
+x-aurora-linter-rules:
+  - 'branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado'
+  - 'todo option referenciado deve existir no decision_point indicado'
+  - 't_relative fora de ordem e recusado'
+  - '`control_function` nomeia funcao de controle, NUNCA produto ou fornecedor (05 secao 5.1) — nao mecanizavel por padrao'
+  - 'GM_NOTES.md com fato ausente do ground_truth e recusado (00 secao 5.10)'
+  - '`fact_check_against` deve resolver para um campo existente do fato indicado'
+  - '`required_rubrics` deve cobrir toda rubrica citada em objectives.yaml'
 
 # ---------------------------------------------------------------------------
-# BRANCHING — 04 secao 6.
+# Exemplo POSITIVO — manifesto minimo valido. `pointer` nomeia o ponteiro que
+# valida a instancia; ausente significa a raiz.
 # ---------------------------------------------------------------------------
-branch:
-  required_fields: [id, at_inject, evaluate, reconverge_at]
-  optional_fields: [line]
+examples:
+  - schema_version: 2
+    pack_id: ransomware-universidade
+    title: 'Ransomware na véspera da matrícula'
+    domain: academus
+    min_engine_version: '1.0'
+    duration_minutes: 240
+    audience: executivo
+    lines: [A, B, ruido]
+    personas: [reitoria, ti, dpo, juridico, comunicacao]
+    required_flags: [academus.enrollment_offline, academus.lms_session_drop_rate]
+    required_rubrics: [incident_triage.v2, crisis_communication.v2]
+    evidence_sources: [email, vpn, identity_audit, database_audit]
+    branch_policy:
+      max_branch_points_per_line: 1
+      max_paths_per_branch: 2
+      reconvergence_required: true
+    calibration:
+      threshold: 0.15
 
-# CONDICOES SO PODEM DEPENDER DO OBJETIVAMENTE OBSERVAVEL (04 secao 6.1).
-# Qualquer condicao que dependa de juizo torna o cenario nao ensaiavel e nao
-# determinista.
-branch_condition:
-  allowed_leaves:
-    - event
-    - decision
-    - option
-    - flag
-    - before
-    - after
-  combinators: [all, any, not]
-  judgement_conditions_forbidden: true
-  event_must_exist_in_catalog: true
+x-aurora-document-examples:
 
-# Validacao obrigatoria do linter — 04 secao 6.2.
-linter_rules:
-  - "branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado"
-  - "branch sem reconverge_at e recusado"
-  - "todo event referenciado em when deve existir no catalogo de eventos"
-  - "todo option referenciado deve existir no decision_point indicado"
-  - "todo objetivo em objectives_affected deve existir em objectives.yaml"
-  - "inject sem objectives e sem noise: true e recusado"
-  - "t_relative fora de ordem e recusado"
-  - "media_event sem deadline e recusado"
-  - "GM_NOTES.md com fato ausente do ground_truth e recusado"
+  # Os injects que o exemplo de branches referencia existem aqui: os exemplos
+  # positivos dos seis contratos formam um mini-pacote coerente, e e contra ele
+  # que `at_inject`, `reconverge_at` e `next` resolvem em
+  # scripts/check_contract_examples.py. Branch apontando para inject que o
+  # exemplo irmao nao declara seria a propria falha que o contrato diz recusar.
+  - pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          linha: A
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
+          titulo: 'Nota de resgate exibida no portal'
+          objectives: [OBJ-03]
+          effects:
+            academus.portal_defaced: true
+        - id: A08
+          linha: A
+          t_relative: '00:55'
+          titulo_operacional: 'Comunicado 08'
+          objectives: [OBJ-03]
+        - id: A09
+          linha: A
+          t_relative: '01:10'
+          titulo_operacional: 'Comunicado 09'
+          objectives: [OBJ-03]
+        - id: A10
+          linha: A
+          t_relative: '01:15'
+          titulo_operacional: 'Comunicado 10'
+          objectives: [OBJ-03]
+        - id: A12
+          linha: A
+          t_relative: '01:40'
+          titulo_operacional: 'Comunicado 12'
+          objectives: [OBJ-03]
+        # Prefixo diferente sem semântica de linha (D6): ruido nao e uma letra
+        # de linha, e o id nao pode revelar qual e.
+        - id: R01
+          t_relative: '00:52'
+          titulo_operacional: 'Comunicado 11'
+          noise: true
+
+  - pointer: '#/$defs/branches_document'
+    instance:
+      branches:
+        - id: BR-A-01
+          at_inject: A08
+          reconverge_at: A12
+          line: A
+          evaluate:
+            - id: conteve_a_tempo
+              when:
+                all:
+                  - event: vpn_access_revoked
+                  - before: '01:30'
+              next: A09
+            - id: nao_conteve
+              default: true
+              next: A10
 
 # ---------------------------------------------------------------------------
-# EVENTO DE MIDIA — 04 secao 7.
+# Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
+# Instancia completa, um defeito, `rejected_by` nomeando quem recusa, `pointer`
+# nomeando contra o que valida.
 # ---------------------------------------------------------------------------
-media_event:
-  required_fields: [type, deadline_minutes, requires_response]
-  optional_fields: [outlet, reporter, objectives, fact_check_against]
-  types:
-    - press_call
-    - investigative
-    - viral_post
-    - protest
-    - union
-  # Permite ao AAR comparar automaticamente o numero comunicado com o ground
-  # truth — a assimetria entre o que foi dito fora e o que de fato ocorreu.
-  fact_check_against:
-    resolves_against: ground_truth
+x-aurora-invalid-examples:
 
-# ---------------------------------------------------------------------------
-# Exemplo POSITIVO — manifesto minimo valido.
-# ---------------------------------------------------------------------------
-example_valid:
-  schema_version: 2
-  pack_id: ransomware-universidade
-  title: "Ransomware na véspera da matrícula"
-  domain: academus
-  min_engine_version: "1.0"
-  duration_minutes: 240
-  audience: executivo
-  lines: [A, B, ruido]
-  personas: [reitoria, ti, dpo, juridico, comunicacao]
-  required_flags: [academus.enrollment_offline, academus.lms_session_drop_rate]
-  required_rubrics: [incident_triage.v2, crisis_communication.v2]
-  evidence_sources: [email, vpn, identity_audit, database_audit]
-  branch_policy:
-    max_branch_points_per_line: 1
-    max_paths_per_branch: 2
-    reconvergence_required: true
-  calibration:
-    threshold: 0.15
+  - reason: 'required_rubrics sem versao: rubrica em versao diferente impede a carga'
+    rejected_by: schema
+    instance:
+      schema_version: 2
+      pack_id: ransomware-universidade
+      title: 'Ransomware na véspera da matrícula'
+      domain: academus
+      min_engine_version: '1.0'
+      duration_minutes: 240
+      personas: [reitoria, ti]
+      required_flags: [academus.enrollment_offline]
+      required_rubrics: [incident_triage]
 
-# ---------------------------------------------------------------------------
-# Exemplos NEGATIVOS.
-# ---------------------------------------------------------------------------
-examples_invalid:
-  - reason: "required_rubrics sem versao: rubrica em versao diferente impede a carga"
-    required_rubrics: [incident_triage]
+  - reason: 'schema_version diferente de 2 neste contrato'
+    rejected_by: schema
+    instance:
+      schema_version: 1
+      pack_id: ransomware-universidade
+      title: 'Ransomware na véspera da matrícula'
+      domain: academus
+      min_engine_version: '1.0'
+      duration_minutes: 240
+      personas: [reitoria, ti]
+      required_flags: [academus.enrollment_offline]
+      required_rubrics: [incident_triage.v2]
 
-  - reason: "required_flags com flag nao declarada no adapter: impede boot do engine"
-    required_flags: [academus.flag_que_nao_existe]
+  - reason: 'required_flags com flag nao declarada no adapter: impede boot do engine'
+    rejected_by: 'x-aurora-ref:adapter_flags'
+    instance:
+      schema_version: 2
+      pack_id: ransomware-universidade
+      title: 'Ransomware na véspera da matrícula'
+      domain: academus
+      min_engine_version: '1.0'
+      duration_minutes: 240
+      personas: [reitoria, ti]
+      required_flags: [academus.flag_que_nao_existe]
+      required_rubrics: [incident_triage.v2]
 
-  - reason: "inject sem objectives e sem noise: ruido deliberado ou erro de autoria"
-    injects:
-      - id: A07
-        t_relative: "00:47"
-        titulo_operacional: "Inject 07"
+  - reason: 'inject sem objectives e sem noise: ruido deliberado ou erro de autoria'
+    rejected_by: schema
+    pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
 
-  - reason: "branch sem reconverge_at"
-    branches:
-      - id: BR-A-01
-        at_inject: A08
-        evaluate:
-          - id: x
-            default: true
-            next: A09
+  - reason: 'branch sem reconverge_at'
+    rejected_by: schema
+    pointer: '#/$defs/branches_document'
+    instance:
+      branches:
+        - id: BR-A-01
+          at_inject: A08
+          evaluate:
+            - id: x
+              default: true
+              next: A09
 
-  - reason: "condicao de branch que depende de juizo: cenario deixa de ser ensaiavel"
-    branches:
-      - id: BR-A-02
-        at_inject: A08
-        reconverge_at: A12
-        evaluate:
-          - id: y
-            when:
-              facilitator_thinks_response_was_good: true
-            next: A09
+  - reason: 'condicao de branch que depende de juizo: cenario deixa de ser ensaiavel'
+    rejected_by: schema
+    pointer: '#/$defs/branches_document'
+    instance:
+      branches:
+        - id: BR-A-02
+          at_inject: A08
+          reconverge_at: A12
+          evaluate:
+            - id: y
+              when:
+                facilitator_thinks_response_was_good: true
+              next: A09
 
-  - reason: "capability_gap nomeando produto em vez de funcao de controle"
-    capability_gap:
-      control_function: "produto_xyz_edr"
+  - reason: 'capability_gap sem effects e sem tradeoff na opcao: lacuna como saida sem custo'
+    rejected_by: schema
+    pointer: '#/$defs/option'
+    instance:
+      id: no_capability
+      label: 'Não temos como fazer isso'
+      capability_gap:
+        control_function: federated_session_revocation
 
-  - reason: "capability_gap sem effects e sem tradeoff na opcao: lacuna como saida sem custo"
-    options:
-      - id: no_capability
-        label: "Não temos como fazer isso"
-        capability_gap:
-          control_function: federated_session_revocation
-
-  - reason: "media_event sem deadline"
-    media_event:
+  - reason: 'media_event sem deadline'
+    rejected_by: schema
+    pointer: '#/$defs/media_event'
+    instance:
       type: press_call
       requires_response: true
+
+  - reason: 'branch aponta para inject inexistente no pack'
+    rejected_by: 'x-aurora-ref:pack_injects'
+    pointer: '#/$defs/branches_document'
+    instance:
+      branches:
+        - id: BR-A-03
+          at_inject: A08
+          reconverge_at: Z99
+          evaluate:
+            - id: z
+              default: true
+              next: A09
+
+  - reason: 'effects escreve flag nao declarada no adapter'
+    rejected_by: 'x-aurora-ref:adapter_flags'
+    pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
+          objectives: [OBJ-03]
+          effects:
+            academus.flag_que_nao_existe: true
+
+  - reason: 'effects atribui string a flag booleana'
+    rejected_by: 'x-aurora-effects-match-flag-types'
+    pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
+          objectives: [OBJ-03]
+          effects:
+            academus.enrollment_offline: 'sim'
+
+  - reason: 'id de inject duplicado: branch nao teria como resolver at_inject'
+    rejected_by: 'x-aurora-unique'
+    pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
+          objectives: [OBJ-03]
+        - id: A07
+          t_relative: '00:52'
+          titulo_operacional: 'Comunicado 08'
+          objectives: [OBJ-03]

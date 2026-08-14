@@ -1,0 +1,45 @@
+# Aurora Cyber Range — dependências da aplicação.
+#
+# Criado na Fase 1 pela pendência P1-6. O projeto não tinha manifesto nenhum:
+# `alembic/env.py` importava `alembic` e `sqlalchemy` sem que nada declarasse
+# isso, e `import alembic` resolvia para o diretório `alembic/` do próprio
+# repositório como namespace package — a biblioteca nunca esteve instalada.
+#
+# FRONTEIRA QUE ESTE ARQUIVO NÃO ATRAVESSA
+#
+# Os seis verificadores de invariante de `tools/` continuam **stdlib puro** e
+# são invocados pelo CI **sem `pip install`**. É o gate que a Fase 0 construiu
+# em dezenove rodadas, e ele não ganha dependência: um gate que depende da
+# aplicação que ele julga deixa de ser gate.
+#
+# `.github/workflows/invariants.yml` mantém os dois jobs stdlib intactos e
+# instala isto num job separado, que roda apenas
+# `scripts/check_contract_examples.py`.
+
+[project]
+name = "aurora-cyber-range"
+version = "0.1.0"
+description = "Cyber range de exercício de crise institucional"
+requires-python = ">=3.12"
+
+dependencies = [
+    # Valida os contratos de `contracts/` e executa os exemplos positivos e
+    # negativos. Decisão D4 da Fase 1: os contratos são JSON Schema 2020-12, e
+    # a alternativa era um interpretador escrito à mão — que é a mesma decisão
+    # com outro nome.
+    "jsonschema>=4.21",
+
+    # Migrations. Modelos chegam na Fase 5; aqui o que se resolve é a P1-9,
+    # Alembic inicializado em arquivo e nunca executável.
+    "alembic>=1.13",
+    "sqlalchemy>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# `range-core` tem hífen e não é pacote importável por nome; a árvore desta
+# fase é esqueleto, não distribuição. Nada a empacotar ainda.
+packages = []
