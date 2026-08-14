@@ -181,6 +181,36 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### P23 — a metade "libera leitura" do item 4, atacada por causa e não por caso
+
+**Cinco rodadas, onze falsos bloqueios declarados, nenhuma rodada dedicada a eles.** Sempre LOW, sempre "falha para o lado seguro". Mas cada falso bloqueio **empurra a auditoria de medição para inferência de leitura de código** — a degradação que fez o H4 da primeira rodada ser HIGH, e a razão pela qual várias rodadas registraram "não consegui verificar" onde deveriam ter medido.
+
+Atacados por **causa**, em quatro grupos, não um a um:
+
+| Causa | Casos | Correção |
+|---|---|---|
+| `2>/dev/null` casava a regra de redirecionamento | 3 | `/dev/null`, `&1` e `&2` isentos — descarte e duplicação de descritor não persistem nada |
+| segundo segmento do pipe sem allowlist | 1 | filtros de leitura entram: `sort`, `cut`, `tr`, `nl`, `rev`, `comm`, `join`, `column`, `fold`, `basename`, `dirname` |
+| `git tag` negado inteiro | 2 | forma de **leitura** é fechada: `git tag` só, ou `--list`/`-l`. `git tag v9.9.9` e `-d` seguem bloqueados |
+| **separador dentro de aspas** | 1 + a família P8/P16 inteira | máscara de citação |
+| âncora `$` do harness e dos hooks recusava sufixo | 2 | admite só `2>/dev/null`; a âncora continua fechando o resto |
+
+**Resultado medido: 13 leituras legítimas liberadas (eram 5), 4 falsos bloqueios (eram 11), 0 escritas não bloqueadas.**
+
+**A máscara de citação é a correção estrutural, e é a que a oitava auditoria havia reprovado.** O `|` de `grep -n "a\|b"` nunca foi pipe: é conteúdo citado. A tentativa anterior falhou porque apagava o conteúdo citado **antes** de procurar substituição, e o bash expande `$()` dentro de aspas duplas.
+
+**Aqui a ordem é a inversa, e é isso que a torna segura:** `DENIED_ANYWHERE` roda contra o comando **cru** — inclusive `$(...)` e crase, negados desde a 13ª —, e a máscara serve **apenas** para delimitar segmentos. Nada que aconteça na máscara pode liberar escrita que a negação pegaria.
+
+**E ela cai para o lado seguro quando o parse pode divergir do bash.** Aspas escapadas ou não fechadas devolvem `confiavel=False`, e o hook volta ao texto cru, que acha **mais** separadores. Isso é probado nas duas direções em `MASCARA_ADVERSARIAL` — cinco probes adversariais da própria correção, porque ignorar separador citado é a direção *fail-open* e afirmar que ela é segura sem medir seria a classe de defeito que a 11ª e a 13ª puniram.
+
+**Os quatro que ficam são decisão, não pendência:**
+
+- **laço de shell** e **`$(...)`** são estrutura de controle e execução. Liberar o laço é liberar o corpo dele; liberar substituição foi o B1 da 13ª;
+- **o smoke test canônico** cita `rm -rf` dentro do payload JSON. Isentá-lo exigiria `DENIED_ANYWHERE` consciente de aspas — a direção fail-open, exatamente o que a oitava reprovou. Roda de uma sessão comum;
+- **leitura fora do worktree** é o custo deliberado da contenção.
+
+**`allowlist_e_a_revisada()` provou o valor no primeiro uso real.** Ao acrescentar os filtros, ele reprovou com doze nomes não revisados e me obrigou a examinar cada um. **`uniq` foi rejeitado na revisão**: escreve por **posicional** — `uniq entrada saida` —, mesma família do `find -fprint0`, sem flag para negar. `sort -u` cobre o uso. O desenho da sétima auditoria já o removera pelo mesmo motivo, e sem o probe ele teria voltado silenciosamente. **É a primeira vez nesta fase que um mecanismo impediu a reintrodução de um defeito conhecido em vez de a auditoria seguinte encontrá-lo.**
+
 ### P17 nunca fechou por um motivo mecânico: o deny é mais largo que a norma e torna `.env.example` incriável
 
 **Descoberto ao tentar criar o arquivo, 2026-08-14.** A ferramenta recusou: *"File is in a directory that is denied by your permission settings."*
@@ -556,7 +586,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⛔ **FALHA declarada, nas duas direções** — números do harness deste commit. **Escrita:** 33 formas bloqueadas mais 32 provas de invariante (8 formas × 4 grafias de alvo), e **0 não bloqueadas** — `BURACOS_CONHECIDOS` está vazia. **Leitura:** 5 liberadas, **11 falsos bloqueios** afirmados. O item não passa, e a definição que ele usa é insatisfazível por desenho — reformulada no `spec-change` do item 4. *(Esta célula ficou desatualizada por um commit, dizendo "2 não bloqueadas" depois de elas irem a zero: foi o H1 da 11ª auditoria, e é a reabertura do H2 da 9ª no commit seguinte ao que o fechou.)* |
+| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ **as duas direções tratadas; a definição é que segue insatisfazível.** **Escrita:** 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 4 de substituição; **0 não bloqueadas**. **Leitura:** 13 liberadas (eram 5) e **4 falsos bloqueios**, os quatro por decisão registrada, não por defeito pendente (§6 P23). O item só passa quando a reformulação do `spec-change` entrar: o texto vigente pede uma propriedade universal que este desenho não demonstra |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS, e sempre foi** — `Read`/`Edit` de `.env`, `.env.*` e `secrets/**` negados, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. A marcação ⚠️ parcial durou seis rodadas (P13, P19) sobre uma lacuna inexistente; a própria plataforma recusou as regras `Write(...)` como inertes na primeira vez que foram exercitadas |
