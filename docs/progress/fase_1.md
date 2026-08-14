@@ -146,8 +146,8 @@ Nove verificações, todas verdes na árvore limpa:
 |---|---|---|
 | os seis verificadores de `tools/` | os quatro invariantes arquiteturais | stdlib |
 | `scripts/phase0_negative_tests.py` | que os seis **reprovam** — **27** leituras, 36 escritas, 112 provas | stdlib |
-| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **59** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito | `jsonschema` |
-| `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em **7** eixos de fixture mentirosa | `jsonschema` |
+| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **60** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito; `effect_class` cobre o catálogo exatamente | `jsonschema` |
+| `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em **9** eixos de defeito | `jsonschema` |
 
 As duas últimas rodam no job `contratos`, separado, **o único que instala dependência** — ver P1-6 e P1-10.
 
@@ -159,22 +159,26 @@ As duas últimas rodam no job `contratos`, separado, **o único que instala depe
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Os seis contratos existem e validam exemplos positivos e negativos | ✅ **executados** — 9 positivos validam, 53 negativos são recusados pela camada que cada um declara, e o executor reprova em 6 eixos de defeito plantado. Ver §1.3 e P1-6 |
+| 1 | Os seis contratos existem e validam exemplos positivos e negativos | ✅ **executados** — 9 positivos validam, 60 negativos são recusados pela camada que cada um declara, cada um por um só defeito, e o executor reprova em 9 eixos. Ver §1.3 e P1-6 |
 | 2 | Constantes tipadas geradas em Python e TypeScript para flags e event types | ✅ 32 event types, 12 flags, seis artefatos |
 | 3 | Teste de fronteira core/adapter passa (por AST) | ✅ e falha contra import plantado |
 | 4 | `event_type` fora do catálogo é rejeitado | ✅ catálogo fechado; literal fora do gerador reprova |
 | 5 | Os seis verificadores liberam árvore limpa e falham contra violação plantada | ✅ tabela §4 |
 | 6 | `codegen.py --check` detecta dessincronia e não escreve | ✅ provado nos dois sentidos |
 | 7 | `docker compose up` sobe Postgres e Redis | ✅ **verificado por execução** em 14/08/2026 — ver P1-1 |
-| 8 | `RANDOM_SEED` lido de `.env` | ⚠️ **parcial** — declarado em `.env.example`; nenhum código o lê ainda |
+| ~~8~~ | ~~`RANDOM_SEED` lido de `.env`~~ | ➡️ **migrado para a Fase 2** pelo spec-change `effect-class-marcas-temporais-e-seed`. Ver P1-2 e P1-17 |
 
-**A fase não está concluída.** Um item não passa — o 8 —, e `CLAUDE.md` diz que uma fase só está concluída quando **todos** passam.
+**A DoD da Fase 1 passa a ter sete itens, e os sete passam** — condicionado ao merge do spec-change `effect-class-marcas-temporais-e-seed`, que é quem move o item 8 para a Fase 2. Enquanto ele não mergear, o item 8 continua formalmente nesta lista e a fase continua aberta.
 
-**Item 8 fica em ⚠️, por decisão do operador, contra recomendação minha.** Eu havia proposto escrever um `range-core/config.py` mínimo que lesse `RANDOM_SEED`, para o item poder fechar. O operador recusou, e a recusa procede:
+**Por que o item 8 migrou, e não foi fechado por atestação.** Eu havia proposto escrever um `range-core/config.py` mínimo para o item poder fechar. O operador recusou:
 
 > *"Você marcou o item honestamente como ⚠️ e agora propõe escrever código para poder marcá-lo ✅. Isso é fechar item de DoD criando o consumidor, não é evidência."*
 
-É a mesma classe listada em §1.3 — satisfazer a forma do requisito em vez da propriedade — e eu a propus **no mesmo turno** em que a registrei em destaque. O NON-GOAL da fase é explícito quanto a não escrever lógica; e se o `config.py` for genuinamente necessário à Fase 2, ele nasce lá, na fase que o consome. **Um ⚠️ declarado com o teste anotado vale mais que um ✅ obtido assim.** O teste real continua sendo `00` §8: mesmo seed, dataset byte-idêntico em duas execuções.
+Depois, com o auditor apontando o mesmo item como BLOCKER nas duas rodadas, a decisão foi migrá-lo por spec-change, e o raciocínio registrado pelo operador é o que importa aqui:
+
+> *"Os itens 9-13 da Fase 0 eram inverificáveis por qualquer auditor — CI, branch protection, coisas fora do worktree. Este é perfeitamente verificável, só não está feito. Atestação para item verificável é declarar fato que não ocorreu."*
+
+O item não sumiu: virou item da Fase 2, com o texto endurecido para **"lido de `.env` por código do `range-core`, não por atestação"**. O teste real continua sendo `00` §8 — mesmo seed, dataset byte-idêntico em duas execuções.
 
 O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/flags.py`, e a §2 deste mesmo documento já dizia 12 — o registro se contradizia. Corrigido.
 
@@ -194,6 +198,8 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-13 | Achados da auditoria, rodadas 1 e 2 | ✅ BLOCKER/HIGH/MEDIUM/LOW corrigidos, salvo os abaixo |
 | P1-14 | Predicado satisfeito por declaracao (M3) | ⚠️ **aberta, aguarda decisão de modelagem** |
 | P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ⚠️ **escalação aberta, dois não-master** |
+| P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
+| P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -430,6 +436,41 @@ O auditor registra com precisão o que **não** é o achado: `vpn_access_revoked
 **L3 da rodada 2 — `exercise_timestamp` opcional.** `01` §3 diz "três marcas temporais, nunca uma só"; `09` §1.1 não o lista entre os obrigatórios. **Os dois são documentos não-master**, e `CLAUDE.md` §"Autoridade" manda *parar e perguntar* nesse caso, não resolver por inferência. Diferente do H2, onde o MASTER_SPEC decidia. **Escalação aberta.**
 
 **P25 herdada, reforçada.** O auditor observa que `actions/checkout@v4` e `actions/setup-python@v5` são a mesma classe do B2 e já estão declarados na P25.
+
+#### P1-16 — Falha de processo: registrei a auditoria e segui sem tratá-la
+
+**Entrada própria, e não nota dentro da correção, porque o defeito é do processo e não do artefato.**
+
+Depois da rodada 1, eu commitei o relatório e segui. `docs/process/WORKFLOW.md:36` define o ciclo como **corrigir BLOCKER/HIGH, novo commit candidato, reauditar**. Registrar não é tratar.
+
+Consequência medida: **três achados reapareceram na rodada 2** — H1 (`correlation` ausente), M1 (`check_event_envelope` sem TypeScript) e L1 (`objective_ids` só na raiz). O auditor gastou uma rodada reencontrando o que já estava escrito no próprio repositório, e o relatório da rodada 2 registra isso explicitamente: *"não foi nem corrigido nem registrado como pendência"*.
+
+O agravante: o H1 era achado de **leitura da spec**, não de execução. Estava correto e completo no relatório da rodada 1, com arquivo e linha. Passei por cima dele duas vezes — uma ao escrever o contrato, outra ao ler o relatório que o apontava.
+
+**Por que aconteceu.** Tratei o relatório como artefato a versionar em vez de trabalho a fazer. O commit `4a7b092` — *"fase-1: relatorio da primeira auditoria"* — é exatamente isso: preservou a evidência e não agiu sobre ela. É a mesma família das §1.2 e §1.3: cumprir a forma do mecanismo — a auditoria rodou, o relatório está versionado — e perder a propriedade que ele deveria garantir, que é o defeito deixar de existir.
+
+**Regra adotada:** commit que registra relatório de auditoria não fecha o ciclo. O ciclo fecha quando cada BLOCKER e HIGH está corrigido ou explicitamente registrado como pendência aberta com decisão pendente. Findings MEDIUM e LOW não corrigidos entram em pendência nomeada — os três que reapareceram não estavam em lugar nenhum de §6.
+
+#### P1-17 — Spec-change aplicado: `effect_class`, três marcas temporais e a migração do item 8
+
+Branch `spec-change/effect-class-marcas-temporais-e-seed`, commit `96296e1`, **saindo de `main`** para que o diff contenha apenas `docs/spec/`. As três decisões foram apresentadas como diff antes de qualquer edição e aprovadas uma a uma.
+
+**O que a spec passou a dizer:**
+
+- `09` §4.0 — `effect_class` com quatro valores, ortogonal a `truth_layer`, e a regra derivada: a folha `event` de um predicado de verificação só pode referenciar `state_effect`.
+- `09` §4.1 — os 32 tipos classificados, em tabela, com os seis casos de decisão registrados no próprio documento.
+- `09` §1.1 — `exercise_timestamp` e `clock_multiplier` entram nos obrigatórios.
+- `03` §3.1 — a restrição do predicado, com o custo de não tê-la.
+- `07` — item 8 sai da Fase 1 e entra na Fase 2 como *"lido de `.env` por código do `range-core`, não por atestação"*.
+
+**O que este commit de código implementa:**
+
+- `x-aurora-registry.effect_class` nos 32 tipos de `events.schema.yaml`, com os comentários de decisão junto dos casos ambíguos;
+- `x-aurora-ref: event_catalog_state_effect` na folha `event` do predicado, e **apenas** nela — o branching mantém acesso ao catálogo inteiro, porque ramificar sobre o que a equipe **declarou** é desenho legítimo de cenário; o que não pode é **verificar** contra declaração;
+- `exercise_timestamp` obrigatório, propagado às 11 instâncias de envelope;
+- fixture negativa `containment: {all: [{event: containment_declared}]}` — o achado da rodada 2, agora recusado por regra e provado por fixture.
+
+**Cobertura de `effect_class` é verificada, não presumida.** A tabela é uma **segunda lista** dos mesmos 32 tipos, e segunda lista é o que diverge em silêncio — foi assim que `must_exist_in_event_catalog` ganhou dois nomes na D4. O executor exige cobertura exata nos três sentidos: todo tipo do catálogo classificado, nenhuma classe órfã, nenhum valor fora do conjunto declarado. **Dois eixos novos de probe** provam que ele reprova nos dois primeiros. Eixos: 9. Exemplos negativos: 60.
 
 ### Abertas
 

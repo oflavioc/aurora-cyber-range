@@ -37,12 +37,19 @@ type: object
 # reconstruivel. A forma anterior declarava o campo e nao o exigia — H2 da
 # segunda auditoria da Fase 1, a mesma classe do P1-12 na direcao oposta: la o
 # contrato recusava o que a spec exige, aqui aceitava o que ela proibe.
+#
+# `exercise_timestamp` entrou pelo mesmo spec-change. 01 secao 3 diz "tres
+# marcas temporais, nunca uma so" e 09 secao 1.1 nao o exigia — conflito entre
+# dois documentos NAO-master, que CLAUDE.md manda escalar em vez de resolver por
+# inferencia. Escalado, decidido, e 09 secao 1.1 corrigido: sem ele, evento de
+# epoch 2 e evento de epoch 0 nao sao ordenaveis entre si na linha do exercicio.
 required:
   - event_id
   - event_type
   - truth_layer
   - producer
   - exercise_time
+  - exercise_timestamp
   - wall_timestamp
   - clock_multiplier
   - simulation_epoch
@@ -71,6 +78,7 @@ properties:
     minLength: 1
   exercise_timestamp:
     type: string
+    minLength: 1
   wall_timestamp:
     type: string
     minLength: 1
@@ -339,6 +347,78 @@ $defs:
       - adjudication
 
 # ---------------------------------------------------------------------------
+# EFFECT_CLASS — 09 secao 4.0, acrescentada pelo spec-change
+# `effect-class-marcas-temporais-e-seed`.
+#
+# `truth_layer` responde QUEM AFIRMA. `effect_class` responde QUE ESPECIE DE
+# COISA O EVENTO E. Sao ortogonais: `vpn_access_revoked` e `containment_declared`
+# sao ambos `participant_action`, e o primeiro e `state_effect` porque o acesso
+# caiu independente de qualquer declaracao.
+#
+# PARA QUE SERVE: a folha `event` de um predicado de verificacao so pode
+# referenciar `state_effect` (03 secao 3.1). Sem isso,
+# `containment: {all: [{event: containment_declared}]}` e pack valido, TTCD e
+# TTCV medem o mesmo instante, e o delta que 03 secao 3.2 chama de "o achado"
+# deixa de existir sem que nada falhe.
+#
+# `verification_predicate_satisfied` e `machine` e isto nao admite excecao: como
+# `state_effect`, um predicado poderia referenciar o evento que ele proprio emite
+# ao ser satisfeito.
+#
+# COBERTURA EXATA e verificada por scripts/check_contract_examples.py: todo tipo
+# do catalogo tem classe, nenhuma classe orfa, nenhum valor fora do conjunto. Sem
+# essa checagem, esta tabela e uma SEGUNDA copia da lista de 32 e divergiria da
+# primeira em silencio.
+# ---------------------------------------------------------------------------
+x-aurora-registry:
+
+  effect_class_values: [state_effect, declaration, observation, machine]
+
+  effect_class:
+    fact_materialized: state_effect
+    attack_stage_reached: state_effect
+    verification_predicate_satisfied: machine
+
+    evidence_source_released: machine
+    evidence_source_accessed: observation
+    telemetry_emitted: machine
+
+    inject_viewed: observation
+    audit_query_performed: observation
+    evidence_source_opened: observation
+    incident_declared: declaration
+    separate_incident_declared: declaration
+    classification_declared: declaration
+    containment_declared: declaration
+    service_restoration_declared: declaration
+    integrity_validation_declared: declaration
+    assessment_submitted: declaration
+    # O CONTEUDO e afirmacao; o ATO tem efeito externo — o publico soube, o
+    # regulador foi notificado. A classificacao segue o ato, e o conteudo
+    # continua tratado como afirmacao em 04 secao 7, que compara o numero
+    # comunicado com o ground truth.
+    communication_submitted: state_effect
+    regulatory_notice_submitted: state_effect
+    continuity_action_taken: state_effect
+    vpn_access_revoked: state_effect
+    identity_scope_disabled: state_effect
+    # A opcao escolhida carrega `effects` que mutam flags. O uso real em
+    # branching passa pelas folhas `decision` e `option` de 04 secao 6.1.
+    decision_made: state_effect
+    capability_gap_declared: declaration
+
+    bars_score_submitted: declaration
+    observed_marker_set: declaration
+    qualitative_note_added: declaration
+
+    inject_fired: machine
+    rollback_performed: machine
+    branch_selected: machine
+    exercise_started: machine
+    exercise_paused: machine
+    exercise_reset: machine
+
+# ---------------------------------------------------------------------------
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
 examples:
@@ -387,6 +467,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -401,6 +482,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -416,6 +498,7 @@ x-aurora-invalid-examples:
       producer: academus-api
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -429,6 +512,7 @@ x-aurora-invalid-examples:
       producer: academus-api
       actor_id: 'user-123'
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -445,6 +529,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       simulation_epoch: 1
 
@@ -459,6 +544,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -478,6 +564,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -494,6 +581,7 @@ x-aurora-invalid-examples:
       actor_id: 'user-123'
       persona: ti
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -507,6 +595,7 @@ x-aurora-invalid-examples:
       truth_layer: facilitation
       producer: inject-engine
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
 
@@ -518,6 +607,7 @@ x-aurora-invalid-examples:
       truth_layer: ground_truth
       producer: engine
       exercise_time: 'T+01:12:04'
+      exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: 1
@@ -532,6 +622,7 @@ x-aurora-invalid-examples:
       truth_layer: facilitation
       producer: engine
       exercise_time: 'T+00:00:00'
+      exercise_timestamp: '2026-08-13T09:00:00'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: -1
