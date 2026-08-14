@@ -1,0 +1,194 @@
+# CONTRATO — Manifesto de projecoes de evidencia
+#
+# Autoridade: 08_EVIDENCE_SIMULATOR.md secoes 3, 5 e 7;
+#             05_SECURITY_REQUIREMENTS.md secoes 2, 3 e 4.
+#
+# Valida o MANIFEST.json de scenarios/<domain>/<pack>/evidence/, produzido por
+# `range-cli evidence build` e conferido por `range-cli evidence verify`.
+#
+# O manifesto existe para duas coisas (08 secao 7): o facilitador saber o que
+# existe, e o teste verificar COBERTURA DE PROJECAO — que todo fato com
+# `projections` declaradas tem os arquivos correspondentes.
+
+schema_version: 1
+contract: evidence
+
+# ---------------------------------------------------------------------------
+# PRINCIPIO — 00 secao 5.3 e 08 secao 1.
+#
+# Toda evidencia e PROJECAO DETERMINISTICA de fato canonico declarado em
+# ground_truth.yaml. Nunca gerada independentemente.
+#
+# Mesmo seed e NECESSARIO MAS NAO SUFICIENTE: geradores independentes divergem
+# semanticamente a primeira mudanca de codigo ou de ordem de geracao, e a
+# divergencia so aparece quando o time azul encontra a contradicao, no meio do
+# exercicio.
+#
+# Por isso `projects_facts` e obrigatorio e nao pode ser vazio: arquivo de
+# evidencia que nao projeta fato nenhum e conteudo autoral disfarcado.
+# ---------------------------------------------------------------------------
+required_sections:
+  - generated_from
+  - sources
+
+generated_from:
+  required_fields: [pack_id, ground_truth_hash, random_seed]
+
+source:
+  required_fields:
+    - file
+    - format
+    - delivery_mode
+    - projects_facts
+    - sha256
+  optional_fields:
+    - window
+    - requires_request_delay_minutes
+
+  projects_facts:
+    type: sequence
+    of: string
+    min_items: 1
+    must_exist_in_ground_truth: true
+
+# ---------------------------------------------------------------------------
+# FONTES v1 — 08 secao 3.
+#
+# Conjunto fechado nesta versao. As pos-MVP de 08 secao 4 (firewall, radius,
+# web_application, saas_audit, cloud_audit, edr_timeline) entram por
+# spec-change, quando houver pacote cujo ground truth as exija.
+#
+# DNS, proxy e DHCP foram cortadas deliberadamente: para este ground truth
+# provam pouco — a entrada e credencial phishada sobre VPN, nao C2 por DNS.
+# ---------------------------------------------------------------------------
+formats:
+  email: rfc5322
+  vpn: syslog_text
+  identity_audit: jsonl
+  database_audit: jsonl
+  cef: cef_syslog
+  precursor: jsonl
+
+# ---------------------------------------------------------------------------
+# MODOS DE ENTREGA — 08 secao 5.
+# ---------------------------------------------------------------------------
+delivery_modes:
+  - pre_positioned
+  - released_by_inject
+  - on_request
+
+# `on_request` aceita atraso configuravel, que simula dependencia de
+# fornecedor. E o modo mais realista e o que melhor exercita OBJ-02.
+conditional_fields:
+  on_request:
+    optional: [requires_request_delay_minutes]
+  released_by_inject:
+    required: [window]
+
+# ---------------------------------------------------------------------------
+# RESTRICOES DE SEGURANCA — 05 secoes 2, 3 e 4. Nao admitem excecao.
+# ---------------------------------------------------------------------------
+security_constraints:
+  # 05 secao 2: sem anexo, sem binario, sem macro, sem script.
+  attachments_allowed: false
+
+  # 05 secao 3: IPs so de faixa de documentacao (RFC 5737 / RFC 3849) ou
+  # privada. Guardado por tools/check_synthetic_data.py.
+  allowed_ip_ranges:
+    - 192.0.2.0/24
+    - 198.51.100.0/24
+    - 203.0.113.0/24
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+
+  # 05 secao 2: dominios apenas de faixa reservada a documentacao. Nenhuma URL
+  # clicavel para host existente.
+  allowed_domain_suffixes:
+    - .example
+    - .example.com
+    - .example.org
+    - .invalid
+    - .test
+
+  # 05 secao 5.1: vendor/product identifica produto FICTICIO. O proposito e
+  # tecnico — impedir que evidencia sintetica seja confundida com telemetria
+  # real de um produto, dentro ou fora do exercicio.
+  cef_vendor: UniAurora
+  cef_product: ACADEMUS
+
+  # 05 secao 4: banner em todo artefato gerado, como comentario na primeira
+  # linha, no formato do proprio arquivo.
+  banner_required: true
+  banner_text: "AMBIENTE SIMULADO — DADOS FICTÍCIOS"
+
+  # 05 secao 2: sem hash de malware real, sem IOC de campanha real.
+  real_ioc_allowed: false
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO.
+# ---------------------------------------------------------------------------
+example_valid:
+  generated_from:
+    pack_id: ransomware-universidade
+    ground_truth_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    random_seed: 424242
+  sources:
+    - file: vpn.log
+      format: syslog_text
+      delivery_mode: released_by_inject
+      window: "T-9d → T-8d"
+      projects_facts: [GT-A-014]
+      sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    - file: identity_audit.jsonl
+      format: jsonl
+      delivery_mode: pre_positioned
+      projects_facts: [GT-A-014, GT-A-019]
+      sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "projects_facts vazio: arquivo autoral disfarcado de projecao"
+    sources:
+      - file: vpn.log
+        format: syslog_text
+        delivery_mode: pre_positioned
+        projects_facts: []
+
+  - reason: "fact_id inexistente no ground_truth do pack"
+    sources:
+      - file: vpn.log
+        format: syslog_text
+        delivery_mode: pre_positioned
+        projects_facts: [GT-Z-999]
+
+  - reason: "released_by_inject sem window"
+    sources:
+      - file: vpn.log
+        format: syslog_text
+        delivery_mode: released_by_inject
+        projects_facts: [GT-A-014]
+
+  - reason: "anexo em evidencia: proibido por 05 secao 2"
+    sources:
+      - file: phishing.eml
+        format: rfc5322
+        delivery_mode: pre_positioned
+        projects_facts: [GT-A-001]
+        attachments: [fatura.xlsm]
+
+  - reason: "formato fora do conjunto v1"
+    sources:
+      - file: dns.log
+        format: syslog_text
+        delivery_mode: pre_positioned
+        projects_facts: [GT-A-014]
+
+  - reason: "sem sha256: o teste nao teria como verificar cobertura de projecao"
+    sources:
+      - file: vpn.log
+        format: syslog_text
+        delivery_mode: pre_positioned
+        projects_facts: [GT-A-014]

@@ -1,0 +1,186 @@
+# CONTRATO — Flags de estado de simulacao
+#
+# Autoridade: 01_ARCHITECTURE.md secao 5.
+#
+# Escrito no subconjunto YAML estrito que tools/_common.py aceita: mapeamentos e
+# sequencias em bloco, sequencias em fluxo, escalares simples, documento unico.
+# Sem ancoras, aliases, merge keys ou escalares multilinha. Um parser tolerante
+# seria pior que grep: faria o verificador passar por ter lido o contrato errado,
+# em silencio.
+
+schema_version: 1
+contract: state_flags
+
+# ---------------------------------------------------------------------------
+# Namespacing — 01_ARCHITECTURE.md secao 5.1
+#
+# `core.*` para o motor, `<adapter>.*` para dominios. Existe para que dois
+# dominios possam coexistir sem colisao de nome.
+# ---------------------------------------------------------------------------
+name_pattern: "^(core|[a-z][a-z0-9_]*)\\.[a-z][a-z0-9_]*$"
+
+required_fields:
+  - name
+  - type
+  - default
+  - category
+  - domain_area
+  - severity_weight
+  - wallboard_group
+  - consumers
+  - effect_ui
+  - reversible
+
+# ---------------------------------------------------------------------------
+# Sistema de tipos — decisao D3 da Fase 1.
+#
+# 01_ARCHITECTURE.md secao 5.2 exemplifica apenas `boolean`, mas o inject de
+# 04_SCENARIO_SCHEMA.md secao 5 atribui `academus.lms_session_drop_rate: 0.4`, e
+# essa flag consta de `required_flags` no manifesto. O contrato precisa declarar
+# o conjunto, e 04 secao 4 proibe alterar semantica de campo dentro da mesma
+# schema_version — errar aqui custa migracao.
+#
+# `string` livre NAO entra, por decisao: e o tipo que o codegen nao consegue
+# tipar de forma util em TypeScript, que o wallboard nao sabe renderizar por
+# convencao (01 secao 5.3), e que permitiria valor nunca declarado. `enum` cobre
+# estado ordinal — degradado / offline / restaurado — sem abrir essa porta.
+# ---------------------------------------------------------------------------
+types:
+  - boolean
+  - number
+  - enum
+
+# `enum` exige `values`; `number` aceita `min` e `max` opcionais. Sem dominio
+# declarado, `severity_weight` e taxas nao teriam faixa verificavel.
+conditional_fields:
+  enum:
+    required: [values]
+  number:
+    optional: [min, max]
+
+# ---------------------------------------------------------------------------
+# Taxonomia — 01_ARCHITECTURE.md secao 5.2 e 5.3.
+#
+# Conjuntos FECHADOS. Sao eles que habilitam wallboard gerado por convencao,
+# codificacao visual por categoria, indice de saude institucional e AAR
+# segmentado. Valor novo aqui exige spec-change, nao commit de implementacao.
+# ---------------------------------------------------------------------------
+categories:
+  - availability
+  - integrity
+  - confidentiality
+  - identity
+  - performance
+  - narrative
+  - regulatory
+
+domain_areas:
+  - academic
+  - financial
+  - research
+  - identity
+  - infrastructure
+  - communication
+
+severity_weight:
+  type: number
+  min: 0
+  max: 10
+
+# `consumers` nomeia servicos que leem ou escrevem a flag. 01 secao 5.4: nenhum
+# servico le ou escreve flag nao declarada.
+consumers:
+  type: sequence
+  of: string
+  min_items: 1
+
+reversible:
+  type: boolean
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — deve validar.
+# ---------------------------------------------------------------------------
+example_valid:
+  flags:
+    - name: academus.enrollment_offline
+      type: boolean
+      default: false
+      category: availability
+      domain_area: academic
+      severity_weight: 8
+      wallboard_group: "Matrícula"
+      consumers: [academus-api, academus-web, wallboard]
+      effect_ui: "Portal de matrícula retorna 503 com página de manutenção"
+      reversible: true
+
+    - name: academus.lms_session_drop_rate
+      type: number
+      default: 0
+      min: 0
+      max: 1
+      category: performance
+      domain_area: academic
+      severity_weight: 5
+      wallboard_group: "AVA"
+      consumers: [academus-api, wallboard]
+      effect_ui: "Fração de sessões do AVA derrubadas por minuto"
+      reversible: true
+
+    - name: academus.enrollment_service_state
+      type: enum
+      values: [normal, degraded, offline, restoring]
+      default: normal
+      category: availability
+      domain_area: academic
+      severity_weight: 7
+      wallboard_group: "Matrícula"
+      consumers: [academus-api, wallboard]
+      effect_ui: "Estado ordinal do serviço de matrícula no telão"
+      reversible: true
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada um deve ser recusado, com o motivo nomeado.
+#
+# Existem no contrato porque a DoD da Fase 1 exige que os contratos "validem
+# exemplos positivos e negativos". Contrato sem exemplo negativo nao prova que
+# recusa nada — e a mesma licao do harness da Fase 0.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "name sem namespace"
+    flags:
+      - name: enrollment_offline
+        type: boolean
+        default: false
+
+  - reason: "category fora do conjunto fechado"
+    flags:
+      - name: academus.x
+        type: boolean
+        default: false
+        category: disponibilidade
+
+  - reason: "type fora do conjunto: string livre nao e permitido"
+    flags:
+      - name: academus.banner_text
+        type: string
+        default: ""
+
+  - reason: "enum sem values"
+    flags:
+      - name: academus.state
+        type: enum
+        default: normal
+
+  - reason: "severity_weight fora da faixa 0-10"
+    flags:
+      - name: academus.y
+        type: boolean
+        default: false
+        severity_weight: 11
+
+  - reason: "consumers vazio: flag que ninguem le nem escreve"
+    flags:
+      - name: academus.z
+        type: boolean
+        default: false
+        consumers: []

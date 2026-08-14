@@ -1,0 +1,164 @@
+# CONTRATO — Catalogo de eventos
+#
+# Autoridade: 09_EVENT_MODEL.md secoes 1, 2 e 4.
+#
+# REGISTRO FECHADO. event_type fora deste catalogo e rejeitado na emissao e
+# falha no CI (06_ACCEPTANCE_TESTS.md T2).
+#
+# O motivo esta em 09 secao 4: um event_type com erro de digitacao NUNCA
+# dispara. O marcador de evidencia silenciosamente nao e coletado, o objetivo
+# nunca e satisfeito, a branch nunca ramifica — e ninguem percebe ate o
+# exercicio ao vivo. E a falha mais cara possivel.
+#
+# `tools/_common.py::load_declared_event_types` le este arquivo pela chave
+# `event_types`, agrupada por truth_layer. `tools/codegen.py` gera as constantes
+# em contracts/generated/events.py e events.ts.
+
+schema_version: 1
+contract: events
+
+# ---------------------------------------------------------------------------
+# CINCO VALORES, QUATRO VERDADES — 00_MASTER_SPEC.md secao 3.1.
+#
+# As quatro primeiras camadas afirmam algo sobre o INCIDENTE. `facilitation`
+# afirma algo sobre a MAQUINA DE EXERCICIO, e por isso e ortogonal ao modelo em
+# vez de ser uma quinta camada dele.
+# ---------------------------------------------------------------------------
+truth_layers:
+  - ground_truth
+  - observable_evidence
+  - participant_action
+  - evaluator_assessment
+  - facilitation
+
+# Envelope universal — 09 secao 1.1.
+required_envelope_fields:
+  - event_id
+  - event_type
+  - truth_layer
+  - producer
+  - exercise_time
+  - wall_timestamp
+  - simulation_epoch
+
+# actor_id e persona sao obrigatorios quando a camada e de pessoa.
+conditional_envelope_fields:
+  participant_action:
+    required: [actor_id, persona]
+  evaluator_assessment:
+    required: [actor_id, persona]
+
+# ---------------------------------------------------------------------------
+# PROIBIDO NO ENVELOPE — 09 secao 1.2.
+#
+# `objective_ids` nao e emitido. O binding evento -> objetivo ocorre na
+# projecao, via observability_hooks.yaml. Se a academus-api precisasse saber que
+# uma consulta satisfaz OBJ-03, o dominio passaria a conhecer o desenho de
+# exercicio e a fronteira core/adapter vazaria.
+#
+# Guardado por tools/check_event_envelope.py.
+# ---------------------------------------------------------------------------
+forbidden_envelope_fields:
+  - objective_ids
+
+event_types:
+
+  ground_truth:
+    - fact_materialized
+    - attack_stage_reached
+    - verification_predicate_satisfied
+
+  observable_evidence:
+    - evidence_source_released
+    - evidence_source_accessed
+    - telemetry_emitted
+
+  participant_action:
+    - inject_viewed
+    - audit_query_performed
+    - evidence_source_opened
+    - incident_declared
+    # Declarar que sao DOIS incidentes e acao distinta de declarar UM: e o
+    # objeto do OBJ-03. Acrescentado no spec-change
+    # `facilitation-e-separate-incident`.
+    - separate_incident_declared
+    - classification_declared
+    - containment_declared
+    - service_restoration_declared
+    - integrity_validation_declared
+    - assessment_submitted
+    - communication_submitted
+    - regulatory_notice_submitted
+    - continuity_action_taken
+    - vpn_access_revoked
+    - identity_scope_disabled
+    - decision_made
+    - capability_gap_declared
+
+  evaluator_assessment:
+    - bars_score_submitted
+    - observed_marker_set
+    - qualitative_note_added
+
+  facilitation:
+    - inject_fired
+    - rollback_performed
+    - branch_selected
+    - exercise_started
+    - exercise_paused
+    - exercise_reset
+
+# ---------------------------------------------------------------------------
+# Taxonomia de motivo de rollback — 09 secao 3.1.
+#
+# Rotulo sem consequencia nao serve. Cada motivo tem efeito definido no AAR e
+# nas metricas, e o conjunto e fechado pelo mesmo motivo do catalogo.
+# ---------------------------------------------------------------------------
+rollback_reasons:
+  - technical_failure
+  - rehearsal
+  - facilitation
+  - adjudication
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — envelope valido.
+# ---------------------------------------------------------------------------
+example_valid:
+  event_id: "01J9F000000000000000000000"
+  event_type: audit_query_performed
+  truth_layer: participant_action
+  producer: academus-api
+  actor_id: "user-123"
+  persona: ti
+  exercise_time: "T+01:12:04"
+  exercise_timestamp: "2026-08-13T10:12:04"
+  wall_timestamp: "2026-08-13T11:47:31-03:00"
+  clock_multiplier: 1
+  simulation_epoch: 1
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — cada um deve ser recusado.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "event_type fora do catalogo fechado"
+    event_type: audit_query_perfomed
+    truth_layer: participant_action
+
+  - reason: "truth_layer fora dos cinco valores"
+    event_type: incident_declared
+    truth_layer: belief
+
+  - reason: "participant_action sem actor_id e sem persona"
+    event_type: containment_declared
+    truth_layer: participant_action
+    producer: academus-api
+
+  - reason: "objective_ids no envelope: o binding e da projecao, nao do evento"
+    event_type: audit_query_performed
+    truth_layer: participant_action
+    objective_ids: [OBJ-03]
+
+  - reason: "sem simulation_epoch: rollback nao teria como marcar a linha temporal"
+    event_type: inject_fired
+    truth_layer: facilitation
+    producer: inject-engine

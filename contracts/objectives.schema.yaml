@@ -1,0 +1,176 @@
+# CONTRATO — Objetivos de aprendizagem do pacote
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 1, 09_EVENT_MODEL.md secao 6.
+#
+# DIVISAO DE RESPONSABILIDADE (00 secao 5.8, 03 secao 1.1):
+#   o CORE responde por COMO PONTUAR a competencia — rubrica versionada;
+#   o PACK responde por ONDE ELA SE MANIFESTA — quais evidencias, neste dominio.
+#
+# Objetivo sem evidencia observavel associada nao entra no AAR como metrica
+# (00 secao 5.7). Impressao de facilitador entra rotulada como nota qualitativa.
+
+schema_version: 1
+contract: objectives
+
+objective_id_pattern: "^OBJ-[0-9]{2}$"
+
+objective:
+  required_fields:
+    - title
+    - competency
+    - rubric
+    - evidence
+  optional_fields:
+    - expected_behavior
+    - scoring
+    - metric_binding
+    - debrief_questions
+
+# ---------------------------------------------------------------------------
+# RUBRICA COM VERSAO — 04 secao 2 e 00 secao 5.8.
+#
+# `required_rubrics` do manifesto inclui a versao. Rubrica ausente ou em versao
+# diferente IMPEDE A CARGA do pack. A ancora BARS e universal e versionada; o
+# que muda entre packs e onde a competencia se manifesta, nao como se pontua.
+# ---------------------------------------------------------------------------
+rubric_pattern: "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+
+# ---------------------------------------------------------------------------
+# EVIDENCIA — APENAS DUAS CLASSES (03 secao 1.2).
+#
+# `auto`     — emitida pela aplicacao instrumentada, com produtor identificavel.
+#              Declarada em domains/<adapter>/observability_hooks.yaml.
+# `observed` — marcada por avaliador, SEMPRE com pergunta explicita e ancora
+#              BARS. Nunca "de uma nota".
+#
+# NAO EXISTE classe `derived`. Inferencias sao calculadas pelo AAR a partir de
+# eventos `auto`. Ou o sistema observou, ou uma pessoa observou — a ontologia
+# permanece binaria e a proveniencia, rastreavel.
+# ---------------------------------------------------------------------------
+evidence:
+  allowed_classes: [auto, observed]
+  forbidden_classes: [derived]
+  min_classes_present: 1
+
+  # Todo item de `auto` e um event_type e DEVE existir em
+  # contracts/events.schema.yaml. Mesma regra do branching (04 secao 6.2): um
+  # event_type com erro de digitacao nunca dispara, o objetivo nunca e
+  # satisfeito, e ninguem percebe ate o exercicio ao vivo.
+  auto:
+    type: sequence
+    of: string
+    must_exist_in_event_catalog: true
+
+  # Todo item de `observed` exige `id` e `prompt_to_evaluator`. Pergunta
+  # explicita e o que separa marcacao ancorada de opiniao.
+  observed:
+    type: sequence
+    of: mapping
+    required_fields: [id, prompt_to_evaluator]
+
+# ---------------------------------------------------------------------------
+# METRICAS — 03 secao 3.
+#
+# Pares declaracao x verificacao, mais as simples sem par. `metric_binding`
+# amarra o objetivo a metrica que o evidencia.
+# ---------------------------------------------------------------------------
+metric_binding:
+  allowed:
+    - TTA
+    - TTT
+    - TTCM
+    - TTCD
+    - TTCV
+    - TTRD
+    - TTRV
+    - TTID
+    - TTIV
+    - calibracao
+
+scoring:
+  levels: [excellent, adequate, poor]
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — o OBJ-03 normativo de 03 secao 1.1.
+# ---------------------------------------------------------------------------
+example_valid:
+  objectives:
+    OBJ-03:
+      title: "Reconhecer incidentes concorrentes"
+      competency: incident_triage
+      rubric: incident_triage.v2
+      expected_behavior:
+        - "manter hipóteses concorrentes explicitamente registradas"
+        - "não atribuir alteração de notas ao ransomware sem evidência correlacional"
+      evidence:
+        auto:
+          - audit_query_performed
+          - separate_incident_declared
+        observed:
+          - id: articulated_competing_hypotheses
+            prompt_to_evaluator: "A equipe verbalizou mais de uma hipótese antes de convergir?"
+      scoring:
+        excellent: "<= 25 min e hipótese separada declarada"
+        adequate: "<= 45 min, mesmo sem declaração formal"
+        poor: "atribui Linha B à Linha A sem investigação"
+      metric_binding: TTT
+      debrief_questions:
+        - "Em que momento decidiram que era um único incidente? O que sustentava isso?"
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "evidence.auto referencia event_type fora do catalogo"
+    objectives:
+      OBJ-01:
+        title: "x"
+        competency: escalation
+        rubric: escalation.v1
+        evidence:
+          auto: [incident_declaread]
+
+  - reason: "classe derived nao existe"
+    objectives:
+      OBJ-02:
+        title: "x"
+        competency: escalation
+        rubric: escalation.v1
+        evidence:
+          derived: [algo_inferido]
+
+  - reason: "observed sem prompt_to_evaluator: viraria 'de uma nota'"
+    objectives:
+      OBJ-04:
+        title: "x"
+        competency: analytical_rigor
+        rubric: analytical_rigor.v1
+        evidence:
+          observed:
+            - id: pensou_bem
+
+  - reason: "rubric sem versao: rubrica ausente ou em versao diferente impede a carga"
+    objectives:
+      OBJ-05:
+        title: "x"
+        competency: business_continuity
+        rubric: business_continuity
+        evidence:
+          auto: [continuity_action_taken]
+
+  - reason: "objetivo sem evidencia: nao entra no AAR como metrica (00 secao 5.7)"
+    objectives:
+      OBJ-06:
+        title: "x"
+        competency: risk_decision
+        rubric: risk_decision.v1
+
+  - reason: "metric_binding fora do conjunto de metricas de 03 secao 3"
+    objectives:
+      OBJ-07:
+        title: "x"
+        competency: integrity_assurance
+        rubric: integrity_assurance.v1
+        evidence:
+          auto: [integrity_validation_declared]
+        metric_binding: MTTR

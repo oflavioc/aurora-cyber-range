@@ -1,0 +1,32 @@
+# FLAGS DE ESTADO — adapter prontus (STUB)
+#
+# Existe para PROVAR A FRONTEIRA ARQUITETURAL (00 secao 1, 01 secao 1), nao para
+# ser usado. Duas flags bastam: se o core precisasse conhecer o dominio, elas
+# apareceriam em range-core/ e o check_core_boundary.py reprovaria.
+#
+# Namespacing `prontus.*` demonstra o motivo do namespace de 01 secao 5.1:
+# `enrollment_offline` e `admission_offline` sao a mesma classe de efeito em
+# dominios diferentes, e sem prefixo colidiriam.
+
+flags:
+  - name: prontus.admission_offline
+    type: boolean
+    default: false
+    category: availability
+    domain_area: infrastructure
+    severity_weight: 9
+    wallboard_group: "Admissão"
+    consumers: [prontus-api, wallboard]
+    effect_ui: "Recepção de admissão indisponível; triagem em papel"
+    reversible: true
+
+  - name: prontus.record_integrity_suspect
+    type: boolean
+    default: false
+    category: integrity
+    domain_area: infrastructure
+    severity_weight: 10
+    wallboard_group: "Integridade do Prontuário"
+    consumers: [prontus-api, wallboard]
+    effect_ui: "Prontuários marcados como sob verificação"
+    reversible: true

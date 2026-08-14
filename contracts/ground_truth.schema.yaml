@@ -1,0 +1,210 @@
+# CONTRATO — Ground truth do pacote de cenario
+#
+# Autoridade: 04_SCENARIO_SCHEMA.md secao 3, 08_EVIDENCE_SIMULATOR.md secao 2,
+# 03_EXERCISE_DESIGN.md secao 3.1, 05_SECURITY_REQUIREMENTS.md secao 5.2.
+#
+# ground_truth.yaml e a fonte AUTORITATIVA e legivel pelo motor (00 secao 5.10).
+# GM_NOTES.md e narrativa para o facilitador e NAO PODE conter fato ausente
+# daqui — o linter compara e recusa divergencia.
+#
+# Excluido do build servido a participantes (05 secao 6).
+
+schema_version: 1
+contract: ground_truth
+
+required_sections:
+  - facts
+  - verification_predicates
+
+# `line_b_cases` e `threat_actor` sao opcionais: nem todo pacote tem segunda
+# linha nem ator nomeado.
+optional_sections:
+  - line_b_cases
+  - threat_actor
+
+# ---------------------------------------------------------------------------
+# FATOS — 08 secao 2.
+#
+# Uma realidade, multiplas projecoes (00 secao 5.3). Cada fonte de evidencia e
+# projecao deterministica de um fato canonico, nunca gerada independentemente.
+# Contradicao entre fontes torna-se estruturalmente impossivel.
+# ---------------------------------------------------------------------------
+fact:
+  required_fields:
+    - fact_id
+    - fact_class
+    - exercise_time
+  optional_fields:
+    - actor
+    - action
+    - source_ip
+    - dest
+    - credential_state
+    - mfa
+    - projections
+    - discoverability
+    - records_affected
+
+  # Fato SEM `projections` e invisivel ao time azul. Isso e deliberado, e usado
+  # para ensinar limite de deteccao (08 secao 2) — nao e erro de autoria.
+  projections:
+    type: sequence
+    of: string
+    allowed: [vpn, identity_audit, database_audit, email, cef, precursor]
+
+  discoverability:
+    optional_fields: [difficulty, requires]
+    difficulty: [low, medium, high]
+
+fact_id_pattern: "^GT-[A-Z]-[0-9]{3}$"
+
+# ---------------------------------------------------------------------------
+# PREDICADOS DE VERIFICACAO — 03 secao 3.1.
+#
+# Sem esta secao o pack NAO CARREGA: TTCV e TTRV seriam incomputaveis, e o par
+# declaracao x verificacao (00 secao 3, consequencia normativa 2) deixaria de
+# existir. O delta entre os dois e o achado.
+#
+# So podem depender do objetivamente observavel — mesmo criterio de
+# 04 secao 6.1 para branching. Condicao que dependa de juizo tornaria o cenario
+# nao ensaiavel.
+# ---------------------------------------------------------------------------
+verification_predicates:
+  required_keys:
+    - containment
+    - service_restoration
+  combinators: [all, any, not]
+  leaf_types:
+    - event
+    - flag_true
+    - flag_false
+    - absence_of
+    - before
+    - after
+  # `event` referenciado aqui deve existir em contracts/events.schema.yaml. Mesma
+  # regra do branching (04 secao 6.2) e pelo mesmo motivo.
+  event_must_exist_in_catalog: true
+
+# ---------------------------------------------------------------------------
+# LINHA B — 04 secao 3.
+#
+# `defensibility` 0-1 indica quao sustentavel e acusar o caso. Alimenta a
+# calibracao (00 secao 3, consequencia normativa 4): avalia-se a relacao entre
+# confianca declarada e forca real da evidencia, nao a contagem de acertos.
+# ---------------------------------------------------------------------------
+line_b_case:
+  required_fields: [case_id, defensibility, set]
+  optional_fields: [supporting_evidence]
+  defensibility:
+    type: number
+    min: 0
+    max: 1
+  sets:
+    - indevido_comprovado
+    - ambiguo
+    - legitimo_aparencia_suspeita
+
+# ---------------------------------------------------------------------------
+# ATOR DE AMEACA — 05 secao 5.2.
+#
+# PODE ser real e documentado, desde que haja fonte publica citavel declarada e
+# nenhum IOC operacional. Ficcionalizar o ator nao protege ninguem e enfraquece
+# a discussao.
+#
+# Distincao critica: 05 secao 5.1 exige que FORNECEDOR DE PRODUTO seja sempre
+# ficticio. Sao duas regras diferentes com propositos diferentes.
+# ---------------------------------------------------------------------------
+threat_actor:
+  required_fields: [name, sources]
+  optional_fields: [aliases, mitre_id, note_to_facilitator]
+  # `sources` vazio recusa o pack: ator sem fonte publica citavel deixa de ser
+  # fato verificavel e vira ficcao nao declarada.
+  sources:
+    type: sequence
+    of: string
+    min_items: 1
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO.
+# ---------------------------------------------------------------------------
+example_valid:
+  facts:
+    - fact_id: GT-A-014
+      fact_class: initial_access
+      actor: svc_academus
+      action: vpn_login
+      source_ip: 198.51.100.42
+      dest: vpn-gw-01
+      exercise_time: "T-17d 02:14"
+      credential_state: compromised
+      mfa: absent
+      projections: [vpn, identity_audit, cef]
+      discoverability:
+        difficulty: medium
+        requires: "correlacionar horário fora de expediente com ausência de MFA"
+
+  verification_predicates:
+    containment:
+      all:
+        - event: vpn_access_revoked
+        - event: identity_scope_disabled
+        - absence_of: exfiltration
+
+    service_restoration:
+      all:
+        - flag_false: academus.enrollment_offline
+
+  line_b_cases:
+    - case_id: GC-029
+      defensibility: 1.0
+      set: indevido_comprovado
+      supporting_evidence: [DBA-28391, DBA-28402]
+
+  threat_actor:
+    name: "Qilin"
+    aliases: [Agenda]
+    mitre_id: "S1242"
+    sources:
+      - "MITRE ATT&CK S1242"
+      - "CISA StopRansomware advisory"
+    note_to_facilitator: "Perfil público. Nenhum IOC operacional reproduzido."
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "sem verification_predicates: TTCV e TTRV incomputaveis, pack nao carrega"
+    facts:
+      - fact_id: GT-A-001
+        fact_class: initial_access
+        exercise_time: "T-1d 00:00"
+
+  - reason: "source_ip fora da faixa de documentacao ou privada (05 secao 3)"
+    facts:
+      - fact_id: GT-A-002
+        fact_class: initial_access
+        exercise_time: "T-1d 00:00"
+        source_ip: 8.8.8.8
+
+  - reason: "defensibility fora de 0-1"
+    line_b_cases:
+      - case_id: GC-999
+        defensibility: 1.4
+        set: ambiguo
+
+  - reason: "set fora do conjunto fechado"
+    line_b_cases:
+      - case_id: GC-998
+        defensibility: 0.5
+        set: talvez
+
+  - reason: "predicado referencia event_type fora do catalogo"
+    verification_predicates:
+      containment:
+        all:
+          - event: vpn_acess_revoked
+
+  - reason: "threat_actor sem fonte publica citavel"
+    threat_actor:
+      name: "Grupo Fictício X"
+      sources: []

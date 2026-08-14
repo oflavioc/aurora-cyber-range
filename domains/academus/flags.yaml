@@ -1,0 +1,165 @@
+# FLAGS DE ESTADO — adapter academus
+#
+# Validado contra contracts/state_flags.schema.yaml.
+# Autoridade: 01_ARCHITECTURE.md secao 5.
+#
+# TODOS OS EFEITOS DE INCIDENTE SAO SIMULADOS POR ESTADO (05 secao 1). Nao ha
+# criptografia real, exploit, movimentacao lateral ou payload. Uma flag booleana
+# ligada e o mecanismo inteiro do "ataque".
+#
+# `severity_weight` alimenta o indice de saude institucional do wallboard
+# (01 secao 5.3). `wallboard_group` gera o painel por convencao — acrescentar
+# flag nao exige tocar no wallboard.
+
+flags:
+
+  # -------------------------------------------------------------------------
+  # DISPONIBILIDADE — o que a plateia ve cair
+  # -------------------------------------------------------------------------
+  - name: academus.enrollment_offline
+    type: boolean
+    default: false
+    category: availability
+    domain_area: academic
+    severity_weight: 8
+    wallboard_group: "Matrícula"
+    consumers: [academus-api, academus-web, wallboard]
+    effect_ui: "Portal de matrícula retorna 503 com página de manutenção"
+    reversible: true
+
+  - name: academus.enrollment_service_state
+    type: enum
+    values: [normal, degraded, offline, restoring]
+    default: normal
+    category: availability
+    domain_area: academic
+    severity_weight: 7
+    wallboard_group: "Matrícula"
+    consumers: [academus-api, wallboard]
+    effect_ui: "Estado ordinal do serviço de matrícula, exibido no telão"
+    reversible: true
+
+  - name: academus.lms_degraded
+    type: boolean
+    default: false
+    category: availability
+    domain_area: academic
+    severity_weight: 7
+    wallboard_group: "AVA"
+    consumers: [academus-api, academus-web, wallboard]
+    effect_ui: "AVA responde com lentidão e falha intermitente de submissão"
+    reversible: true
+
+  - name: academus.lms_session_drop_rate
+    type: number
+    min: 0
+    max: 1
+    default: 0
+    category: performance
+    domain_area: academic
+    severity_weight: 6
+    wallboard_group: "AVA"
+    consumers: [academus-api, wallboard]
+    effect_ui: "Fração de sessões de prova em andamento derrubadas por minuto"
+    reversible: true
+
+  - name: academus.portal_defaced
+    type: boolean
+    default: false
+    category: narrative
+    domain_area: communication
+    severity_weight: 9
+    wallboard_group: "Portal Público"
+    consumers: [academus-web, wallboard]
+    effect_ui: "Página inicial substituída por nota do atacante"
+    reversible: true
+
+  # -------------------------------------------------------------------------
+  # INTEGRIDADE — no cenario academico, o aprendizado principal (01 secao 5.3):
+  # o sistema volta, mas a confianca no dado nao
+  # -------------------------------------------------------------------------
+  - name: academus.grade_integrity_suspect
+    type: boolean
+    default: false
+    category: integrity
+    domain_area: academic
+    severity_weight: 10
+    wallboard_group: "Integridade Acadêmica"
+    consumers: [academus-api, academus-web, wallboard]
+    effect_ui: "Banner de notas sob verificação; histórico marcado como provisório"
+    reversible: true
+
+  - name: academus.transcript_issuance_blocked
+    type: boolean
+    default: false
+    category: integrity
+    domain_area: academic
+    severity_weight: 8
+    wallboard_group: "Integridade Acadêmica"
+    consumers: [academus-api, academus-web]
+    effect_ui: "Emissão de histórico e diploma suspensa até validação de integridade"
+    reversible: true
+
+  # -------------------------------------------------------------------------
+  # CONFIDENCIALIDADE
+  # -------------------------------------------------------------------------
+  - name: academus.student_data_exposed
+    type: boolean
+    default: false
+    category: confidentiality
+    domain_area: academic
+    severity_weight: 10
+    wallboard_group: "Exposição de Dados"
+    consumers: [academus-api, wallboard]
+    effect_ui: "Base de alunos marcada como exposta; contagem no telão"
+    reversible: false
+
+  - name: academus.research_data_exposed
+    type: boolean
+    default: false
+    category: confidentiality
+    domain_area: research
+    severity_weight: 9
+    wallboard_group: "Exposição de Dados"
+    consumers: [academus-api, wallboard]
+    effect_ui: "Projetos de pesquisa marcados como expostos"
+    reversible: false
+
+  # -------------------------------------------------------------------------
+  # IDENTIDADE
+  # -------------------------------------------------------------------------
+  - name: academus.federated_session_active
+    type: boolean
+    default: true
+    category: identity
+    domain_area: identity
+    severity_weight: 9
+    wallboard_group: "Identidade"
+    consumers: [academus-api, federated-identity-simulator, wallboard]
+    effect_ui: "Sessões federadas seguem válidas; revogar exige ação explícita"
+    reversible: true
+
+  - name: academus.vpn_mfa_enforced
+    type: boolean
+    default: false
+    category: identity
+    domain_area: infrastructure
+    severity_weight: 7
+    wallboard_group: "Identidade"
+    consumers: [academus-api, wallboard]
+    effect_ui: "MFA obrigatório no acesso VPN"
+    reversible: true
+
+  # -------------------------------------------------------------------------
+  # REGULATORIO
+  # -------------------------------------------------------------------------
+  - name: academus.anpd_notification_window_open
+    type: boolean
+    default: false
+    category: regulatory
+    domain_area: communication
+    severity_weight: 8
+    wallboard_group: "Regulatório"
+    consumers: [academus-api, wallboard]
+    effect_ui: "Janela de notificação regulatória aberta, com prazo em contagem"
+    reversible: false

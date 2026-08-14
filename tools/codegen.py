@@ -3,10 +3,11 @@
 
 01_ARCHITECTURE.md secao 5.4 e 06_ACCEPTANCE_TESTS.md T2.
 
-Na Fase 0 este script implementa APENAS `--check`. A geracao efetiva chega na
-Fase 1, junto com os contratos que ela consome. Modo de escrita sem probe que
-o exercite seria codigo nao verificado dentro do proprio mecanismo de
-verificacao — exatamente o que a Fase 0 existe para nao deixar passar.
+Dois modos. `--check` e o unico que o CI invoca, e e estritamente read-only.
+`--write` gera, e chegou na Fase 1 junto com os contratos que consome — era a
+pendencia P2 do fase_0.md, adiada de proposito: modo de escrita sem contrato
+real para consumir e sem probe que o exercite seria codigo nao verificado
+dentro do proprio mecanismo de verificacao.
 
 Contrato de `--check`, fixado apos a auditoria v2 (CHANGELOG_V3.md, H1):
 
@@ -52,6 +53,7 @@ from _common import (  # noqa: E402
 )
 
 CHECK_FLAG = "--check"
+WRITE_FLAG = "--write"
 
 HEADER_PY = "# Gerado por tools/codegen.py. Nao editar a mao."
 HEADER_TS = "// Gerado por tools/codegen.py. Nao editar a mao."
@@ -60,11 +62,13 @@ RULE_MISSING = "CODEGEN - artefato gerado ausente"
 RULE_DIVERGENT = "CODEGEN - artefato gerado divergente do contrato"
 
 USAGE = (
-    "uso: python tools/codegen.py --check\n"
+    "uso: python tools/codegen.py --check | --write\n"
     "  --check  compara os artefatos gerados com os contratos, sem escrever.\n"
+    "  --write  regenera os artefatos a partir dos contratos.\n"
     "\n"
-    "A geracao efetiva chega na Fase 1, junto com os contratos que ela consome.\n"
-    "Na Fase 0 este script e estritamente read-only."
+    "O CI invoca apenas --check, que e estritamente read-only. Um\n"
+    "`git diff --exit-code` depois dele e vacuoso: nada e escrito, a arvore\n"
+    "esta sempre limpa, e a prova e o proprio codigo de saida."
 )
 
 
@@ -212,11 +216,49 @@ def check() -> int:
     return report("CODEGEN - constantes fora de sincronia", violations)
 
 
+def write() -> int:
+    """Geracao efetiva. Chega na Fase 1, junto com os contratos que consome.
+
+    Era a pendencia P2 do fase_0.md, adiada de proposito: modo de escrita sem
+    contrato real para consumir e sem probe que o exercite seria codigo nao
+    verificado dentro do proprio mecanismo de verificacao.
+
+    `--check` continua sendo o unico modo que o CI invoca, e continua
+    estritamente read-only. Este modo e do desenvolvedor, e o probe do harness
+    exercita os dois: gera, confere que `--check` passa, corrompe um artefato e
+    confere que `--check` reprova.
+    """
+    try:
+        expected = _expected_artifacts()
+    except ContractError as exc:
+        return fail(str(exc))
+
+    escritos = 0
+    for path in sorted(expected, key=lambda p: p.as_posix()):
+        content, _ = expected[path]
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            atual = path.read_text(encoding="utf-8") if path.is_file() else None
+            # So escreve o que mudou: rodar duas vezes seguidas nao deve alterar
+            # mtime a toa, e a saida diz o que de fato foi tocado.
+            if atual is not None and _normalise(atual) == _normalise(content):
+                continue
+            path.write_text(content, encoding="utf-8", newline="\n")
+        except OSError as exc:
+            return fail(f"{rel(path)}: nao foi possivel escrever ({exc})")
+        print(f"gerado: {rel(path)}")
+        escritos += 1
+
+    if escritos == 0:
+        print("nada a gerar: artefatos ja em sincronia com os contratos.")
+    return 0
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 1 or argv[0] != CHECK_FLAG:
+    if len(argv) != 1 or argv[0] not in (CHECK_FLAG, WRITE_FLAG):
         print(USAGE, file=sys.stderr)
         return 2
-    return check()
+    return check() if argv[0] == CHECK_FLAG else write()
 
 
 if __name__ == "__main__":

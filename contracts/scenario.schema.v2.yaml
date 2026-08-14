@@ -1,0 +1,297 @@
+# CONTRATO — Pacote de cenario, schema v2
+#
+# Autoridade: 04_SCENARIO_SCHEMA.md secoes 1, 2, 4, 5, 6 e 7.
+#
+# REGRA DE VERSIONAMENTO (04 secao 4): NUNCA alterar semantica de campo dentro
+# da mesma schema_version. Engine declara SUPPORTED_SCHEMA_VERSIONS = [N, N-1];
+# pack em N-1 carrega com migracao em memoria e aviso no boot; anterior a N-1 e
+# recusado com instrucao de migracao.
+
+schema_version: 2
+contract: scenario
+
+# ---------------------------------------------------------------------------
+# ESTRUTURA DO PACOTE — 04 secao 1.
+# ---------------------------------------------------------------------------
+package_files:
+  required:
+    - manifest.yaml
+    - ground_truth.yaml
+    - objectives.yaml
+    - injects.yaml
+  optional:
+    - GM_NOTES.md
+    - information_distribution.yaml
+    - branches.yaml
+    - evidence/
+    - media/
+
+# GM_NOTES.md NAO PODE conter fato ausente do ground truth (00 secao 5.10). O
+# linter compara e recusa divergencia.
+gm_notes_must_not_exceed_ground_truth: true
+
+# ---------------------------------------------------------------------------
+# MANIFESTO — 04 secao 2.
+# ---------------------------------------------------------------------------
+manifest:
+  required_fields:
+    - schema_version
+    - pack_id
+    - title
+    - domain
+    - min_engine_version
+    - duration_minutes
+    - personas
+    - required_flags
+    - required_rubrics
+  optional_fields:
+    - audience
+    - lines
+    - evidence_sources
+    - branch_policy
+    - calibration
+
+  # required_rubrics INCLUI A VERSAO. Rubrica ausente ou em versao diferente
+  # impede a carga (04 secao 2).
+  required_rubrics:
+    type: sequence
+    of: string
+    item_pattern: "^[a-z][a-z0-9_]*\\.v[0-9]+$"
+
+  # Pack e validado contra as flags do seu adapter no boot; flag desconhecida
+  # impede subida do engine (01 secao 5.4).
+  required_flags:
+    type: sequence
+    of: string
+    must_exist_in_adapter_flags: true
+
+  branch_policy:
+    required_fields:
+      - max_branch_points_per_line
+      - max_paths_per_branch
+      - reconvergence_required
+
+  calibration:
+    required_fields: [threshold]
+    threshold:
+      type: number
+      min: 0
+      max: 1
+
+# ---------------------------------------------------------------------------
+# INJECT — 04 secao 5.
+#
+# EFEITOS SAO DECLARATIVOS (00 secao 5.2): injects declaram estado desejado,
+# nunca executam acao imperativa. E o que torna rollback e idempotencia
+# possiveis — aplicar o mesmo inject duas vezes produz projecao identica
+# (01 secao 5.4).
+# ---------------------------------------------------------------------------
+inject:
+  required_fields:
+    - id
+    - t_relative
+    - titulo_operacional
+  optional_fields:
+    - linha
+    - titulo
+    - descricao_facilitador
+    - texto_para_plateia
+    - objectives
+    - effects
+    - materializes_facts
+    - evidence_release
+    - reveals
+    - decision_point
+    - media_event
+    - noise
+
+  # OBJETIVO OBRIGATORIO, salvo `noise: true` explicito (00 secao 4).
+  # Inject sem objetivo associado e ruido deliberado ou ERRO DE AUTORIA — o
+  # linter recusa a ambiguidade entre os dois.
+  objectives_required_unless_noise: true
+
+  # Chave de `effects` deve ser flag declarada no adapter; valor deve respeitar
+  # o tipo declarado em state_flags.schema.yaml.
+  effects:
+    type: mapping
+    key_must_exist_in_adapter_flags: true
+    value_must_match_declared_type: true
+
+  # `linha` e visivel APENAS ao facilitador. `titulo_operacional` e o unico
+  # rotulo visivel ao operador (04 secao 5).
+  linha_visibility: facilitator_only
+
+  reveals:
+    required_fields: [persona, content]
+    optional_fields: [confidence]
+    confidence: [low, medium, high]
+
+inject_id_pattern: "^[A-Z][0-9]{2}$"
+
+# ---------------------------------------------------------------------------
+# DECISION POINT e CAPABILITY GAP — 04 secoes 5 e 5.1.
+# ---------------------------------------------------------------------------
+decision_point:
+  required_fields: [id, question, options]
+  optional_fields: [objectives, timer_minutes]
+
+option:
+  required_fields: [id, label, effects, tradeoff]
+  optional_fields: [capability_gap]
+
+# `capability_gap` marca que a opcao declara AUSENCIA DE CAPACIDADE, nao escolha
+# de curso de acao. `effects` e `tradeoff` continuam obrigatorios: a lacuna tem
+# consequencia no mundo simulado e NAO E SAIDA SEM CUSTO.
+#
+# Escolher a opcao emite `decision_made` como qualquer outra, E TAMBEM
+# `capability_gap_declared` — o primeiro preserva a uniformidade da trilha de
+# decisoes, o segundo carrega os campos para a projecao do AAR.
+capability_gap:
+  required_fields: [control_function]
+  optional_fields: [objectives_affected, metric_impacted]
+
+  # NUNCA nome de produto ou de fornecedor (05 secao 5.1). Lacunas sao nomeadas
+  # por FUNCAO DE CONTROLE. Um exercicio em que a resposta certa aponta para um
+  # fornecedor deixa de medir a capacidade da equipe e passa a medir se ela
+  # adivinhou o vendor.
+  control_function:
+    type: string
+    pattern: "^[a-z][a-z0-9_]*$"
+    vendor_name_forbidden: true
+
+  # Vocabulario ABERTO nesta versao do schema (04 secao 5.1). Fecha-lo agora
+  # seria inventar taxonomia antes de haver dados.
+  controlled_vocabulary: false
+
+  # Todo objetivo aqui deve existir em objectives.yaml. Mesma classe do
+  # event_type inexistente e pelo mesmo motivo: o erro de digitacao nao falha em
+  # lugar nenhum, a lacuna simplesmente nao e atribuida a objetivo algum e some
+  # do AAR (04 secao 6.2).
+  objectives_affected:
+    must_exist_in_objectives: true
+
+# ---------------------------------------------------------------------------
+# BRANCHING — 04 secao 6.
+# ---------------------------------------------------------------------------
+branch:
+  required_fields: [id, at_inject, evaluate, reconverge_at]
+  optional_fields: [line]
+
+# CONDICOES SO PODEM DEPENDER DO OBJETIVAMENTE OBSERVAVEL (04 secao 6.1).
+# Qualquer condicao que dependa de juizo torna o cenario nao ensaiavel e nao
+# determinista.
+branch_condition:
+  allowed_leaves:
+    - event
+    - decision
+    - option
+    - flag
+    - before
+    - after
+  combinators: [all, any, not]
+  judgement_conditions_forbidden: true
+  event_must_exist_in_catalog: true
+
+# Validacao obrigatoria do linter — 04 secao 6.2.
+linter_rules:
+  - "branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado"
+  - "branch sem reconverge_at e recusado"
+  - "todo event referenciado em when deve existir no catalogo de eventos"
+  - "todo option referenciado deve existir no decision_point indicado"
+  - "todo objetivo em objectives_affected deve existir em objectives.yaml"
+  - "inject sem objectives e sem noise: true e recusado"
+  - "t_relative fora de ordem e recusado"
+  - "media_event sem deadline e recusado"
+  - "GM_NOTES.md com fato ausente do ground_truth e recusado"
+
+# ---------------------------------------------------------------------------
+# EVENTO DE MIDIA — 04 secao 7.
+# ---------------------------------------------------------------------------
+media_event:
+  required_fields: [type, deadline_minutes, requires_response]
+  optional_fields: [outlet, reporter, objectives, fact_check_against]
+  types:
+    - press_call
+    - investigative
+    - viral_post
+    - protest
+    - union
+  # Permite ao AAR comparar automaticamente o numero comunicado com o ground
+  # truth — a assimetria entre o que foi dito fora e o que de fato ocorreu.
+  fact_check_against:
+    resolves_against: ground_truth
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — manifesto minimo valido.
+# ---------------------------------------------------------------------------
+example_valid:
+  schema_version: 2
+  pack_id: ransomware-universidade
+  title: "Ransomware na véspera da matrícula"
+  domain: academus
+  min_engine_version: "1.0"
+  duration_minutes: 240
+  audience: executivo
+  lines: [A, B, ruido]
+  personas: [reitoria, ti, dpo, juridico, comunicacao]
+  required_flags: [academus.enrollment_offline, academus.lms_session_drop_rate]
+  required_rubrics: [incident_triage.v2, crisis_communication.v2]
+  evidence_sources: [email, vpn, identity_audit, database_audit]
+  branch_policy:
+    max_branch_points_per_line: 1
+    max_paths_per_branch: 2
+    reconvergence_required: true
+  calibration:
+    threshold: 0.15
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS.
+# ---------------------------------------------------------------------------
+examples_invalid:
+  - reason: "required_rubrics sem versao: rubrica em versao diferente impede a carga"
+    required_rubrics: [incident_triage]
+
+  - reason: "required_flags com flag nao declarada no adapter: impede boot do engine"
+    required_flags: [academus.flag_que_nao_existe]
+
+  - reason: "inject sem objectives e sem noise: ruido deliberado ou erro de autoria"
+    injects:
+      - id: A07
+        t_relative: "00:47"
+        titulo_operacional: "Inject 07"
+
+  - reason: "branch sem reconverge_at"
+    branches:
+      - id: BR-A-01
+        at_inject: A08
+        evaluate:
+          - id: x
+            default: true
+            next: A09
+
+  - reason: "condicao de branch que depende de juizo: cenario deixa de ser ensaiavel"
+    branches:
+      - id: BR-A-02
+        at_inject: A08
+        reconverge_at: A12
+        evaluate:
+          - id: y
+            when:
+              facilitator_thinks_response_was_good: true
+            next: A09
+
+  - reason: "capability_gap nomeando produto em vez de funcao de controle"
+    capability_gap:
+      control_function: "produto_xyz_edr"
+
+  - reason: "capability_gap sem effects e sem tradeoff na opcao: lacuna como saida sem custo"
+    options:
+      - id: no_capability
+        label: "Não temos como fazer isso"
+        capability_gap:
+          control_function: federated_session_revocation
+
+  - reason: "media_event sem deadline"
+    media_event:
+      type: press_call
+      requires_response: true
