@@ -103,7 +103,12 @@ jobs:
           #
           # Com ela, o conjunto de versionados fora de CODE e fora de
           # docs/spec/ fica so com documentacao descritiva: CHANGELOG_V3.md,
-          # README_FIRST.md, docs/process/ e docs/progress/.
+          # README.md, docs/ (inclusive BRIEFING.md, process/ e progress/).
+          #
+          # Dizia README_FIRST.md, arquivo que foi renomeado para
+          # docs/process/BOOTSTRAP.md. Comentario que cita arquivo inexistente e
+          # a linhagem P10/P15/P22 — documentacao que sobrevive a mudanca e a
+          # contradiz —, entao a renomeacao corrige aqui tambem.
           #
           # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
           # Sem o magic glob, '*.sh' casaria em qualquer profundidade.

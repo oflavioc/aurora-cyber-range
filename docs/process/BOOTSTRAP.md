@@ -1,4 +1,8 @@
-# Comece por aqui
+# Bootstrap da implementação
+
+Este documento é o roteiro de **partida da implementação**: como preparar o ambiente e entregar a Fase 0. Não é a apresentação do projeto — essa é o [`README.md`](../../README.md) na raiz.
+
+*(Chamava-se `README_FIRST.md` na raiz. Renomeado para não conviver com o `README.md` de apresentação, que é outra coisa: um é bootstrap de implementação, o outro é o que alguém lê ao abrir o repositório.)*
 
 Extraia este bundle **na raiz** de `C:\Projetos\aurora-cyber-range`.
 
@@ -9,7 +13,7 @@ Extraia este bundle **na raiz** de `C:\Projetos\aurora-cyber-range`.
 3. Abra o Claude Code com `claude --permission-mode default` e aceite o diálogo de confiança do workspace na primeira vez. Sem isso, os hooks de projeto em `.claude/settings.json` não valem.
 4. Entregue a Fase 0: implementar os **seis** verificadores em `tools/`. Nada além disso.
 5. Rode as verificações de `docs/process/PHASE_0_CHECKLIST.md`, incluindo `python scripts/phase0_negative_tests.py`.
-6. Só quando tudo passar: `bash finalize_phase0.sh`. É o único script que commita, publica, espera o CI, aplica branch protection e — por último — cria `spec-v1.0`.
+6. Só quando tudo passar: `bash finalize_phase0.sh`. Ele commita, publica, espera o CI e aplica branch protection — e **para antes da tag**, imprimindo os comandos dos dois PRs descartáveis dos itens 10 e 11 da DoD. A tag `spec-v1.0` só sai numa segunda invocação explícita, `bash finalize_phase0.sh --dod-10-11-verificados`, que é a afirmação do operador de que executou os dois PRs e viu o `spec_freeze` reprovar nos dois.
 7. Rode `/doctor` no Claude Code depois do primeiro commit.
 
 ## O que fica fora do repositório, e por quê

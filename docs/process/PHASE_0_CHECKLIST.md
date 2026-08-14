@@ -110,7 +110,7 @@ branch protection confirmada
 spec-v1.0
 ```
 
-Use `bash finalize_phase0.sh` para executar essa ordem. Se branch protection falhar, a Fase 0 permanece incompleta e a tag não é criada.
+Use `bash finalize_phase0.sh` para executar essa ordem. Ele **para antes da tag** e imprime os comandos dos dois PRs descartáveis dos itens 10 e 11; a tag só sai numa segunda invocação explícita, `bash finalize_phase0.sh --dod-10-11-verificados`. Se branch protection falhar, a Fase 0 permanece incompleta e a tag não é criada.
 
 ## Definition of Done
 
