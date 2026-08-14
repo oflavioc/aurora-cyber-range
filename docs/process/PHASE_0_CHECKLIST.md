@@ -7,7 +7,8 @@ Nenhum código de aplicação, `docker-compose` ou migration. Scripts de suporte
 - [ ] `docs/spec/` com 00–09 + `KICKOFF_PROMPT.md`
 - [ ] `CLAUDE.md` na raiz
 - [ ] `.claude/agents/` com `spec-guardian` e `scenario-designer`
-- [ ] `.claude/hooks/` com `check_architecture.py`, `scenario_scope.py`, `scenario_bash.py`, `log_audit.py`
+- [ ] `.claude/hooks/` com `check_architecture.py`, `scenario_scope.py`, `scenario_bash.py`
+- [ ] `scripts/audit_report.py` — captura do relatório de auditoria, invocada pelo launcher
 - [ ] `~/.claude/agents/checkpoint-auditor.md` e `~/.claude/hooks/readonly_bash.py` instalados pelo `bootstrap.sh` (escopo de usuário, fora do repositório)
 - [ ] `.claude/settings.json` com hooks, Manual/default e deny de secrets
 - [ ] `.github/workflows/invariants.yml`

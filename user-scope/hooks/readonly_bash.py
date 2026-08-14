@@ -33,7 +33,14 @@ ALLOWED = [
     rf"^{SAFE_ENV_PREFIX}python\s+scripts/phase0_negative_tests\.py\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
     # travessia como .claude/hooks/../../x.py nao casa.
-    rf"^{SAFE_ENV_PREFIX}python\s+(?:~/|\$HOME/)?\.claude/hooks/[A-Za-z0-9_.-]+\.py\s*$",
+    # NOME EXPLICITO, nao curinga. O curinga pre-autorizava o auditor a executar
+    # qualquer .claude/hooks/*.py que um commit futuro acrescentasse — incluindo
+    # um que escrevesse. Era o H1 da setima auditoria; a reversao do P23 o
+    # reintroduziu, e o registro seguiu afirmando que estava fechado (H1 da nona).
+    # Fechado no codigo em 2026-08-14, para o registro voltar a ser verdadeiro.
+    # log_audit.py saiu da lista porque foi removido do projeto (M1 da nona).
+    rf"^{SAFE_ENV_PREFIX}python\s+(?:~/|\$HOME/)?\.claude/hooks/"
+    rf"(?:check_architecture|scenario_scope|scenario_bash)\.py\s*$",
     rf"^{SAFE_ENV_PREFIX}(ls|cat|head|tail|wc|grep|rg|find|tree|diff|stat)\b",
     # printf entra porque os smoke tests alimentam o hook por pipe
     # (printf '{...}' | python .claude/hooks/x.py) e cada segmento do pipe e
@@ -52,6 +59,27 @@ DENIED_ANYWHERE = [
     (r"\b(curl|wget|nc|ssh|scp)\b", "acesso de rede"),
     (r"\b(pip|npm)\s+install\b", "instalacao de pacote"),
     (r"\bsed\s+-i\b|\bperl\s+-i\b", "edicao in-place"),
+    # CONTENCAO, nao enumeracao de flags. Medido em 2026-08-14: das 10 formas
+    # afirmadas como buraco conhecido, 8 escreviam FORA do worktree de auditoria.
+    # Sete delas eram a mesma familia — escrita por flag com alvo de caminho
+    # (--junitxml=, --output-file, --junit-xml, -o, --outFile, -fprint0) — e
+    # tentar listar as flags repete o erro que nove rodadas ja provaram inutil:
+    # sempre falta uma. O invariante nao e a flag, e o ALVO.
+    #
+    # `..` em qualquer posicao sai do worktree. Provado por execucao:
+    # `find . -fprint0 ../../tools/codegen.py`, rodado de dentro de
+    # .aurora-worktrees/audit/, sobrescreveu o arquivo no worktree principal.
+    #
+    # Custo aceito: leitura legitima fora do worktree tambem passa a ser
+    # bloqueada (`cat ../../README.md`). E o comportamento correto — o worktree
+    # de auditoria E o objeto da auditoria, e ler fora dele mede outra arvore.
+    # Afirmado em LEITURA_LEGITIMA_BLOQUEADA do harness.
+    (r"\.\.[/\\]|(?:^|\s)\.\.(?:\s|$)", "travessia de caminho para fora do worktree"),
+    # `git branch` listando e leitura legitima e nao pode ser negado inteiro;
+    # so a deleção. O ref store e COMPARTILHADO com o worktree principal:
+    # provado por execucao, `git branch -D` rodado de dentro do worktree de
+    # auditoria apagou o ramo visivel do repositorio principal.
+    (r"\bgit\s+branch\b[^;&|]*\s-{1,2}(?:[dD]|delete)\b", "git branch que apaga ref compartilhado"),
 ]
 
 

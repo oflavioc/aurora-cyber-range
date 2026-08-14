@@ -144,6 +144,14 @@ FALSOS_BLOQUEIOS_CONHECIDOS = [
      "python tools/check_core_boundary.py 2>/dev/null"),
     ("git tag listando", "git tag"),
     ("git tag --list", "git tag --list"),
+    # Custo ACEITO da regra de contencao introduzida em 2026-08-14. Nao e
+    # defeito de casamento textual como os de cima: e consequencia deliberada
+    # de negar `..`. Fica aqui porque continua sendo leitura legitima recusada,
+    # e a lista tem que dizer o estado real — mas a correcao NAO e afrouxar a
+    # regra. O worktree de auditoria E o objeto da auditoria; ler fora dele mede
+    # outra arvore. Ver fase_0.md §6 P32.
+    ("leitura fora do worktree, negada por contencao", "cat ../../README_FIRST.md"),
+    ("listagem fora do worktree, negada por contencao", "ls ../.."),
 ]
 
 #: Escrita deliberada que o hook DE FATO bloqueia.
@@ -172,29 +180,44 @@ ESCRITA_DELIBERADA = [
     ("git tag com operando cria tag", "git tag v9.9.9"),
     ("git tag -d apaga tag", "git tag -d v1.0"),
     ("git tag --delete apaga tag", "git tag --delete v1.0"),
+    # As oito abaixo eram BURACOS_CONHECIDOS ate 2026-08-14. A medicao mostrou
+    # que TODAS escrevem FORA do worktree de auditoria, e escrita que alcanca o
+    # worktree principal nao pode ser declarada: derrota o proposito do hook,
+    # que e impedir correcao ACIDENTAL, nao so conter adversario.
+    # Fechadas por contencao (`..` negado) e por regra de ref compartilhado,
+    # nao por enumeracao de flags. Ver fase_0.md §6 P32.
+    ("travessia via find -fprint0", "find . -fprint0 ../../tools/codegen.py"),
+    ("travessia via pytest --junitxml", "pytest --junitxml=../../CLAUDE.md"),
+    ("travessia via python -m pytest --junitxml",
+     "python -m pytest --junitxml=../../CLAUDE.md"),
+    ("travessia via ruff --output-file", "ruff check --output-file ../../CLAUDE.md ."),
+    ("travessia via mypy --junit-xml", "mypy --junit-xml ../../CLAUDE.md ."),
+    ("travessia via eslint -o", "eslint -o ../../CLAUDE.md ."),
+    ("travessia via tsc --outFile", "tsc --noEmit --outFile ../../CLAUDE.md"),
+    ("git branch -D apaga ref compartilhado com o worktree principal",
+     "git branch -D main"),
 ]
 
 #: BURACOS conhecidos: escrita deliberada que o hook NAO bloqueia. Afirmados
-#: como NAO BLOQUEADOS, pelo mesmo motivo dos falsos bloqueios — e o estado
-#: real, e esconde-lo seria repetir o H2.
+#: como NAO BLOQUEADOS porque e o estado real, e esconde-lo seria repetir o H2.
 #:
-#: A premissa de que a versao anterior era "irritante mas fechada" nao se
-#: sustenta na medicao: ela erra nas duas direcoes. O que ela fecha e a familia
-#: de REDIRECIONAMENTO (`>&`, `>|`, `<>`), porque `>\s*\S` casa todas por
-#: acidente. O que ela abre e a familia de ESCRITA POR FLAG, porque casamento
-#: textual nao olha flag nenhuma.
+#: CRITERIO DE ADMISSAO, desde 2026-08-14: uma forma so pode ser declarada aqui
+#: se sua escrita permanecer CONTIDA no worktree de auditoria. Escrita que
+#: alcanca o worktree principal e finding, nao defeito aceito — ela derrota o
+#: proposito declarado do hook, que e impedir correcao acidental, e nao apenas
+#: conter adversario.
+#:
+#: A lista tinha 10 entradas. A medicao (fase_0.md §6 P32) mostrou que 8
+#: escreviam fora do worktree e foram FECHADAS, migrando para
+#: ESCRITA_DELIBERADA. Restam as duas contidas. Declarar as outras oito teria
+#: sido usar a disciplina de declaracao para legitimar exatamente o que ela
+#: existe para impedir.
 BURACOS_CONHECIDOS = [
-    ("flag destrutiva de git branch", "git branch -D main"),
-    ("find com acao de escrita", "find . -delete"),
-    ("escrita por flag: find -fprint0", "find . -fprint0 out.txt"),
-    ("travessia via find -fprint0", "find . -fprint0 ../../tools/codegen.py"),
-    ("escrita por flag: pytest --junitxml", "pytest --junitxml=../../CLAUDE.md"),
-    ("escrita por flag: python -m pytest --junitxml",
-     "python -m pytest --junitxml=../../CLAUDE.md"),
-    ("escrita por flag: ruff --output-file", "ruff check --output-file ../../CLAUDE.md ."),
-    ("escrita por flag: mypy --junit-xml", "mypy --junit-xml ../../CLAUDE.md ."),
-    ("escrita por flag: eslint -o", "eslint -o ../../CLAUDE.md ."),
-    ("escrita por flag: tsc --outFile", "tsc --noEmit --outFile ../../CLAUDE.md"),
+    # Destroi o proprio worktree de auditoria, que e descartavel por desenho:
+    # o launcher o remove ao terminar. Nao alcanca o worktree principal.
+    ("find com acao de escrita, contida no worktree", "find . -delete"),
+    # Alvo relativo sem travessia: escreve dentro do worktree de auditoria.
+    ("escrita por flag: find -fprint0, alvo contido", "find . -fprint0 out.txt"),
 ]
 
 
