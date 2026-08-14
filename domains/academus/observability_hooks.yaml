@@ -1,0 +1,27 @@
+# INSTRUMENTACAO — mapeia acao da aplicacao a event_type do catalogo.
+#
+# Autoridade: 09_EVENT_MODEL.md secao 6.
+#
+# E AQUI que a evidencia `auto` dos objetivos e declarada. O core responde por
+# COMO PONTUAR a competencia; o pack responde por ONDE ELA SE MANIFESTA; e este
+# arquivo diz QUAL ACAO DA APLICACAO produz o evento.
+#
+# `objective_ids` NAO aparece aqui nem no envelope (09 secao 1.2). Se a
+# academus-api precisasse saber que uma consulta satisfaz OBJ-03, o dominio
+# passaria a conhecer o desenho de exercicio e a fronteira core/adapter vazaria.
+# O binding evento -> objetivo vive em scenarios/<pack>/objectives.yaml.
+#
+# ESQUELETO DA FASE 1: os dois hooks abaixo sao os que 09 secao 6 traz como
+# exemplo normativo. Os demais chegam com a API, na Fase 3 — declarar hook para
+# rota que ainda nao existe seria contrato sem implementacao.
+
+hooks:
+  - event_type: audit_query_performed
+    trigger: "GET /audit/grade-changes com filtro de período e agrupamento por usuário"
+    producer: academus-api
+    payload_fields: [period_start, period_end, group_by, result_count]
+
+  - event_type: vpn_access_revoked
+    trigger: "POST /identity/revoke com escopo vpn"
+    producer: federated-identity-simulator
+    payload_fields: [scope, principal]

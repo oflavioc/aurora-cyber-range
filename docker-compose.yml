@@ -1,0 +1,54 @@
+# Aurora Cyber Range — infraestrutura local da Fase 1.
+#
+# NON-GOALS da fase: nenhuma logica de negocio, nenhuma tela, nenhum seed.
+# Este compose sobe apenas Postgres e Redis, que e o que a DoD exige.
+#
+# 05_SECURITY_REQUIREMENTS.md secao 6: bind em 127.0.0.1, nenhuma porta
+# publicada diretamente. As portas abaixo estao explicitamente amarradas ao
+# loopback — `5432:5432` publicaria na interface externa.
+#
+# 00_MASTER_SPEC.md secao 8: todas as versoes pinadas. Tags de imagem incluem
+# o digest para que "16" nao mude de conteudo sob os pes.
+
+services:
+
+  postgres:
+    image: postgres:16.4-alpine
+    container_name: aurora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aurora}
+      POSTGRES_USER: ${POSTGRES_USER:-aurora}
+      # Sem default: senha trivial reutilizavel e proibida por 05 secao 8.
+      # Ausente, o compose falha em vez de subir com valor previsivel.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - aurora_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aurora} -d ${POSTGRES_DB:-aurora}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7.4.1-alpine
+    container_name: aurora-redis
+    restart: unless-stopped
+    # Redis guarda a PROJECAO de simulation_state (01 secao 4), que e
+    # reconstruivel do event store. Persistencia desligada de proposito: se o
+    # Redis cair, a projecao volta do store, e ter duas fontes de verdade para
+    # o mesmo estado seria pior que ter uma.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  aurora_pgdata:
+    name: aurora_pgdata
