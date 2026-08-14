@@ -124,6 +124,39 @@ DENIED_ANYWHERE = [
     # de auditoria E o objeto da auditoria, e ler fora dele mede outra arvore.
     # Afirmado em LEITURA_LEGITIMA_BLOQUEADA do harness.
     (r"\.\.[/\\]|(?:^|\s)\.\.(?:\s|$)", "travessia de caminho para fora do worktree"),
+    # CAMINHO ABSOLUTO — a outra metade da mesma propriedade, e a que faltava.
+    #
+    # A decima auditoria mostrou que negar `..` nao continha nada, porque o mesmo
+    # alvo tem grafia absoluta. A conclusao que tirei entao foi "policiar
+    # capacidade, nao alvo" — e SEIS RODADAS enumerando capacidade provaram que
+    # ela e ilimitada: `-o`, `--junitxml`, `--output`, e agora `--fix`,
+    # `format`, `--basetemp`, `--cache-dir`. Ferramenta de verdade escreve de
+    # muitos jeitos, e a lista nunca fecha.
+    #
+    # Eu tinha abandonado a metade errada. O invariante util nao e "este comando
+    # escreve?", que e indecidivel por texto; e "ESTE ALVO SAI DO WORKTREE?",
+    # que tem exatamente tres grafias: relativa com `..`, absoluta, e `~`/$HOME.
+    # As tres sao negaveis. Com as tres negadas, `ruff check --fix .` continua
+    # passando e fica CONTIDO — o worktree de auditoria e descartavel por
+    # desenho, e o launcher o recria a cada rodada.
+    #
+    # Isto fecha flag desconhecida e flag futura sem enumerar nenhuma: o que
+    # importa deixa de ser como a ferramenta escreve, e passa a ser onde.
+    #
+    # Excecoes, as duas por necessidade e delimitadas:
+    #   - `/dev/null`, que e descarte;
+    #   - `~/.claude/hooks/` e `$HOME/.claude/hooks/`, que sao os smoke tests
+    #     prescritos pelo PHASE_0_CHECKLIST e ja allowlistados por nome explicito.
+    #
+    # Custo aceito e declarado: leitura por caminho absoluto passa a ser
+    # bloqueada. E o mesmo custo ja aceito para `..` — o worktree de auditoria E
+    # o objeto da auditoria, e ler fora dele mede outra arvore.
+    (r"(?:^|[\s=\"'>])"
+     r"(?!/dev/null\b)"
+     r"(?!~/\.claude/hooks/)"
+     r"(?!\$HOME/\.claude/hooks/)"
+     r"(?:/[^\s\"'/]|[A-Za-z]:[/\\]|~[/\\]|\$HOME[/\\])",
+     "caminho absoluto: alvo fora do worktree de auditoria"),
     # `git branch` listando e leitura legitima e nao pode ser negado inteiro;
     # so a deleção. O ref store e COMPARTILHADO com o worktree principal:
     # provado por execucao, `git branch -D` rodado de dentro do worktree de
@@ -137,6 +170,21 @@ DENIED_ANYWHERE = [
     # cinco ferramentas documentam —, enquanto a de alvos era aberta, porque
     # qualquer caminho tem infinitas grafias. Flag nova encontrada e finding
     # pelo item 4(d) da DoD, nao defeito aceito.
+    # ESCOPADA POR COMANDO, e agora com o que ela NAO cobre dito na cara.
+    #
+    # Esta regra enumera FLAGS DE SAIDA de seis comandos. Ela nao cobre, e nunca
+    # cobriu, as outras formas de escrita dessas mesmas ferramentas: `--fix`,
+    # `format`, `--basetemp`, `--cache-dir`, e o `-o` de `docker compose config`,
+    # que nem esta entre os comandos escopados. Foi o B1 e o H1 da 17a auditoria,
+    # e o comentario anterior afirmava fechamento onde nao havia — a mesma
+    # divergencia entre desenho declarado e mecanismo implementado que o H1 da
+    # 14a puniu, reincidindo dentro do texto que descrevia aquela correcao.
+    #
+    # O que de fato contem essas formas nao e esta regra: e a NEGACAO DE CAMINHO
+    # ABSOLUTO acima. `ruff check --fix .` passa e fica contido no worktree
+    # descartavel; `ruff check --fix /c/Projetos/...` e negado pelo alvo, nao
+    # pela flag. Esta regra fica como camada extra para o caso contido, nao como
+    # fronteira.
     # ESCOPADA POR COMANDO, de verdade. A versao anterior dizia no comentario que
     # a superficie era "fechada por comando" e a regex nao mencionava comando
     # nenhum: casava `-o` em qualquer posicao de qualquer comando, e bloqueava

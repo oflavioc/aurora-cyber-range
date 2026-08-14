@@ -183,6 +183,28 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima sétima auditoria: FAIL, 1 BLOCKER — e a metade que eu tinha abandonado errado
+
+Executada sobre `5f97e8e`. Relatório em `docs/progress/audit_20260814T164917Z.md`.
+
+**B1 — seis formas de escrita que não são flags de saída.** `ruff check --fix`, `ruff format`, `eslint --fix`, `pytest --basetemp=`, `mypy --cache-dir`, `docker compose config -o`. Todas admitidas pelo hook, todas com alvo absoluto alcançando o worktree principal. Medidas, `rc=0` nas seis.
+
+`--fix` e `format` reescrevem no lugar; `--basetemp` **remove** o diretório indicado; `--cache-dir` grava. Com grafia absoluta, o alvo inclui `tools/` — os verificadores que o auditor julga.
+
+**O que este achado revela é maior que as seis formas.** A décima auditoria mostrou que negar `..` não continha nada, porque o mesmo alvo tem grafia absoluta. A conclusão que tirei foi *"policiar capacidade, não alvo"* — e **seis rodadas enumerando capacidade** provaram que ela é ilimitada: `-o`, `--junitxml`, `--output`, e agora `--fix`, `format`, `--basetemp`, `--cache-dir`.
+
+**Eu tinha abandonado a metade errada.** O invariante útil não é *"este comando escreve?"*, que é indecidível por texto e cresce a cada ferramenta. É ***"este alvo sai do worktree?"***, que tem exatamente **três grafias** — relativa com `..`, absoluta, e `~`/`$HOME` — e as três são negáveis.
+
+Com as três negadas, `ruff check --fix .` continua passando e fica **contido** no worktree descartável, que o launcher recria a cada rodada. E flag desconhecida ou futura fica coberta sem enumerar nenhuma: o que importa deixa de ser **como** a ferramenta escreve e passa a ser **onde**.
+
+**H1 — o comentário afirmava fechamento que não havia.** Ele dizia *"a superfície é FECHADA POR COMANDO"* e listava cinco ferramentas; são seis na regex, `docker` está fora dela, e "flags de saída" nunca foi o conjunto das flags de escrita. É a mesma classe que o H1 da 14ª puniu — desenho declarado divergindo do mecanismo — **reincidindo dentro do comentário que descrevia aquela correção**. Corrigido para dizer o que a regra não cobre e quem de fato contém essas formas.
+
+**Probes nas duas direções.** O eixo do alvo passou de 32 para **70 provas** (14 formas × 5 grafias), e ganhou a direção que faltava: `ESCRITA_CONTIDA_PASSA` exige que as mesmas formas **passem** com alvo relativo. Sem ela, a negação de caminho absoluto viraria "bloqueia tudo e passa no teste" — o guarda que quatro rodadas produziram por só testar bloqueio.
+
+**Resultado: 24 leituras legítimas, 36 escritas bloqueadas, 70 provas de alvo, 0 escritas não bloqueadas, 5 falsos bloqueios declarados.**
+
+**Contador do P39 zerado.** A 17ª trouxe BLOCKER, então não conta como primeira candidata. A 18ª recomeça.
+
 ### Décima sexta auditoria: FAIL, 2 BLOCKER — a reincidência que a oitava já tinha descrito
 
 Executada sobre `f72f9b1`, a primeira árvore com a DoD nova e o código juntos. Relatório em `docs/progress/audit_20260814T160502Z.md`.
@@ -1662,7 +1684,8 @@ A lista é o que transforma "o hook é incompleto" de reclamação recorrente em
 | Rodada | Veredito | BLOCKER | Conta para o critério |
 |---|---|---|---|
 | 16ª | FAIL | 2 | não — zera |
-| 17ª | *pendente* | | primeira candidata |
+| 17ª | FAIL | 1 | não — zera |
+| 18ª | *pendente* | | primeira candidata |
 
 ---
 
