@@ -20,7 +20,21 @@ Resolvido como **cinco valores, quatro verdades**: as quatro camadas afirmam alg
 
 **`separate_incident_declared` era usado e não existia no catálogo.** `03` §1.1 e `09` §6 o usam como evidência `auto` do OBJ-03. O catálogo é registro fechado com CI que falha em `event_type` não registrado — um `objectives.yaml` escrito conforme o **exemplo normativo do `03`** seria recusado pelo linter.
 
-### 1.2 Sistema de tipos das flags — decisão da fase
+### 1.2 O checkpoint ⏸ aconteceu, e foi cumprido na forma e não no fundo
+
+A Fase 1 é ⏸. O `KICKOFF_PROMPT` manda parar e apresentar quatro coisas antes de qualquer código: árvore, `contracts/` completo, catálogo com `truth_layer`, e **as três decisões de modelagem mais arriscadas com recomendação**.
+
+**A apresentação ocorreu e foi aprovada.** As quatro coisas foram submetidas antes do primeiro arquivo, com a frase *"Aguardo. Não escrevo nada até você decidir os três"*, e a resposta foi *"Aprovado. Pode seguir com as recomendações elaboradas"*.
+
+**O defeito está no item 4, e é meu.** Das três decisões apresentadas, **duas não eram decisões de modelagem**: D1 (`facilitation` como `truth_layer`) e D2 (`separate_incident_declared` fora do catálogo) eram **escalações de contradição interna da spec** — coisas que `CLAUDE.md` me proíbe de resolver por inferência e que eu tinha obrigação de submeter de qualquer forma. Só D3, o sistema de tipos das flags, era decisão minha.
+
+**Consequência concreta:** as decisões genuinamente arriscadas deste commit — as que custam caro para desfazer nas fases seguintes — **nunca foram submetidas**, porque duas escalações ocuparam o lugar delas. O checkpoint foi satisfeito como procedimento e falhou como salvaguarda.
+
+É a mesma classe que a Fase 0 registrou repetidamente: cumprir a forma do mecanismo e perder a propriedade que ele deveria garantir. Aqui não houve execução sem submissão — houve **submissão do que não estava em risco**.
+
+Ver §6, pendência **P1-5**, para as três decisões que faltavam.
+
+### 1.3 Sistema de tipos das flags — decisão apresentada e aprovada
 
 `01` §5.2 exemplifica só `boolean`, mas o inject de `04` §5 atribui `academus.lms_session_drop_rate: 0.4`, e essa flag está em `required_flags` do manifesto.
 
@@ -133,6 +147,44 @@ Ele valida o `MANIFEST.json` de `08` §7, e `range-cli evidence build` chega na 
 ### P1-4 — `observability_hooks.yaml` tem dois hooks, não o conjunto
 
 Os dois de `09` §6, que são exemplo normativo. Os demais chegam com a API na Fase 3 — declarar hook para rota inexistente seria contrato sem implementação.
+
+### P1-5 — As três decisões de modelagem realmente arriscadas, não submetidas
+
+**Status: ABERTAS, aguardando decisão do operador. Nenhuma foi apresentada no checkpoint** — ver §1.2.
+
+Estão listadas por **custo de reversão**, não por ordem de importância conceitual. As três são minhas, tomadas sozinho ao escrever os contratos.
+
+#### D4 — Os contratos são YAML descritivo com vocabulário próprio, não schema formal
+
+Escrevi os seis usando chaves inventadas por mim: `required_fields`, `types`, `conditional_fields`, `must_exist_in_event_catalog`, `event_must_exist_in_catalog`. Não é JSON Schema, não é Cue, não é linguagem de schema nenhuma.
+
+**Por que é a mais cara de desfazer.** Nenhum validador pronto lê isto. `range-cli scenario validate` (Fase 7) e o loader de pack (Fase 2) vão precisar de um **interpretador escrito à mão do meu vocabulário** — e cada chave que eu inventei vira um caso desse interpretador. Trocar depois significa reescrever os seis contratos **e** o validador que já os consome.
+
+**O que a favorece:** a Fase 0 exige *apenas stdlib*, e o parser YAML próprio já recusa metade da sintaxe. JSON Schema exigiria dependência ou outro interpretador escrito à mão — o custo não desaparece, só muda de lugar. E o vocabulário próprio permite expressar `must_exist_in_event_catalog`, que é referência cruzada entre contratos e que JSON Schema não expressa nativamente.
+
+**Minha recomendação: manter, e registrar o limite.** Mas é a decisão que eu mais gostaria que você contestasse, porque é a que trava mais fases.
+
+#### D5 — `verification_predicates` exige `containment` **e** `service_restoration`
+
+`ground_truth.schema.yaml` declara as duas chaves como obrigatórias. `03` §3.1 diz que sem a seção o pack não carrega, e mostra as duas — mas **não diz que ambas são obrigatórias em todo pack**.
+
+**Por que é cara.** `04` §9 manda entregar `fraude-academica-express` — 90 min, Linha B expandida, fraude de notas avaliada por calibração. **Um pack de fraude acadêmica pode não ter "restauração de serviço" em sentido nenhum**: nada caiu. Se for esse o caso, meu schema **impede a carga de um pacote que a spec manda entregar**, e a correção é migração de `schema_version` ou exceção no loader.
+
+**Minha recomendação: tornar `service_restoration` opcional e `containment` obrigatório.** TTCV é o par de contenção e existe em qualquer incidente; TTRV pressupõe indisponibilidade. Um pack sem serviço derrubado teria `service_restoration` vazio ou trivialmente satisfeito, e isso é pior que ausente — vira métrica que sempre zera.
+
+**Não alterei o contrato**, porque a instrução foi não mexer em código antes da sua decisão.
+
+#### D6 — `fact_id` com padrão fixo `^GT-[A-Z]-[0-9]{3}$`
+
+A spec mostra `GT-A-014` e `GC-029`, mas **nunca declara um padrão**. Eu o inventei.
+
+**O que ele impõe:** no máximo **999 fatos por linha**, e linha identificada por **um único caractere maiúsculo**.
+
+**Por que é cara.** `fact_id` é consumido por três coisas em fases distintas: `projections` no ground truth, `materializes_facts` nos injects (Fase 7), e `projects_facts` no `MANIFEST.json` de evidência (Fase 9). Um pack que estoure o padrão obriga a mexer nos três, e nos arquivos já escritos de todo pack existente.
+
+**Minha recomendação: afrouxar para `^GT-[A-Z0-9]+-[0-9]+$`.** Mantém a legibilidade e a convenção visível na spec, sem inventar teto. O padrão restrito não compra verificação real — nenhum invariante depende de o fato ser exatamente três dígitos.
+
+**Uma quarta, menor, que registro sem pedir decisão:** os `example_valid`/`examples_invalid` moram **dentro** dos arquivos de contrato. Isso os torna auto-documentados e garante que o exemplo nunca se separe do schema, mas significa que o validador precisará saber quais chaves de topo são schema e quais são exemplo. Custo baixo, e o benefício de o exemplo negativo viajar junto do contrato me parece maior.
 
 ### Herdadas da Fase 0, ainda abertas
 
