@@ -13,7 +13,7 @@ Nenhum código de aplicação, `docker-compose` ou migration. Scripts de suporte
 - [ ] `.claude/settings.json` com hooks, Manual/default e deny de secrets
 - [ ] `.github/workflows/invariants.yml`
 - [ ] `tools/` com os **seis** verificadores invocados pelo CI
-- [ ] `scripts/phase0_negative_tests.py`
+- [ ] `scripts/phase0_negative_tests.py` — probes dos seis verificadores (item 2) e probes de hook com as duas listas de defeito afirmado (item 4). Separação em `scripts/hook_guard_tests.py` é pendência registrada (§6 P38)
 - [ ] `scripts/start_checkpoint_audit.sh`
 - [ ] `.gitignore`
 - [ ] `bootstrap.sh` e `finalize_phase0.sh`
@@ -69,7 +69,7 @@ printf '%s\n' '{"cwd":"'"$(pwd)"'","tool_input":{"file_path":"range-core/x.py","
   | python .claude/hooks/check_architecture.py
 echo "exit=$?"  # espera 2
 
-# Auditor não pode executar escrita deliberada
+# Auditor: uma das formas de escrita enumeradas no harness
 printf '%s\n' '{"tool_input":{"command":"rm -rf range-core"}}' \
   | python ~/.claude/hooks/readonly_bash.py
 echo "exit=$?"  # espera 2
@@ -79,6 +79,14 @@ printf '%s\n' '{"cwd":"'"$(pwd)"'","tool_input":{"file_path":"range-core/nope.py
   | python .claude/hooks/scenario_scope.py
 echo "exit=$?"  # espera 2
 ```
+
+**Este bloco não prova o item 4.** Ele exercita um caso; a prova das cinco
+condições — inclusive as duas listas de defeito afirmado, a de escrita não
+bloqueada em 4(c) e a de falso bloqueio de leitura em 4(e) — é responsabilidade
+de `scripts/phase0_negative_tests.py`. E o segundo probe **não é executável pelo
+Bash do próprio auditor**: o `rm -rf` dentro do payload JSON casa como comando de
+escrita e o hook bloqueia o teste que o testa (`docs/progress/fase_0.md` §6 P23).
+Rode-o de uma sessão comum.
 
 ## Ordem correta de fechamento
 
@@ -109,7 +117,60 @@ Use `bash finalize_phase0.sh` para executar essa ordem. Se branch protection fal
 - [ ] Os seis verificadores liberam árvore limpa
 - [ ] Os seis detectam as violações externas de `scripts/phase0_negative_tests.py`
 - [ ] Hook bloqueia import de `domains/` em `range-core/`, edição de `docs/spec/` e literal de flag
-- [ ] Hook do auditor bloqueia escrita deliberada e libera testes/verificadores de leitura
+- [ ] **Item 4 — Separação de papéis do auditor**
+
+  a) O agente `checkpoint-auditor` não declara `Write` nem `Edit` em suas `tools`.
+
+  b) O hook `readonly_bash.py` bloqueia as formas de escrita enumeradas em
+     `scripts/phase0_negative_tests.py`, e o harness prova cada uma nas duas
+     direções.
+
+  c) A superfície aberta é declarada: toda forma de escrita conhecida e não
+     bloqueada está listada no harness como defeito afirmado, e o harness reprova
+     se qualquer uma passar a ser bloqueada sem atualização da lista. Uma forma só
+     pode ser declarada se **nenhuma grafia do seu alvo** escapar do worktree de
+     auditoria — provado no harness contra as quatro grafias equivalentes:
+     relativa, absoluta, `~` e variável de ambiente. Escrita que alcança o
+     worktree principal é finding, não defeito aceito: ela derrota o propósito
+     declarado do hook, que é impedir correção acidental, e não apenas conter
+     adversário.
+
+     > **Por que a prova é por grafia, e não por contenção.** Um alvo tem
+     > infinitas grafias, então "esta escrita fica contida" não é demonstrável
+     > por casamento textual — é a mesma indemonstrabilidade que motivou esta
+     > reformulação, e ela reapareceu dentro da primeira tentativa de corrigi-la
+     > (`docs/progress/fase_0.md` §6 P36, décima auditoria). O que se verifica é
+     > **ausência de capacidade de escrita** no comando allowlistado: comando que
+     > escreve por posição sai da allowlist, e flag de saída é negada por comando.
+     > Declarar contenção sem essa prova é usar a disciplina de declaração para
+     > legitimar exatamente o que ela existe para impedir.
+
+  d) Nenhum comando de escrita **não declarado** passa: qualquer forma nova
+     encontrada é finding, não defeito aceito.
+
+  e) O hook libera os comandos de leitura e de execução de teste que o auditor
+     precisa para medir em vez de inferir. Falsos bloqueios conhecidos estão
+     listados em `scripts/phase0_negative_tests.py` como defeito afirmado, pela
+     mesma disciplina de (c): defeito documentado que sai do harness vira defeito
+     esquecido. Falso bloqueio novo é finding, pela mesma razão de (d) — degrada a
+     capacidade de auditar.
+
+  > **Separação de suítes é pendência registrada** (`docs/progress/fase_0.md`
+  > §6 P38). Hoje `scripts/phase0_negative_tests.py` responde pelo item 2 *e* pelo
+  > item 4, e um verde não distingue qual metade passou. A separação em
+  > `scripts/hook_guard_tests.py` está decidida, e adiada para depois de o harness
+  > de hook chegar a `main` — separar arquivo que ainda não chegou é ordem errada.
+
+  **Limite declarado.** O hook decide por casamento textual, não por análise
+  sintática de shell. Completude não é demonstrável neste desenho — apenas
+  refutável, uma via por rodada, o que nove auditorias comprovaram. A proteção da
+  integridade do repositório repousa em branch protection com `enforce_admins`, no
+  job `spec_freeze` do CI e nos seis verificadores — nenhum deles alcançável pelo
+  hook do auditor, e todos demonstrados funcionando nos itens 9 a 13.
+
+  O propósito do hook é impedir que o auditor corrija por acidente em vez de
+  reportar, preservando a separação de papéis. Não é conter adversário.
+
 - [ ] Hook do scenario-designer bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist
 - [ ] `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore`
 - [ ] `.env`/secrets estão negados em `.claude/settings.json`

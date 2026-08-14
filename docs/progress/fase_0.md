@@ -128,6 +128,8 @@ O auditor está estruturalmente impedido de executar o teste canônico do item 4
 
 **Item 4 permanece parcial**, agora com cinco modos documentados no L3/P23, incluindo o bloqueio do próprio smoke test canônico.
 
+> **Posterior a esta rodada:** o item 4 foi **reformulado** — ver §6 P36. O texto que esta seção avalia ("bloqueia escrita deliberada e libera testes/verificadores de leitura") não é mais o texto vigente da DoD. O parágrafo acima fica como registro do que foi apurado na sexta auditoria, não como status atual.
+
 **Dois desses findings acusam este próprio registro de imprecisão, e ambos procedem:**
 
 - o **M1** contesta a classificação "formalmente conforme" que o §7 O2 dava ao commit inicial misturar `docs/spec/` e `tools/`. O texto normativo do `CLAUDE.md` diz *código*, não "range-core, domains e contracts". O O2 foi corrigido;
@@ -658,7 +660,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ **as duas direções tratadas; a definição é que segue insatisfazível.** **Escrita:** 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 8 de substituição — e o eixo da substituição passou a ser verificado por **propriedade** (parêntese fora de aspas), não por lista de sigilos. **0 não bloqueadas**. **Leitura:** 17 liberadas e **4 falsos bloqueios**, os quatro por decisão registrada (§6 P23). O item só passa quando a reformulação do `spec-change` entrar |
+| 4 | Separação de papéis do auditor — cinco condições e limite declarado | ⏳ **aferível pela primeira vez.** Item **reformulado** (§6 P36) e código presente na mesma árvore. (a) ✅ `tools: Read, Grep, Glob, Bash`. (b) ✅ 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 8 de substituição, nas duas direções. (c) ✅ superfície declarada e **0 escritas não bloqueadas**; o eixo da substituição passou a ser verificado por **propriedade** — parêntese fora de aspas —, não por lista de sigilos. (d) ✅ forma nova é finding. (e) ✅ 20 leituras legítimas provadas e **4 falsos bloqueios listados**, os quatro por decisão registrada (§6 P23). **Confirmação pendente da auditoria contra `main`** — este quadro é medição minha, não veredito de auditor |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS** — `Read`/`Edit` de `.env`, `.env.local`, `.env.*.local` e `secrets/**`, exatamente a enumeração de `CLAUDE.md` §Secrets, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. Somado a isso, o hook do auditor nega leitura de secret por caminho de shell (`cat .env`), que o deny por ferramenta não alcança. *(Esta célula dizia `.env.*` — o deny anterior à correção da P17, feita no mesmo intervalo de candidatura: era o M1 da 14ª auditoria, quinta instância da linhagem P10/P15/P17/P22.)* |
@@ -837,6 +839,10 @@ O encaminhamento antecipado neste registro — ancorar em prefixo — foi o adot
 **Status.** Aberta por instrução. Falha para o lado seguro — bloqueia o legítimo, não libera o proibido — mas degrada a capacidade do auditor exatamente como o H4 fazia, e H4 foi tratado como HIGH por esse motivo. Por causa desta pendência, o item 4 da DoD (§5) permanece **parcial** mesmo após a correção do H4.
 
 **Reconfirmada na quarta auditoria** — ver §6 P23.
+
+**Âncora atualizada para o item 4(e) (§6 P36).** A cláusula citada no bloco verbatim acima — *"libera testes/verificadores de leitura"* — não existe mais: o item 4 foi reformulado. O requisito equivalente passa a ser **`PHASE_0_CHECKLIST.md` §DoD item 4(e)**, que trata falso bloqueio de leitura como defeito afirmado quando listado no harness, e como finding quando novo.
+
+**Continua aberta.** O bloco verbatim **não foi reescrito** — é saída literal do auditor. O `|` entre aspas é candidato à lista de defeito afirmado de 4(e), e essa listagem é trabalho do PR de código.
 
 ### P9 — [L2] `check_security_constraints.py` não varre os próprios hooks nem o workflow
 
@@ -1049,7 +1055,9 @@ mas degrada a capacidade do auditor — o mesmo argumento que fez o H4 ser HIGH.
 descreve só o caso do | entre aspas.
 ```
 
-**Status.** Aberta, e **agrupa-se ao P8**: são a mesma família de defeito — casamento textual sem consciência de sintaxe de shell. P8 descreve o `|` entre aspas; P16 acrescenta `merge-base` casando como `merge`, `2>&1` casando como redirecionamento, e `for-each-ref`/`sort` fora da allowlist. Juntos são a razão de o item 4 da DoD (§5) seguir parcial.
+**Status.** Aberta, e **agrupa-se ao P8**: são a mesma família de defeito — casamento textual sem consciência de sintaxe de shell. P8 descreve o `|` entre aspas; P16 acrescenta `merge-base` casando como `merge`, `2>&1` casando como redirecionamento, e `for-each-ref`/`sort` fora da allowlist. Juntos eram a razão de o item 4 da DoD (§5) seguir parcial.
+
+**Âncora atualizada para o item 4(e) (§6 P36).** Vale aqui o mesmo que em P8: a cláusula *"libera testes/verificadores de leitura"* não existe mais, e o requisito equivalente é `PHASE_0_CHECKLIST.md` §DoD item 4(e). Pendência **aberta**, verbatim preservado. `merge-base` casando como `merge`, `2>&1` como redirecionamento e `for-each-ref`/`sort` fora da allowlist são candidatos à lista de defeito afirmado de 4(e).
 
 **Reconfirmada na quarta auditoria, com modo novo** (`->` entre aspas) — ver §6 P23.
 
@@ -1227,6 +1235,20 @@ A escolha real, então, não foi entre "fechada" e "aberta". Foi entre **duas su
 **O que fica para quem for refazer isto.** O caminho que não foi tentado é não reimplementar o parser: delegar a decisão ao próprio bash (`bash -n`, ou expansão controlada), ou reduzir a superfície a ponto de o parser ser desnecessário — por exemplo, não aceitar pipeline nem substituição de comando, e exigir um comando por chamada. Menos capacidade, mas capacidade **demonstrável**.
 
 **O harness passou a cobrir as duas direções** — 7 probes de leitura legítima e 13 de escrita deliberada. Esta é a lição da linhagem, e vale além deste arquivo: o harness cobria "nega escrita" e nunca "libera leitura", e por isso quatro rodadas seguidas produziram falso bloqueio **sem nenhum teste reprovar**. Um guarda testado só contra o que deve bloquear converge para bloquear tudo. Um probe adicional compara a fonte versionada com a cópia instalada em `~/.claude/hooks/`, que é a que efetivamente roda: divergência silenciosa entre as duas é o pior caso. Ausente a cópia instalada (CI), avisa e segue.
+
+**Status posterior: a metade da LEITURA foi atacada por causa, e sete dos onze falsos bloqueios caíram.**
+O texto acima é o registro do que a tokenização fez e por que foi revertida; o que vale hoje está em
+§0, na seção do P23 da 15ª rodada — `/dev/null` isento, filtros de leitura na allowlist, `git tag`
+listando, e **máscara de citação**, que é a correção estrutural que este parágrafo dizia não existir.
+
+**Âncora atualizada para o item 4(e).** Esta pendência é sobre bloqueio indevido de **leitura**, e é a
+direção que a condição (e) do item 4 reformulado passou a cobrir: falso bloqueio conhecido é defeito
+afirmado quando listado no harness, e finding quando novo — *"degrada a capacidade de auditar"*, que é
+o argumento que fez o H4 ser HIGH e o que faltava ao texto anterior.
+
+**Segue aberta com quatro casos, todos por decisão registrada**, não por defeito pendente: laço de
+shell, substituição de comando, o smoke test canônico com `rm -rf` citado no payload, e leitura fora do
+worktree. O terceiro mantém o auditor sem a prova central pelo Bash dele — roda de uma sessão comum.
 
 ### P24 — [L4, quarta auditoria] `check_security_constraints.py` não varre os hooks — reconfirma e amplia P9
 
@@ -1474,6 +1496,107 @@ Sem as quatro juntas, o precedente não se aplica. Este parágrafo existe para q
 
 **O teste do P11 no passo (b).** Esta branch traz `scripts/audit_report.py` e a captura pelo launcher, mas as três últimas linhas de `audit_log.jsonl` trazem todas `"recovered": true` — nenhuma captura automática funcionou até aqui. Se o relatório da próxima rodada sobreviver à sessão **sem `--recover`**, o P11 fecha de fato, pela primeira vez na fase. **O resultado fica registrado aqui explicitamente, seja qual for**: se sobreviver, P11 fecha com o commit que o provou; se não sobreviver, P11 continua aberta com o modo de falha descrito, e não com "tentou-se de novo".
 
+### P36 — [decisão do operador, spec-change `dod-item-4-limite-declarado`] O item 4 da DoD foi reformulado após nove rodadas
+
+**Status: DECIDIDA e aplicada em `docs/process/PHASE_0_CHECKLIST.md`. As consequências abaixo ficam ABERTAS.**
+
+**O que mudou.** O item 4 dizia *"Hook do auditor bloqueia escrita deliberada e libera testes/verificadores de leitura"*. Passou a pedir cinco condições — (a) o agente não declara `Write`/`Edit`; (b) o hook bloqueia as formas **enumeradas em `scripts/phase0_negative_tests.py`**, provadas nas duas direções; (c) a superfície aberta é **declarada** como defeito afirmado, e o harness reprova se uma delas passar a ser bloqueada sem atualização da lista; (d) nenhuma forma de escrita **não declarada** passa; (e) o hook **libera** os comandos de leitura e execução de teste que o auditor precisa para medir em vez de inferir, com falsos bloqueios conhecidos listados como defeito afirmado e falso bloqueio novo tratado como finding — mais um **limite declarado** explícito.
+
+**A condição (e) foi acrescentada em revisão, e a omissão foi do operador.** A primeira versão da reformulação cobria só a metade "bloqueia escrita" e deixava "libera leitura" sem âncora. Era exatamente onde o **H4** da primeira rodada foi classificado HIGH: bloqueio indevido degrada a capacidade de auditar e empurra a auditoria para inferência de leitura de código, e um auditor impedido continua emitindo veredito. Sem (e), a reformulação teria trocado um item não demonstrável por um item incompleto — e teria desancorado P8, P16 e P23 em vez de reancorá-las.
+
+**Por que.** O item nunca passou em nenhuma rodada: nem com o hook antigo, nem com o tokenizado, nem revertido. A causa não é qualidade de implementação, é a forma da asserção. *"O hook bloqueia escrita deliberada"* é uma afirmação universal sobre todos os comandos de shell possíveis; ela só seria demonstrável com um parser de shell completo, e escrever um é um projeto em si, não uma tarefa de Fase 0.
+
+Um enunciado universal com casamento textual por baixo é **refutável, nunca verificável**. Cada auditoria produzia exatamente uma refutação nova — `|` entre aspas (P8), `merge-base` e `2>&1` (P16), `->` entre aspas e o payload JSON com `rm -rf` (P23) — e nenhuma quantidade de rodadas o converteria em prova. Nove rodadas são a evidência empírica disso, não um acidente de execução.
+
+**A decisão não é afrouxar o gate.** É pedir o que é verificável e declarar o resto:
+
+| Antes | Agora |
+|---|---|
+| propriedade universal, não demonstrável | conjunto enumerado, provado nas duas direções |
+| lacuna descoberta = finding, toda rodada | lacuna **conhecida** = defeito afirmado, listado |
+| lista implícita, na cabeça de quem leu o hook | duas listas explícitas, versionadas em `scripts/phase0_negative_tests.py` |
+| nenhum sinal quando o hook mudava de comportamento | harness reprova se um defeito afirmado deixar de sê-lo sem atualização da lista |
+| over-blocking era LOW recorrente, sem requisito próprio | falso bloqueio novo é finding por 4(e), com a mesma força de 4(d) |
+
+**Buraco declarado ≠ buraco novo.** É a distinção que sustenta a reformulação, e ela precisa sobreviver a este registro:
+
+- **Buraco declarado (aceito).** Forma de escrita conhecida e não bloqueada, ou falso bloqueio de leitura conhecido, **listado em `scripts/phase0_negative_tests.py`** como defeito afirmado. Não é finding. Já foi julgado, e o julgamento está versionado. Aceitá-lo é a decisão registrada aqui — não silêncio, não esquecimento.
+- **Buraco novo (finding).** Qualquer forma de escrita que passe pelo hook, ou qualquer comando de leitura legítima que ele barre, **fora da lista**. É finding pleno, exatamente como antes. A auditoria não perde poder: perde apenas a obrigação de redescobrir, a cada rodada, o que já está escrito.
+
+**A distinção vale nas duas direções, e isso é o ponto de (e).** Escrita que passa e leitura que não passa são o mesmo tipo de defeito visto de dois lados, e ambos degradam a auditoria: o primeiro deixa o auditor corrigir por acidente, o segundo o impede de medir e o empurra para inferência. Foi por tratar over-blocking como incômodo de LOW, e não como requisito, que P8, P16 e P23 sobreviveram quatro rodadas sem destino.
+
+A lista é o que transforma "o hook é incompleto" de reclamação recorrente em fato administrado. E a condição (c) fecha o caminho de volta: o harness reprova se alguém **fortalecer** o hook sem atualizar a lista, o que impede que a superfície declarada se torne ficção por deriva silenciosa. A condição (e) aplica a mesma disciplina ao over-blocking — **defeito documentado que sai do harness vira defeito esquecido**.
+
+**Por que isso não deixa o repositório desprotegido.** O hook do auditor nunca foi a proteção. Ele impede que o auditor **corrija por acidente em vez de reportar** — separação de papéis, não contenção de adversário. A integridade repousa em branch protection com `enforce_admins`, no job `spec_freeze` e nos seis verificadores, nenhum deles alcançável pelo hook, e todos demonstrados nos itens 9 a 13 da DoD — que **seguem pendentes** (§5). O limite declarado transfere peso para esses três; ele não os supõe prontos.
+
+#### Consequências, e o que resta aberto
+
+1. **O harness do item 4 é `scripts/phase0_negative_tests.py`** — o mesmo arquivo do item 2, por enquanto. A separação em `scripts/hook_guard_tests.py` está decidida e adiada: §6 **P38**.
+
+   **Três afirmações erradas foram corrigidas aqui, e todas são a mesma falha: falar de um arquivo sem dizer o commit.**
+
+   - **Minha.** Escrevi que "o harness não existe", sem dizer de qual árvore falava.
+   - **Do operador.** Descreveu `scripts/phase0_negative_tests.py` como já misturando as duas suítes, lendo os relatórios de auditoria — que falam em "probes de hook" — sem verificar onde esses probes viviam.
+   - **Do operador, segunda vez no mesmo assunto e a mais consequente:** *"eu estava lendo `main` e falando como se fosse o estado do projeto, enquanto o auditor audita a branch."* As duas primeiras são instâncias dela. É a mesma confusão de árvore que produziu a divergência de contagem de rodadas (item 3 abaixo) e que motivou a reordenação de merge de §6 **P35** — o registro do projeto e a árvore que a DoD julga divergiram, e ninguém percebeu enquanto se falava de "o arquivo" sem qualificar onde.
+   - **Minha, e a mais instrutiva das seis:** o qualificador de contenção que resolveu a quinta correção foi implementado policiando **uma grafia do alvo** — `..` — e deixando caminho absoluto, `~` e `$HOME` abertos. Sete das oito formas ditas fechadas reabriam pela troca de grafia, e uma delas sobrescrevia o hook instalado do próprio auditor. Foi o B1 da décima auditoria, e é a mesma classe de erro que o item 4 antigo cometia: **um alvo tem infinitas grafias, então policiar alvo por texto é sempre refutável.** Cometi-a dentro da correção que deveria encerrá-la, e o registro chegou a chamar "duas regras, não oito" de profundidade. O que se verifica por texto não é contenção, é **ausência de capacidade de escrita**: `find` saiu da allowlist, as flags de saída das cinco ferramentas restantes foram negadas, e a condição (c) passou a exigir prova nas quatro grafias.
+   - **Do operador, quinta e a mais grave, porque estava dentro do próprio item:** *"escrevi um item de DoD cuja condição (c) contradiz o próprio limite que ela declara."* A condição (c) aceitava como defeito afirmado **toda** escrita conhecida e listada. As 10 formas declaradas pelo harness estão listadas. Logo, sob a DoD nova, `find . -fprint0 ../../tools/codegen.py` seria **defeito aceito** — enquanto o "Limite declarado" do mesmo item diz que o propósito do hook é *"impedir que o auditor corrija por acidente"*. Uma escrita que alcança o worktree principal falha contra **acidente**, não só contra adversário: derrota o propósito declarado que a própria condição invoca. Corrigido com o qualificador de contenção, agora no texto de (c). O que resolve a contradição é a distinção **declarar um buraco dispõe do requisito só enquanto o buraco não derrota o propósito declarado** — e é ela, não a lista, que separa defeito aceitável de finding.
+   - **Do operador, quarta e de classe própria:** *"escrevi 'vai reprovar' quando o critério de bloqueio é BLOCKER e HIGH, não item de DoD falhando"* — sobre o passo (b) de §6 P35. **Afirmar comportamento sem verificar o critério que o produz.** Por `WORKFLOW.md` §Ciclo por fase e `checkpoint-auditor.md` §Regras, item de DoD falhando não determina o veredito por si; só BLOCKER força FAIL. As três primeiras correções são sobre *onde* um fato vive; esta é sobre *qual regra* o produz. As quatro juntas são o argumento mais forte deste registro a favor de medir antes de afirmar — e todas foram cometidas por quem escreveu a norma que exige exatamente isso.
+
+   **Medido em `main` (`edd9527`):** `scripts/phase0_negative_tests.py` tem 242 linhas e **13 probes, todos dos seis verificadores**. Nenhum probe de hook — nem de `readonly_bash.py`, nem de `check_architecture.py`, nem de `scenario_scope.py`. A única menção a `.claude/hooks/` é um comentário na linha 100 sobre evitar falso positivo do hook arquitetural, e a linha final imprime *"Todos os seis verificadores falharam contra probes independentes."*
+
+   **Medido em `manutencao-p11-p23` (12 commits fora de `main`, os probes a partir de `4b8e412`):** o mesmo arquivo tem **505 linhas** e já contém os probes de hook **nas duas direções** (`expect_hook_allows`, `expect_hook_blocks`), **as duas listas de defeito afirmado** — `expect_hook_allows_known_hole` para escrita conhecida e não bloqueada, `expect_hook_blocks_known_defect` para falso bloqueio de leitura —, uma lista `LEITURA_LEGITIMA` e uma checagem de drift entre a cópia versionada e a instalada do hook. O comentário de `expect_hook_blocks_known_defect` diz, literalmente, *"Defeito documentado nao pode virar defeito esquecido"* — a mesma frase que a condição 4(e) adotou.
+
+   **O que isso muda.** A reformulação não pede trabalho novo: ela **descreve trabalho que já existe numa branch não mergeada**. O item 4 é inaferível em `main`, e apenas ali — e é essa constatação que reordenou os merges (§6 **P35**).
+
+   **E corrige a segunda metade da afirmação do operador:** os probes não "voltaram a não existir" por causa da reversão do P23. O commit de reversão — `4b8e412`, *"reverte o P23 e registra o hook como defeito aberto nas duas direcoes"* — é justamente o que os **mantém** e os reenquadra como defeito afirmado; é a versão com mais probes de hook de toda a história do arquivo. Eles nunca deixaram de existir: nunca chegaram a `main`. É a mesma linhagem de P11 vista de outro ângulo — trabalho e registro que existem fora da árvore que a DoD julga.
+
+   **A separação das suítes está decidida e adiada** — §6 **P38**. O item 4 desta reformulação referencia `scripts/phase0_negative_tests.py`, que é onde a prova de fato vai morar quando a manutenção chegar a `main`.
+
+2. **P8, P16 e P23 estão reancoradas no item 4(e).** ✅ **Resolvida.** A primeira versão da reformulação deixava a metade "libera leitura" sem requisito e as três órfãs; a condição (e) foi acrescentada exatamente para isso. As três tratam de bloqueio indevido de leitura legítima, que agora é: defeito afirmado se estiver listado no harness, finding se for novo.
+
+   **As três continuam abertas**, agora com âncora — `PHASE_0_CHECKLIST.md` §DoD item 4(e) — em vez de citarem uma cláusula que não existe mais. Os cinco modos conhecidos (P23) são os primeiros candidatos à lista de defeito afirmado de (e), e essa listagem é trabalho do PR de código. Os blocos verbatim dos findings em P8, P16 e P23 **não foram reescritos**: são saída literal do auditor, e reescrevê-los falsificaria o registro do que foi de fato reportado. Cada um recebeu nota de status abaixo do bloco.
+
+3. **A contagem de rodadas deste registro não bate com nove — e agora se sabe por quê.** Esta versão do `fase_0.md`, em `main`, documenta **seis** auditorias (§0). A decisão foi tomada sobre nove rodadas.
+
+   A causa não é (só) **P11**, como esta consequência afirmava na versão anterior. Ao rastrear os probes de hook apareceu a explicação material: a branch `manutencao-p11-p23` traz `5747563` *"registra as rodadas 7 e 8"*, `30f80c2` *"relatorio da oitava auditoria, capturado automaticamente"* e `12750ac` *"relatorio da nona auditoria"* — **as três rodadas que faltam estão registradas, fora de `main`**. A mesma branch traz `42a4779` e `0c62d78`, que atacam o próprio P11 e criam `scripts/audit_report.py`; a palavra "automaticamente" no assunto de `30f80c2` sugere que a captura passou a funcionar ali.
+
+   Então a divergência é **de árvore, não de transcrição**: o registro das rodadas 7 a 9 existe e não chegou a `main`, exatamente como os probes de hook. P11 explica por que as rodadas 1 a 6 chegaram truncadas; não explica esta lacuna.
+
+   **Registrado como divergência declarada, não reconciliado por inferência** — decisão confirmada pelo operador. Não trouxe nada daquela branch para cá: portar o registro das rodadas 7 a 9 é trabalho próprio, e misturá-lo a um `spec-change:` inflaria um diff que precisa permanecer auditável linha a linha. Fica como pendência implícita do PR de código, que já vai tocar a mesma branch.
+
+4. **`docs/process/` fora do conjunto `CODE`** deixou de ser consequência deste item e virou pendência própria: **§6 P37**. Não se resolve por apêndice de um PR de spec-change.
+
+**Referências atualizadas neste PR:** `PHASE_0_CHECKLIST.md` (item 4, agora com cinco condições, e o bloco de smoke tests), `WORKFLOW.md:53`, e neste arquivo §5, §6 P36, §6 P37, as notas de status em P8/P16/P23 e §8. **Fora deste PR, por serem conjunto `CODE`:** `user-scope/hooks/readonly_bash.py:27,64` (mensagem "sem escrita deliberada"), `bootstrap.sh:43-48` e `finalize_phase0.sh:83,90` (probe `rm -rf` e o texto "readonly_bash bloqueia escrita"). `user-scope/agents/checkpoint-auditor.md:4` já satisfaz o item 4(a) e não precisa de mudança.
+
+---
+
+### P37 — [decisão do operador, spec-change `dod-item-4-limite-declarado`] `docs/process/` está fora do conjunto `CODE` do `spec_freeze`
+
+**Status: ABERTA. Resolução deliberadamente adiada para depois do início da Fase 1.**
+
+`docs/process/` está fora do conjunto `CODE` do `spec_freeze`. Um PR pode alterar a Definition of Done e o mecanismo que ela julga no mesmo commit sem que o gate reprove. Este próprio PR teria passado sem o prefixo `spec-change:`, porque `SPEC=0`. Quinta instância candidata da linhagem P12/P18/P26/P27 — as quatro anteriores foram resolvidas ampliando `CODE` sob o critério "ser mecanismo que aplica a spec". `PHASE_0_CHECKLIST.md` e `WORKFLOW.md` definem o processo que a spec normatiza, o que os coloca dentro desse critério. Decisão pendente: incluir `docs/process/` em `CODE` tem o custo de que todo PR que ajuste o processo passe a exigir PR próprio, inclusive os que acompanham correção de código.
+
+**Encaminhamento decidido pelo operador: resolver depois de a Fase 1 começar.** A linhagem já custou quatro rodadas, e esta instância não bloqueia nada agora. Registrado aqui para não passar por esquecimento — é o mesmo tratamento dado a **P25**, adiada para a Fase 1 por decisão explícita.
+
+**Por que a exclusão existe hoje.** Está justificada no comentário do `invariants.yml`: `docs/process/` é documentação descritiva, e o próprio PR de spec-change costuma precisar tocá-la. Este PR é a demonstração viva dos dois lados do argumento — precisou editar `PHASE_0_CHECKLIST.md` e `WORKFLOW.md`, e ao fazê-lo alterou uma peça normativa sem passar pelo gate que protege as demais.
+
+---
+
+### P38 — [decisão do operador, 2026-08-14] Separar as suítes de `phase0_negative_tests.py`, depois do merge da manutenção
+
+**Status: DECIDIDA, execução adiada. Não é ambiguidade — é ordem.**
+
+`scripts/phase0_negative_tests.py` responde hoje por **dois** itens de DoD: o item 2, os seis verificadores, e — assim que a manutenção chegar a `main` — o item 4, os probes de hook e as duas listas de defeito afirmado. São 505 linhas na versão de `manutencao-p11-p23`.
+
+**O argumento para separar continua valendo.** O item 2 diz *"os seis detectam as violações externas"* e nomeia o arquivo. Se o mesmo arquivo também prova o hook, **um verde não distingue qual metade passou** — exatamente a classe de defeito nomeada pelo **H2 da sétima rodada**. Cada harness deve dizer seu escopo no nome, e os dois devem rodar no CI.
+
+**Por que não agora.** Separar um arquivo que ainda não chegou a `main` é ordem errada: a separação teria de ser feita na branch, revisada junto com o porte, e a DoD apontaria para um arquivo que não existe em nenhuma das duas árvores. O item 4 desta reformulação referencia `scripts/phase0_negative_tests.py`, que é onde a prova de fato vai morar. Quando a separação for executada, o item 4(b)(c)(e) passa a apontar para `scripts/hook_guard_tests.py` e o item 2 permanece no arquivo antigo — e isso será um `spec-change:` próprio, pequeno e auditável.
+
+**Uma versão anterior deste PR já nomeava `hook_guard_tests.py` no item 4**, tratando-o como entregável imediato. Revertido nesta revisão, com o motivo acima. Registrado para que a ida e a volta não pareçam indecisão: a decisão de separar não mudou, só a sua posição na fila.
+
+
+---
+
 ## 7. Observações levantadas durante a fase
 
 Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui e se perderiam de outro modo.
@@ -1509,9 +1632,22 @@ Uma versão anterior desta seção afirmava que o mecanismo funcionava. Essa afi
 
 Ordem para fechá-la:
 
-1. **Sétima auditoria de checkpoint**, via `bash scripts/start_checkpoint_audit.sh 0`. A sexta fechou a linhagem do conjunto `CODE` (§6 P27), mas a correção que a fechou — `b2fb8c2` — não foi auditada, e ela toca o gate que os passos 3 e 4 vão exercitar.
-2. Decidir o destino das pendências abertas (§6). São **dezenove**: quatro declaradas por mim durante a implementação (P1–P4) e quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25). P5, P6, P7, P10, P12, P18, P26 e P27 estão fechadas.
-   - **P23** merece decisão antes das demais: seu quinto modo impede o auditor de executar o smoke test canônico do item 4 da DoD. É a mesma classe do H4, que foi HIGH, e sobreviveu quatro rodadas por estar numa família tratada como LOW.
+**Ordem de merge decidida em §6 P35, e ela vem antes de tudo:** fechar os findings abertos em `manutencao-p11-p23`; auditá-la contra a DoD **antiga**, que vai reprovar o item 4 por definição insatisfazível; **mergear a manutenção mesmo assim**, registrando o motivo; mergear o `spec-change` do item 4; e só então auditar `main` com a DoD nova e o código presente. A razão é que a DoD julga `main`: invertida a ordem, o item 4 seguiria inaferível por sequência de merge, não por mérito.
+
+1. **Auditoria de confirmação contra `main`**, via `bash scripts/start_checkpoint_audit.sh 0`, depois de executada a ordem de P35. É a primeira rodada em que o item 4 pode ser aferido: DoD nova e probes de hook na mesma árvore. As rodadas 7 a 9 auditaram a manutenção, e seus relatórios estão naquela branch, não aqui.
+2. Decidir o destino das pendências abertas (§6). São **vinte e sete**: quatro declaradas por mim durante a implementação (P1–P4), quinze vindas das auditorias (P8, P9, P11, P13–P17, P19–P25), quatro de referência cruzada (P28–P31), e as decisões **P36** a **P38**. P5, P6, P7, P10, P12, P18, P26 e P27 estão fechadas.
+
+   **Numeração, e a quarta confusão de IDs da fase.** As entradas deste PR nasceram como P32–P35 e foram renumeradas para P36–P38: `manutencao-p11-p23` já usava P32, P33 e P34 para os findings das rodadas 7 e 8, e esses números estão citados nos relatórios versionados, que são evidência imutável. Os números da branch ficam; os deste PR moveram. **P35 é a ordem de merge, e vive na branch de manutenção**, que entra primeiro — não está duplicada aqui.
+
+   **Correção de contagem, declarada:** uma versão anterior desta linha dizia "dezenove" e omitia P28–P31, abertas desde o spec-change `ator-real-e-finalidade-comercial`. Não foi erro de soma — as quatro foram registradas em §6 sem que esta linha fosse atualizada, que é a mesma falha de referência cruzada que elas próprias documentam.
+   - **P35** governa a ordem: manutenção antes do `spec-change`, com o merge de (c) feito apesar do finding do item 4. **Primeira vez neste projeto que algo entra em `main` com auditoria reprovando um item de DoD**, e as quatro condições que sustentam o precedente estão escritas lá para que a próxima invocação tenha de se comparar a elas.
+   - **P36** é a reformulação em si. Depois do merge da manutenção, o item 4 passa a ser aferível: os probes de hook e as duas listas já existem em `manutencao-p11-p23`, e não precisam ser escritos.
+   - **P38** — separar `phase0_negative_tests.py` em duas suítes — é `spec-change:` próprio, **depois** de a manutenção chegar a `main`.
+   - **P8, P16 e P23** estão reancoradas no item 4(e) e seguem abertas. A versão da manutenção já as trata como defeito afirmado nas duas direções; confirmar isso é trabalho do passo (e) de P35.
+   - **P37** — `docs/process/` fora do conjunto `CODE` — **adiada para depois do início da Fase 1** por decisão do operador, pelo mesmo critério de P25.
+   - **P11** deixa de ter efeito prático sobre a próxima auditoria assim que a manutenção entrar: ela traz `scripts/audit_report.py` e a captura automática do relatório.
+   - **P8, P16 e P23** estão reancoradas no item 4(e) e seguem abertas. Seus modos conhecidos são os candidatos à lista de defeito afirmado que o PR de código precisa escrever. O quinto modo de P23 continua impedindo o auditor de rodar o probe `rm -rf` a partir do próprio Bash, e é o único cujo custo recai sobre a própria auditoria.
+   - **P37** — `docs/process/` fora do conjunto `CODE` — está **adiada por decisão do operador para depois do início da Fase 1**, pelo mesmo critério de P25: a linhagem já custou quatro rodadas e esta instância não bloqueia nada agora.
    - **P11** ainda tem efeito sobre a próxima auditoria: enquanto o mecanismo de captura estiver inerte, o veredito precisa ser colado manualmente;
    - **P25** está deliberadamente adiada para a Fase 1 — mexer no `invariants.yml` na véspera de executar os PRs que testam esse mesmo workflow adiciona risco sem necessidade.
 3. `bash finalize_phase0.sh` — vai até branch protection e **para antes da tag**, imprimindo os comandos dos itens 10 e 11 da DoD.
