@@ -183,6 +183,41 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima oitava auditoria: FAIL, 1 BLOCKER — a quarta reincidência, dentro da correção que nomeou a classe
+
+Executada sobre `9cbdb99`. Relatório em `docs/progress/audit_20260814T171337Z.md`.
+
+**B1 — `${HOME}`, `$USERPROFILE`, `$TEMP`.** A regra da 17ª negava `~` e `$HOME` **literalmente**. Chaves, outro nome de variável, ou uma variável que ninguém listou: tudo passava. Medido, com `pytest --basetemp=${HOME}/...` — que **remove** o diretório — admitido.
+
+**E aqui está o que importa.** Na 17ª eu escrevi, com todas as letras, que *"o invariante não é a capacidade, é o alvo"*. E então implementei uma checagem de **grafia do alvo**. Trocar "lista de flags" por "lista de grafias" não é trocar enumeração por propriedade — é mudar a lista de lugar.
+
+**Quarta reincidência da mesma classe nesta fase, e a primeira cometida dentro da correção que a nomeia.** As anteriores: eixo definido por grafia (14ª), premissa de aspas ignorada (16ª), flags "fechadas por comando" que não fechavam (17ª).
+
+**H2 é a mesma inversão, vista do outro lado.** `cat <worktree>/tools/README.md` — caminho absoluto **dentro** do worktree de auditoria — era bloqueado com a mensagem *"alvo fora do worktree de auditoria"*. A regra negava por grafia e a mensagem afirmava resolução. Foi o primeiro comando da sessão do auditor.
+
+**Correção: o alvo passa a ser RESOLVIDO, não casado.**
+
+| Antes | Agora |
+|---|---|
+| nega `~` e `$HOME` literais | **qualquer expansão de variável** nega — alvo indecidível em tempo de verificação |
+| nega todo caminho absoluto | **resolve contra o `cwd`** do payload: dentro do worktree passa, fora nega |
+| mensagem afirma "fora" sem saber | mensagem diz o motivo medido, com o alvo |
+
+A primeira metade não precisa de lista de nomes: `$X` pode valer qualquer coisa na hora da execução, e alvo que só se conhece em tempo de execução **não pode ser provado contido**. Isso cobre `$USERPROFILE` e a variável que ninguém inventou.
+
+A segunda usa o `cwd` que o Claude Code já envia no payload. Sem `cwd`, todo absoluto é tratado como fora — falha fechada, porque não conseguir resolver é exatamente o caso em que não se pode afirmar contenção.
+
+**Probes: de 70 para 112 provas de alvo** (14 formas × 8 grafias), mais `ABSOLUTO_CONTIDO_PASSA`, que exige que caminho absoluto **dentro** do worktree passe. Sem essa direção, a regra voltaria a ser "todo absoluto é suspeito" — enumeração de grafia com outro nome.
+
+**Dois defeitos do próprio harness, encontrados ao corrigir:**
+
+- ele **não enviava `cwd`** no payload, então media um hook em modo degradado e certificaria comportamento diferente do que roda de verdade;
+- os probes de travessia usavam o caminho **do próprio repositório** como "grafia absoluta". Quando a regra virou resolução, esse alvo passou a estar **dentro** do cwd — e o probe reprovou por apontar para o lugar errado, não por defeito do hook. Alvo de probe de travessia tem de estar fora da árvore, não só ter aparência de absoluto.
+
+**Resultado: 24 leituras legítimas, 36 escritas bloqueadas, 112 provas de alvo, 0 escritas não bloqueadas, 5 falsos bloqueios declarados.**
+
+**Contador do P39 zerado de novo.** A 19ª recomeça.
+
 ### Décima sétima auditoria: FAIL, 1 BLOCKER — e a metade que eu tinha abandonado errado
 
 Executada sobre `5f97e8e`. Relatório em `docs/progress/audit_20260814T164917Z.md`.
@@ -1685,7 +1720,8 @@ A lista é o que transforma "o hook é incompleto" de reclamação recorrente em
 |---|---|---|---|
 | 16ª | FAIL | 2 | não — zera |
 | 17ª | FAIL | 1 | não — zera |
-| 18ª | *pendente* | | primeira candidata |
+| 18ª | FAIL | 1 | não — zera |
+| 19ª | *pendente* | | primeira candidata |
 
 ---
 
