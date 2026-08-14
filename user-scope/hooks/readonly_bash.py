@@ -153,10 +153,20 @@ DENIED_ANYWHERE = [
     # o objeto da auditoria, e ler fora dele mede outra arvore.
     # (a regra de alvo saiu daqui: virou `_alvo_nao_contido`, que RESOLVE contra
     #  o cwd em vez de casar grafia. Ver o docstring de la.)
-    # `git branch` listando e leitura legitima e nao pode ser negado inteiro;
-    # so a deleção. O ref store e COMPARTILHADO com o worktree principal:
-    # provado por execucao, `git branch -D` rodado de dentro do worktree de
-    # auditoria apagou o ramo visivel do repositorio principal.
+    # ATENCAO — este comentario dizia "`git branch` listando e leitura legitima e
+    # nao pode ser negado inteiro; so a delecao". ISSO NAO E MAIS VERDADE, e
+    # contradizia tanto o codigo quanto o comentario de :16-19 do mesmo arquivo.
+    # Era o M2 da 19a auditoria.
+    #
+    # O que vale: `branch` FOI removido dos subcomandos allowlistados na 11a
+    # auditoria, porque muta o ref store compartilhado por -m/-M/-f/-c alem de
+    # -d/-D. `git branch` inteiro e negado pela allowlist, e listar ramos se faz
+    # com `git for-each-ref`, que nao tem forma que mute.
+    #
+    # Esta regra fica como camada extra e redundante para a delecao — nao como
+    # a fronteira, que e a allowlist. O ref store e COMPARTILHADO com o worktree
+    # principal: provado por execucao, `git branch -D` rodado de dentro do
+    # worktree de auditoria apagou o ramo visivel do repositorio principal.
     (r"\bgit\s+branch\b[^;&|]*\s-{1,2}(?:[dD]|delete)\b", "git branch que apaga ref compartilhado"),
     # FLAGS DE ESCRITA dos comandos que continuam allowlistados porque rodar
     # teste e linter e o trabalho do auditor: pytest, ruff, mypy, eslint, tsc.

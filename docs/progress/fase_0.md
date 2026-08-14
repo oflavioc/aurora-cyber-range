@@ -756,7 +756,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Separação de papéis do auditor — cinco condições e limite declarado | ⏳ **aferível pela primeira vez.** Item **reformulado** (§6 P36) e código presente na mesma árvore. (a) ✅ `tools: Read, Grep, Glob, Bash`. (b) ✅ 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 8 de substituição, nas duas direções. (c) ✅ superfície declarada e **0 escritas não bloqueadas**; o eixo da substituição passou a ser verificado por **propriedade** — parêntese fora de aspas —, não por lista de sigilos. (d) ✅ forma nova é finding. (e) ✅ 20 leituras legítimas provadas e **4 falsos bloqueios listados**, os quatro por decisão registrada (§6 P23). **Confirmação pendente da auditoria contra `main`** — este quadro é medição minha, não veredito de auditor |
+| 4 | Separação de papéis do auditor — cinco condições e limite declarado | ✅ **auditado PASS na 19ª rodada**, sem BLOCKER e sem HIGH. (a) ✅ (b) ✅ 36 escritas bloqueadas, 112 provas de invariante de alvo, 7 de composição, 11 de substituição. (c) ✅ **0 escritas não bloqueadas**. (d) ✅ (e) ✅ 24 leituras legítimas provadas, **10 falsos bloqueios declarados**, cada um com motivo. **A completude não está provada e a DoD declara que não é demonstrável** — o que está satisfeito é a superfície declarada. Iteração encerrada por critério (§6 P40) |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS** — `Read`/`Edit` de `.env`, `.env.local`, `.env.*.local` e `secrets/**`, exatamente a enumeração de `CLAUDE.md` §Secrets, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. Somado a isso, o hook do auditor nega leitura de secret por caminho de shell (`cat .env`), que o deny por ferramenta não alcança. *(Esta célula dizia `.env.*` — o deny anterior à correção da P17, feita no mesmo intervalo de candidatura: era o M1 da 14ª auditoria, quinta instância da linhagem P10/P15/P17/P22.)* |
@@ -1778,6 +1778,33 @@ Medido em `1abe68f`, o commit que a 19ª audita:
 Em cada uma eu troquei a **forma** da lista e chamei de propriedade. A diferença entre enumerar e decidir só apareceu quando a correção passou a usar informação que já estava disponível — o `cwd` do payload — em vez de mais um padrão.
 
 **O operador registrou que a decisão de parar dependeu desse relato.** Um registro que escondesse as reincidências teria produzido o pedido da 20ª — e a 21ª. **Relatar o próprio erro foi o que tornou possível parar**, e é a evidência mais concreta desta fase de que a disciplina de registro paga.
+
+#### Desfecho da 19ª auditoria — acrescentado APÓS o resultado
+
+**VEREDITO: PASS.** Zero BLOCKER, zero HIGH, 2 MEDIUM, 3 LOW. Relatório em `docs/progress/audit_20260814T173730Z.md`, sobre `1abe68f`.
+
+**É a primeira PASS em dezenove rodadas, e o critério que a antecede não muda por causa dela.** O P40 foi commitado em `e850d31`, às 17:34:01Z, com esta auditoria em execução e o relatório inexistente — e declarava que os três desfechos possíveis parariam. O `git log` prova a ordem. **A parada não foi por resultado favorável; o resultado favorável apenas chegou depois dela.**
+
+**O que a rodada encontrou, e nenhum é escrita:**
+
+| | Achado | Direção |
+|---|---|---|
+| M1 | `>` dentro de argumento citado — `->` de anotação Python, `=>` de arrow function TS | falso bloqueio, **fail-closed** |
+| M2 | `git branch --list` bloqueado, e o comentário do hook afirmava o oposto do código | falso bloqueio, **fail-closed** |
+| L1 | `tools/README.md` dizia que os seis verificadores não existiam (P21, 3ª rodada) | documentação |
+| L2 | o probe da allowlist dependia de convenção de formatação | latente |
+| L3 | actions do CI em tag major mutável (P25, adiada) | pendência antiga |
+
+**Os dois MEDIUM são a metade "libera leitura", e os dois falham fechado** — recusam leitura, não abrem escrita. **Nenhum achado desta rodada é da direção da escrita.** As zero escritas não bloqueadas medidas na entrada acima seguem valendo.
+
+**O que foi feito com eles, dentro da decisão de parar:**
+
+- **M1 e M2 declarados**, não corrigidos. Declarar é o que o item 4(e) exige, e é o que a decisão previa: *"o item 4 fica no estado em que a 19ª o encontrar, **com a superfície declarada**"*. Falsos bloqueios: de 5 para **10**, todos com motivo escrito.
+- **A contradição do comentário do M2 foi corrigida.** Ele afirmava que `git branch` listando era permitido, contradizendo o código e outro comentário do mesmo arquivo. Corrigir texto que mente sobre o mecanismo não é iterar sobre o hook — é a mesma classe P10/P15/P22 que esta fase persegue desde a terceira rodada.
+- **L1 e L2 corrigidos.** O `tools/README.md` era documentação que sobreviveu à entrega e a contradizia, aberta desde a terceira rodada. O L2 era o probe da allowlist podendo ser contornado por formatação — o modo de falha que o próprio probe existe para impedir, e que carrega para a Fase 1.
+- **L3 permanece adiada**, por decisão anterior do operador (P25).
+
+**Nenhuma dessas mudanças altera o que o hook decide.** O estado medido do item 4 registrado acima permanece exato.
 
 #### Encaminhamento
 
