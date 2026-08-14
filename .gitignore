@@ -23,6 +23,10 @@ build/
 .aurora-worktrees/
 
 # Runtime/generated artifacts
+# Estado do lancamento da auditoria: efemero, por maquina, e NAO pode ser
+# versionado — arquivo de estado versionado suja a arvore e bloqueia a
+# verificacao de tree limpo do proprio launcher.
+docs/progress/.last_audit_session
 # docs/progress/audit_log.jsonl e docs/progress/audit_*.md SAO versionados de
 # proposito: registro de auditoria que nao entra no repositorio nao e registro.
 # Nao sao artefato reconstruivel — cada linha e a unica prova de uma rodada que

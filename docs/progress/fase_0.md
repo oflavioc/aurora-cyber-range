@@ -504,6 +504,22 @@ O launcher passou a **pré-atribuir** o identificador da sessão (`--session-id`
 
 **Decisão sobre o hook `SubagentStop`.** Mantido em `.claude/settings.json`, **com comentário explícito** (`$comment_SubagentStop`) dizendo que não é o mecanismo de captura e que só vale se o auditor um dia for despachado como subagente. Removê-lo faria essa hipótese perder registro; mantê-lo mudo faria alguém supor, daqui a seis meses, que a auditoria está sendo capturada por ele. O mesmo aviso abre a docstring de `.claude/hooks/log_audit.py`. O hook passou a importar `last_agent_text`, `detect_verdict`, `main_worktree_root` e `persist` de `scripts/audit_report.py` em vez de duplicá-las, e preservou a guarda de identificação: sem `agent_type == "checkpoint-auditor"`, registra a ocorrência e nada mais.
 
+**REABERTA na sétima auditoria: a captura não funcionou, e a decisão sobre o hook estava errada.**
+
+A sétima rodada correu inteira e **nenhum `audit_*.md` foi gravado**. Verificado: não há uma única linha com `source: "launcher"` no `audit_log.jsonl`. Se `audit_report.py` tivesse executado e falhado, teria gravado linha com `capture_error` — logo ele **nunca executou**.
+
+**A causa.** A sessão terminou por fechamento da janela do auditor, no X. Isso mata o processo do launcher sem executar `trap` nenhuma. A captura era código sequencial **depois** da sessão, e código depois da sessão só roda se o processo sobreviver a ela. O teste que a validou rodava `audit_report.py` isoladamente, nunca o launcher inteiro com uma sessão real no meio — a diferença entre os dois é exatamente onde o defeito morava.
+
+**A correção inverte a prioridade.** `trap EXIT INT TERM` foi acrescentada e cobre saída normal, `/exit` e Ctrl+C — mas **não cobre o caminho que de fato ocorreu**, e que é o mais provável de repetir. O que resolve é o estado gravado **antes** da sessão: `--begin` grava `docs/progress/.last_audit_session` com `session_id`, fase, `head_sha` e modo, e `python scripts/audit_report.py --recover` captura depois, a qualquer momento em que o transcript ainda exista. Uma captura perdida deixa de ser transcrição manual e vira um comando.
+
+O banner do launcher passou a avisar **antes** da sessão, em bloco destacado, que fechar a janela perde a captura automática, com o comando de recuperação ao lado. Aviso no lugar certo vale mais que mecanismo que não cobre o caso mais provável — e no fim de script longo o scroll come a mensagem.
+
+O `.last_audit_session` entrou no `.gitignore`: arquivo de estado versionado sujaria a árvore e bloquearia a verificação de tree limpo do próprio launcher.
+
+**O hook `SubagentStop` foi REMOVIDO de vez**, junto com `.claude/hooks/log_audit.py`. Mantê-lo foi decisão minha na primeira passagem, e este é o segundo argumento novo contra ela: além de inalcançável por desenho do launcher, ele **escreveu no `audit_log.jsonl` durante a sétima auditoria** — arquivo que o próprio P11 acabara de tornar versionado —, sujando a árvore e bloqueando a auditoria seguinte na verificação de tree limpo. É a mesma armadilha que a docstring dele já descrevia, reintroduzida em forma nova pela decisão de versionar o log. Mecanismo que só produz efeito colateral não é mecanismo.
+
+Se um dia o `checkpoint-auditor` for despachado como **subagente** (pela ferramenta Agent, a partir de uma sessão já aberta), reintroduzir é trivial: um bloco `SubagentStop` com matcher `^checkpoint-auditor$` chamando um script que use `last_agent_text`, `detect_verdict` e `persist` de `scripts/audit_report.py`, que continuam existindo. O que **não** deve ser reintroduzido é a escrita no arquivo versionado sem condição.
+
 ---
 
 As seis pendências seguintes vêm da **terceira auditoria**. IDs novos, para não colidir com P1–P11; a coluna de origem em §0 dá a correspondência com os IDs daquela rodada.
@@ -906,6 +922,42 @@ Ficam fora daquele PR por decisão explícita do operador: são pré-existentes 
 Uma verificação possível — resolver cada `NN_DOC.md §X.Y` contra os cabeçalhos do arquivo alvo e falhar quando a seção não existe — pegaria zero das quatro, porque todas apontam para seções que existem. Pegar essas exige comparar a frase com o conteúdo da seção, o que não é mecanizável barato. Registrado para não se perder, sem propor gate.
 
 ---
+
+### P28 — [B1 BLOCKER, H1, H2, sétima auditoria] A reescrita por tokens abriu escrita deliberada
+
+```text
+[B1] readonly_bash.py libera tres caminhos de escrita que a versao anterior
+bloqueava: `>&` com palavra nao-numerica (classificado como duplicacao de
+descritor e liberado sem validar o alvo), `sort -o FILE`, `find -fprint0 FILE`.
+Os alvos aceitam travessia ../../, entao a escrita alcanca o worktree
+principal — incluindo CLAUDE.md e os verificadores de tools/.
+[H1] python .claude/hooks/log_audit.py esta na allowlist e grava
+incondicionalmente no worktree principal via persist().
+[H2] Os 13 probes de escrita deliberada cobrem redirecionamento so na forma `>`.
+O harness declara provar que a protecao nao afrouxou, passa verde, e tres
+afrouxamentos estao presentes.
+```
+
+**Status: FECHADA.** O P23 fechou a família de falsos bloqueios e abriu uma família de falsos negativos. Registrado como entrada própria, e não como reconfirmação do P23, porque **a direção do erro inverteu** — e é a inversão que ensina.
+
+**O diagnóstico.** Tokenizar foi acerto para **parsear**: resolveu o `rm -rf` dentro de JSON entre aspas, que quatro rodadas de regex não resolveram. O erro foi usar a tokenização para **classificar** operadores com mais precisão, em vez de **identificá-los** com mais confiabilidade e bloquear todos. A versão em regex bloqueava `>&` por acidente, sem saber o que era: falso-positiva, irritante, **fechada**. A versão nova sabia que `>&` era duplicação de descritor, deu a ele um caminho próprio e pulou o alvo sem validar: falso-negativa. **Precisão de classificação virou justificativa para liberar.**
+
+Agrava que o commit do P23 afirmava que "a tokenização permitiu bloquear o que o regex não via" e listava três buracos fechados. Estava certo sobre aqueles três e cego para os que abria no mesmo movimento.
+
+**A superfície era maior que os três casos.** Sondagem posterior achou mais oito, todos escrita através de comandos que a allowlist já permitia, nenhum precisando de redirecionamento: `sort --output=`, `pytest --junitxml`, `python -m pytest --junitxml`, `ruff --output-file`, `mypy --junit-xml`, `eslint -o`, `tsc --outFile`, e `uniq entrada saida` — este último **escrita posicional, sem flag nenhuma**. O `tsc` é o mais didático: a checagem antiga confirmava a presença de `--noEmit` e ignorava o resto da linha. Classificar em vez de identificar, outra vez, em outro lugar.
+
+**A correção, em dois princípios, os dois default-deny.**
+
+1. **Todo token de redirecionamento bloqueia**, sem distinguir `>`, `>>`, `>&`, `&>`, `&>>`, `>|`, `<`, `<<`, `<&`, `<>`. Exceção apenas para duas sequências **exatas de token**: `2>/dev/null` e `2>&1`. Forma desconhecida é bloqueada, nunca liberada. `>/dev/null` sem fd ficou de fora de propósito — acrescentar exceção "óbvia" é como a família P8→P16→P23 nasceu. Token de pontuação que não decompõe em operador conhecido bloqueia **explicitamente**, e não por acidente de virar palavra de comando desconhecida: acidente não é garantia, e foi assim que `>&` passou.
+2. **Allowlist de flags por comando**, com default-deny dentro do comando permitido. Cobre `--flag=valor` (partido no `=`), bundles de letra curta (`-no` não esconde mais o `-o`), flags que consomem valor, e limite de posicionais onde o comando escreve por posição. `find` e `uniq` saíram da allowlist: superfície grande demais para o valor: `git ls-files` e `rg` cobrem `find`, `sort -u` cobre `uniq`.
+
+**Custo medido.** 40 comandos reais de auditoria — `git log --oneline -20`, `grep -n -A3 -B3`, `rg --type py`, `pytest -x --tb=short`, `mypy --strict`, `git ls-files | sort -u | head -20` — todos passam. O default-deny não engessou o auditor.
+
+**H1 e o limite que fica declarado.** Allowlistar um script é allowlistar o que ele faz, e o script está **no commit sob auditoria**: o curinga `.claude/hooks/*.py` deixava o commit auditado definir o comportamento de um comando que o auditor está pré-autorizado a rodar — o mesmo argumento que mantém o `checkpoint-auditor` fora do repositório. Os hooks passaram a ser allowlistados por **nome explícito**, e só os guardas, que leem stdin e imprimem. `log_audit.py` saiu (e depois foi removido de vez, ver P11).
+
+A classe **não** foi eliminada, e vale declarar em vez de fingir: `pytest` roda testes do commit auditado, `tools/check_*.py` é código do commit auditado. A propriedade é inerente à auditoria. **A linha que dá para segurar é: script cujo propósito é verificar, sim; script que escreve, não.**
+
+**H2 e a lição sobre o harness.** Os 13 probes cobriam redirecionamento só na forma `>` — a forma que quem escreveu se lembrou. Probe que só cobre a forma lembrada não prova ausência das formas esquecidas, e o harness verde foi usado como evidência do que ele não media. São 32 probes agora, e a correção veio em **commit posterior ao dos probes**, de propósito: o harness foi commitado **vermelho**, reprovando contra o código da época, porque um probe que passa no momento em que é escrito não prova nada. Um commit em que o teste prova o buraco antes de fechá-lo é o oposto do que o H2 puniu.
 
 ## 7. Observações levantadas durante a fase
 

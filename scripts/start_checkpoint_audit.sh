@@ -64,8 +64,38 @@ cd "$WT"
 SESSION_ID=$(python -c 'import uuid; print(uuid.uuid4())')
 
 RAW=""
-cleanup_raw() { [ -n "$RAW" ] && rm -f "$RAW" || true; }
-trap cleanup_raw EXIT
+if [ "$MODE" = headless ]; then
+  RAW=$(mktemp)
+fi
+
+# Estado do lancamento gravado ANTES da sessao. E o que torna a captura
+# recuperavel: fechar a janela do auditor mata o processo sem executar trap
+# nenhuma, entao NENHUM codigo posterior a sessao roda. Com o estado em disco, a
+# captura perdida vira um comando; sem ele, vira transcricao manual.
+python "$ROOT/scripts/audit_report.py" --begin \
+  --root "$ROOT" --session-id "$SESSION_ID" --phase "$PHASE" \
+  --head-sha "$HEAD_SHA" --mode "$MODE" ${RAW:+--fallback-text "$RAW"}
+
+CLAUDE_RC=""
+CAPTURA_FEITA=0
+
+capturar() {
+  [ "$CAPTURA_FEITA" = "1" ] && return 0
+  CAPTURA_FEITA=1
+  [ -n "$RAW" ] && rm -f "$RAW" 2>/dev/null
+  # Sessao nem comecou: nada a capturar.
+  [ -z "$CLAUDE_RC" ] && return 0
+  python "$ROOT/scripts/audit_report.py" --recover --launcher-exit "$CLAUDE_RC"
+  CAPTURE_RC=$?
+  # A sessao tem precedencia: se o auditor falhou, esse e o erro a propagar.
+  [ "$CLAUDE_RC" -ne 0 ] && exit "$CLAUDE_RC"
+  # Auditoria rodou mas o relatorio nao foi capturado. audit_report.py ja
+  # imprimiu o aviso; o codigo 3 distingue esta falha da falha da sessao.
+  [ "$CAPTURE_RC" -ne 0 ] && exit 3
+  exit 0
+}
+# Cobre saida normal, /exit e Ctrl+C. NAO cobre fechar a janela — dai o --recover.
+trap capturar EXIT INT TERM
 
 echo "Auditoria Fase $PHASE — commit $HEAD_SHA"
 echo "Worktree de auditoria: $WT"
@@ -76,12 +106,22 @@ else
 fi
 echo "session_id: $SESSION_ID"
 echo
+echo "======================================================================"
+echo "  NAO FECHE A JANELA DO AUDITOR NO X. Isso mata o processo sem deixar"
+echo "  a captura rodar, e o relatorio nao e gravado. Saia com /exit."
+echo
+echo "  Se a janela for fechada assim mesmo, recupere o relatorio com:"
+echo
+echo "      python scripts/audit_report.py --recover"
+echo
+echo "  O comando funciona enquanto o transcript da sessao existir."
+echo "======================================================================"
+echo
 
 PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEAD_SHA. Leia spec + diff contra main + testes reais e emita o formato obrigatorio PASS/FAIL. Nao corrija nada."
 
 set +e
 if [ "$MODE" = headless ]; then
-  RAW=$(mktemp)
   # Em headless o stdout JA e o relatorio; o `tee` guarda uma copia que serve de
   # fallback se a leitura do transcript falhar. Em interativa nao ha pipe: canalizar
   # o stdout converteria a sessao em nao-interativa (`claude --help`).
@@ -96,25 +136,5 @@ else
 fi
 set -e
 
-set +e
-python "$ROOT/scripts/audit_report.py" \
-  --root "$ROOT" \
-  --session-id "$SESSION_ID" \
-  --phase "$PHASE" \
-  --head-sha "$HEAD_SHA" \
-  --mode "$MODE" \
-  --launcher-exit "$CLAUDE_RC" \
-  ${RAW:+--fallback-text "$RAW"}
-CAPTURE_RC=$?
-set -e
-
-# A sessao em si tem precedencia: se o auditor falhou, esse e o erro a propagar.
-if [ "$CLAUDE_RC" -ne 0 ]; then
-  exit "$CLAUDE_RC"
-fi
-# Auditoria rodou mas o relatorio nao foi capturado. audit_report.py ja imprimiu
-# o aviso em bloco; o codigo 3 distingue esta falha da falha da propria sessao.
-if [ "$CAPTURE_RC" -ne 0 ]; then
-  exit 3
-fi
-exit 0
+# A captura roda pela trap, para cobrir tambem /exit e Ctrl+C.
+capturar
