@@ -1633,6 +1633,28 @@ A lista é o que transforma "o hook é incompleto" de reclamação recorrente em
 
 **Uma versão anterior deste PR já nomeava `hook_guard_tests.py` no item 4**, tratando-o como entregável imediato. Revertido nesta revisão, com o motivo acima. Registrado para que a ida e a volta não pareçam indecisão: a decisão de separar não mudou, só a sua posição na fila.
 
+---
+
+### P39 — [decisão do operador, 2026-08-14] Critério de parada do item 4: duas rodadas consecutivas sem BLOCKER
+
+**Status: DECIDIDA e em vigor a partir do commit que a registra.**
+
+**O problema que ela resolve não é técnico, é de terminação.** Dezesseis rodadas, dezesseis achados, e nenhum critério que dissesse quando parar. Sem critério, "corrigir o que a auditoria achar" não tem fim — e não por falha das rodadas: casamento textual sobre sintaxe de shell é **refutável, nunca confirmável**, então sempre haverá mais uma via a encontrar. Um item cuja satisfação depende de esgotar um conjunto infinito nunca é declarado satisfeito.
+
+**Critério: o item 4 é considerado satisfeito quando duas auditorias consecutivas fecharem sem BLOCKER.** A rodada que registra esta decisão conta como a primeira candidata **apenas se** a próxima confirmar — uma rodada limpa isolada não fecha nada, porque foi exatamente o padrão das rodadas 2 a 6, que passaram e foram seguidas por nove reprovações.
+
+**Por que duas, e não uma.** Uma rodada limpa pode significar que o auditor olhou para outro lado. Duas consecutivas, com o auditor gerando construções próprias em vez de rodar a lista do repositório — postura que ele adotou a partir da oitava —, é o sinal mais forte disponível neste desenho. Não é prova de completude, e o registro não vai chamar de prova.
+
+**O que o critério NÃO afrouxa.** BLOCKER continua reprovando. HIGH continua sendo corrigido ou declarado. O que muda é apenas isto: **ausência de BLOCKER em duas rodadas encerra a exigência de continuar procurando**, em vez de a exigência ficar aberta indefinidamente por não haver como demonstrar que não há mais nada.
+
+**Precedente que isto cria, e que precisa valer junto.** O critério só se aplica ao item 4, e só porque o próprio item declara que a completude não é demonstrável neste desenho. Item de DoD cuja propriedade **é** demonstrável não pode usar este critério — para esses, o padrão continua sendo prova, não ausência de refutação em duas tentativas.
+
+**Contador, mantido aqui:**
+
+| Rodada | Veredito | BLOCKER | Conta para o critério |
+|---|---|---|---|
+| 16ª | FAIL | 2 | não — zera |
+| 17ª | *pendente* | | primeira candidata |
 
 ---
 
