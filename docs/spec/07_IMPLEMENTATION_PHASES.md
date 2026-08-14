@@ -58,7 +58,6 @@ DEFINITION OF DONE checklist binária
 - [ ] Os seis verificadores de `tools/` liberam árvore limpa e cada um falha contra a violação plantada por `scripts/phase0_negative_tests.py`
 - [ ] `codegen.py --check` detecta constantes fora de sincronia e não escreve nenhum arquivo
 - [ ] `docker compose up` sobe Postgres e Redis
-- [ ] `RANDOM_SEED` lido de `.env`
 
 ---
 
@@ -73,7 +72,8 @@ DEFINITION OF DONE checklist binária
 **DEMO** — via CLI: carregar pack, disparar A01, ler projeção, rollback, ler projeção restaurada.
 
 **DONE quando:**
-- [ ] Todo evento carrega `exercise_time`, `wall_time` e `clock_multiplier`
+- [ ] Todo evento carrega `exercise_time`, `exercise_timestamp`, `wall_time` e `clock_multiplier`
+- [ ] `RANDOM_SEED` lido de `.env` **por código do `range-core`**, não por atestação
 - [ ] PAUSAR congela o clock e bloqueia disparo agendado
 - [ ] Aplicar A01 duas vezes produz projeção idêntica
 - [ ] Rollback grava `rollback_performed`, incrementa `simulation_epoch` e reconstrói a projeção sem apagar eventos
