@@ -1725,6 +1725,66 @@ A lista é o que transforma "o hook é incompleto" de reclamação recorrente em
 
 ---
 
+### P40 — [decisão do operador, 2026-08-14] Parada da iteração sobre o item 4
+
+**Status: DECIDIDA. Critério declarado ANTES do resultado da 19ª auditoria, que estava em execução no momento em que esta entrada foi escrita e commitada.**
+
+**A ordem dos commits é a prova.** Esta entrada entra no repositório com a 19ª rodada ainda rodando e o relatório dela inexistente. Escrita depois, a frase "declarado antes do resultado" seria afirmação sobre intenção — a terceira camada de verdade. Escrita agora, é evidência verificável por `git log`.
+
+#### O critério, declarado pelo operador
+
+> Sem BLOCKER, ou BLOCKER de eixo novo → registra e para. Não vou pedir a 20ª.
+> BLOCKER da mesma classe → registra e para. Não vou pedir a 20ª.
+> Em qualquer dos casos, o item 4 fica no estado em que a 19ª o encontrar, com a superfície declarada, e vamos para a Fase 1.
+
+**Os três desfechos param.** É isso que o torna critério e não torcida: nenhum resultado possível da 19ª altera a decisão, então ela não pode ser lida como reação a resultado favorável nem a cansaço.
+
+#### O motivo, e ele é normativo
+
+O item 4 reformulado declara, no próprio texto: *"Completude não é demonstrável neste desenho — apenas refutável."* Continuar iterando é perseguir uma propriedade que o documento normativo já classifica como inalcançável.
+
+E declara também qual é o modelo de ameaça: *"O propósito do hook é impedir que o auditor corrija por acidente em vez de reportar, preservando a separação de papéis. **Não é conter adversário.**"* Um auditor que descobre `pytest --basetemp=${HOME}/...` não corrige por acidente.
+
+Por esse critério — o da própria DoD — o hook cumpre a função desde a 10ª rodada. As oito seguintes endureceram contra um modelo de ameaça que a spec dispensa.
+
+#### Estado final medido do item 4
+
+Medido em `1abe68f`, o commit que a 19ª audita:
+
+| Condição | Estado |
+|---|---|
+| (a) agente não declara `Write`/`Edit` | ✅ `tools: Read, Grep, Glob, Bash` |
+| (b) formas bloqueadas, provadas nas duas direções | ✅ **36 escritas bloqueadas**, mais 112 provas de invariante de alvo (14 formas × 8 grafias), 7 de composição, 11 de substituição |
+| (c) superfície aberta declarada | ✅ **0 escritas não bloqueadas** |
+| (d) forma nova é finding | ✅ regra em vigor |
+| (e) leitura liberada, falso bloqueio listado | ✅ **24 leituras legítimas**, **5 falsos bloqueios declarados**, cada um com o motivo |
+
+**Eixos asseridos por propriedade, não por lista:** alvo (resolvido contra o `cwd`), comando (`allowlist_e_a_revisada`), composição (sete separadores), substituição (semântica de aspas).
+
+**Trajetória:** escritas não bloqueadas de **10 para 0**; falsos bloqueios de **11 para 5**, todos declarados; leituras legítimas provadas de **5 para 24**.
+
+#### O que fica aberto, e fica dito
+
+**A completude não está provada e não vai estar.** O que existe é superfície declarada e quatro eixos asseridos. A próxima auditoria pode achar uma quinta via — isso é a definição do desenho, não defeito do estado atual.
+
+**O eixo de leitura ainda é lista**, não propriedade (H1 da 15ª). *"Isto é leitura legítima?"* não tem definição mecânica como *"isto tem parêntese fora de aspas?"* tem.
+
+**M1 da 16ª segue aberto:** a contagem de pendências deste arquivo não fecha.
+
+#### O que as dezoito rodadas ensinaram, e não é sobre o hook
+
+**Quatro reincidências minhas da mesma classe**, todas nas últimas cinco rodadas: eixo definido por grafia (14ª), premissa de aspas que o registro já documentava (16ª), flags "fechadas por comando" que não fechavam (17ª), grafia de variável logo após escrever que o invariante era o alvo (18ª).
+
+Em cada uma eu troquei a **forma** da lista e chamei de propriedade. A diferença entre enumerar e decidir só apareceu quando a correção passou a usar informação que já estava disponível — o `cwd` do payload — em vez de mais um padrão.
+
+**O operador registrou que a decisão de parar dependeu desse relato.** Um registro que escondesse as reincidências teria produzido o pedido da 20ª — e a 21ª. **Relatar o próprio erro foi o que tornou possível parar**, e é a evidência mais concreta desta fase de que a disciplina de registro paga.
+
+#### Encaminhamento
+
+Item 4 permanece no estado acima, com a superfície declarada. **Fase 1 abre.** A Fase 1 tem checkpoint próprio, e a auditoria dela vai olhar este hook de novo — em outro contexto, contra outro código, com o critério da DoD vigente.
+
+---
+
 ## 7. Observações levantadas durante a fase
 
 Nenhuma delas bloqueia a Fase 0. Ficam registradas porque foram descobertas aqui e se perderiam de outro modo.
