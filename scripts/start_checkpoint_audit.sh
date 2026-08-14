@@ -85,7 +85,7 @@ capturar() {
   [ -n "$RAW" ] && rm -f "$RAW" 2>/dev/null
   # Sessao nem comecou: nada a capturar.
   [ -z "$CLAUDE_RC" ] && return 0
-  python "$ROOT/scripts/audit_report.py" --recover --launcher-exit "$CLAUDE_RC"
+  python "$ROOT/scripts/audit_report.py" --recover --via launcher-trap --launcher-exit "$CLAUDE_RC"
   CAPTURE_RC=$?
   # A sessao tem precedencia: se o auditor falhou, esse e o erro a propagar.
   [ "$CLAUDE_RC" -ne 0 ] && exit "$CLAUDE_RC"
