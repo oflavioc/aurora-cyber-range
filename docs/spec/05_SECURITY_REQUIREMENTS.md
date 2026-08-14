@@ -66,11 +66,39 @@ AMBIENTE SIMULADO — DADOS FICTÍCIOS
 
 Nos arquivos de evidência, como comentário na primeira linha, no formato do próprio arquivo.
 
-## 5. Identificação de fornecedores
+## 5. Identificação de fornecedores e de atores de ameaça
 
-Vendor/product em CEF e em qualquer log identifica produto fictício (`UniAurora|ACADEMUS`). Nunca nome de fornecedor real de mercado, em nenhum campo, nem em documentação de exemplo.
+Estas são duas regras distintas, com propósitos diferentes.
 
-O mesmo vale para atores de ameaça: usar designação fictícia no material do exercício. Referência a grupo real, se houver, fica restrita ao material de briefing do facilitador e claramente marcada como contexto, não como simulação.
+### 5.1 Fornecedores de produto — sempre fictícios
+
+Vendor/product em CEF e em qualquer log, arquivo de evidência ou telemetria identifica produto fictício (`UniAurora|ACADEMUS`). Nunca nome de fornecedor real de mercado, em nenhum campo, nem em documentação de exemplo.
+
+O propósito é técnico: impedir que evidência sintética seja confundida com telemetria real de um produto, dentro ou fora do exercício.
+
+### 5.2 Atores de ameaça — podem ser reais e documentados
+
+Cenários podem usar grupos reais, desde que:
+
+- exista fonte pública citável (MITRE ATT&CK, CISA, relatório de fornecedor, reporting jornalístico), declarada em `ground_truth.yaml`;
+- as TTPs reproduzidas não excedam o que já é público na fonte citada;
+- nenhum IOC operacional apareça: sem hash de amostra real, sem IP ou domínio de infraestrutura real, sem chave de criptografia, sem amostra de binário. As faixas de documentação da §3 continuam obrigatórias em toda evidência;
+- nenhuma instrução acionável de execução seja produzida. A cadeia é narrada e projetada em evidência simulada, nunca implementada — a §1 continua valendo sem exceção.
+
+Usar ator real aumenta a verossimilhança do exercício e ancora o debriefing em fato verificável. Ficcionalizar o ator não protege ninguém e enfraquece a discussão.
+
+O pacote declara o ator em `ground_truth.yaml`:
+
+```yaml
+threat_actor:
+  name: "Qilin"
+  aliases: ["Agenda"]
+  mitre_id: "S1242"
+  sources:
+    - "MITRE ATT&CK S1242"
+    - "CISA StopRansomware advisory"
+  note_to_facilitator: "Perfil público. Nenhum IOC operacional reproduzido."
+```
 
 ## 6. Deploy
 

@@ -277,7 +277,41 @@ Todo disparo e rollback registram autor, papel, motivo e epoch.
 
 ---
 
-## 8. After-Action Report
+## 8. Finalidade comercial e separação de camadas
+
+O AURORA pode ser operado em contexto comercial — um fornecedor conduzindo o exercício para um cliente. Essa finalidade é legítima e muda o desenho do AAR, mas **não pode contaminar o cenário**.
+
+### 8.1 O que nunca entra no exercício
+
+Nome de fornecedor, nome de produto, arquitetura de referência de portfólio, ou qualquer conteúdo que sugira uma solução específica. Isso vale para injects, evidências, dashboards, wallboard e `decision_point`.
+
+Motivo: um exercício em que a resposta "certa" aponta para um produto deixa de medir a capacidade da equipe e passa a medir se ela adivinhou o vendor. Destrói a validade da avaliação e o participante percebe.
+
+### 8.2 O que entra no AAR
+
+Lacuna de capacidade, nomeada por **função de controle**, nunca por produto.
+
+Exemplo do que é permitido: *"A revogação de acesso da conta de serviço levou 41 minutos porque não havia mecanismo centralizado de revogação de sessão federada. TTCV foi 38 minutos maior que TTCD por essa razão."*
+
+Exemplo do que é proibido: *"Recomenda-se a adoção de [produto] para reduzir esse tempo."*
+
+A diferença é que a primeira é conclusão do exercício, mensurada; a segunda é conclusão comercial, e pertence à conversa que vem depois, conduzida por pessoas, fora do relatório.
+
+### 8.3 Lacuna de capacidade como resposta registrável
+
+Um `decision_point` pode ter, entre as opções, uma que declare ausência de capacidade — e essa declaração é dado, não desistência.
+
+Quando uma equipe responde "não conseguimos fazer isso no tempo do exercício porque não temos o mecanismo", isso é o achado mais valioso da rodada. O AAR registra a lacuna, o objetivo de aprendizagem afetado e a métrica impactada.
+
+Ver `04_SCENARIO_SCHEMA.md` §5 para o campo `capability_gap` na opção, e `09_EVENT_MODEL.md` §4.1 para o `event_type` correspondente.
+
+### 8.4 Neutralidade do pacote
+
+Um scenario pack não declara fornecedor. Se um facilitador quiser material de posicionamento, ele vive fora de `scenarios/`, não é carregado pelo engine e não aparece em nenhuma superfície do exercício.
+
+---
+
+## 9. After-Action Report
 
 1. **Desempenho por objetivo** — evidências `auto` e `observed` distinguidas, classificação, rubrica e versão usadas
 2. **Métricas pareadas** — TTCD/TTCV, TTRD/TTRV, TTID/TTIV com deltas e leitura; janelas de asseguração prematura com os eventos incompatíveis listados; TTA, TTT, TTCM
@@ -290,5 +324,6 @@ Todo disparo e rollback registram autor, papel, motivo e epoch.
 9. **Facilitação** — quem disparou o quê, sob qual papel, com que motivo de rollback
 10. **Perguntas de debriefing** — agregadas dos objetivos acionados
 11. **Notas qualitativas** — rotuladas como impressão, separadas das métricas
+12. **Lacunas de capacidade declaradas** — cada `capability_gap_declared` com a função de controle ausente, o objetivo de aprendizagem afetado e a métrica impactada, nomeadas por função e nunca por produto (§8.2)
 
 Linha A, Linha B e ruído separados em todas as seções.

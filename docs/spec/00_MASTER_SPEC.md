@@ -127,7 +127,7 @@ Inject sem objetivo associado é ruído deliberado ou erro de autoria. O linter 
 | `00_MASTER_SPEC.md` | Autoridade, quatro verdades, princípios | Todas |
 | `01_ARCHITECTURE.md` | Core/adapter, estado, relógios, flags, serviços, verificadores de CI | 1, 2, 4 |
 | `02_DOMAIN_ACADEMUS.md` | Entidades, auditoria, dataset, Linha B, continuidade | 3, 5, 8 |
-| `03_EXERCISE_DESIGN.md` | Objetivos, BARS, métricas pareadas, calibração, AAR | 6, 7, 10 |
+| `03_EXERCISE_DESIGN.md` | Objetivos, BARS, métricas pareadas, calibração, finalidade comercial, AAR | 6, 7, 10 |
 | `04_SCENARIO_SCHEMA.md` | Schema v2, ground_truth, branch_policy, CLI | 2, 7 |
 | `05_SECURITY_REQUIREMENTS.md` | Restrições inegociáveis, deploy | Todas |
 | `06_ACCEPTANCE_TESTS.md` | Critérios de aceitação | Todas |

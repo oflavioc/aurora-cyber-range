@@ -90,6 +90,7 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - **`event_type` inexistente em condição de branch é recusado pelo linter**, com a posição no arquivo.
 - Condição que dependa de juízo do facilitador é recusada.
 - Inject sem `objectives` e sem `noise: true` é recusado.
+- **Opção com `capability_gap` referenciando objetivo inexistente é recusada pelo linter**, com a posição no arquivo.
 - `dryrun` percorre todos os caminhos sem erro.
 
 ## T13 — Projeção de evidência (Fase 9)
@@ -106,6 +107,7 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - AAR detecta automaticamente comunicação externa de número divergente do ground truth via `fact_check_against`.
 - Timeline do AAR renderiza epochs separadas, com motivo de rollback.
 - Notas do facilitador aparecem rotuladas como qualitativas, fora do bloco de métricas.
+- Opção com `capability_gap` escolhida emite `decision_made` **e** `capability_gap_declared`; a lacuna aparece na seção 12 do AAR com função de controle, objetivo afetado e métrica impactada.
 
 ## T15 — Segurança transversal (todas as fases)
 

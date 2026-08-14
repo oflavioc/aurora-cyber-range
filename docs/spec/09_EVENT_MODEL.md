@@ -116,7 +116,7 @@ Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evi
 
 **observable_evidence** — `evidence_source_released`, `evidence_source_accessed`, `telemetry_emitted`
 
-**participant_action** — `inject_viewed`, `audit_query_performed`, `evidence_source_opened`, `incident_declared`, `classification_declared`, `containment_declared`, `service_restoration_declared`, `integrity_validation_declared`, `assessment_submitted`, `communication_submitted`, `regulatory_notice_submitted`, `continuity_action_taken`, `vpn_access_revoked`, `identity_scope_disabled`, `decision_made`
+**participant_action** — `inject_viewed`, `audit_query_performed`, `evidence_source_opened`, `incident_declared`, `classification_declared`, `containment_declared`, `service_restoration_declared`, `integrity_validation_declared`, `assessment_submitted`, `communication_submitted`, `regulatory_notice_submitted`, `continuity_action_taken`, `vpn_access_revoked`, `identity_scope_disabled`, `decision_made`, `capability_gap_declared`
 
 **evaluator_assessment** — `bars_score_submitted`, `observed_marker_set`, `qualitative_note_added`
 
