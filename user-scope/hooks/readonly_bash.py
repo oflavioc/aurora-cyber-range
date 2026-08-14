@@ -142,6 +142,33 @@ _GIT_SUBCOMMANDS = {
               "--error-unmatch", "--full-name"),
         short="ocmdz",
     ),
+    # L3: leitura pura que estava fora e criava friccao direta no trabalho do
+    # auditor. `merge-base` em especial e o que ele usa para comparar contra
+    # main. Bloquear leitura degrada capacidade de auditar sem ganho de
+    # seguranca — o mesmo argumento que fez o H4 ser HIGH na primeira rodada.
+    "cat-file": _spec(long=("--batch", "--batch-check", "--textconv"), short="ptse"),
+    "merge-base": _spec(
+        long=("--is-ancestor", "--fork-point", "--all", "--octopus", "--independent"),
+        short="a",
+    ),
+    "for-each-ref": _spec(
+        long=("--format", "--count", "--sort", "--points-at", "--contains",
+              "--merged", "--no-merged"),
+        long_value=("--format", "--count", "--sort", "--points-at", "--contains",
+                    "--merged", "--no-merged"),
+    ),
+    #: `git tag` sem operando LISTA; com operando, CRIA. Nao existe flag que
+    #: distinga as duas nesta allowlist, entao max_positional=0 resolve pelo
+    #: lado seguro: `git tag`, `git tag --list` e `git tag --sort=...` passam;
+    #: `git tag v1.0` bloqueia. `-d`/`--delete` nem chegam la, caem no
+    #: default-deny de flags. Filtrar por padrao se faz com `git tag | grep`.
+    "tag": _spec(
+        long=("--list", "--sort", "--format", "--contains", "--points-at",
+              "--merged", "--no-merged"),
+        long_value=("--sort", "--format", "--contains", "--points-at",
+                    "--merged", "--no-merged"),
+        short="l", max_positional=0,
+    ),
 }
 
 _COMMANDS = {

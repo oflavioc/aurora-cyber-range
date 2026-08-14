@@ -957,6 +957,18 @@ Agrava que o commit do P23 afirmava que "a tokenização permitiu bloquear o que
 
 A classe **não** foi eliminada, e vale declarar em vez de fingir: `pytest` roda testes do commit auditado, `tools/check_*.py` é código do commit auditado. A propriedade é inerente à auditoria. **A linha que dá para segurar é: script cujo propósito é verificar, sim; script que escreve, não.**
 
+**M2 — o registro do próprio P11 estava errado, e foi corrigido nesta rodada.** `detect_verdict` contava presença de "PASS"/"FAIL" no texto **inteiro** e, com os dois presentes, devolvia `FAIL`. O formato obrigatório do auditor tem `## VEREDITO: PASS | FAIL` como linha literal — logo **todo** relatório contém as duas palavras, e **todo PASS seria arquivado como FAIL**. O mecanismo que acabara de eliminar a transcrição manual registraria a primeira aprovação capturada automaticamente como reprovação, e corrigir depois significaria ter esse primeiro PASS gravado como reprovação no log versionado.
+
+Não é correção caso a caso: é o registro do próprio P11. O veredito passou a sair da **linha de veredito** especificamente — início de linha, com ou sem `#` e sem ênfase, prosa no meio de parágrafo não casa. Sem linha, linha ambígua (o template não preenchido) ou linhas discordantes gravam `indeterminado` **com o motivo** no campo `verdict_reason`, nunca um palpite. Índice que chuta é pior que índice ausente; o relatório continua sendo a fonte autoritativa. Sete casos cobertos, incluindo o que motivou o achado: PASS que cita "FAIL" no corpo agora registra PASS.
+
+**L3 — leitura pura de git que estava fora.** `cat-file`, `merge-base`, `for-each-ref` e `tag` entraram no conjunto de leitura. O `merge-base` é o que o auditor usa para comparar contra `main`: bloqueá-lo degradava a capacidade de auditar sem ganho de segurança, que é o argumento que fez o **H4** ser HIGH na primeira rodada.
+
+`git tag` recebeu tratamento próprio, porque sem operando **lista** e com operando **cria**: `max_positional=0` resolve pelo lado seguro, e `-d`/`--delete` nem chegam lá — caem no default-deny de flags. Filtrar por padrão se faz com `git tag | grep`. Probes nas duas direções: os quatro subcomandos passam, `git tag v9.9.9` e `git tag -d` bloqueiam.
+
+**Pendência aberta a verificar: L2.** O relatório da sétima auditoria afirma que `fase_0.md:295` registra, como evidência do DoD item 5, que `scenario_bash.py` devolve `exit=0` para `range-cli scenario validate`, e que a medição do auditor divergiu. **Não foi verificado** nesta rodada — fica registrado como pendência a apurar, não como fechado.
+
+**Observação para quando o L5 for tratado.** `main()` devolver 0 quando o stdin não parseia como JSON é o mesmo *fail-open* já registrado como **O1** para o `check_architecture.py`. Guardrail que não consegue interpretar a entrada deve **negar**, não permitir. Os dois devem ser corrigidos juntos, em commit próprio.
+
 **H2 e a lição sobre o harness.** Os 13 probes cobriam redirecionamento só na forma `>` — a forma que quem escreveu se lembrou. Probe que só cobre a forma lembrada não prova ausência das formas esquecidas, e o harness verde foi usado como evidência do que ele não media. São 32 probes agora, e a correção veio em **commit posterior ao dos probes**, de propósito: o harness foi commitado **vermelho**, reprovando contra o código da época, porque um probe que passa no momento em que é escrito não prova nada. Um commit em que o teste prova o buraco antes de fechá-lo é o oposto do que o H2 puniu.
 
 ## 7. Observações levantadas durante a fase
