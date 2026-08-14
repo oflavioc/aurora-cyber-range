@@ -50,7 +50,11 @@ O objetivo é garantir simultaneamente:
 
 O launcher cria um worktree **explicitamente a partir do `HEAD` candidato** e então inicia `claude --agent checkpoint-auditor` nele. Isso evita depender do worktree automático do frontmatter, cujo ponto de partida pode ser a branch default e não a branch candidata.
 
-O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist. Essa combinação evita escrita deliberada; qualquer sujeira incidental de teste morre com o worktree temporário.
+O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textual. Essa combinação preserva a **separação de papéis** — impede que o auditor corrija por acidente em vez de reportar. Ela não contém adversário, e isso é declarado, não omitido: o hook decide por casamento textual, não por análise sintática de shell, e sua superfície é enumerada em `scripts/phase0_negative_tests.py` nas duas direções — escrita conhecida e não bloqueada, e leitura legítima bloqueada por engano (`PHASE_0_CHECKLIST.md` §Definition of Done, item 4, condições c e e).
+
+**Bloqueio indevido também é defeito.** Um auditor que não consegue rodar a prova central audita por inferência de leitura de código, e continua emitindo veredito enquanto isso — foi a lição do H4 da primeira auditoria da Fase 0. Por isso o item 4(e) trata falso bloqueio novo como finding, e não como inconveniência.
+
+A integridade do repositório repousa em branch protection com `enforce_admins`, no job `spec_freeze` e nos seis verificadores — nenhum deles alcançável pelo hook do auditor. Qualquer sujeira incidental de teste morre com o worktree temporário.
 
 ## Scenario designer
 
