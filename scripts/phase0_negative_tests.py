@@ -140,6 +140,16 @@ LEITURA_LEGITIMA = [
     # Direcao reversa da mascara de citacao: separador citado nao parte o
     # comando, mas o comando segue precisando ser allowlistado.
     ("separador citado dentro de argumento de busca", 'grep -rn "x;y" tools/'),
+    # `-o` de grep e rg e --only-matching, leitura pura. A regra de flags de
+    # escrita nao era escopada por comando e os bloqueava: H1 da 14a auditoria,
+    # e a divergencia estava DENTRO do commit que dizia ter atacado os falsos
+    # bloqueios por causa. O comentario afirmava "fechada por comando" e a regex
+    # nao mencionava comando nenhum.
+    ("grep -o e leitura pura", 'grep -o "P2[0-9]" docs/progress/fase_0.md'),
+    ("rg -o e leitura pura", 'rg -o "P3[0-9]" docs/progress/fase_0.md'),
+    ("-o depois de pipe nao herda o escopo", "git log | grep -o foo"),
+    # Parentese CITADO nao e substituicao e nao pode ser bloqueado.
+    ("parentese dentro de aspas", 'grep -n "foo(bar)" tools/'),
 ]
 
 #: MASCARA DE CITACAO — probes ADVERSARIAIS da correcao do P23.
@@ -276,7 +286,23 @@ SUBSTITUICOES = [
     ("crase", 'echo `python -c "print(1)"`'),
     ("dolar-parenteses apos printf", 'printf %s $(python -c "print(1)")'),
     ("dolar-parenteses apos which", 'which $(python -c "print(1)")'),
+    # As QUATRO abaixo entraram apos o B1 da 14a auditoria. A lista anterior
+    # tinha so `$(` e crase, e o docstring definia o eixo PELA GRAFIA — "o
+    # conteudo de `$(...)` ou de crase EXECUTA". `cat <(python -c ...)` nao era
+    # nenhuma das duas e executava, com permissao de escrita sobre
+    # tools/codegen.py do worktree principal e sobre o hook instalado.
+    #
+    # A correcao no hook nao foi acrescentar `<(` a lista: foi trocar a
+    # enumeracao de sigilos pela PROPRIEDADE — parentese fora de aspas. Estes
+    # probes existem para que a propriedade seja exercitada, e nao apenas
+    # afirmada no comentario, que e a distincao que a 11a, a 13a e a 14a
+    # cobraram tres vezes.
+    ("substituicao de processo <(", 'cat <(python -c "print(1)")'),
+    ("substituicao de processo >(", 'cat >(python -c "print(1)")'),
+    ("substituicao de processo em dois argumentos", "diff <(git log) <(git log)"),
+    ("subshell puro, sem sigilo nenhum", "ls (echo x)"),
 ]
+
 
 SEPARADORES_DE_COMANDO = [
     ("ponto e virgula", ";"),

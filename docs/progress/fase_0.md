@@ -181,6 +181,36 @@ O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, n�
 | M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
 | L1–L6 | abertas — ver §6 |
 
+### Décima quarta auditoria: FAIL, 2 BLOCKER — enumerar sigilo era o mesmo erro de enumerar grafia
+
+Executada sobre `ab5fcd4`. Relatório em `docs/progress/audit_20260814T144610Z.md`.
+
+**B1 — `<(...)`, substituição de processo.** A regra da 13ª enumerava **duas grafias**, `$(` e crase. `<(` não é nenhuma das duas. Medido, `rc=0`:
+
+```text
+cat <(python -c "print(1)")        diff <(git log) <(git log)
+```
+
+E o auditor mediu a consequência, não supôs: `os.access(W_OK)` verdadeiro sobre `tools/codegen.py` do worktree **principal** e sobre `~/.claude/hooks/readonly_bash.py`, a cópia instalada do hook que o contém.
+
+**A verificação posterior encontrou mais duas** que o relatório não citou: `>(...)` e **subshell puro `(cmd)`**, sem sigilo nenhum.
+
+**B2 — e este é o achado que importa.** O docstring do quarto eixo definia a propriedade **pela grafia**: *"o conteúdo de `$(...)` ou de crase EXECUTA"*. Definir eixo por grafia é o mesmo erro que a 10ª puniu no eixo do alvo, cometido de novo um nível acima. A lista continuava sendo memória de quem a escreveu.
+
+**Correção: a enumeração de sigilos foi trocada por uma propriedade.** Toda substituição e todo subshell do bash exigem **parêntese não citado** — `$(cmd)`, `<(cmd)`, `>(cmd)`, `(cmd)`, `$((...))`. O hook passa a negar parêntese fora de aspas, e só isso. Parêntese **dentro** de aspas continua liberado, porque `--format='%(refname)'` e `grep -n "foo(bar)"` são leitura legítima e comuns em auditoria.
+
+E aqui a queda de segurança é **para o lado fechado**, ao contrário da queda em `_segmentos`: parse duvidoso bloqueia, porque não enxergar um parêntese libera execução, enquanto não enxergar um separador só bloqueia mais.
+
+**H1 — a regra de flags dizia ser escopada por comando e não era.** `grep -o` e `rg -o` são `--only-matching`, leitura pura, e eram bloqueados. O comentário afirmava *"a superfície é FECHADA POR COMANDO"* enquanto a regex não mencionava comando nenhum: casava `-o` em qualquer posição de qualquer comando.
+
+**Desenho declarado e mecanismo implementado divergiam — dentro do commit que se propunha a atacar os falsos bloqueios por causa.** É a mesma classe que este registro cobrou de si mesmo três vezes, e desta vez a divergência estava no comentário que eu escrevi para justificar a regra. Corrigido: o comando dono da flag precisa aparecer antes dela, no mesmo segmento.
+
+**M1** é a célula do item 7 descrevendo o deny anterior à correção do próprio commit — quinta instância da linhagem P10/P15/P17/P22. Corrigida abaixo.
+
+**Resultado medido: 17 leituras legítimas liberadas (eram 13), 4 falsos bloqueios, 0 escritas não bloqueadas.**
+
+**O padrão dos eixos ganhou um andar.** Não é que exista um quinto eixo: é que o **quarto foi definido por enumeração** e a enumeração vazou. A lição que fica escrita no harness é a regra de admissão de eixo — **um eixo se define pela propriedade que o gera, nunca pelas grafias lembradas** —, e ela agora vale para os quatro.
+
 ### P23 — a metade "libera leitura" do item 4, atacada por causa e não por caso
 
 **Cinco rodadas, onze falsos bloqueios declarados, nenhuma rodada dedicada a eles.** Sempre LOW, sempre "falha para o lado seguro". Mas cada falso bloqueio **empurra a auditoria de medição para inferência de leitura de código** — a degradação que fez o H4 da primeira rodada ser HIGH, e a razão pela qual várias rodadas registraram "não consegui verificar" onde deveriam ter medido.
@@ -586,10 +616,10 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ **as duas direções tratadas; a definição é que segue insatisfazível.** **Escrita:** 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 4 de substituição; **0 não bloqueadas**. **Leitura:** 13 liberadas (eram 5) e **4 falsos bloqueios**, os quatro por decisão registrada, não por defeito pendente (§6 P23). O item só passa quando a reformulação do `spec-change` entrar: o texto vigente pede uma propriedade universal que este desenho não demonstra |
+| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ **as duas direções tratadas; a definição é que segue insatisfazível.** **Escrita:** 33 formas bloqueadas, mais 32 provas de invariante de alvo, 7 de composição e 8 de substituição — e o eixo da substituição passou a ser verificado por **propriedade** (parêntese fora de aspas), não por lista de sigilos. **0 não bloqueadas**. **Leitura:** 17 liberadas e **4 falsos bloqueios**, os quatro por decisão registrada (§6 P23). O item só passa quando a reformulação do `spec-change` entrar |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
-| 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS, e sempre foi** — `Read`/`Edit` de `.env`, `.env.*` e `secrets/**` negados, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. A marcação ⚠️ parcial durou seis rodadas (P13, P19) sobre uma lacuna inexistente; a própria plataforma recusou as regras `Write(...)` como inertes na primeira vez que foram exercitadas |
+| 7 | `.env`/secrets negados em `.claude/settings.json` | ✅ **PASS** — `Read`/`Edit` de `.env`, `.env.local`, `.env.*.local` e `secrets/**`, exatamente a enumeração de `CLAUDE.md` §Secrets, e **`Edit` cobre a ferramenta `Write`** por desenho do Claude Code. Somado a isso, o hook do auditor nega leitura de secret por caminho de shell (`cat .env`), que o deny por ferramenta não alcança. *(Esta célula dizia `.env.*` — o deny anterior à correção da P17, feita no mesmo intervalo de candidatura: era o M1 da 14ª auditoria, quinta instância da linhagem P10/P15/P17/P22.)* |
 | 8 | Auto Mode desabilitado para este projeto | ✅ `defaultMode: default`, `disableAutoMode: disable` |
 | 9 | Primeiro push de `main` deixa `arquitetura` e `seguranca` verdes | ✅ **por ATESTAÇÃO DO OPERADOR** — não verificado por auditoria (§6 P34) |
 | 10 | PR descartável confirma que `spec_freeze` falha com spec e código juntos | ✅ **por ATESTAÇÃO DO OPERADOR** — reprovou pela mensagem esperada (§6 P34) |

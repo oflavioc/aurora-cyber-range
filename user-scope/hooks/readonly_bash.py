@@ -134,16 +134,23 @@ DENIED_ANYWHERE = [
     # cinco ferramentas documentam —, enquanto a de alvos era aberta, porque
     # qualquer caminho tem infinitas grafias. Flag nova encontrada e finding
     # pelo item 4(d) da DoD, nao defeito aceito.
-    (r"(?:^|\s)(?:-o|--output-file|--outfile|--outFile|--out-dir|--outDir"
+    # ESCOPADA POR COMANDO, de verdade. A versao anterior dizia no comentario que
+    # a superficie era "fechada por comando" e a regex nao mencionava comando
+    # nenhum: casava `-o` em qualquer posicao de qualquer comando, e bloqueava
+    # `grep -o` e `rg -o`, que sao --only-matching, leitura pura. Desenho
+    # declarado e mecanismo implementado divergiam — foi o H1 da 14a auditoria,
+    # e a divergencia estava DENTRO do commit que se propunha a atacar os falsos
+    # bloqueios por causa.
+    #
+    # O comando dono da flag tem de aparecer ANTES dela, no MESMO segmento: a
+    # lacuna entre os dois nao atravessa separador, entao `git log | grep -o x`
+    # nao casa e segue liberado.
+    (r"\b(?:pytest|ruff|mypy|eslint|tsc|sort|git)\b[^;&|\n\r]*"
+     r"(?:^|\s)(?:-o|--output-file|--outfile|--outFile|--out-dir|--outDir"
      r"|--junitxml|--junit-xml|--tsBuildInfoFile|--declarationDir"
      r"|--cobertura-xml-report|--html-report|--txt-report|--xml-report"
      r"|--linecount-report|--lineprecision-report|--any-exprs-report"
-     r"|--xslt-html-report|--xslt-txt-report"
-     # `--output` do git: diff, log e show aceitam todos, e nenhum estava
-     # enumerado. A justificativa anterior — "sao as flags de saida que essas
-     # CINCO ferramentas documentam" — esquecia a sexta familia allowlistada,
-     # que e a maior delas. B1b da 11a auditoria.
-     r"|--output)(?:[=\s]|$)",
+     r"|--xslt-html-report|--xslt-txt-report|--output)(?:[=\s]|$)",
      "flag de escrita em arquivo"),
     # SECRETS pelo caminho do Bash. `.claude/settings.json` nega `Read`/`Edit` de
     # `.env` e `secrets/`, mas essas regras valem para as FERRAMENTAS de arquivo
@@ -168,8 +175,12 @@ DENIED_ANYWHERE = [
     # reversao que ninguem rastreou — e a razao de o harness agora exercitar o
     # eixo em vez de confiar na memoria de quem reverteu.
     #
-    # `%(refname)` do for-each-ref nao casa: e `%(`, nao `$(`.
-    (r"\$\(|`", "substituicao de comando"),
+    # A crase continua negada no texto CRU. As demais grafias saem daqui e viram
+    # PROPRIEDADE, verificada em `_parentese_fora_de_aspas`: enumerar sigilos foi
+    # o erro que a 14a auditoria expos — `$(` e crase estavam listados, `<(`
+    # nao, e `cat <(python -c ...)` executava com permissao de escrita sobre
+    # tools/codegen.py do worktree principal e sobre o hook instalado.
+    (r"`", "substituicao de comando por crase"),
 ]
 
 
@@ -212,8 +223,30 @@ def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
             aspas = None
             saida.append(ch)
         else:
-            saida.append("\x00" if ch in "|&;\n\r" else ch)
+            saida.append("\x00" if ch in "|&;\n\r()" else ch)
     return "".join(saida), aspas is None
+
+
+def _parentese_fora_de_aspas(cmd: str) -> bool:
+    """PROPRIEDADE, nao lista de sigilos.
+
+    Toda forma de substituicao e de subshell do bash exige PARENTESE NAO CITADO:
+    `$(cmd)`, `<(cmd)`, `>(cmd)`, `(cmd)`, `$((...))`. Enumerar os sigilos
+    produziu exatamente o padrao que treze rodadas ja tinham ensinado — a 13a
+    listou `$(` e crase, a 14a chegou com `<(` e com subshell puro `(cmd)`.
+
+    O auditor nao precisa de parentese fora de aspas em nenhum comando legitimo:
+    `--format='%(refname)'` e `grep -n "foo(bar)"` tem os parenteses DENTRO de
+    aspas, e continuam passando.
+
+    Parse duvidoso — aspas escapadas ou nao fechadas — bloqueia. Aqui a queda e
+    para o lado FECHADO, ao contrario da queda em `_segmentos`: nao enxergar um
+    parentese e liberar execucao, e nao enxergar um separador e so bloquear mais.
+    """
+    mascarado, confiavel = _mascara_de_citacao(cmd)
+    if not confiavel:
+        return True
+    return "(" in mascarado or ")" in mascarado
 
 
 def _segmentos(cmd: str) -> list[str]:
@@ -247,6 +280,16 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 2
+
+    if _parentese_fora_de_aspas(cmd):
+        print(
+            "BLOQUEADO: checkpoint-auditor sem escrita deliberada "
+            "(parentese fora de aspas: substituicao ou subshell).\n"
+            f"Comando: {cmd}\n"
+            "Parentese dentro de aspas e permitido. Reporte o finding; nao corrija.",
+            file=sys.stderr,
+        )
+        return 2
 
     # SEPARADORES QUE O BASH HONRA. `\n`, `\r` e `&` faltavam, e a omissao era
     # total: como cada segmento e validado isoladamente, bastava a PRIMEIRA
