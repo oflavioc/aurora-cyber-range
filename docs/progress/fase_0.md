@@ -149,13 +149,39 @@ Registrado em §6 **P32**.
 
 ### Oitava auditoria: FAIL — o limite do desenho, não mais uma via
 
-Executada sobre `470ced8`. **Veredito FAIL**, 5 MEDIUM, 7 LOW. Relatório em `docs/progress/audit_20260814T030754Z.md`, recuperado com `audit_report.py --recover` depois de a captura automática ter falhado por fechamento da janela.
+Executada sobre `470ced8`. **Veredito FAIL**, 5 MEDIUM, 7 LOW.
+
+**Duas capturas, uma rodada — corrigido após o M4 da nona auditoria.** Esta seção citava apenas `audit_20260814T030754Z.md`, e `audit_20260814T032039Z.md` entrava no repositório sem menção. Os dois arquivos têm o **mesmo** `session_id` (`ab69a491`) e o mesmo `head_sha` (`470ced8`): são duas capturas da mesma rodada, com conteúdos diferentes — 131 e 161 linhas. O de 161 linhas é o mais completo e é a fonte a usar; o de 131 fica versionado porque apagá-lo seria reescrever história de auditoria, e a duplicidade em si é evidência do modo de falha da captura.
+
+**Ambas foram recuperadas com `audit_report.py --recover`, nenhuma foi automática.** A mensagem do commit `30f80c2` diz "capturado automaticamente" e está errada: as três últimas linhas de `audit_log.jsonl` — as duas desta rodada e a da nona — trazem todas `"recovered": true`. **P11 continua aberta neste commit**, e a afirmação em contrário era exatamente a classe de defeito do P33.
 
 O achado que encerra o assunto não é um finding numerado: o auditor somou **três vias novas** ao `readonly_bash.py` tokenizado — `\r`, `$(...)` entre aspas duplas e crase entre aspas duplas — e observou que a das aspas é **estrutural**, porque `_blank_quoted` apaga o conteúdo citado antes de procurar crase, enquanto o bash expande as duas coisas dentro de aspas duplas. Cinco instâncias em três rodadas.
 
 E declarou o que muda o método: **enquanto "o bash executaria isto?" for respondida por um parser reimplementado, a completude não é demonstrável — só refutável, uma via por rodada.** Avisou que passaria a gerar construções em vez de rodar os probes do repositório, o que é a postura correta para um auditor.
 
 Consequência: o P23 foi **revertido** e voltou a ser pendência aberta. Ver §6 P23, reaberto.
+
+### Nona auditoria: FAIL, 1 BLOCKER, 3 HIGH, 4 MEDIUM, 6 LOW
+
+Executada sobre `30f80c2`. Relatório em `docs/progress/audit_20260814T034719Z.md`.
+
+O auditor cumpriu o que anunciara na oitava: **avaliou gerando construções, não rodando a lista de probes do repositório**. Encontrou os 10 buracos que o harness declarava e classificou-os como **B1 BLOCKER**, com o argumento de que os alvos aceitam travessia `../../` e a escrita alcança o worktree principal — e registrou honestamente que essa travessia estava **assumida, não medida** por ele.
+
+**A travessia foi medida antes de decidir a gravidade**, em sandbox com alvos sentinela, sem tocar o repositório. Resultado: **2 formas contidas, 8 atravessam**, duas delas provadas por execução real. O B1 **procede**, e foi fechado neste commit por duas regras de contenção (§6 P32).
+
+| Finding | Destino |
+|---|---|
+| B1 — hook não bloqueia escrita que alcança o worktree principal | **fechado** — `..` e `git branch -D` negados; buracos de 10 para 2 |
+| H1 — P32 marcada FECHADA descrevendo desenho que a reversão desfez | **fechado** — curinga de hooks fechado no código, registro corrigido |
+| H2 — evidência do item 4 subdeclarada no quadro da DoD | **fechado** — célula agora traz os quatro números do harness deste commit |
+| H3 — item 15 ✅ com leitura de duas rodadas atrás | **fechado** — tabela das nove rodadas, item 15 ⛔ |
+| M1 — `log_audit.py` removido mas ainda nos Entregáveis | **fechado** — removido; `audit_report.py` acrescentado |
+| M2 — §5 e "Estado do repositório" se contradizem | **fechado** — arbitrado a favor da §5, parágrafo congelado corrigido |
+| M3 — referência a P30 onde cabia P34 | **fechado** |
+| M4 — duas capturas da mesma sessão, uma citada | **fechado** — as duas registradas; "capturado automaticamente" corrigido para `--recover` |
+| L1–L6 | abertas — ver §6 |
+
+**O que a nona rodada provou sobre o método.** O auditor gerou construções em vez de confiar na lista, e a lista estava certa quanto ao *quê* e errada quanto ao *tanto faz*: dizia "10 buracos" e tratava todos como equivalentes. A distinção que faltava — **contido no worktree × alcança o worktree principal** — não estava em lugar nenhum, e é ela que separa defeito aceitável de finding. Entrou no critério de admissão do harness e na condição (c) do item 4 reformulado.
 
 ---
 
@@ -309,7 +335,7 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 | 1 | Os seis verificadores liberam árvore limpa | ✅ |
 | 2 | Os seis detectam as violações externas de `phase0_negative_tests.py` | ✅ após B1, H1, H2 e H3. Estava marcado ✅ antes da auditoria com probes que não tocavam as fronteiras |
 | 3 | Hook bloqueia import de `domains/`, edição de `docs/spec/` e literal de flag | ✅ cobertura de `objective_ids` no hook ampliada em B1 |
-| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⚠️ parcial — H4 corrigido, mas cinco modos de bloqueio indevido persistem (§6 P23), incluindo **o próprio smoke test canônico do item 4**, que o hook impede o auditor de executar |
+| 4 | Hook do auditor bloqueia escrita e libera verificadores de leitura | ⛔ **FALHA declarada, nas duas direções** — números do harness deste commit, não de rodadas anteriores. **Escrita:** 32 formas bloqueadas, **2 não bloqueadas** e afirmadas como defeito contido (`find -delete` e `find -fprint0` com alvo dentro do worktree). As 8 que escreviam **fora** do worktree foram fechadas em 2026-08-14 por regra de contenção — era o B1 da nona auditoria (§6 P32). **Leitura:** 5 liberadas, **11 falsos bloqueios** afirmados, dois deles custo aceito da regra de contenção. O item não passa, e a definição que ele usa é insatisfazível por desenho — reformulada no `spec-change` do item 4 (§6 P35) |
 | 5 | Hook do `scenario-designer` bloqueia Write/Edit fora de `scenarios/` e Bash fora da allowlist | ✅ **as duas metades exercitadas**, com a evidência corrigida na oitava auditoria: `Write` em `range-core/nope.py` → `exit=2`; `scenario_bash.py` devolve `exit=2` para `git log --oneline` e `exit=0` para `range-cli scenario validate scenarios/academus/pack`. **`range-cli scenario validate` sem argumento também dá `exit=2`** — a evidência anterior afirmava `exit=0` para essa forma, o que nunca foi verdade (§6 P33) |
 | 6 | `ground_truth.yaml` e `GM_NOTES.md` **não** estão no `.gitignore` | ✅ aparecem apenas em comentário que documenta o versionamento deliberado |
 | 7 | `.env`/secrets negados em `.claude/settings.json` | ⚠️ parcial — `Read` e `Edit` de `.env`, `.env.*` e `secrets/**` negados; **`Write` não** (§6 P13). Leitura, que é o risco principal, está coberta; criação e sobrescrita não |
@@ -325,17 +351,37 @@ Referência: `docs/process/PHASE_0_CHECKLIST.md` §Definition of Done.
 
 O script parava de declarar "FASE 0 CONCLUÍDA" e criar `spec-v1.0` sem que 10 e 11 tivessem sido executados. Agora ele para antes da tag, imprime os comandos exatos dos dois PRs descartáveis, e só cria a tag numa segunda invocação explícita: `bash finalize_phase0.sh --dod-10-11-verificados`. A flag é a afirmação do operador de que executou os dois PRs e viu `spec_freeze` reprovar nos dois.
 
-**Os itens 9 a 13 estão fechados por ATESTAÇÃO DO OPERADOR, não por verificação.** A distinção é deliberada e não é formalidade: nenhum auditor de checkpoint pode verificá-los com as ferramentas atuais — `gh` não está na allowlist do auditor e execução de CI não é observável de dentro de um worktree. O que está registrado é a declaração do operador de que executou `finalize_phase0.sh`, de que os dois PRs descartáveis reprovaram pela mensagem esperada, e de que a branch protection foi aplicada. Ver §6 P30 para a constatação estrutural e a decisão pendente.
+**Os itens 9 a 13 estão fechados por ATESTAÇÃO DO OPERADOR, não por verificação.** A distinção é deliberada e não é formalidade: nenhum auditor de checkpoint pode verificá-los com as ferramentas atuais — `gh` não está na allowlist do auditor e execução de CI não é observável de dentro de um worktree. O que está registrado é a declaração do operador de que executou `finalize_phase0.sh`, de que os dois PRs descartáveis reprovaram pela mensagem esperada, e de que a branch protection foi aplicada. Ver §6 P34 para a constatação estrutural e a decisão pendente. *(Dizia §6 P30, que é uma linha da revisão de referências cruzadas sobre `02_DOMAIN_ACADEMUS.md:126`. Corrigido após o M3 da nona auditoria — e notável porque P28–P31 são precisamente o achado "referência aponta para a seção errada".)*
 
 Isto é a terceira camada das quatro (`declaração`), não a segunda (`evidência observável`). Registrar atestação como se fosse verificação seria exatamente o que o `CLAUDE.md` proíbe em "Quatro camadas de verdade".
 
-**Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ✅ **com ressalva** — quatro auditorias: FAIL; PASS com três correções; PASS com dois HIGH; e **PASS sem BLOCKER e sem HIGH** (§0). Por `WORKFLOW.md` §Ciclo por fase, o critério de bloqueio é BLOCKER e HIGH, e a quarta rodada não tem nenhum dos dois. O único MEDIUM que a auditoria pediu para fechar antes dos itens 10 e 11 está corrigido (`7302bd1`).
+**Item 15, não listado no checklist mas exigido por `docs/process/WORKFLOW.md`: auditoria de checkpoint com veredito PASS.** Status ⛔ **NÃO satisfeito.**
 
-A ressalva: sete pendências da quarta rodada seguem abertas (§6 P19–P25). A oitava, **P18**, tocava o próprio `spec_freeze` que os itens 10 e 11 vão demonstrar, e por isso foi corrigida em `ee7731d` antes deles.
+**Corrigido após o H3 da nona auditoria.** Este parágrafo dizia ✅ com ressalva, apoiado em "quatro auditorias: FAIL; PASS; PASS; PASS sem BLOCKER e sem HIGH". Era uma leitura congelada em `470ced8`, duas rodadas atrás. O estado real:
+
+| Rodada | Veredito |
+|---|---|
+| 1ª | FAIL |
+| 2ª | PASS, com três correções |
+| 3ª | PASS, com dois HIGH |
+| 4ª | PASS, sem BLOCKER e sem HIGH |
+| 5ª | não transmitido (P11) |
+| 6ª | PASS, 0 BLOCKER, 0 HIGH |
+| **7ª** | **FAIL**, 1 BLOCKER |
+| **8ª** | **FAIL** |
+| **9ª** | **FAIL**, 1 BLOCKER (o B1 fechado neste commit) |
+
+`docs/progress/audit_log.jsonl` confirma `"verdict": "FAIL"` nas três últimas linhas. Marcar ✅ deixava quem consultasse só a tabela concluir que o checkpoint passou — que é a classe de defeito do próprio P33, no item vizinho.
+
+**O item 15 só volta a ser avaliável na rodada que este commit vai disparar.** Ele fecha o B1 e os quatro HIGH/MEDIUM de registro; o veredito dessa rodada é que decide, e será registrado aqui como o auditor emitir, não como previsto.
+
+A ressalva anterior continua: sete pendências da quarta rodada seguem abertas (§6 P19–P25). A oitava, **P18**, tocava o próprio `spec_freeze` que os itens 10 e 11 demonstraram, e por isso foi corrigida em `ee7731d` antes deles.
 
 ### Estado do repositório neste registro
 
-`main`, working tree limpo, remoto `origin` configurado, **sem push**, sem tag.
+**Corrigido após o M2 da nona auditoria.** Este parágrafo dizia "**sem push**, sem tag" enquanto a §5 acima marcava os itens 9 a 13 como fechados por atestação — push feito, CI verde, branch protection aplicada e `spec-v1.0` publicada. As duas afirmações não podiam ser verdadeiras ao mesmo tempo, e o auditor registrou que não conseguia arbitrar de dentro do worktree.
+
+**Arbitrado aqui: a §5 está certa e este parágrafo estava desatualizado.** Ele descrevia o estado anterior ao `finalize_phase0.sh` e nunca foi atualizado quando o script rodou. Estado corrente: `main` com push, `origin` configurado, branch protection aplicada com `enforce_admins`, tag `spec-v1.0` publicada — **tudo por atestação do operador**, terceira camada de verdade, exatamente como a §5 declara. Nenhuma auditoria verificou nada disso, e §6 P34 registra por que não pode.
 
 | Commit | Conteúdo |
 |---|---|
@@ -353,7 +399,7 @@ A ressalva: sete pendências da quarta rodada seguem abertas (§6 P19–P25). A 
 | `8b129d2` | [M2] probe para o ramo de divergência do `codegen --check` |
 | `6ed9993` | [L3] docstring de `_common.py` alinhada ao contrato do H2 |
 
-`finalize_phase0.sh` **não** foi executado.
+`finalize_phase0.sh` **foi executado**, por atestação do operador (§5, itens 9 a 13). A frase anterior — "não foi executado" — era a segunda metade da contradição apontada pelo M2 da nona auditoria, e vinha do mesmo parágrafo congelado.
 
 ---
 
@@ -1010,7 +1056,24 @@ O harness declara provar que a protecao nao afrouxou, passa verde, e tres
 afrouxamentos estao presentes.
 ```
 
-**Status: FECHADA.** O P23 fechou a família de falsos bloqueios e abriu uma família de falsos negativos. Registrado como entrada própria, e não como reconfirmação do P23, porque **a direção do erro inverteu** — e é a inversão que ensina.
+**Status: PARCIALMENTE REABERTA pela reversão do P23, e re-fechada em 2026-08-14 por outro caminho. Corrigido após o H1 da nona auditoria.**
+
+Esta entrada dizia **"Status: FECHADA"** e descrevia um desenho — allowlist de flags com default-deny, `git tag` com `max_positional=0`, 32 probes — que **a reversão do P23 desfez**. O código voltou ao casamento textual e nada disso existia mais no arquivo, enquanto este texto seguia afirmando que sim. É a categoria que o próprio registro batizou em P10: **documentação que sobrevive à correção e orienta a próxima pessoa a desfazê-la.** A descrição abaixo fica preservada como o que o desenho tokenizado fazia, não como o que o hook faz hoje.
+
+**O que de fato vale hoje**, medido neste commit:
+
+| Afirmação do texto original | Estado real após a reversão | Estado após 2026-08-14 |
+|---|---|---|
+| hooks allowlistados por **nome explícito** | falso — voltara ao curinga `.claude/hooks/[A-Za-z0-9_.-]+\.py` | **verdadeiro** — nomes explícitos, `log_audit.py` fora |
+| default-deny de flags | falso — não existe | continua não existindo; substituído por **contenção** (`..` negado) |
+| `git tag` bloqueado com operando | falso — `git tag` está bloqueado até para listar (falso bloqueio afirmado) | idem, afirmado no harness |
+| 32 probes | falso — 29 probes de hook + 19 afirmações | 32 escritas bloqueadas, 2 buracos, 11 falsos bloqueios |
+
+**Por que o curinga foi fechado no código em vez de o registro ser rebaixado.** O H1 da sétima auditoria já mandara removê-lo, e o argumento continua inteiro: allowlistar um script é allowlistar o que ele faz, e o script está **no commit sob auditoria** — o mesmo argumento que mantém o `checkpoint-auditor` fora do repositório. Rebaixar o texto para "não fechado" deixaria o buraco aberto com a documentação correta; fechá-lo no código torna o texto verdadeiro. Fechado por nome explícito.
+
+**O B1 da nona auditoria foi fechado neste mesmo commit, por contenção.** A medição mostrou que 8 das 10 formas declaradas escreviam fora do worktree de auditoria — provado por execução: `find . -fprint0 ../../tools/codegen.py` sobrescreveu arquivo no worktree principal, e `git branch -D` apagou ramo no ref store compartilhado. Foram fechadas negando `..` em qualquer posição e negando `git branch` com flag de deleção. **Duas regras, não oito**: o invariante não é a flag, é o alvo. A lista de buracos declarados caiu de 10 para 2, ambos contidos.
+
+O texto abaixo é o registro do desenho tokenizado, preservado por valor histórico.
 
 **O diagnóstico.** Tokenizar foi acerto para **parsear**: resolveu o `rm -rf` dentro de JSON entre aspas, que quatro rodadas de regex não resolveram. O erro foi usar a tokenização para **classificar** operadores com mais precisão, em vez de **identificá-los** com mais confiabilidade e bloquear todos. A versão em regex bloqueava `>&` por acidente, sem saber o que era: falso-positiva, irritante, **fechada**. A versão nova sabia que `>&` era duplicação de descritor, deu a ele um caminho próprio e pulou o alvo sem validar: falso-negativa. **Precisão de classificação virou justificativa para liberar.**
 
@@ -1042,6 +1105,43 @@ Não é correção caso a caso: é o registro do próprio P11. O veredito passou
 **Observação para quando o L5 for tratado.** `main()` devolver 0 quando o stdin não parseia como JSON é o mesmo *fail-open* já registrado como **O1** para o `check_architecture.py`. Guardrail que não consegue interpretar a entrada deve **negar**, não permitir. Os dois devem ser corrigidos juntos, em commit próprio.
 
 **H2 e a lição sobre o harness.** Os 13 probes cobriam redirecionamento só na forma `>` — a forma que quem escreveu se lembrou. Probe que só cobre a forma lembrada não prova ausência das formas esquecidas, e o harness verde foi usado como evidência do que ele não media. São 32 probes agora, e a correção veio em **commit posterior ao dos probes**, de propósito: o harness foi commitado **vermelho**, reprovando contra o código da época, porque um probe que passa no momento em que é escrito não prova nada. Um commit em que o teste prova o buraco antes de fechá-lo é o oposto do que o H2 puniu.
+
+---
+
+### P35 — [decisão do operador, 2026-08-14] Ordem de merge, e o precedente de mergear com auditoria FAIL
+
+**Status: DECIDIDA. Registro do precedente, não exceção casual.**
+
+**A constatação que reordenou tudo.** A DoD julga `main`. Existe um `spec-change` pronto que reformula o item 4 da DoD — ele deixa de exigir uma propriedade universal sobre todos os comandos de shell possíveis e passa a exigir cinco condições verificáveis, com a superfície aberta declarada. Se esse PR entrasse primeiro, a auditoria desta manutenção julgaria contra uma DoD que `main` ainda não tem o código para satisfazer, e **o item 4 continuaria inaferível por ordem, não por mérito**. Depois de nove rodadas travadas por uma definição insatisfazível, travar mais uma por sequência de merge seria repetir o mesmo erro noutra forma.
+
+**Ordem decidida:**
+
+| | Passo | Contra qual DoD |
+|---|---|---|
+| a | fechar B1, H1, H2, H3 e M1–M4 nesta branch | — |
+| b | auditoria desta branch | **DoD antiga** — o item 4 falha por definição insatisfazível, e isso é esperado |
+| c | **mergear esta branch mesmo assim**, registrando o motivo | — |
+| d | mergear o `spec-change` do item 4 | — |
+| e | auditoria de confirmação contra `main` | **DoD nova, com o código presente** |
+
+**O passo (c) é o incomum, e fica registrado com estas palavras: é a primeira vez neste projeto que algo entra em `main` com auditoria FAIL.**
+
+**A justificativa é que o finding é sobre um requisito que já foi reconhecido como não obtenível e cuja correção está no PR seguinte.** O item 4 antigo — *"o hook bloqueia escrita deliberada"* — é uma afirmação universal sobre todos os comandos de shell possíveis, demonstrável apenas com um parser de shell completo. Nove rodadas o refutaram uma via por vez sem nunca poder confirmá-lo. Reprovar por ele em (b) não mede a qualidade desta manutenção; mede a definição, e a definição já foi julgada e substituída.
+
+**O que isto não é.** Não é permissão para mergear com FAIL quando o finding for legítimo. As quatro condições que sustentam esta decisão, e que precisam valer **juntas** em qualquer repetição futura:
+
+1. o requisito violado já foi **formalmente reconhecido como não obtenível**, com o registro do reconhecimento anterior ao merge;
+2. a correção do requisito **já está escrita e em revisão**, não é intenção — é o PR do passo (d);
+3. o FAIL é **exclusivamente** desse item; qualquer BLOCKER ou HIGH de outra natureza reprova como sempre;
+4. o passo (e) existe e é obrigatório — a manutenção não fica sem auditoria válida, fica com a auditoria adiada para quando puder ser justa.
+
+Sem as quatro juntas, o precedente não se aplica. Este parágrafo existe para que a próxima invocação desta decisão tenha de se comparar a ela, em vez de citá-la de memória.
+
+**A condição 3 já mordeu, e é a prova de que não é decorativa.** A nona auditoria trouxe o **B1 BLOCKER** — o hook liberando escrita que alcança o worktree principal. Não é a definição insatisfazível: é defeito concreto e corrigível, e pela condição 3 ele **impediria** o merge. Por isso foi fechado neste commit, e não declarado. O precedente não foi usado para contornar o B1; foi o B1 que teve de morrer antes de o precedente poder valer.
+
+**A ressalva do veredito.** Por `docs/process/WORKFLOW.md` §Ciclo por fase o critério de bloqueio é BLOCKER e HIGH, e por `checkpoint-auditor.md` §Regras apenas BLOCKER força FAIL. **Item de DoD falhando não determina o veredito por si.** Com B1 e os três HIGH fechados, o passo (b) pode sair **PASS com o item 4 marcado como falha declarada** em vez de FAIL. O registro do passo (c) deve descrever **o veredito que a auditoria de fato emitir**, não o previsto aqui. Se sair PASS, este precedente não chega a ser exercido — e continua registrado, porque a decisão de mergear apesar do finding foi tomada de qualquer modo.
+
+**O teste do P11 no passo (b).** Esta branch traz `scripts/audit_report.py` e a captura pelo launcher, mas as três últimas linhas de `audit_log.jsonl` trazem todas `"recovered": true` — nenhuma captura automática funcionou até aqui. Se o relatório da próxima rodada sobreviver à sessão **sem `--recover`**, o P11 fecha de fato, pela primeira vez na fase. **O resultado fica registrado aqui explicitamente, seja qual for**: se sobreviver, P11 fecha com o commit que o provou; se não sobreviver, P11 continua aberta com o modo de falha descrito, e não com "tentou-se de novo".
 
 ## 7. Observações levantadas durante a fase
 
