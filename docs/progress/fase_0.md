@@ -1195,6 +1195,14 @@ se intitula "verificadores a implementar".
 
 ### P22 — [L2, quarta auditoria] `README_FIRST.md` e `PHASE_0_CHECKLIST.md` descrevem o `finalize` anterior ao H2
 
+**Status: FECHADA em 2026-08-14**, no PR `docs/readme-e-briefing`, cinco rodadas depois de aberta.
+
+As duas metades foram corrigidas: `README_FIRST.md` virou `docs/process/BOOTSTRAP.md` e passou a descrever o `finalize` de dois passos, com a tag saindo apenas em `--dod-10-11-verificados`; e `PHASE_0_CHECKLIST.md` ganhou a mesma correção na §Ordem correta de fechamento.
+
+**A renomeação não foi cosmética.** O arquivo era `README_FIRST.md` na raiz e passou a conviver com um `README.md` de apresentação — dois arquivos com nome quase igual e propósitos opostos: um é bootstrap de implementação, o outro é o que alguém lê ao abrir o repositório. Mover o arquivo desatualizado sem corrigi-lo teria apenas mudado o defeito de lugar, que é a forma mais comum desta linhagem.
+
+**Terceira ocorrência corrigida junto:** o comentário do `invariants.yml` que enumera o que fica fora do conjunto `CODE` citava `README_FIRST.md`. Comentário apontando para arquivo inexistente é a mesma classe — P10, P15, P22 —, e a renomeação teria criado a quarta instância se não fosse corrigido no mesmo commit.
+
 ```text
 [L2] NOVO — README_FIRST.md:12 e PHASE_0_CHECKLIST.md:104 descrevem um finalize_phase0.sh que a correção do H2 eliminou
 Arquivo: README_FIRST.md:12; docs/process/PHASE_0_CHECKLIST.md:104
