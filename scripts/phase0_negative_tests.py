@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -745,6 +746,92 @@ def hook_copies_in_sync() -> None:
     print("OK: fonte versionada e copia instalada de readonly_bash.py identicas")
 
 
+# --------------------------------------------------------------------------
+# GUARDA DE BRANCH — as tres direcoes.
+#
+# Testado em repositorio TEMPORARIO, e nao nesta arvore: o probe precisa de
+# commits reais na branch default, e faze-los aqui seria exatamente o que o
+# guarda existe para impedir.
+#
+# A terceira direcao e o LIMITE, nao a propriedade: `--no-verify` contorna, e
+# isso e por desenho. Hook de cliente nao e gate. Provar que o bypass funciona e
+# tao importante quanto provar que o bloqueio funciona — um guarda que se
+# acreditasse inescapavel seria declarado como o que nao e.
+# --------------------------------------------------------------------------
+
+GUARDA_FONTE = ROOT / "user-scope" / "hooks" / "pre-commit"
+
+
+@contextmanager
+def repo_temporario():
+    """Repositorio git descartavel, com o guarda instalado e branch `main`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        for cmd in (
+            ["git", "init", "-b", "main", "-q"],
+            ["git", "config", "user.email", "probe@example.invalid"],
+            ["git", "config", "user.name", "probe"],
+            ["git", "config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(cmd, cwd=d, check=True, capture_output=True)
+        hooks = d / ".git" / "hooks"
+        hooks.mkdir(parents=True, exist_ok=True)
+        destino = hooks / "pre-commit"
+        destino.write_bytes(GUARDA_FONTE.read_bytes())
+        destino.chmod(0o755)
+        yield d
+
+
+def _commit(d: Path, mensagem: str, *extra: str):
+    (d / "arquivo.txt").write_text(mensagem, encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=d, check=True, capture_output=True)
+    return subprocess.run(
+        ["git", "commit", "-m", mensagem, *extra], cwd=d, text=True, capture_output=True
+    )
+
+
+def guarda_de_branch() -> None:
+    with repo_temporario() as d:
+        r = _commit(d, "commit na default")
+        if r.returncode == 0:
+            _reject("guarda de branch", "NAO bloqueou commit na branch default",
+                    r.stdout + r.stderr)
+        if "COMMIT RECUSADO" not in (r.stdout + r.stderr):
+            _reject("guarda de branch", "bloqueou sem dizer por que",
+                    r.stdout + r.stderr)
+        print("OK: guarda de branch bloqueou commit em 'main'")
+
+    with repo_temporario() as d:
+        subprocess.run(["git", "switch", "-c", "trabalho", "-q"], cwd=d,
+                       check=True, capture_output=True)
+        r = _commit(d, "commit em branch de trabalho")
+        if r.returncode != 0:
+            _reject("guarda de branch", "BLOQUEOU commit em branch de trabalho",
+                    r.stdout + r.stderr)
+        print("OK: guarda de branch liberou commit em branch de trabalho")
+
+    # LIMITE DECLARADO, provado: o bypass existe e funciona.
+    with repo_temporario() as d:
+        r = _commit(d, "commit na default com bypass", "--no-verify")
+        if r.returncode != 0:
+            _reject("guarda de branch",
+                    "--no-verify NAO contornou; o limite declarado deixou de valer",
+                    r.stdout + r.stderr)
+        print("OK: --no-verify contorna o guarda, como declarado (limite, nao defeito)")
+
+
+def guarda_copias_em_sincronia() -> None:
+    """Fonte versionada e copia instalada neste clone sao identicas."""
+    instalada = ROOT / ".git" / "hooks" / "pre-commit"
+    if not instalada.exists():
+        print("AVISO: guarda de branch nao instalado neste clone (rode bootstrap.sh)")
+        return
+    if instalada.read_bytes() != GUARDA_FONTE.read_bytes():
+        _reject("guarda de branch",
+                "fonte versionada e copia instalada DIVERGEM", "")
+    print("OK: fonte versionada e copia instalada do guarda de branch identicas")
+
+
 def main() -> int:
     with temporary_file("range-core/_phase0_probe_bad.py", "from domains.academus import X\n"):
         expect_fail("check_core_boundary.py", [sys.executable, "tools/check_core_boundary.py"],
@@ -999,6 +1086,8 @@ def main() -> int:
     allowlist_e_a_revisada()
     verdict_probes()
     hook_copies_in_sync()
+    guarda_de_branch()
+    guarda_copias_em_sincronia()
 
     print(
         "\nTodos os seis verificadores falharam contra probes independentes.\n"

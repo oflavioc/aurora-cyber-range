@@ -137,3 +137,29 @@ Se a API de branch protection não estiver disponível para o plano/permissão d
 Os hooks são Python para funcionar em Git Bash e PowerShell, desde que `python` esteja no PATH. Os scripts `.sh` devem ser executados em Git Bash.
 
 Depois do primeiro commit e novamente após qualquer alteração em `.claude/`, rode `/doctor`.
+
+---
+
+## Árvore de trabalho compartilhada
+
+Operador e agente trabalham no **mesmo clone**, e `HEAD` é estado global. Um `gh pr merge --delete-branch` apaga a branch local e troca `HEAD`; um `checkout` ou `pull` reescreve arquivos sob uma leitura em curso. Nenhum dos dois é erro isolado — é corrida.
+
+**Aconteceu duas vezes em 15/08/2026:** um commit do agente foi parar em `main` local porque `HEAD` se moveu durante a operação, e um arquivo apareceu modificado e voltou ao normal segundos depois.
+
+### O guarda de branch
+
+`user-scope/hooks/pre-commit` recusa commit direto na branch default. `bootstrap.sh` o instala em `.git/hooks/`, e o harness prova as três direções: bloqueia na default, libera em branch de trabalho, e **é contornado por `--no-verify`**.
+
+**É guarda local, não gate.** Protege este clone, não o repositório: quem clonar sem rodar o `bootstrap.sh` não o tem, e o bypass existe por desenho — hook de cliente é contornável, e isso não é defeito a corrigir. A proteção real de `main` continua sendo a branch protection, com os quatro required status checks e `enforce_admins`.
+
+**O que motivou mecanizar não foi o erro, foi a detecção.** `CLAUDE.md` já instruía a criar branch antes de commitar na default; a instrução existia e não segurou. E o caso só apareceu porque alguém leu `[main d9ec0de]` na saída do `git commit` — detecção por sorte não é detecção. É a mesma distinção entre regra e propriedade que a §1.6 do registro da Fase 1 estabelece: instrução é regra; hook é impedimento.
+
+### A convenção de anúncio
+
+**O hook não impede a corrida.** Ele olha para onde o commit vai cair; se `HEAD` se mover no meio de uma *leitura*, ele não vê nada. Mecanismo nenhum alcança essa parte, então ela é convenção:
+
+- **O agente anuncia antes de commitar** quando o operador pode estar operando a árvore.
+- **O operador avisa antes de `merge`, `checkout`, `pull` ou `switch`** enquanto o agente trabalha.
+- **Na dúvida, verificar `git branch --show-current` e `git status` antes de agir** — os dois são baratos e não mutam nada.
+
+Um worktree separado eliminaria a condição, e foi **descartado**: o `start_checkpoint_audit.sh` fixa um caminho em `.aurora-worktrees/` e a confiança de workspace do Claude Code é por caminho. Um segundo worktree permanente exigiria reescrever o fluxo de auditoria que a Fase 0 fixou em dezenove rodadas, e a corrida é rara o suficiente para conviver.
