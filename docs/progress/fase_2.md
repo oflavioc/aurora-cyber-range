@@ -388,6 +388,31 @@ continuam chegando como dado em `Declarations`, nunca por import.
 > e o limite de não haver guarda sobre esse caminho são a mesma coisa vista de
 > dois lados — lidas separadas, a decisão parece coberta.
 
+### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
+
+Os testes do `range-core` entraram como passo do job **`contratos`**, que é
+`required status check`. O nome dele deixou de descrever o escopo.
+
+**É deliberado, e o motivo é a P1-18:** job novo é context novo, e context
+exigido antes de existir em `main` trava todo PR que não o produza. O encaixe em
+job existente não cria context, e o `contratos` já instala a aplicação, que os
+testes exigem.
+
+**Por que isto está aqui e não só no YAML.** `contratos` é o nome que aparece na
+branch protection e na página do PR, e quem lê "contratos verde" lê *contratos*.
+O comentário mora no arquivo que ninguém abre enquanto revisa um PR.
+
+**Condição de saída:** renomear quando houver **outro** motivo para tocar na
+branch protection — a renomeação sozinha não justifica o risco que ela cria.
+
+**Dois passos, e o segundo existe por uma assimetria medida.** A suíte roda na
+raiz do repositório, e ali `contracts` resolve pela **árvore** mesmo sem
+instalação — verificado com `python -S`. `range_core` não resolve, porque o
+hífen o impede. Então o import de `range_core` na suíte já prova a instalação, e
+o de `contracts` **não prova nada** — justamente a entrada que existe para o CWD
+que não é a raiz. O segundo passo importa os dois de fora da raiz, e é o que
+fecha isso.
+
 ---
 
 ## 4. Itens da Definition of Done
@@ -424,6 +449,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
 | P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
+| P2-10 | Medir o item 8 da DoD antes de construir em cima do fold | **Fase 2**, assim que houver fluxo de 4 h |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -596,6 +622,28 @@ jeito.
 **Sem prazo amarrado à Fase 3:** pode ir antes, sozinha, ou junto do
 spec-change que a ligação declarativa vier a exigir.
 
+#### P2-10 — os itens 4 e 8 da DoD se cruzam, e a ordem de medir importa
+
+O item 4 — aplicar A01 duas vezes produz projeção idêntica — está provado no
+fold por **recomputação do zero a cada chamada**, e a máscara de sobrevivência é
+O(n) por rollback, com laço sobre o intervalo abandonado. É a estratégia correta:
+filtrar antes de aplicar dispensa a premissa de escrita absoluta, e rollbacks
+encadeados compõem sem caso especial.
+
+**O que não se sabe é se ela cabe no item 8** — reconstrução completa em menos de
+3 s para exercício de 4 h. Nunca foi medida, porque não existe fluxo desse
+tamanho.
+
+**Não otimizar antes de medir**, e a ordem tem consequência: se a medição obrigar
+a mudar a estratégia de recomputação, ela muda uma decisão que **já tem testes e
+prova negativa apoiados nela** — seis propriedades, e oito mutações cujos
+conjuntos esperados foram calibrados contra o comportamento atual.
+
+**Vencimento: dentro da Fase 2, assim que o event store produzir fluxo de 4 h, e
+ANTES de construir em cima do fold.** Medir depois de haver consumidores torna a
+troca de estratégia cara em vez de barata — a mesma razão pela qual `Sequence`
+veio antes de `Iterable`.
+
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
 `09` §1.1 traz `exercise_time: "T+01:12:04"` e
@@ -689,6 +737,26 @@ deles — dois checks, um cruzamento de registro e três testes negativos:
 
 Fora do CI: `scripts/audit_report.py` e `scripts/start_checkpoint_audit.sh` são
 ferramenta de auditoria, não gate.
+
+### 6.1 As contagens desta fase, e o que cada uma conta
+
+**Três correções de contagem já aconteceram aqui, e as três são o mesmo defeito:
+dois conjuntos com o mesmo número colado na cabeça.** "Nove verificadores" contra
+os seis normativos; "sete sítios de recusa", depois "nove", e são onze; "doze
+itens de DoD" contra os nove que a fase tem. Nenhuma delas era erro de leitura da
+fonte — eram números lembrados de outro conjunto.
+
+| Quantos | Do quê | Onde é a fonte |
+|---|---|---|
+| **9** | itens da Definition of Done da Fase 2 | `07_IMPLEMENTATION_PHASES.md`, seção Fase 2 |
+| **6** | verificadores normativos, todos em `tools/` | `01_ARCHITECTURE.md` §2, e a tabela da §6 acima |
+| **12** | invocações Python que o CI executa | os 6 acima mais 6 de `scripts/` |
+| **11** | sítios de recusa do fold | `Site`, em `range-core/state/simulation_state.py` |
+| **4** | required status checks | `arquitetura`, `spec_freeze`, `seguranca`, `contratos` |
+
+A confusão volta, e **custa mais quando aparece dentro de uma atestação** — foi o
+que fez "todos os verificadores passam" correr verde contra um recorte que não
+existia em documento nenhum.
 
 **O número certo depende da pergunta, e é por isso que ele oscilava:**
 
