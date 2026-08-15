@@ -109,6 +109,41 @@ Quatro FAIL seguidos, e cada um mais estrutural que o anterior: divergência de 
 
 O mecanismo está funcionando. O que ele mede — inclusive sobre quem o opera — é o produto.
 
+### 1.6 A afirmação que envelheceu depois de correta
+
+**Não é variação da §1.5.** São mecanismos diferentes, e por isso correções diferentes.
+
+A §1.5 é sobre **não consultar a fonte** — houve um momento em que eu podia ter aberto o documento e não abri. A §1.6 é sobre **afirmação que era verdadeira quando foi escrita e deixou de ser** quando o artefato mudou. **Não há momento em que alguém errou**, e é isso que a torna mais insidiosa: nenhuma revisão de commit a pega, porque em cada commit isolado ela está certa.
+
+#### As ocorrências, todas encontradas por auditoria e nenhuma por mim
+
+| Onde | O que afirmava | Quando deixou de ser verdade |
+|---|---|---|
+| `fase_1.md` §2 | árvore com `range-core/web/`, `domains/academus/web/`, `scenarios/` | nunca foi verdade — herdada do layout de `01` §2 |
+| P1-15 | "escalação aberta, dois não-master" | quando o spec-change fechou, dois commits antes |
+| P1-14 | "aguarda decisão de modelagem" | quando `effect_class` entrou, com fixtures |
+| `fase_1.md` §4.1 e §1.3 | "60 negativos", "27 leituras", "seis eixos" | a cada vez que acrescentei um |
+| `evidence.schema.yaml` | "Alinhados abaixo" | duas vezes: faltava IPv6 e `example.net`, depois `.localhost` e `.local` |
+
+Cinco lugares, três rodadas de auditoria, e o padrão só ficou visível quando o operador o nomeou.
+
+#### A regra
+
+**Afirmação de estado diz contra o quê foi verificada, ou não é escrita.**
+
+Aplicada nos dois lugares onde falhou:
+
+- **Estado de pendência** carrega o artefato conferido, não só o rótulo. `✅ fechada` sozinho é afirmação sem referente; `✅ fechada — `effect_class` no catálogo, ver P1-17` aponta para onde a verificação mora.
+- **Comentário de contrato que afirma algo sobre OUTRO arquivo** só se escreve se houver mecanismo cruzando os dois. Sem isso, a forma honesta é dizer que as duas cópias existem e podem divergir.
+
+O L3 é o caso exemplar, e virou o teste da regra: `"Alinhados abaixo"` era afirmação sobre `tools/check_synthetic_data.py` feita dentro de `contracts/evidence.schema.yaml`, sem nada que a verificasse. **Virou probe** — `check_contract_examples.py` cruza as duas listas e reprova se divergirem, com eixo próprio. O comentário agora descreve o mecanismo em vez de afirmar o estado.
+
+**Contagem em prosa é o caso degenerado disso**, e a correção já estava aplicada em parte: os números saíram do registro e ficam na saída dos scripts. Onde não saíram, envelheceram de novo — duas rodadas seguidas.
+
+#### O que isso não resolve
+
+Nada impede que um motivo de `IGNORADOS` se torne falso depois de uma edição de spec. A exigência de forma obriga a **escrever** a justificativa; não obriga a **revisá-la**. É limite declarado, não fechado — ver a nota sobre o M2 em P1-21.
+
 ---
 
 ## 2. Estrutura de diretórios
@@ -241,13 +276,14 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-10 | `contratos` é o quarto context obrigatório | ✅ documentado — reposição do check é a P1-18 |
 | P1-12 | `simulation_epoch` com piso inventado contra critério normativo | ✅ fechada — achado pelo auditor |
 | P1-13 | Achados da auditoria, rodadas 1 e 2 | ✅ BLOCKER/HIGH/MEDIUM/LOW corrigidos, salvo os abaixo |
-| P1-14 | Predicado satisfeito por declaracao (M3) | ⚠️ **aberta, aguarda decisão de modelagem** |
+| P1-14 | Predicado satisfeito por declaração | ✅ fechada — `effect_class` no catálogo, ver P1-17 |
 | P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ✅ fechada pelo spec-change — ver P1-17 |
 | P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
 | P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
 | P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ⚠️ **aberta** — check removido; volta após o merge do PR de código |
 | P1-19 | Terceira auditoria: contrato divergia da spec em 4 campos | ✅ corrigidos, com a camada que faltava |
 | P1-20 | `information_distribution.yaml` sem contrato | ⚠️ aberta, resolve na Fase 10 |
+| P1-21 | Quinta auditoria: PASS, com limites declarados | ✅ tratados, salvo os limites abaixo |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -451,7 +487,7 @@ Duas auditorias formais rodaram, em contexto fresco e worktree preso ao commit c
 
 **H2 (rodada 2) — evento sem `clock_multiplier` era válido.** `00` §5.6 é taxativo: *"Todo evento carrega `exercise_time` e `wall_timestamp`, mais `clock_multiplier`"*. A lista de `09` §1.1 o omite, e eu segui a lista. `CLAUDE.md` resolve sem escalação: em conflito, o MASTER_SPEC prevalece. É a mesma classe do P1-12 na direção oposta — lá o contrato recusava o que a spec exige, aqui aceitava o que ela proíbe.
 
-**H3 (rodada 2) — o auditor não podia executar a prova central da fase.** O commit criou dois executores em `scripts/`, criou o job que os invoca e os declarou quarto required check, mas não estendeu a allowlist do `readonly_bash.py`. Resultado: o item 1 da DoD — o item que esta fase reabriu justamente por ter sido marcado ✅ por presença — voltava a repousar em relato do implementador. Corrigido por **nome explícito em alternação**, nunca curinga sob `scripts/`: curinga pré-autorizaria o auditor a executar qualquer script que um commit futuro acrescentasse, e o equivalente sob `.claude/hooks/` foi o H1 da sétima auditoria da Fase 0. As duas formas entraram em `LEITURA_LEGITIMA`, para que o bloqueio, se voltar, reprove o harness em vez de aparecer só no relatório do próximo auditor. **27 leituras legítimas**, contra 24.
+**H3 (rodada 2) — o auditor não podia executar a prova central da fase.** O commit criou dois executores em `scripts/`, criou o job que os invoca e os declarou quarto required check, mas não estendeu a allowlist do `readonly_bash.py`. Resultado: o item 1 da DoD — o item que esta fase reabriu justamente por ter sido marcado ✅ por presença — voltava a repousar em relato do implementador. Corrigido por **nome explícito em alternação**, nunca curinga sob `scripts/`: curinga pré-autorizaria o auditor a executar qualquer script que um commit futuro acrescentasse, e o equivalente sob `.claude/hooks/` foi o H1 da sétima auditoria da Fase 0. As duas formas entraram em `LEITURA_LEGITIMA`, para que o bloqueio, se voltar, reprove o harness em vez de aparecer só no relatório do próximo auditor. **A contagem de leituras legítimas subiu**, e o número fica na saída do harness — escrevê-lo aqui já envelheceu duas vezes (L2 da quarta e da quinta auditoria).
 
 **M1 (rodadas 1 e 2) — `check_event_envelope.py` só varria Python.** Os outros dois verificadores de código já cobriam `WEB_SUFFIXES`; este saía rc=0 sobre todo o front-end. Verificador que sai zero sobre território que não varre é a mesma classe do B1 da primeira auditoria da Fase 0. Corrigido com varredura lexical de `.ts/.tsx/.js`, deliberadamente conservadora — chave nua `{ objective_ids: [...] }` não é literal de string e escaparia de `iter_web_string_literals`. Com probe próprio: ramo de verificador sem violação plantada é o defeito que ele corrige.
 
@@ -586,6 +622,58 @@ Corrigido para exigir **uma violação**, não uma regra violada — o mesmo cri
 **L3** — `window` passou a ser obrigatória em **toda** fonte, e não só em `released_by_inject`: `08` §7 a lista por arquivo. O condicional que a exigia só naquele modo virou no-op e foi removido — regra que não pode falhar é ruído que se confunde com garantia.
 
 
+#### P1-14 — Predicado satisfeito por declaração: FECHADA
+
+`verification_predicates.containment: {all: [{event: containment_declared}]}` era pack válido, e nele TTCD e TTCV mediriam o mesmo instante — o delta que `03` §3.2 chama de "o achado" deixaria de existir **sem que nada falhasse**.
+
+Fechada pelo spec-change `effect-class-marcas-temporais-e-seed`, que criou `effect_class` em `09` §4.0 e a regra derivada em `03` §3.1, e implementada em `contracts/ground_truth.schema.yaml`: a folha `event` do predicado resolve contra `x-aurora-ref: event_catalog_state_effect`, e não contra o catálogo inteiro. Duas fixtures negativas a fixam — `containment_declared` e `decision_made`.
+
+A distinção que faltava era **ação-com-efeito × declaração**, e não camada de verdade: `vpn_access_revoked` é `participant_action` e continua legítimo ali.
+
+**Este registro dizia "aguarda decisão de modelagem" depois de a decisão ter sido tomada, implementada e provada por fixture.** L1 da quinta auditoria, e a terceira ocorrência seguida da mesma classe — ver §1.6.
+
+#### P1-15 — `exercise_timestamp`: FECHADA pelo spec-change
+
+`01` §3 dizia "três marcas temporais, nunca uma só" e `09` §1.1 não incluía `exercise_timestamp` entre os obrigatórios. **Dois documentos não-master**, e `CLAUDE.md` manda parar e perguntar nesse caso — foi o que aconteceu, e o operador decidiu que `01` §3 prevalece.
+
+Fechada em `09` §1.1 pelo spec-change `effect-class-marcas-temporais-e-seed`, e implementada em `contracts/events.schema.yaml`, que passou a exigir o campo.
+
+**Este registro dizia "escalação aberta" e "o contrato o declara opcional, seguindo `09`" por dois commits depois de as duas afirmações terem deixado de valer.** O mesmo documento registrava o fechamento em P1-17, e as duas versões conviveram. Registro contradizendo o artefato, e contradizendo a si mesmo — L1 da quarta auditoria, mesma família do M1.
+
+#### P1-21 — Quinta auditoria: PASS, e os limites que ela declarou
+
+**Primeiro PASS**, contra `457a423`. Relatório em `docs/progress/audit_20260815T032449Z.md`.
+
+O que torna este PASS confiável é o que ele **não** afirma. O auditor testou a hipótese levantada pelo operador — motivo bem formatado e falso sobrevivendo à exigência de forma —, leu os sete motivos de `IGNORADOS` contra o texto da spec um a um, e registrou o limite sem ser perguntado:
+
+> *"Foi minha leitura dos 7 motivos — não a suíte — que sustenta a ausência de BLOCKER nesta rodada."*
+
+##### Corrigidos nesta rodada
+
+**M1 — a mecanização cobria 2 das 7 entradas, e a lista de autoridade estava incompleta.** Medido: só `05` §3 e `09` §6 caíam sob seção reivindicada. Pior, `scenario` reivindicava um bloco em `08` §5 **sem declarar autoridade sobre `08`**, e nada cruzava as duas listas — autoridade incompleta é gatilho que não dispara, que é exatamente como o B1 sobreviveu. Fechado: `x-aurora-spec-examples ⊆ x-aurora-authority` passa a ser verificado, com eixo de probe, e a autoridade compartilhada de `08` §5 entre `scenario` e `evidence` ficou declarada.
+
+**L1** — P1-14 marcada "aguarda decisão de modelagem" com o contrato já a fechando por `event_catalog_state_effect` e duas fixtures. **L2** — "27 leituras" contra 29 reais; a contagem saiu da prosa. **L3** — ver §1.6: `"Alinhados abaixo"` virou probe.
+
+##### M2 — limite declarado, e não fechado
+
+A exigência de `nao_e_instancia_de` é de **forma**. O texto do campo `motivo` nunca é lido por máquina: a única checagem sobre conteúdo é que o contrato nomeado de fato reivindique a seção. **Um motivo bem formatado e falso passa.**
+
+Não vai ser mecanizado, e a razão é que a alternativa não existe: julgar se uma prosa descreve corretamente um bloco de YAML é julgamento, não verificação. O que existe é leitura humana — e foi ela, declaradamente, que sustentou este PASS.
+
+Dois ramos do verificador também seguem sem probe: `nao_e_instancia_de` apontando contrato que não reivindica a seção, e o mesmo bloco reivindicado por dois contratos. O primeiro ganhou probe nesta rodada; o segundo continua aberto e é caso que hoje não ocorre.
+
+**Consequência prática:** a lista de exclusão subiu um nível — de prosa sem verificador para prosa com exigência de forma e gatilho de revisão. Não virou garantia, e o registro diz isso.
+
+##### M3 — o DEMO da Fase 1 é metade impossível
+
+`07` §Fase 1 manda demonstrar com `range-cli scenario validate`, e `range-cli` é entregável da **Fase 7**. A outra metade — *"import de `domains/` dentro do core falha no CI"* — está provada por probe.
+
+Um DEMO inexecutável não é DEMO. Vai por spec-change **depois** do merge do PR de código, por decisão do operador: abrir frente de spec no meio do fechamento já travou o processo duas vezes, e o M3 não bloqueia nada.
+
+##### H1 — o gate, e o que falta para a fase fechar
+
+Repetição literal da terceira e da quarta auditoria: `contratos` fora dos required checks. A DoD passa — itens 1 a 6 com evidência executada pelo auditor, 7 verificado pelo operador, 8 fora de escopo. **O que impede declarar a fase concluída é o H1**, e ele fecha depois do merge deste PR, quando o check passar a existir em `main`.
+
 ### Abertas
 
 #### P1-2 — `RANDOM_SEED` declarado, não consumido
@@ -610,22 +698,6 @@ O padrão antigo `^[A-Z][0-9]{2}$` sugeria — pelo exemplo `id: A07` / `linha: 
 2. se a letra codifica a linha, **o id vaza a linha**. `03` §5.2 exige que o operador não enxergue que existe Linha B, sob pena de destruir o efeito de triagem sob viés — e o operador vê a fila.
 
 O contrato agora declara o prefixo **sem semântica de linha**. O que ele não resolve é o payload: **se a API da Fase 3 entregar o id do inject ao operador, e os packs continuarem nomeando por linha por hábito, o vazamento volta pela porta dos dados.** Fica apontado para a Fase 3, onde o payload por persona é decidido.
-
-#### P1-14 — Predicado de verificação pode ser satisfeito por declaração
-
-`verification_predicates.containment: {all: [{event: containment_declared}]}` valida em todas as camadas: o `x-aurora-ref` resolve contra o catálogo inteiro, que inclui os `*_declared` de `participant_action`.
-
-TTCD e TTCV colapsariam no mesmo instante, e o delta — que `03` §3.2 chama de "o achado" — deixaria de existir sem nada falhar. É a confusão entre camadas 3 e 4 que `00` §3 existe para impedir, passando pelo contrato que deveria guardá-la.
-
-**Não é "proibir `participant_action` no predicado".** `vpn_access_revoked` e `identity_scope_disabled` são dessa camada e são legítimos no exemplo normativo de `03` §3.1: são **ações com efeito no mundo simulado**, não afirmações sobre ele. A distinção que falta é essa, e ela não existe no catálogo — fechá-la exige classificar os 32 tipos. Decisão de modelagem. Ver P1-13.
-
-#### P1-15 — `exercise_timestamp`: FECHADA pelo spec-change
-
-`01` §3 dizia "três marcas temporais, nunca uma só" e `09` §1.1 não incluía `exercise_timestamp` entre os obrigatórios. **Dois documentos não-master**, e `CLAUDE.md` manda parar e perguntar nesse caso — foi o que aconteceu, e o operador decidiu que `01` §3 prevalece.
-
-Fechada em `09` §1.1 pelo spec-change `effect-class-marcas-temporais-e-seed`, e implementada em `contracts/events.schema.yaml`, que passou a exigir o campo.
-
-**Este registro dizia "escalação aberta" e "o contrato o declara opcional, seguindo `09`" por dois commits depois de as duas afirmações terem deixado de valer.** O mesmo documento registrava o fechamento em P1-17, e as duas versões conviveram. Registro contradizendo o artefato, e contradizendo a si mesmo — L1 da quarta auditoria, mesma família do M1.
 
 #### P1-11 — Nenhum driver de banco nem cliente Redis declarado
 

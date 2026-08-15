@@ -174,8 +174,16 @@ x-aurora-registry:
 # constantes proprias, e e ele quem de fato guarda os arquivos de dado. A versao
 # anterior deste bloco afirmava que o verificador o consumia — afirmacao falsa,
 # e as duas listas ja tinham divergido: o verificador cobre `2001:db8::/32`
-# (RFC 3849, citada nominalmente por 05 secao 3) e `example.net`, que faltavam
-# aqui. Alinhados abaixo. M2 da segunda auditoria da Fase 1.
+# (RFC 3849) e `example.net`, que faltavam aqui — M2 da segunda auditoria. E
+# ainda faltavam `.localhost` e `.local`, enquanto este comentario ja afirmava
+# alinhamento: L3 da quinta.
+#
+# O ALINHAMENTO E VERIFICADO, NAO AFIRMADO.
+# scripts/check_contract_examples.py cruza esta lista com
+# tools/check_synthetic_data.py::RESERVED_TLDS e RESERVED_DOMAINS, e reprova se
+# divergirem. A versao anterior deste comentario dizia "alinhados abaixo" — e
+# afirmacao sobre OUTRO arquivo, sem nada que a verificasse, envelhece sozinha:
+# foi o que aconteceu duas vezes. Ver secao 1.6 do registro de fase.
 #
 # Duas copias da mesma norma, com uma delas declarando sincronia que nao existe,
 # e a forma de divergirem em silencio: na Fase 9 o gerador seguiria este arquivo
@@ -207,6 +215,10 @@ x-aurora-security-constraints:
     - .example.net
     - .invalid
     - .test
+    # RFC 6761 e RFC 6762. Existiam so no verificador, enquanto o comentario
+    # acima afirmava alinhamento — L3 da quinta auditoria.
+    - .localhost
+    - .local
 
   # 05 secao 5.1: vendor/product identifica produto FICTICIO. O proposito e
   # tecnico — impedir que evidencia sintetica seja confundida com telemetria

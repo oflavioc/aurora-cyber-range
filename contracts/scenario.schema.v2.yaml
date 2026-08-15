@@ -717,6 +717,16 @@ x-aurora-linter-rules:
 x-aurora-authority:
   - doc: '04_SCENARIO_SCHEMA.md'
     sections: [1, 2, 4, 5, 6, 7]
+  # 08 secao 5 exibe `evidence_release`, que e CAMPO DE INJECT e mora neste
+  # contrato. Autoridade compartilhada com `evidence`, que governa o MANIFEST
+  # descrito na mesma secao: sao dois artefatos distintos no mesmo texto.
+  #
+  # Faltava, e a falta era invisivel: eu reivindicava o bloco em
+  # `x-aurora-spec-examples` sem declarar a autoridade, e nada cruzava as duas
+  # listas. Autoridade incompleta e gatilho que nao dispara — foi como o B1
+  # sobreviveu. M1 da quinta auditoria.
+  - doc: '08_EVIDENCE_SIMULATOR.md'
+    sections: [5]
 
 x-aurora-spec-examples:
   - doc: '04_SCENARIO_SCHEMA.md'

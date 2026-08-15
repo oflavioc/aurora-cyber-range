@@ -78,7 +78,13 @@ NON_DOMAIN_TRAILING_LABELS = frozenset(
     }
 )
 
-#: TLDs reservados a documentacao, teste e uso local. RFC 2606 e RFC 6761.
+#: TLDs reservados a documentacao, teste e uso local. RFC 2606 e RFC 6761 para
+#: `example`, `invalid`, `test` e `localhost`; RFC 6762 (mDNS) para `local`.
+#:
+#: A citacao anterior nomeava so 2606 e 6761, que nao cobrem `local` — L3 da
+#: quinta auditoria. Esta lista e espelhada em
+#: contracts/evidence.schema.yaml::allowed_domain_suffixes, e as duas divergiam
+#: enquanto o comentario de la afirmava alinhamento.
 RESERVED_TLDS = frozenset({"example", "invalid", "test", "localhost", "local"})
 
 #: Dominios de segundo nivel reservados a documentacao. RFC 2606 secao 3.

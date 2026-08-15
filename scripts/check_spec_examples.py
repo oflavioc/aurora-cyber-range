@@ -265,11 +265,38 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             reivindicados[chave] = (nome, schema, decl)
 
+    # -----------------------------------------------------------------------
+    # x-aurora-spec-examples SUBCONJUNTO DE x-aurora-authority.
+    #
+    # Reivindicar um bloco de uma secao sem se declarar autoridade dela deixa a
+    # lista de autoridade INCOMPLETA — e e ela que dispara a exigencia de
+    # justificativa sobre IGNORADOS. Autoridade incompleta significa gatilho que
+    # nao dispara, que e como o B1 sobreviveu.
+    #
+    # Medido na quinta auditoria: `scenario` reivindicava bloco em 08 secao 5 sem
+    # declarar autoridade sobre 08, enquanto `evidence` declarava autoridade
+    # sobre 08 secao 5 e nao reivindicava bloco nenhum. Ninguem reclamava. M1.
+    # -----------------------------------------------------------------------
     falhas: list[str] = []
     validados = 0
     vistos: set[tuple] = set()
     ignorados_usados: set[tuple] = set()
     mapa_autoridade = autoridades(contratos)
+
+    for nome, schema in sorted(contratos.items()):
+        declarada = {
+            (e["doc"], secao)
+            for e in (schema.get("x-aurora-authority") or [])
+            for secao in (e.get("sections") or [])
+        }
+        for decl in schema.get("x-aurora-spec-examples") or []:
+            chave_auth = (decl["doc"], _secao_de(decl["anchor"]))
+            if chave_auth not in declarada:
+                falhas.append(
+                    f"contracts/{nome}: reivindica bloco em "
+                    f"{decl['doc']} §{decl['anchor']} sem declarar autoridade "
+                    f"sobre essa secao em `x-aurora-authority`."
+                )
 
     for doc, heading, indice, lang, texto, linha in blocos_da_spec():
         if indice is None:

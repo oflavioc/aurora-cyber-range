@@ -413,6 +413,39 @@ def main(argv: list[str] | None = None) -> int:
     # erro se propagaria para as constantes e para a checagem de effects.
     # H1 da terceira auditoria.
     # -----------------------------------------------------------------------
+    # -----------------------------------------------------------------------
+    # DUAS COPIAS DA MESMA NORMA, CRUZADAS.
+    #
+    # `evidence.schema.yaml` guarda as faixas sinteticas de 05 secao 3, e
+    # `tools/check_synthetic_data.py` guarda as suas proprias — e e ele quem de
+    # fato varre os arquivos de dado. As duas divergiram DUAS VEZES enquanto o
+    # comentario do contrato afirmava alinhamento (M2 da segunda auditoria, L3
+    # da quinta).
+    #
+    # "Alinhado com X" e afirmacao sobre OUTRO arquivo. Ou existe algo que a
+    # verifica, ou ela envelhece sozinha — que foi exatamente o que aconteceu.
+    # Aqui ela passa a ser verificada.
+    # -----------------------------------------------------------------------
+    ev = contratos.get("evidence")
+    if ev is not None:
+        sys.path.insert(0, str(REPO_ROOT / "tools"))
+        import check_synthetic_data as csd  # noqa: E402
+
+        declarados = {
+            s.lstrip(".")
+            for s in (ev.get("x-aurora-security-constraints") or {}).get(
+                "allowed_domain_suffixes"
+            ) or []
+        }
+        aplicados = set(csd.RESERVED_TLDS) | set(csd.RESERVED_DOMAINS)
+        if declarados != aplicados:
+            falhas.append(
+                "contracts/evidence.schema.yaml x tools/check_synthetic_data.py: "
+                "faixas de dominio divergentes.\n"
+                f"    so no contrato: {sorted(declarados - aplicados) or 'nenhum'}\n"
+                f"    so no verificador: {sorted(aplicados - declarados) or 'nenhum'}"
+            )
+
     flags_schema = contratos.get("state_flags")
     if flags_schema is not None:
         validador_flags = Draft202012Validator(flags_schema, registry=registry)

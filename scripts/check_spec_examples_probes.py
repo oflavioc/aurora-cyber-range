@@ -66,6 +66,13 @@ PROBES = [
         "e o motivo nao diz por que o",
     ),
     (
+        "reivindica bloco de secao sobre a qual nao declara autoridade",
+        "scenario.schema.v2.yaml",
+        "  - doc: '08_EVIDENCE_SIMULATOR.md'\n    sections: [5]\n",
+        "",
+        "sem declarar autoridade",
+    ),
+    (
         "declaracao apontando para ancora que nao existe mais",
         "events.schema.yaml",
         "    anchor: '1. Envelope universal'\n",
