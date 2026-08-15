@@ -1,8 +1,11 @@
 # Fase 2 — Clock, eventos, estado, engine mínimo
 
 **Status: EM CURSO.** Checkpoint ⏸ submetido e decidido em 15/08/2026. O
-spec-change que ele exigia está em `main` no commit `a3aded5` (PR #21). Nenhum
-código de fase escrito ainda.
+spec-change que ele exigia está em `main` no commit `a3aded5` (PR #21).
+
+**Código escrito até aqui:** a projeção `simulation_state`, o envelope, o
+cálculo compartilhado de epoch, o `event_id`, a porta do relógio e o event store
+com implementação em memória. Nenhum item da DoD fechado — ver a §4.
 
 ---
 
@@ -388,6 +391,41 @@ continuam chegando como dado em `Declarations`, nunca por import.
 > e o limite de não haver guarda sobre esse caminho são a mesma coisa vista de
 > dois lados — lidas separadas, a decisão parece coberta.
 
+### 3.4 O event store, e as quatro decisões que ele carregou
+
+**O envelope mudou de camada.** `Event` e `Correlation` nasceram em
+`state/simulation_state.py`, porque o fold foi o primeiro a precisar deles.
+Estava invertido, e apareceu ao escrever o `append`: `simulation_state` é UMA das
+cinco projeções **sobre** eventos, e uma projeção definindo o envelope faria
+`events/` depender de `state/`. Movido para `range-core/events/envelope.py` no
+momento mais barato — um arquivo, com o fold e os testes como únicos consumidores.
+
+**O cálculo da epoch é compartilhado; a conferência, não.**
+`range_core.events.epoch.current_epoch` é usado pelo store, que carimba, e pela
+projeção, que devolve. Escrever a regra duas vezes é a classe da D4. Mas
+`_verify_epochs` **não** chama o compartilhado: se chamasse, o fold conferiria o
+número contra o mesmo código que o produziu, e a conferência viraria tautologia.
+Compartilha-se o cálculo; a segunda opinião continua sendo segunda.
+
+**`event_id` não sai do `RANDOM_SEED`.** As cinco ocorrências em `docs/spec/` —
+`00` §8, `02` §6, `05` §8, `06` T8 e `07` Fase 5 — amarram o seed a dataset
+sintético, Linha B, evidências e senhas de seed. Nenhuma o liga a identidade de
+evento, e a propriedade que sairia disso ninguém pediu: ids reproduzíveis entre
+execuções distintas são colisão esperando acontecer. ULID de `secrets`,
+implementado na stdlib para não trazer dependência que T15 obrigaria a pinar.
+
+**A porta do relógio existe para o store não ficar bloqueado nem inventar o
+clock.** `append` carimba a partir do `exercise-clock`, que é outra peça. A
+`ExerciseClockPort` é o limite do que o store sabe sobre tempo: recebe as quatro
+marcas prontas, numa leitura só — ler em chamadas separadas abriria janela para
+o clock avançar, ou ser pausado, entre elas.
+
+**O que a peça NÃO entrega:** `InMemoryEventStore` perde tudo ao morrer, e `06`
+T3 exige que "reinício do processo restaura a projeção corrente sem
+intervenção". O backend persistente é a próxima peça, e carrega uma decisão de
+dependência — `psycopg[binary]` 3, já escolhido na §1.3 — com fecho transitivo a
+pinar por T15, mais serviço de Postgres no job de CI.
+
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
 Os testes do `range-core` entraram como passo do job **`contratos`**, que é
@@ -443,7 +481,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | Id | O que é | Vencimento |
 |---|---|---|
 | P2-1 | Propriedade entre projeções: abandono lido só pelo motivo declarado | **Fase 6** |
-| P2-2 | AST sobre a superfície de leitura do store | **Fase 2**, após a API existir |
+| P2-2 | ~~AST sobre a superfície de leitura do store~~ | **FECHADA** — `scripts/check_store_read_surface.py` |
 | P2-3 | ~~Spec-change com os itens do checkpoint~~ | **FECHADA** em 15/08/2026, `a3aded5` |
 | P2-4 | Campo de payload dos extremos do intervalo congelado | **Fase 2**, no PR de código |
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
@@ -467,20 +505,30 @@ Fase 2 cria a primeira. O teste só é escrevível quando existir a segunda.
 **O que segura até lá:** as camadas (a) e (b) da §1.9, mais a assinatura que
 impede a projeção de consultar o store.
 
-#### P2-2 — AST sobre a superfície de leitura do store
+#### P2-2 — superfície de leitura do store — **FECHADA**
 
-**O que falta.** Verificar que as funções públicas de leitura do event store não
-aceitam parâmetro de filtragem por epoch, abandono ou ponto de corte.
+`scripts/check_store_read_surface.py`, com prova negativa em
+`scripts/check_store_read_surface_probes.py`. Job `arquitetura`.
 
-**Por que não agora.** Escrever a lista antes de a API existir é enumerar
-vocabulário para prever o módulo — classe da D6, já paga nesta fase.
+**A forma mudou por causa do adiamento, e é o argumento de tê-lo feito.** A
+pendência dizia "verificar que as funções públicas de leitura não aceitam
+parâmetro de filtragem por epoch, abandono ou ponto de corte" — uma lista de
+vocabulário proibido. Escrevê-la antes da API seria a D6: `since`, `after`,
+`cursor`, e a próxima palavra não estaria na lista.
 
-**Vencimento: dentro da Fase 2**, depois que a API existir, para a enumeração
-descrever o que há em vez de adivinhar. Vantagem sobre AST em consumidores: a
-superfície é **um módulo**, não um conjunto aberto de chamadores.
+Com a superfície desenhada, a afirmação forte passou a ser possível: `read_all()`
+**não tem parâmetro nenhum**. Não há palavra a proibir porque não há onde
+escrever palavra. E a checagem afirma a **superfície inteira** — o conjunto de
+métodos públicos precisa ser exatamente o declarado —, que é whitelist e não
+blocklist: `read_since(cursor)` reprova por ser novo, sem que ninguém tenha
+previsto a palavra.
 
-**Se a enumeração se mostrar instável, vira limite declarado** — não passa em
-silêncio.
+**Foi o desenho mínimo que tornou a verificação forte, e não o contrário.** A
+tentação futura é acrescentar um método "só de leitura", inofensivo em si, sem
+perceber que ele derruba a asserção — está dito na docstring de `EventStore`.
+
+Quatro violações plantadas, quatro reprovadas, em cópia temporária e nunca na
+árvore.
 
 #### P2-3 — spec-change — **FECHADA**
 
@@ -705,8 +753,19 @@ depois "dez", contra os "seis" do `01` §2 — e três conjuntos diferentes esta
 sendo chamados pelo mesmo nome.
 
 **Definição, e ela vale daqui em diante.** *Verificador* são os seis de `tools/`
-que o `01` §2 normatiza, e nada mais. O que roda em `scripts/` é **harness** ou
-**probe**, e se chama assim. Atestação de "todos os verificadores passam" que use
+que o `01` §2 normatiza, e nada mais. O que roda em `scripts/` é **checagem** ou
+**probe**, e se chama assim — nunca "verificador".
+
+> A primeira redação desta definição dizia "harness ou probe", e estava errada
+> na própria tabela abaixo: `check_progress_consistency.py` é **checagem**, não
+> harness nem probe. Corrigido aqui. O ponto da definição não muda — o que
+> distingue não é o que o script faz, é `01` §2 nomear **seis** e nomear onde
+> eles moram.
+>
+> **Consequência prática:** checagem nova de fase — como a da P2-2 — vai para
+> `scripts/`, e não para `tools/`. Um sétimo arquivo em `tools/` contradiria a
+> contagem que o `01` §2 fixa, e exigiria `spec-change` para acomodar decisão de
+> implementação. Atestação de "todos os verificadores passam" que use
 outro recorte é inconferível — foi exatamente o defeito que apareceu neste
 spec-change, onde "verde" correu contra um conjunto que não existia em documento
 nenhum.
@@ -734,6 +793,8 @@ deles — dois checks, um cruzamento de registro e três testes negativos:
 | 10 | `scripts/check_contract_examples_probes.py` | `contratos` | prova que o 9 reprova |
 | 11 | `scripts/check_spec_examples.py` | `contratos` | exemplos normativos da spec contra os contratos |
 | 12 | `scripts/check_spec_examples_probes.py` | `contratos` | prova que o 11 reprova |
+| 13 | `scripts/check_store_read_surface.py` | `arquitetura` | P2-2: a leitura do store não aceita filtro |
+| 14 | `scripts/check_store_read_surface_probes.py` | `arquitetura` | prova que o 13 reprova |
 
 Fora do CI: `scripts/audit_report.py` e `scripts/start_checkpoint_audit.sh` são
 ferramenta de auditoria, não gate.
@@ -743,14 +804,23 @@ ferramenta de auditoria, não gate.
 **Três correções de contagem já aconteceram aqui, e as três são o mesmo defeito:
 dois conjuntos com o mesmo número colado na cabeça.** "Nove verificadores" contra
 os seis normativos; "sete sítios de recusa", depois "nove", e são onze; "doze
-itens de DoD" contra os nove que a fase tem. Nenhuma delas era erro de leitura da
-fonte — eram números lembrados de outro conjunto.
+itens de DoD" contra os nove que a fase tem.
+
+**É classe distinta da §1.5 da Fase 1, e o remédio é outro.** A §1.5 é *"li
+outra coisa, e nunca errado"* — ler a fonte errada. Aqui a fonte certa nunca foi
+lida: o número veio **lembrado de outro conjunto**, e nenhuma das três teria sido
+pega por reler. Reler o `07` não corrige "doze" se o doze veio da contagem do
+CI; só conferir contra **a fonte daquele conjunto** corrige.
+
+A regra que ela ensina: **número afirmado diz de que conjunto é, e é contado na
+fonte dele no momento em que se escreve.** A §1.5 mandaria reler, que é
+exatamente o que não teria funcionado.
 
 | Quantos | Do quê | Onde é a fonte |
 |---|---|---|
 | **9** | itens da Definition of Done da Fase 2 | `07_IMPLEMENTATION_PHASES.md`, seção Fase 2 |
 | **6** | verificadores normativos, todos em `tools/` | `01_ARCHITECTURE.md` §2, e a tabela da §6 acima |
-| **12** | invocações Python que o CI executa | os 6 acima mais 6 de `scripts/` |
+| **14** | invocações Python que o CI executa | os 6 acima mais 8 de `scripts/` |
 | **11** | sítios de recusa do fold | `Site`, em `range-core/state/simulation_state.py` |
 | **4** | required status checks | `arquitetura`, `spec_freeze`, `seguranca`, `contratos` |
 
@@ -762,8 +832,9 @@ existia em documento nenhum.
 
 - *"Quantos verificadores a spec normatiza?"* — **seis**, e é o que o `01` §2 e o
   README dizem.
-- *"Quantas invocações Python o CI roda?"* — **doze**, mais `pip install` e
-  `alembic --help` no job `contratos`.
+- *"Quantas invocações Python o CI roda?"* — **catorze**, mais `pip install` e
+  `alembic --help` no job `contratos`. Eram doze até a checagem da P2-2 e a
+  prova negativa dela entrarem.
 - *"Quantas eu rodei localmente durante o spec-change?"* — **dez**. Não era
   nenhum dos dois conjuntos: faltavam os dois `*_probes.py`. Rodados depois, os
   dois passam, mas o registro fica: eu chamei de "verificadores" um recorte que

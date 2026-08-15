@@ -60,6 +60,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from range_core.events.epoch import current_epoch
+from range_core.events.envelope import (
+    Correlation,
+    Event,
+    FlagValue,
+)
+
 from contracts.generated.events import (
     DECISION_MADE,
     EXERCISE_STARTED,
@@ -84,62 +91,6 @@ TO_EVENT_ID = "to_event_id"
 
 #: Opcao escolhida, em `decision_made`. O inject vem de `correlation.inject_id`.
 OPTION_ID = "option_id"
-
-#: Valor de flag. Os tipos vem de `contracts/state_flags.schema.yaml`; o fold
-#: nao os valida — quem valida e o loader, no boot, contra o contrato do adapter
-#: (`01` §5.4, e o item 9 da DoD desta fase).
-FlagValue = bool | int | float | str
-
-
-@dataclass(frozen=True, slots=True)
-class Correlation:
-    """`09` §1 — o bloco `correlation` do envelope."""
-
-    scenario_id: str | None = None
-    inject_id: str | None = None
-    causation_id: str | None = None
-    fact_id: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Event:
-    """Envelope de `09` §1.1, na forma de LEITURA.
-
-    A forma de APPEND e outra e nao vive aqui: as tres marcas temporais e o
-    `clock_multiplier` sao carimbados pelo event store no append, a partir do
-    `exercise-clock`, nunca pelo produtor (D1 do checkpoint, §1.5). Um produtor
-    que carimbe o proprio tempo produz fluxo nao-monotonico, e carimba tempo que
-    nao existiu se o fizer durante uma pausa.
-
-    NAO HA CAMPO DE VINCULO A OBJETIVO, e a ausencia e o ponto: `09` §1.2 o
-    proibe no envelope, e o invariante 4 o guarda por AST em
-    `tools/check_event_envelope.py`. O binding evento -> objetivo ocorre na
-    projecao. Aqui ele e inexprimivel.
-    """
-
-    event_id: str
-    event_type: str
-    truth_layer: str
-    producer: str
-
-    # As quatro marcas. `exercise_time` e o rotulo `T+` e REBOBINA no rollback;
-    # `exercise_timestamp` NAO rebobina, e e o que ordena eventos de epochs
-    # distintas entre si (`01` §3, `09` §1.1).
-    exercise_time: str
-    exercise_timestamp: str
-    wall_timestamp: str
-    clock_multiplier: float
-
-    simulation_epoch: int
-    correlation: Correlation
-    payload: Mapping[str, object]
-
-    #: Obrigatorios quando `truth_layer` for `participant_action` ou
-    #: `evaluator_assessment` (`09` §1.1). A obrigatoriedade e do contrato, nao
-    #: deste tipo.
-    actor_id: str | None = None
-    persona: str | None = None
-
 
 @dataclass(frozen=True, slots=True)
 class Declarations:
@@ -370,7 +321,7 @@ def project(events: Sequence[Event], declarations: Declarations) -> SimulationSt
 
     return SimulationState(
         flags=MappingProxyType(flags),
-        simulation_epoch=_current_epoch(events),
+        simulation_epoch=current_epoch(events),
     )
 
 
@@ -555,7 +506,7 @@ def _writes_of(event: Event, declarations: Declarations) -> Mapping[str, FlagVal
 def _verify_epochs(events: Sequence[Event]) -> None:
     """Confere o `simulation_epoch` do envelope contra a contagem de rollbacks.
 
-    POR QUE CONFERIR, JA QUE `_current_epoch` CONTA
+    POR QUE CONFERIR, JA QUE `current_epoch` CONTA
     -----------------------------------------------
     Contornar a ambiguidade de `01` §4.2 contra `09` §3 foi decisao consciente.
     NAO conferir o campo que a expressa seria outra coisa: o fold leria um
@@ -598,16 +549,11 @@ def _verify_epochs(events: Sequence[Event]) -> None:
             )
 
 
-def _current_epoch(events: Sequence[Event]) -> int:
-    """A epoch corrente e a CONTAGEM de rollbacks, e a epoch comeca em ZERO.
-
-    Contar em vez de ler `simulation_epoch` do ultimo evento e deliberado, e o
-    motivo e uma ambiguidade da spec que nao vale resolver por inferencia: `01`
-    §4.2 diz que `rollback_performed` "incrementa `simulation_epoch`", e o
-    diagrama de `09` §3 desenha o proprio `rollback_performed` DENTRO da epoch
-    que ele encerra. Ler o ultimo evento daria a epoch errada exatamente no
-    instante seguinte a um rollback, antes de o proximo evento ser gravado.
-
-    A contagem nao depende de qual das duas leituras esta certa.
-    """
-    return sum(1 for event in events if event.event_type == ROLLBACK_PERFORMED)
+# `_current_epoch` saiu daqui: o calculo agora e `range_core.events.epoch`,
+# compartilhado com o store, que carimba a mesma epoch no append. Duas
+# implementacoes da mesma regra e a classe que a D4 da Fase 1 desfez.
+#
+# `_verify_epochs` NAO chama o compartilhado, e nao e esquecimento: se chamasse,
+# o fold conferiria o numero contra o mesmo codigo que o produziu, e a
+# conferencia viraria tautologia. Compartilha-se o calculo; a segunda opiniao
+# continua sendo segunda.
