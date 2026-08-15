@@ -220,3 +220,27 @@ jobs:
       # verificavel, e falha se o env.py quebrar.
       - name: alembic executavel
         run: python -m alembic.config --help
+
+      # ESTE JOB SE CHAMA `contratos` E PASSA A RODAR TESTE DE CODIGO. O nome
+      # deixa de descrever o escopo, e o desvio e deliberado: job novo e context
+      # novo, e context exigido antes de existir em `main` trava todo PR que nao
+      # o produza — foi a P1-18. O encaixe aqui nao cria context, e o job ja
+      # instala a aplicacao, que os testes exigem.
+      #
+      # CONDICAO DE SAIDA, registrada em docs/progress/fase_2.md secao 3.3:
+      # renomear quando houver outro motivo para tocar na branch protection.
+      - name: testes do range-core
+        run: python -m unittest discover -s tests
+
+      # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
+      # sem instalacao — verificado com `python -S`. Sem este passo, a entrada
+      # `contracts` de `package-dir` ficaria SEM PROVA, e ela existe justamente
+      # para o caso em que o CWD nao e a raiz: o container da Fase 4.
+      #
+      # `range_core` nao precisa disto — o hifen em `range-core/` ja o impede de
+      # resolver pela arvore, entao o import dele na suite ja prova a instalacao.
+      # A assimetria e o ponto: cobrir os dois com o mesmo passo seria supor que
+      # eles falham do mesmo jeito.
+      - name: pacotes importaveis fora da raiz do repositorio
+        working-directory: /tmp
+        run: python -c "import range_core.state.simulation_state, contracts.generated.events"
