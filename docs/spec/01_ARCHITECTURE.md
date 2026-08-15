@@ -100,6 +100,8 @@ Telemetria carrega adicionalmente `ingest_time`, distinto de `event_time`.
 
 **exercise-clock**: T0 definido pelo facilitador; PAUSAR congela e impede disparo agendado; multiplicador 1x / 5x / 20x para ensaio; `clock_multiplier` gravado em cada evento para reconstrução.
 
+**`exercise_timestamp` é marca do exercise-clock, não do relógio de parede.** Congela com o PAUSAR, junto de `exercise_time`, e avança na cadência do `clock_multiplier`. Os dois se separam no **rollback**: `exercise_time` é o rótulo `T+` e rebobina até o ponto de corte; `exercise_timestamp` **não rebobina**, e é o que torna ordenáveis entre si eventos de epochs distintas (`09_EVENT_MODEL.md` §1.1). O exemplo acima é de epoch única, onde os dois coincidem por construção — `T0 + exercise_time` —; a partir do primeiro rollback separam-se **pela quantidade de tempo de exercício que o rollback descartou**, e é essa separação que dá ao envelope duas marcas de exercício em vez de uma.
+
 **Congelamento por falha do range**: rollback com `reason: technical_failure` congela o relógio de métricas entre o inject falho e a retomada (`09_EVENT_MODEL.md` §3.1). O clock de exercício continua correndo; apenas a projeção de métricas desconta o intervalo.
 
 ---
@@ -132,6 +134,12 @@ EVENT STORE (append-only, imutável)
 
 Nenhuma projeção escreve no store. Toda projeção é reconstruível do zero.
 
+**A leitura do store é total.** `read_all` devolve todo evento gravado, sempre. **Nenhum caminho de leitura compartilhado filtra por epoch, por abandono ou por ponto de corte de rollback.** A exclusão dos eventos de epoch abandonada posteriores ao corte vive **no fold de `simulation_state`**, e em lugar nenhum mais — nunca no store, nunca em uma consulta que as outras projeções herdem.
+
+O motivo é que **quatro das cinco projeções leem a epoch abandonada legitimamente**, cada uma pelo motivo declarado em `09_EVENT_MODEL.md` §3.1: `rehearsal` descarta a epoch do cálculo, `technical_failure` desconta o intervalo, `facilitation` e `adjudication` preservam a epoch anterior — e `aar_timeline` a renderiza com anotação de rollback. Só `simulation_state` é reconstruída, e é a única que o diagrama acima marca.
+
+Um filtro no caminho de leitura compartilhado faria as outras quatro herdarem uma perda que nenhuma delas escolheu, **e nada falharia**: a projeção nasceria já cega, com a cegueira parecendo decisão de quem a escreveu. Como as quatro só existem a partir da Fase 6, o defeito ficaria latente por três fases, verde.
+
 ### 4.2 Rollback incrementa epoch
 
 `rollback_performed` grava `to_inject_id`, `by_user`, `role`, `reason` e incrementa `simulation_epoch`. **Nada é removido.** Eventos da epoch anterior permanecem, marcados, e o AAR os renderiza como linha temporal rebobinada.
@@ -143,6 +151,23 @@ Motivos e sua semântica métrica: `09_EVENT_MODEL.md` §3.1.
 ### 4.3 Por que business state não reverte
 
 Se um participante alterou nota, revogou VPN ou emitiu documento, isso aconteceu. Reverter gera estado impossível — evento na trilha de auditoria sem correspondente no banco — e destrói o artefato investigativo central.
+
+### 4.4 `participant_action` com `effect_class: state_effect`
+
+**Cinco dos dezessete `event_type` de `participant_action` do catálogo são `effect_class: state_effect`** (`09_EVENT_MODEL.md` §4.0 e §4.1): `communication_submitted`, `regulatory_notice_submitted`, `continuity_action_taken`, `vpn_access_revoked` e `identity_scope_disabled`. Todos podem mover flag. Quando um rollback atravessa uma dessas ações, **a flag reverte e o efeito de domínio não.**
+
+**A exposição é estrutural, não de borda.** A ligação entre a ação e a flag é feita pelo **serviço** que atende a rota, e não por `effects` de pack: `effects` existe em `inject` e em `option` de `decision_point` (`04_SCENARIO_SCHEMA.md` §5), e não há forma declarativa de um pack ligar um `event_type` de `participant_action` a uma flag. Como a ligação vive no serviço, ela não é escolha de autoria de cenário — vale para todo exercício que rode o adapter, com qualquer pack, e nenhum pack pode desligá-la.
+
+O caso concreto: `vpn_access_revoked` é produzido por `POST /identity/revoke` (`domains/academus/observability_hooks.yaml`), e o serviço que atende a rota escreve `academus.federated_session_active`, cujo default é `true` — escrita de flag **declarada**, que é o que a §5.4 permite ao vedar apenas a não declarada, por serviço que a §5.2 lista nos `consumers` dela. O defensor revoga o acesso e a flag cai; um rollback anterior à revogação a devolve a `true` em `simulation_state`, enquanto o registro da revogação segue vivo — no store e nas outras quatro projeções — e o que o domínio escreveu, que é Business State, não volta por §4.3.
+
+**O resíduo não tem o mesmo tamanho nos cinco, e é maior nos dois de efeito externo.** `communication_submitted` e `regulatory_notice_submitted` são `state_effect` porque *o ato* produz efeito fora do exercício — `09_EVENT_MODEL.md` §4.1 diz que "o público soube, o regulador foi notificado, o prazo regulatório correu". Neles o rollback devolve a flag e não existe o que devolva o que já foi comunicado. `continuity_action_taken` fica entre os extremos: a ação tem custo já pago em Business State, que a §4.3 mantém. `vpn_access_revoked` e `identity_scope_disabled` são as duas de efeito interno, e mesmo nelas o que o domínio escreveu permanece. **Em nenhum dos cinco o rollback desfaz o ato — o que varia é só o tamanho do que sobra fora da flag.**
+
+**O participante pode ver o mundo simulado contradizer a própria ação, e isso é desenho, não defeito.** Rollback atua sobre Simulation State, a única camada que a tabela da §4 declara reversível. O que ele fez continua tendo acontecido, continua registrado e continua sendo camada `append-only` permanente (`00_MASTER_SPEC.md` §5.5), com `nunca` na coluna Reversível da tabela da §4 — e a reversão da flag não contradiz nada disso.
+
+**Consequência de facilitação, e ela carrega o peso todo.** Sendo estrutural, a exposição não tem mitigação de desenho: não há pack que a evite nem configuração que a desligue. O que resta é o anúncio, e ele tem dois destinatários distintos:
+
+- **Antes do corte** — quem escolhe o ponto de rollback considera quais dessas ações o corte atravessa, e em especial se há alguma das duas de efeito externo entre elas. Rollback sobre elas não é operação neutra: tem custo de coerência, o custo cresce com o resíduo, e ele pertence à decisão de facilitação, não à surpresa da sala.
+- **Depois do corte** — o atravessamento é dito à equipe, na retomada e no debriefing. Sem isso, a equipe lê como falha do range aquilo que é a regra do exercício, e o AAR ganha uma discussão sobre bug no lugar da discussão sobre o que a ação significou.
 
 ---
 
