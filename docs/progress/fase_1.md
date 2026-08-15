@@ -146,7 +146,7 @@ Nove verificações, todas verdes na árvore limpa:
 |---|---|---|
 | os seis verificadores de `tools/` | os quatro invariantes arquiteturais | stdlib |
 | `scripts/phase0_negative_tests.py` | que os seis **reprovam** — **27** leituras, 36 escritas, 112 provas | stdlib |
-| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **60** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito; `effect_class` cobre o catálogo exatamente | `jsonschema` |
+| `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **61** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito; `effect_class` cobre o catálogo exatamente | `jsonschema` |
 | `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em **9** eixos de defeito | `jsonschema` |
 
 As duas últimas rodam no job `contratos`, separado, **o único que instala dependência** — ver P1-6 e P1-10.
@@ -469,6 +469,12 @@ Branch `spec-change/effect-class-marcas-temporais-e-seed`, commit `96296e1`, **s
 - `x-aurora-ref: event_catalog_state_effect` na folha `event` do predicado, e **apenas** nela — o branching mantém acesso ao catálogo inteiro, porque ramificar sobre o que a equipe **declarou** é desenho legítimo de cenário; o que não pode é **verificar** contra declaração;
 - `exercise_timestamp` obrigatório, propagado às 11 instâncias de envelope;
 - fixture negativa `containment: {all: [{event: containment_declared}]}` — o achado da rodada 2, agora recusado por regra e provado por fixture.
+
+**`decision_made` foi corrigido na revisão do PR de spec-change**, de `state_effect` para `declaration`. Meu argumento era que a opção carrega `effects` que mutam flags — mas quem muta o estado são os `effects`, não o evento. `decision_made` registra que a equipe **escolheu**, e escolher é afirmação, do mesmo tipo que `containment_declared`. Classifiquei pelo que a escolha *causa* em vez de pelo que o evento *é*, que é exatamente a confusão que `effect_class` existe para desfazer.
+
+O teste que decidiu: como `state_effect`, `containment: {all: [{event: decision_made}]}` seria satisfeito **no instante do clique, antes de qualquer efeito existir** — o buraco da P1-14 sobrevivendo dentro do campo criado para fechá-lo. A refutação já estava na minha própria nota, que dizia que o uso real em branching passa pelas folhas `decision` e `option`: se passa, nada dependia de ela ser `state_effect`. Escrevi o contra-argumento ao lado da classificação e não o apliquei.
+
+Fixture própria acrescentada, e não é redundante com a de `containment_declared`: ela fixa **esta** classificação. Reclassificar `decision_made` no futuro deixaria a outra passando e nada acusaria. Distribuição final: 12 `declaration`, 9 `machine`, 7 `state_effect`, 4 `observation`.
 
 **Cobertura de `effect_class` é verificada, não presumida.** A tabela é uma **segunda lista** dos mesmos 32 tipos, e segunda lista é o que diverge em silêncio — foi assim que `must_exist_in_event_catalog` ganhou dois nomes na D4. O executor exige cobertura exata nos três sentidos: todo tipo do catálogo classificado, nenhuma classe órfã, nenhum valor fora do conjunto declarado. **Dois eixos novos de probe** provam que ele reprova nos dois primeiros. Eixos: 9. Exemplos negativos: 60.
 

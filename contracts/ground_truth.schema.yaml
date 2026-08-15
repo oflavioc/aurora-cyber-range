@@ -611,6 +611,24 @@ x-aurora-invalid-examples:
         service_restoration:
           not_applicable: 'sem serviço derrubado'
 
+  # Segunda fixture da MESMA regra, e nao e redundante: ela fixa a classificacao
+  # de `decision_made` especificamente. Reclassifica-lo como `state_effect` no
+  # futuro deixaria a fixture acima passando e nada acusaria — o predicado
+  # passaria a ser satisfeito no instante do clique, antes de qualquer efeito.
+  - reason: 'contencao verificada por escolha: satisfeita no clique, antes de existir efeito'
+    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: decision_made
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
   - reason: 'predicado referencia flag nao declarada no adapter'
     rejected_by: 'x-aurora-ref:adapter_flags'
     instance:
