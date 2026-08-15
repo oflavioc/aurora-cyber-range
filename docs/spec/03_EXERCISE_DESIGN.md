@@ -116,7 +116,13 @@ Métricas simples, sem par:
 
 ### 3.1 Predicados de verificação
 
-TTCV e TTRV só são computáveis se o `ground_truth.yaml` declarar **o que é** contenção e restauração neste incidente:
+TTCV e TTRV só são computáveis se o `ground_truth.yaml` declarar **o que é** contenção e restauração neste incidente.
+
+**A folha `event` de um predicado só pode referenciar `event_type` com `effect_class: state_effect`** (`09_EVENT_MODEL.md` §4.0).
+
+Sem essa restrição, `containment: {all: [{event: containment_declared}]}` é um pack perfeitamente válido — e nele TTCD e TTCV passam a medir o mesmo instante. O delta que a §3.2 chama de "o achado" deixa de existir, e **nada falha**: a métrica continua sendo calculada, só que mede a si mesma. A consequência normativa 2 de `00_MASTER_SPEC.md` §3 seria anulada por autoria de cenário, não por defeito de código.
+
+A distinção não é de camada. `vpn_access_revoked` e `identity_scope_disabled` são `participant_action`, como `containment_declared`, e são legítimos aqui: são **ações com efeito no mundo simulado**, não afirmações sobre ele.
 
 ```yaml
 verification_predicates:

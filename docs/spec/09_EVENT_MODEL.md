@@ -37,7 +37,11 @@ Com o modelo das quatro verdades, praticamente tudo relevante é evento. Este do
 
 ### 1.1 Campos obrigatórios
 
-`event_id`, `event_type`, `truth_layer`, `producer`, `exercise_time`, `wall_timestamp`, `simulation_epoch`.
+`event_id`, `event_type`, `truth_layer`, `producer`, `exercise_time`, `exercise_timestamp`, `wall_timestamp`, `clock_multiplier`, `simulation_epoch`.
+
+**As três marcas temporais são obrigatórias**, conforme `01_ARCHITECTURE.md` §3, e `clock_multiplier` com elas, conforme `00_MASTER_SPEC.md` §5.6.
+
+Esta lista omitia `exercise_timestamp` e `clock_multiplier`, e a omissão tinha custo. Sem `exercise_timestamp`, evento de `simulation_epoch` 2 e evento de epoch 0 não são ordenáveis entre si na linha do exercício — só dentro da própria epoch. Sem `clock_multiplier`, a timeline do AAR não é reconstruível quando o multiplicador mudou no meio, porque o mesmo intervalo de relógio de parede corresponde a durações diferentes de exercício.
 
 `actor_id` e `persona` são obrigatórios quando `truth_layer` for `participant_action` ou `evaluator_assessment`.
 
@@ -115,21 +119,69 @@ Rótulo sem consequência não serve. Cada motivo tem efeito definido:
 
 Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evidência silenciosamente não é coletado, o objetivo nunca é satisfeito, a branch nunca ramifica — e ninguém percebe até o exercício ao vivo. É a falha mais cara possível.
 
+### 4.0 `effect_class` — o que o evento é, não quem o produziu
+
+`truth_layer` responde **quem afirma**. `effect_class` responde **que espécie de coisa o evento é**. São ortogonais, e confundi-los reabre pela porta do contrato a distinção que §2.1 fecha pela porta da semântica.
+
+| Valor | Significado |
+|---|---|
+| `state_effect` | Altera o estado do mundo simulado. Ocorreu, independente do que alguém creia ou declare |
+| `declaration` | Afirma crença, juízo ou classificação. **Nunca** altera ground truth |
+| `observation` | Registra que alguém acessou ou viu algo. Sem efeito no mundo e sem afirmação sobre ele |
+| `machine` | Ato da máquina de exercício ou escrituração do motor. Não é ato de participante |
+
+`vpn_access_revoked` e `containment_declared` são ambos `participant_action`. O primeiro é `state_effect` — o acesso caiu, e teria caído mesmo que ninguém declarasse coisa alguma. O segundo é `declaration` — a equipe afirma ter contido, e a afirmação não muda o mundo.
+
+**Consequência normativa.** A folha `event` de um predicado de verificação só pode referenciar `event_type` com `effect_class: state_effect` — ver `03_EXERCISE_DESIGN.md` §3.1. Sem essa restrição, um pack pode declarar `containment: {all: [{event: containment_declared}]}`, e nele TTCD e TTCV passam a medir o mesmo instante. A consequência normativa 2 de `00_MASTER_SPEC.md` §3 — toda métrica de resposta é pareada, e o delta é o achado — seria anulada por autoria de cenário, sem que nada falhe.
+
+`verification_predicate_satisfied` é `machine` por um motivo que não admite exceção: se fosse `state_effect`, um predicado poderia referenciar o evento que o próprio predicado emite ao ser satisfeito.
+
 ### 4.1 Catálogo v1
 
-**ground_truth** — `fact_materialized`, `attack_stage_reached`, `verification_predicate_satisfied`
+| `truth_layer` | `event_type` | `effect_class` |
+|---|---|---|
+| `ground_truth` | `fact_materialized` | `state_effect` |
+| `ground_truth` | `attack_stage_reached` | `state_effect` |
+| `ground_truth` | `verification_predicate_satisfied` | `machine` |
+| `observable_evidence` | `evidence_source_released` | `machine` |
+| `observable_evidence` | `evidence_source_accessed` | `observation` |
+| `observable_evidence` | `telemetry_emitted` | `machine` |
+| `participant_action` | `inject_viewed` | `observation` |
+| `participant_action` | `audit_query_performed` | `observation` |
+| `participant_action` | `evidence_source_opened` | `observation` |
+| `participant_action` | `incident_declared` | `declaration` |
+| `participant_action` | `separate_incident_declared` | `declaration` |
+| `participant_action` | `classification_declared` | `declaration` |
+| `participant_action` | `containment_declared` | `declaration` |
+| `participant_action` | `service_restoration_declared` | `declaration` |
+| `participant_action` | `integrity_validation_declared` | `declaration` |
+| `participant_action` | `assessment_submitted` | `declaration` |
+| `participant_action` | `communication_submitted` | `state_effect` |
+| `participant_action` | `regulatory_notice_submitted` | `state_effect` |
+| `participant_action` | `continuity_action_taken` | `state_effect` |
+| `participant_action` | `vpn_access_revoked` | `state_effect` |
+| `participant_action` | `identity_scope_disabled` | `state_effect` |
+| `participant_action` | `decision_made` | `declaration` |
+| `participant_action` | `capability_gap_declared` | `declaration` |
+| `evaluator_assessment` | `bars_score_submitted` | `declaration` |
+| `evaluator_assessment` | `observed_marker_set` | `declaration` |
+| `evaluator_assessment` | `qualitative_note_added` | `declaration` |
+| `facilitation` | `inject_fired` | `machine` |
+| `facilitation` | `rollback_performed` | `machine` |
+| `facilitation` | `branch_selected` | `machine` |
+| `facilitation` | `exercise_started` | `machine` |
+| `facilitation` | `exercise_paused` | `machine` |
+| `facilitation` | `exercise_reset` | `machine` |
 
-**observable_evidence** — `evidence_source_released`, `evidence_source_accessed`, `telemetry_emitted`
+**Trinta e dois tipos.** Vinte e seis são inequívocos; os cinco abaixo são decisão registrada, e o sexto é o `verification_predicate_satisfied` já justificado acima.
 
-**participant_action** — `inject_viewed`, `audit_query_performed`, `evidence_source_opened`, `incident_declared`, `separate_incident_declared`, `classification_declared`, `containment_declared`, `service_restoration_declared`, `integrity_validation_declared`, `assessment_submitted`, `communication_submitted`, `regulatory_notice_submitted`, `continuity_action_taken`, `vpn_access_revoked`, `identity_scope_disabled`, `decision_made`, `capability_gap_declared`
+- **`communication_submitted` e `regulatory_notice_submitted` são `state_effect`.** O *conteúdo* de uma comunicação é afirmação; o *ato* de emiti-la tem efeito externo — o público soube, o regulador foi notificado, o prazo regulatório correu. A classificação segue o ato. O conteúdo continua tratado como afirmação em outro lugar: `04_SCENARIO_SCHEMA.md` §7 compara o número comunicado com o ground truth.
+- **`decision_made` é `declaration`.** A opção escolhida carrega `effects` que mutam flags, mas **quem muta o estado são os `effects`, não o evento**: `decision_made` registra que a equipe *escolheu*, e escolher é afirmação, do mesmo tipo que `containment_declared`. Classificá-lo por `state_effect` abriria `containment: {all: [{event: decision_made}]}`, satisfeito no instante do clique, **antes de qualquer efeito existir** — o mesmo buraco que este campo fecha, com outro nome. Se um cenário precisar que uma decisão conte como contenção verificada, o caminho é o `effect` dela materializar um fato e o predicado referenciar esse fato, preservando a cadeia **decisão → efeito → estado observável**.
+- **`fact_materialized` e `attack_stage_reached` são `state_effect`.** São mudança do mundo, ainda que produzidas pelo motor. Isso permite um predicado dizer *"contido = nenhum estágio novo alcançado"*, que é objetivamente observável — o critério que §3.1 do `03` exige.
 
 > `separate_incident_declared` foi acrescentado no `spec-change` `facilitation-e-separate-incident`. Ele já era usado como evidência `auto` do OBJ-03 em `03_EXERCISE_DESIGN.md` §1.1 e na §6 deste documento, sem constar do catálogo — e o catálogo é **registro fechado**, com CI que falha em `event_type` não registrado. Um `objectives.yaml` escrito conforme o exemplo normativo do `03` seria recusado pelo linter.
 >
 > Declarar que são **dois** incidentes é ação distinta de declarar **um**: é o objeto do OBJ-03, "reconhecer incidentes concorrentes". Reaproveitar `incident_declared` apagaria a distinção que o objetivo mede. É exatamente a classe de falha que `04_SCENARIO_SCHEMA.md` §6.2 descreve — o `event_type` inexistente que nunca dispara e que ninguém percebe até o exercício ao vivo.
-
-**evaluator_assessment** — `bars_score_submitted`, `observed_marker_set`, `qualitative_note_added`
-
-**facilitation** — `inject_fired`, `rollback_performed`, `branch_selected`, `exercise_started`, `exercise_paused`, `exercise_reset`
 
 ---
 
