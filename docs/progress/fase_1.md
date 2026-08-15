@@ -70,28 +70,71 @@ Declarado: **`boolean | number | enum`**, com `enum` exigindo `values` e `number
 
 `04` §4 proíbe alterar semântica de campo dentro da mesma `schema_version`, então errar aqui custaria migração.
 
+### 1.5 A lição desta fase: três rodadas, mesma raiz, lugares diferentes
+
+**Não é pendência. É o padrão que as quatro auditorias revelaram, e ele é sobre método, não sobre código.**
+
+Cada rodada encontrou defeitos em lugar diferente, e a causa raiz foi a mesma nas três últimas: **eu não li a fonte.**
+
+| Rodada | Onde apareceu | O que eu fiz em vez de ler |
+|---|---|---|
+| 2ª | `simulation_epoch: minimum: 1` | Inferi o piso do valor `1` que aparecia num **exemplo de instância** de `09` §1, sem abrir `09` §3 nem `06` T3 |
+| 3ª | `evidence_release`, `reveals`, `note_to_facilitator`, `inject_id` | Montei o inventário de campos a partir do **meu contrato anterior**, não da spec |
+| 4ª | `IGNORADOS` do verificador de exemplos | Escrevi "continuação do exemplo de hooks" olhando o **meu dump de inventário**, sem abrir o bloco |
+
+Em nenhuma delas eu li errado. Em todas eu **li outra coisa**: um exemplo em vez da norma, meu artefato anterior em vez da fonte, meu próprio relatório em vez do documento.
+
+#### O agravante que fecha o argumento
+
+Na quarta rodada isso aconteceu **dentro da ferramenta construída para pegar exatamente isso**. A camada de fidelidade — criada porque a suíte não conseguia comparar contrato com spec — ficou verde por excluir o único bloco que a contradizia, com um motivo factualmente falso.
+
+E não ficou verde *apesar* do motivo falso: ficou verde **por causa dele**.
+
+#### Por que o mecanismo não pegava
+
+Os probes que eu escrevo têm um viés sistemático: **todos partem do pressuposto de que o artefato certo existe.** Eles perguntam *"o verificador enxerga o defeito?"* e nunca *"o autor olhou para a fonte?"*. O primeiro é mecanizável e eu mecanizei bem; o segundo não é, e foi por ele que os três passaram.
+
+A mecanização parcial que entrou nesta rodada — cruzar `IGNORADOS` com a `Autoridade` declarada — não resolve isso. Ela **força a leitura** num ponto específico, exigindo que o motivo diga por que aquele bloco não é instância daquele contrato. É gatilho, não garantia.
+
+#### O que fica como método
+
+1. **Fonte é o documento normativo, nunca o artefato anterior.** Reescrever um contrato a partir do contrato antigo propaga o erro com fidelidade — a tradução fica perfeita e a origem, errada.
+2. **Exemplo de instância não é declaração de regra.** Foi assim que o `minimum: 1` nasceu, e é a mesma confusão entre "a spec mostra" e "a spec exige".
+3. **Escape hatch precisa de exigência de forma.** Lista de exclusão cujo motivo ninguém verifica é onde defeito se esconde — e o defeito que se esconde ali é justamente o inconveniente.
+4. **`additionalProperties: false` amplifica transcrição incompleta.** Fechar vocabulário é decisão certa, e converte cada lacuna de leitura em regra que quebra pacote. Fechar exige ter lido tudo.
+
+#### A trajetória, para não ser lida como fracasso
+
+Quatro FAIL seguidos, e cada um mais estrutural que o anterior: divergência de campo → lacunas nos meus verificadores → falta da camada de fidelidade inteira → o escape hatch dessa camada sem verificação. A superfície do não-provado encolheu a cada rodada, e nenhum finding de uma rodada reapareceu na seguinte depois que a P1-16 estabeleceu que registrar não é tratar.
+
+O mecanismo está funcionando. O que ele mede — inclusive sobre quem o opera — é o produto.
+
 ---
 
 ## 2. Estrutura de diretórios
 
 ```
-range-core/                      esqueleto: clock, events, state, engine/{loader,
-                                 migrations,branching}, objectives, rubrics, metrics,
-                                 telemetry, evidence, aar, api, web/{gm-console,
-                                 participant-view,wallboard-shell}
+range-core/                      clock, events, state, engine/{loader,migrations,
+                                 branching}, objectives, rubrics, metrics,
+                                 telemetry, evidence, aar, api
 domains/
   academus/                      flags.yaml (12 flags), observability_hooks.yaml,
-                                 generated/{flags.py,flags.ts}, models/ api/ web/
+                                 generated/{flags.py,flags.ts}, models/ api/
                                  seed/ panels/ evidence_generators/
   prontus/                       STUB.md, flags.yaml (2 flags), generated/
-scenarios/academus/              vazio nesta fase
 contracts/                       os seis schemas + README.md (subconjunto YAML e
                                  extensoes x-aurora-*) + generated/{events.py,events.ts}
 scripts/                         phase0_negative_tests.py, check_contract_examples.py,
-                                 check_contract_examples_probes.py, audit_report.py
+                                 check_contract_examples_probes.py,
+                                 check_spec_examples.py, check_spec_examples_probes.py,
+                                 audit_report.py
 alembic/                         env.py, script.py.mako, versions/
-docker-compose.yml  .env.example  alembic.ini  pyproject.toml
+docker-compose.yml  .env.example  alembic.ini  pyproject.toml  constraints.txt
 ```
+
+**O que a versão anterior desta seção afirmava e não existe.** Ela listava `range-core/web/{gm-console,participant-view,wallboard-shell}`, `domains/academus/web/` e `scenarios/academus/ vazio nesta fase` como estrutura entregue. **Nenhum dos cinco existe na árvore** — nem como diretório versionado. Registro afirmando entrega inexistente, e é este registro que a Fase 2 herda como ENTRY. M1 da quarta auditoria.
+
+**Corrigido o registro, e não a árvore.** Criar diretório vazio com `.gitkeep` para satisfazer a descrição seria a mesma classe que esta fase inteira vem punindo: fazer o artefato caber na afirmação em vez de corrigir a afirmação. Os diretórios web nascem na Fase 4, que é quem os constrói; `scenarios/` nasce na Fase 7. Os ramos de varredura web de `check_contract_literals.py` e `check_event_envelope.py` ficam sem território real até lá — o que é correto, e está provado por probe que planta arquivo `.tsx` temporário.
 
 O executor de exemplos mora em `scripts/` e não em `tools/` porque `01_ARCHITECTURE.md` §2 declara que os verificadores de invariante **são seis**; um sétimo arquivo em `tools/` contradiria a spec, e ele não é verificador de invariante — é executor de fixture de contrato.
 
@@ -199,7 +242,7 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-12 | `simulation_epoch` com piso inventado contra critério normativo | ✅ fechada — achado pelo auditor |
 | P1-13 | Achados da auditoria, rodadas 1 e 2 | ✅ BLOCKER/HIGH/MEDIUM/LOW corrigidos, salvo os abaixo |
 | P1-14 | Predicado satisfeito por declaracao (M3) | ⚠️ **aberta, aguarda decisão de modelagem** |
-| P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ⚠️ **escalação aberta, dois não-master** |
+| P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ✅ fechada pelo spec-change — ver P1-17 |
 | P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
 | P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
 | P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ⚠️ **aberta** — check removido; volta após o merge do PR de código |
@@ -576,57 +619,13 @@ TTCD e TTCV colapsariam no mesmo instante, e o delta — que `03` §3.2 chama de
 
 **Não é "proibir `participant_action` no predicado".** `vpn_access_revoked` e `identity_scope_disabled` são dessa camada e são legítimos no exemplo normativo de `03` §3.1: são **ações com efeito no mundo simulado**, não afirmações sobre ele. A distinção que falta é essa, e ela não existe no catálogo — fechá-la exige classificar os 32 tipos. Decisão de modelagem. Ver P1-13.
 
-#### P1-15 — `exercise_timestamp`: conflito entre dois documentos não-master
+#### P1-15 — `exercise_timestamp`: FECHADA pelo spec-change
 
-`01` §3 diz "três marcas temporais, nunca uma só" e lista `exercise_timestamp`; `09` §1.1 não o inclui entre os campos obrigatórios. O contrato o declara opcional, seguindo `09`.
+`01` §3 dizia "três marcas temporais, nunca uma só" e `09` §1.1 não incluía `exercise_timestamp` entre os obrigatórios. **Dois documentos não-master**, e `CLAUDE.md` manda parar e perguntar nesse caso — foi o que aconteceu, e o operador decidiu que `01` §3 prevalece.
 
-Os dois são não-master, e `CLAUDE.md` §"Autoridade" manda **parar e perguntar** nesse caso — não resolver por inferência. Diferente do H2, onde `00` §5.6 decidia por ser MASTER. **Escalação, não pendência de implementação.** Ver P1-13.
+Fechada em `09` §1.1 pelo spec-change `effect-class-marcas-temporais-e-seed`, e implementada em `contracts/events.schema.yaml`, que passou a exigir o campo.
 
-#### P1-18 — `contratos` como required check travou o merge do spec-change: impasse circular
-
-**Não foi exceção ao gate. Foi impasse de configuração, e o gate nunca chegou a ser afrouxado no que importa.**
-
-Para mergear o PR #12 — o spec-change — foi preciso **remover `contratos` dos required status checks**. A causa é circular:
-
-- `contratos` é o job que executa os exemplos dos contratos, e ele **só existe na branch de código**, que ainda não mergeou;
-- o PR #12 sai de `main`, onde o job não existe. Ele reporta três checks, nunca quatro;
-- a branch protection exigia os quatro. O quarto ficava **esperado e ausente**, não falhando.
-
-Consequência medida, com a saída literal do operador:
-
-```
-$ gh pr merge 12 --rebase --delete-branch
-X ... the base branch policy prohibits the merge.
-
-$ gh pr merge 12 --rebase --delete-branch --admin
-GraphQL: Required status check "contratos" is expected. (mergePullRequest)
-```
-
-**Nem `--admin` passa**, e isso é o ponto: privilégio administrativo contorna check que *falha*, não check que *não existe*. Com `enforce_admins: true`, o PR ficaria bloqueado indefinidamente.
-
-##### A regra que isso ensina
-
-**Um status check só pode ser exigido depois de ter aparecido num run em `main`.** Antes disso, exigi-lo não fortalece nada — trava todo PR que não o produza, inclusive os que não têm como produzi-lo.
-
-A P1-10 já dizia "aplicar depois do merge", mas dizia isso pela metade: registrava que o GitHub *não aceita* exigir um check inédito, e não registrava que exigir um check que existe **em outra branch** trava tudo. As duas metades são a mesma regra vista de lados opostos, e faltava a que custou o ciclo.
-
-##### O que NÃO foi afrouxado
-
-A remoção foi de **um** context, o único impossível de satisfazer naquele PR. `arquitetura`, `spec_freeze` e `seguranca` continuaram exigidos e passaram — inclusive o `spec_freeze`, que é justamente quem prova que aquele PR tocava `docs/spec/` sem tocar código. O gate que a Fase 0 construiu julgou o spec-change por inteiro.
-
-##### Estado e ordem de reposição
-
-`contratos` está **fora** dos required checks agora. Ele volta **depois do merge do PR de código**, que é o commit que leva o job para `main`. A partir daí todo PR contra `main` passa a produzi-lo, e a exigência passa a ser satisfazível — o que a P1-10 sempre quis dizer.
-
-Enquanto não voltar, vale o que a P1-10 já registrava: o job roda e reporta, mas um PR com fixture quebrada pode ser mergeado com ele vermelho.
-
-#### P1-20 — `information_distribution.yaml` é arquivo de pack sem contrato
-
-`04` §1 o lista entre os arquivos do pacote e `03` §4 traz o bloco normativo, mas nenhum dos seis contratos o cobre — e `01` §2 fixa o conjunto em seis. Apareceu ao montar a lista de ignorados do verificador de exemplos da spec: é um bloco normativo que nenhum contrato reivindica.
-
-Mesma classe do M4 da segunda auditoria (`observability_hooks.yaml`), e com a mesma consequência: um campo com erro de digitação ali sai rc=0 em todos os gates. Não bloqueia a Fase 1 — o arquivo não consta dos OUTPUTS —, e a assimetria de informação que ele governa chega na Fase 10.
-
-Fica registrado com o motivo escrito na própria lista de ignorados, para não virar omissão silenciosa.
+**Este registro dizia "escalação aberta" e "o contrato o declara opcional, seguindo `09`" por dois commits depois de as duas afirmações terem deixado de valer.** O mesmo documento registrava o fechamento em P1-17, e as duas versões conviveram. Registro contradizendo o artefato, e contradizendo a si mesmo — L1 da quarta auditoria, mesma família do M1.
 
 #### P1-11 — Nenhum driver de banco nem cliente Redis declarado
 

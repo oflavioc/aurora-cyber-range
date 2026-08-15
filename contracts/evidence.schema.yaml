@@ -229,6 +229,26 @@ x-aurora-linter-rules:
   - 'banner presente na primeira linha de todo artefato gerado (05 secao 4)'
 
 # ---------------------------------------------------------------------------
+# AUTORIDADE, COMO DADO E NAO COMO COMENTARIO.
+#
+# O cabecalho deste arquivo ja declarava de que secoes da spec ele e autoridade,
+# em prosa. Prosa nao e verificavel: foi assim que um bloco normativo de uma
+# secao reivindicada por este contrato foi para IGNORADOS com motivo falso, e a
+# suite ficou verde por exclui-lo (B1 da quarta auditoria).
+#
+# scripts/check_spec_examples.py cruza esta lista com IGNORADOS: bloco ignorado
+# sob secao que algum contrato reivindica passa a EXIGIR que o motivo diga por
+# que aquele bloco nao e instancia DAQUELE contrato. Nao e falha automatica — e
+# exigencia de forma, que obriga a ler o bloco. Era exatamente o passo que
+# faltou.
+# ---------------------------------------------------------------------------
+x-aurora-authority:
+  - doc: '08_EVIDENCE_SIMULATOR.md'
+    sections: [3, 5, 7]
+  - doc: '05_SECURITY_REQUIREMENTS.md'
+    sections: [2, 3, 4]
+
+# ---------------------------------------------------------------------------
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
 examples:

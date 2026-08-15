@@ -65,7 +65,12 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools>=68"]
+# VERSAO EXATA, pelo mesmo argumento que vale para as dependencias acima. A
+# forma anterior era `setuptools>=68` — faixa, no mesmo arquivo que argumenta por
+# que faixa nao e pinagem, e fora do alcance de constraints.txt, que so cobre o
+# ambiente de execucao. O backend de build tambem produz o artefato que o job
+# `contratos` instala. L2 da quarta auditoria.
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
