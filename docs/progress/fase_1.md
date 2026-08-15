@@ -809,7 +809,8 @@ Estes não vão ser fechados, e a diferença importa: pendência é trabalho adi
 
 - **A exigência sobre a lista de exclusão é de forma.** O texto do motivo em `IGNORADOS` nunca é lido por máquina. Um motivo bem formatado e falso passa. Julgar se uma prosa descreve corretamente um bloco de YAML é julgamento, não verificação — e foi a leitura humana do auditor que sustentou o PASS. Ele disse isso no relatório.
 - **`check_contract_examples.py` é laço fechado.** Valida contratos contra fixtures que vivem dentro deles. `check_spec_examples.py` cobre o que a spec mostra **em exemplo**; o que ela declara só em prosa ou tabela continua fora do alcance de qualquer verificador.
-- **A consistência do registro de fase não tem verificador.** Descoberto ao fechar a P1-18: duas seções de pendência haviam sumido do arquivo e as linhas da tabela seguiam afirmando-as. Os artefatos têm verificação; o documento que os descreve, não.
+- ~~A consistência do registro de fase não tem verificador.~~ **Deixou de ser limite:** `scripts/check_progress_consistency.py` cruza a tabela-resumo com as seções de detalhe, nos dois sentidos, com dois eixos de probe no harness. Foi a §1.6 virando código, e o argumento que a moveu de limite para verificação é que **a regra sozinha não segurou a propriedade** — a §1.6 foi escrita e violada no mesmo dia, enquanto era aplicada.
+  **O que continua limite:** registro em estilo cronológico, sem tabela-resumo, não é conferido. `fase_0.md` é assim, e o mesmo id aparece na entrada do finding e na da resolução — sem tabela não há o que cruzar, e reescrever registro de fase encerrada seria pior que o defeito.
 - **`tools/_common.py::parse_yaml` nunca foi comparado com um parser conforme.** É o único leitor dos contratos nos jobs stdlib. Se ele mal-parsear um contrato, toda a validação opera sobre uma árvore diferente da que a aplicação lerá.
 
 ### 7.5 O que a Fase 2 precisa decidir cedo

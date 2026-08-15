@@ -1,5 +1,16 @@
 name: invariantes
 
+# ACTIONS PINADAS POR SHA — P25, herdada da Fase 0 e vencida na Fase 1.
+#
+# `@v4` e `@v5` sao TAGS MAJOR MUTAVEIS: o conteudo por tras delas muda sem que
+# nada apareca em diff neste repositorio. E o mesmo argumento que ja valeu para
+# as imagens do compose e para o fecho de dependencias de constraints.txt, e a
+# mesma regra — 00_MASTER_SPEC.md secao 8 e 06_ACCEPTANCE_TESTS.md T15.
+#
+# A tag legivel fica no comentario ao lado de cada SHA, de proposito: o SHA
+# sozinho nao diz a humano nenhum qual versao esta rodando. Atualizar passa a
+# ser mudanca explicita de commit, que e o que "pinado" significa.
+
 on:
   push:
     branches: [main]
@@ -9,8 +20,8 @@ jobs:
   arquitetura:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
 
@@ -40,6 +51,15 @@ jobs:
       # (docs/process/WORKFLOW.md). Um job novo nao seria obrigatorio e
       # poderia falhar sem bloquear o merge — que e o buraco que este step
       # existe para fechar.
+      # A tabela-resumo de pendencias e uma AFIRMACAO DE ESTADO sobre uma secao
+      # que pode nao existir — e nao existiu duas vezes, sem que nada acusasse.
+      # A secao 1.6 do registro da Fase 1 nomeia a classe; isto e ela virando
+      # codigo. Fica aqui, e nao em job proprio, porque job novo e context novo,
+      # e context exigido antes de existir em `main` trava todo PR que nao o
+      # produza — foi a P1-18.
+      - name: registro de fase consistente
+        run: python scripts/check_progress_consistency.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 
@@ -47,7 +67,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0
       - name: spec so muda em PR separado marcado spec-change
@@ -130,8 +150,8 @@ jobs:
   seguranca:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
 
@@ -160,8 +180,8 @@ jobs:
   contratos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
 
