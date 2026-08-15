@@ -134,6 +134,8 @@ LEITURA_LEGITIMA = [
      "python scripts/check_spec_examples.py"),
     ("teste negativo do verificador de exemplos da spec",
      "python scripts/check_spec_examples_probes.py"),
+    ("consistencia do registro de fase",
+     "python scripts/check_progress_consistency.py"),
     ("executor de exemplos com stderr descartado",
      "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
@@ -799,6 +801,56 @@ def main() -> int:
     ):
         expect_fail("check_event_envelope.py", [sys.executable, "tools/check_event_envelope.py"],
                     "range-core/engine/_phase0_probe_event.py")
+
+
+    # A tabela-resumo de pendencias afirmando estado de uma secao que nao
+    # existe: foi o que aconteceu com P1-18 e P1-20, e nada acusou. A secao 1.6
+    # nomeou a classe e foi violada no mesmo dia em que foi escrita — regra
+    # sozinha nao segura propriedade.
+    registro_ruim = "\n".join([
+        "# Fase de teste",
+        "",
+        "## 6. Pendencias",
+        "",
+        "| # | Assunto | Status |",
+        "|---|---|---|",
+        "| P9-1 | pendencia com secao | aberta |",
+        "| P9-2 | pendencia SEM secao de detalhe | aberta |",
+        "",
+        "#### P9-1 - a unica que tem detalhe",
+        "",
+        "Texto.",
+        "",
+    ])
+    with temporary_file("docs/progress/fase_9.md", registro_ruim):
+        expect_fail("check_progress_consistency.py (linha sem secao)",
+                    [sys.executable, "scripts/check_progress_consistency.py"],
+                    "docs/progress/fase_9.md")
+
+    # Direcao oposta: secao que existe e nao aparece no resumo. Pendencia
+    # invisivel na tabela e pendencia que a proxima fase nao herda.
+    registro_invisivel = "\n".join([
+        "# Fase de teste",
+        "",
+        "## 6. Pendencias",
+        "",
+        "| # | Assunto | Status |",
+        "|---|---|---|",
+        "| P9-1 | a unica listada | aberta |",
+        "",
+        "#### P9-1 - listada",
+        "",
+        "Texto.",
+        "",
+        "#### P9-3 - existe e ninguem sabe",
+        "",
+        "Texto.",
+        "",
+    ])
+    with temporary_file("docs/progress/fase_9.md", registro_invisivel):
+        expect_fail("check_progress_consistency.py (secao fora do resumo)",
+                    [sys.executable, "scripts/check_progress_consistency.py"],
+                    "docs/progress/fase_9.md")
 
     # observability_hooks.yaml carrega event_type e nao era varrido por gate
     # nenhum: nem os seis contratos o validam, nem a varredura de codigo alcanca
