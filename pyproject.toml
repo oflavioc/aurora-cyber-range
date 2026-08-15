@@ -53,6 +53,18 @@ dependencies = [
     "alembic==1.19.1",
     "sqlalchemy==2.0.52",
 
+    # Driver do event store. A escolha e da secao 1.3 do checkpoint desta fase,
+    # e nao veio por acidente do primeiro que funcionou: `psycopg` 3 traz as
+    # faces SINCRONA e ASSINCRONA no mesmo pacote, entao a borda async da Fase 3
+    # nao exige um segundo driver ao lado, com um segundo dialeto de SQL.
+    #
+    # `psycopg2` teria forcado `asyncpg` na Fase 3, e `04_SCENARIO_SCHEMA.md`
+    # secao 4 proibe mudar semantica dentro da mesma `schema_version`.
+    #
+    # O extra `[binary]` evita exigir toolchain de compilacao e libpq no host —
+    # o fecho dele esta pinado em constraints.txt.
+    "psycopg[binary]==3.2.12",
+
     # USADO POR UM SCRIPT SO: scripts/check_spec_examples.py, que valida os
     # blocos de exemplo de `docs/spec/` contra os contratos.
     #

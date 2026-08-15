@@ -50,6 +50,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 STORE_PATH = REPO_ROOT / "range-core" / "events" / "store.py"
 
+#: A garantia vale para a BASE E PARA AS SUBCLASSES, e isto foi um buraco.
+#:
+#: A primeira versao desta checagem olhava so a classe em `store.py`. Uma
+#: subclasse em outro arquivo — `PostgresEventStore`, por exemplo — podia
+#: acrescentar `read_since(cursor)` e passar, porque a checagem nunca a via.
+#: Apareceu ao escrever a segunda implementacao, que e quando esse tipo de
+#: buraco aparece: a primeira nao tem com que divergir.
+CORE_ROOT = REPO_ROOT / "range-core"
+
 #: A classe cuja superficie e governada.
 STORE_CLASS = "EventStore"
 
@@ -151,9 +160,54 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{RULE}: {problema}", file=sys.stderr)
         return 1
 
+    problemas.extend(_subclasses_fora_da_linha(alvo))
+
+    if problemas:
+        for problema in problemas:
+            print(f"{RULE}: {problema}", file=sys.stderr)
+        return 1
+
     print(f"superficie de {STORE_CLASS}: {', '.join(sorted(publicos))}")
     print("leitura sem parametro; nenhum filtro por epoch, abandono ou corte.")
     return 0
+
+
+def _subclasses_fora_da_linha(ja_conferido: Path) -> list[str]:
+    """Toda subclasse de `EventStore` no core obedece a mesma superficie.
+
+    Sem isto a garantia valeria so para a base, e a primeira implementacao
+    concreta que quisesse um atalho o teria de graca — em outro arquivo, longe
+    de onde a regra esta escrita.
+    """
+    if not CORE_ROOT.is_dir():
+        return []
+
+    problemas: list[str] = []
+    for caminho in sorted(CORE_ROOT.rglob("*.py")):
+        if caminho.resolve() == ja_conferido.resolve():
+            continue
+        arvore = ast.parse(caminho.read_text(encoding="utf-8"), str(caminho))
+        for node in ast.walk(arvore):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            bases = {b.id for b in node.bases if isinstance(b, ast.Name)}
+            bases |= {b.attr for b in node.bases if isinstance(b, ast.Attribute)}
+            if STORE_CLASS not in bases:
+                continue
+
+            relativo = caminho.relative_to(REPO_ROOT).as_posix()
+            for filho in node.body:
+                if not isinstance(filho, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if filho.name.startswith("_"):
+                    continue
+                if filho.name not in DECLARED_SURFACE:
+                    problemas.append(
+                        f"{relativo}: {node.name}.{filho.name} e publico e nao esta "
+                        "em DECLARED_SURFACE. Subclasse nao amplia a superficie do "
+                        "store — a garantia de 01 secao 4.1 vale para todas."
+                    )
+    return problemas
 
 
 if __name__ == "__main__":

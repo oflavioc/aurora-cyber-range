@@ -426,6 +426,49 @@ intervenção". O backend persistente é a próxima peça, e carrega uma decisã
 dependência — `psycopg[binary]` 3, já escolhido na §1.3 — com fecho transitivo a
 pinar por T15, mais serviço de Postgres no job de CI.
 
+### 3.5 O backend persistente, e por que ele não traz o mecanismo da Fase 5
+
+**Antecipar a garantia, não o mecanismo.** `02` §4 e `05` §7 exigem role
+`INSERT`-only, `REVOKE UPDATE/DELETE` e trigger — isso é **Fase 5**, e
+antecipá-lo seria dois lugares definindo a mesma coisa, com o segundo a
+divergir.
+
+Mas append-only não podia ser, até lá, disciplina do código Python: quem tem a
+connection string reescreve história e **nada acusaria**. O que esta fase entrega
+é **detecção** — `sequence` contígua e encadeamento por hash, verificados a cada
+leitura. E detecção não vira redundância depois do `REVOKE`, porque `REVOKE` não
+protege contra quem tem privilégio: migração, restauração de backup e acesso
+administrativo continuam existindo.
+
+**A sequência é atribuída pela aplicação, e não por `BIGSERIAL`.** Sequência de
+banco consome número em transação que faz rollback, e o buraco resultante seria
+alarme falso — detecção que grita sem defeito é detecção que se aprende a
+ignorar.
+
+**Os metadados de integridade ficam na TABELA, não no envelope.** `sequence`,
+`previous_hash` e `row_hash` são propriedade de armazenamento; o envelope é o de
+`09` §1.1, e acrescentar campo a ele exigiria mudar o contrato.
+
+**Os dois limites, declarados e um deles com teste próprio.** Truncamento da
+cauda não é detectável — apagar as últimas linhas deixa cadeia íntegra e
+sequência contígua, e pegar isso exigiria âncora externa, que a Fase 2 não
+inventa. E reescrita completa por quem tem o código também não: quem recomputa a
+cadeia inteira produz store íntegro e falso. `test_truncar_a_cauda_NAO_e_detectado`
+existe para o limite ser **verificado** em vez de herdado como crença: se um dia
+a detecção passar a pegá-lo, o teste fica vermelho e alguém atualiza a
+declaração.
+
+**Duas variáveis de ambiente, de propósito.** A migration lê `DATABASE_URL`; os
+testes leem `AURORA_TEST_DATABASE_URL`. Os testes **truncam** a tabela, e apontá-los
+para a primeira faria um `unittest` distraído apagar o banco de desenvolvimento
+de quem tivesse o `.env` carregado. Ausente a segunda, eles pulam — e o `skip`
+diz como rodar, para pulo silencioso não ser lido como verde.
+
+**A checagem da P2-2 ganhou alcance ao existir a segunda implementação.** Ela
+olhava só a classe em `store.py`; uma subclasse em outro arquivo podia
+acrescentar `read_since` e passar. Apareceu ao escrever `PostgresEventStore`, que
+é quando esse buraco aparece — a primeira implementação não tem com que divergir.
+
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
 Os testes do `range-core` entraram como passo do job **`contratos`**, que é
@@ -459,17 +502,20 @@ Da `07` Fase 2, **já com as correções de E1 e E2**, que entraram em `main` no
 `a3aded5`. A coluna "o que mudou" existe porque três itens são mais exigentes
 agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 
-| | Item | O que mudou no `a3aded5` | Status |
+| | Item | Status | Verificado contra o quê |
 |---|---|---|---|
-| 1 | `exercise_time`, `exercise_timestamp`, `wall_timestamp` e `clock_multiplier` em todo evento | `wall_time` → `wall_timestamp` (E2) | ⬜ |
-| 2 | `RANDOM_SEED` lido por código do `range-core` | — | ⬜ |
-| 3 | PAUSAR congela o clock e bloqueia disparo agendado | `01` §3 passou a dizer que congela **as duas** marcas de exercício, e `06` T4 a verificar isso | ⬜ |
-| 4 | Aplicar A01 duas vezes produz projeção idêntica | — | ⬜ |
-| 5 | Rollback grava evento, incrementa epoch, reconstrói sem apagar | — | ⬜ |
-| 6 | `participant_action` da epoch anterior legível e marcada | — | ⬜ |
-| 7 | `technical_failure` **registra** os extremos do intervalo, em `exercise_timestamp` | Registro em vez de cálculo (E1), mais a forma exigida por `06` T3 | ⬜ |
-| 8 | Reconstrução completa da projeção em < 3 s | — | ⬜ |
-| 9 | Flag não declarada impede boot com mensagem clara | — | ⬜ |
+| 1 | As quatro marcas em todo evento | ✅ | O store carimba de **uma** leitura do clock, e `EventDraft` não tem campo onde o produtor escreva tempo. `test_append_carimba_as_quatro_marcas_do_clock` e `test_o_produtor_nao_tem_onde_escrever_tempo` |
+| 2 | `RANDOM_SEED` lido por código do `range-core` | ⬜ | Nada escrito. Decidido que **não** é aqui que ele é consumido — `event_id` usa `secrets` |
+| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ | O clock não existe; há a porta. `01` §3 passou a exigir que congele **as duas** marcas de exercício |
+| 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_p3`, com 2, 3 e 7 repetições — guarda de idempotência seria exposta —, mais a mutação que o derruba, mais o par store → fold |
+| 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | As três metades: o store **grava** o evento, atribui epoch 1 ao seguinte, e a projeção volta ao default com os 3 eventos ainda na tabela. Em memória e em Postgres |
+| 6 | `participant_action` da epoch anterior legível e marcada | ✅ | Permanece no fluxo com a própria epoch, não move estado, e sobrevive a instância nova sobre o mesmo banco |
+| 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ⬜ | Forma normatizada em `06` T3; o campo é a **P2-4** |
+| 8 | Reconstrução completa em < 3 s | ⬜ | **Não medido** — é a P2-10, e vence antes de construir em cima do fold |
+| 9 | Flag não declarada impede boot com mensagem clara | ⬜ | Não há boot. O fold recusa inject e opção fora do pack, que é outra coisa |
+
+**Quatro de nove.** O que falta é clock, seed, loader com validação de flags, o
+campo de payload do intervalo, e a medição do item 8.
 
 O item 7 é o único cujo cumprimento depende de contrato que ainda não existe: o
 campo de payload que carrega os extremos é a **P2-4**.

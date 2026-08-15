@@ -17,6 +17,11 @@
 # `python scripts/check_contract_examples_probes.py`, e registre o motivo.
 #
 # Gerado do fecho real instalado em 2026-08-14, Python 3.12.
+#
+# ATUALIZADO em 15/08/2026 pela Fase 2: `psycopg[binary]` 3 entra como driver do
+# event store. O extra `[binary]` traz `psycopg-binary` (as libpq compiladas) e
+# `tzdata`, que o psycopg usa para resolver fuso — as duas sao FECHO, e nao
+# diretas, entao aparecem aqui e nao no pyproject.
 
 alembic==1.19.1
 attrs==26.1.0
@@ -25,8 +30,11 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 Mako==1.4.1
 MarkupSafe==3.0.3
+psycopg==3.2.12
+psycopg-binary==3.2.12
 PyYAML==6.0.3
 referencing==0.37.0
 rpds-py==2026.6.3
 SQLAlchemy==2.0.52
 typing_extensions==4.16.0
+tzdata==2026.3
