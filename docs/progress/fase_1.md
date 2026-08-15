@@ -193,13 +193,14 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-6 | Execução dos exemplos dos contratos | ✅ fechada |
 | P1-8 | Pinagem por digest | ✅ fechada |
 | P1-9 | Alembic executável | ✅ fechada, confirmada por execução |
-| P1-10 | `contratos` é o quarto context obrigatório | ✅ resolvida — aplicar no GitHub após o merge |
+| P1-10 | `contratos` é o quarto context obrigatório | ✅ documentado — reposição do check é a P1-18 |
 | P1-12 | `simulation_epoch` com piso inventado contra critério normativo | ✅ fechada — achado pelo auditor |
 | P1-13 | Achados da auditoria, rodadas 1 e 2 | ✅ BLOCKER/HIGH/MEDIUM/LOW corrigidos, salvo os abaixo |
 | P1-14 | Predicado satisfeito por declaracao (M3) | ⚠️ **aberta, aguarda decisão de modelagem** |
 | P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ⚠️ **escalação aberta, dois não-master** |
 | P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
 | P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
+| P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ⚠️ **aberta** — check removido; volta após o merge do PR de código |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -516,6 +517,44 @@ TTCD e TTCV colapsariam no mesmo instante, e o delta — que `03` §3.2 chama de
 `01` §3 diz "três marcas temporais, nunca uma só" e lista `exercise_timestamp`; `09` §1.1 não o inclui entre os campos obrigatórios. O contrato o declara opcional, seguindo `09`.
 
 Os dois são não-master, e `CLAUDE.md` §"Autoridade" manda **parar e perguntar** nesse caso — não resolver por inferência. Diferente do H2, onde `00` §5.6 decidia por ser MASTER. **Escalação, não pendência de implementação.** Ver P1-13.
+
+#### P1-18 — `contratos` como required check travou o merge do spec-change: impasse circular
+
+**Não foi exceção ao gate. Foi impasse de configuração, e o gate nunca chegou a ser afrouxado no que importa.**
+
+Para mergear o PR #12 — o spec-change — foi preciso **remover `contratos` dos required status checks**. A causa é circular:
+
+- `contratos` é o job que executa os exemplos dos contratos, e ele **só existe na branch de código**, que ainda não mergeou;
+- o PR #12 sai de `main`, onde o job não existe. Ele reporta três checks, nunca quatro;
+- a branch protection exigia os quatro. O quarto ficava **esperado e ausente**, não falhando.
+
+Consequência medida, com a saída literal do operador:
+
+```
+$ gh pr merge 12 --rebase --delete-branch
+X ... the base branch policy prohibits the merge.
+
+$ gh pr merge 12 --rebase --delete-branch --admin
+GraphQL: Required status check "contratos" is expected. (mergePullRequest)
+```
+
+**Nem `--admin` passa**, e isso é o ponto: privilégio administrativo contorna check que *falha*, não check que *não existe*. Com `enforce_admins: true`, o PR ficaria bloqueado indefinidamente.
+
+##### A regra que isso ensina
+
+**Um status check só pode ser exigido depois de ter aparecido num run em `main`.** Antes disso, exigi-lo não fortalece nada — trava todo PR que não o produza, inclusive os que não têm como produzi-lo.
+
+A P1-10 já dizia "aplicar depois do merge", mas dizia isso pela metade: registrava que o GitHub *não aceita* exigir um check inédito, e não registrava que exigir um check que existe **em outra branch** trava tudo. As duas metades são a mesma regra vista de lados opostos, e faltava a que custou o ciclo.
+
+##### O que NÃO foi afrouxado
+
+A remoção foi de **um** context, o único impossível de satisfazer naquele PR. `arquitetura`, `spec_freeze` e `seguranca` continuaram exigidos e passaram — inclusive o `spec_freeze`, que é justamente quem prova que aquele PR tocava `docs/spec/` sem tocar código. O gate que a Fase 0 construiu julgou o spec-change por inteiro.
+
+##### Estado e ordem de reposição
+
+`contratos` está **fora** dos required checks agora. Ele volta **depois do merge do PR de código**, que é o commit que leva o job para `main`. A partir daí todo PR contra `main` passa a produzi-lo, e a exigência passa a ser satisfazível — o que a P1-10 sempre quis dizer.
+
+Enquanto não voltar, vale o que a P1-10 já registrava: o job roda e reporta, mas um PR com fixture quebrada pode ser mergeado com ele vermelho.
 
 #### P1-11 — Nenhum driver de banco nem cliente Redis declarado
 
