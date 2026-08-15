@@ -60,6 +60,18 @@ objectives:
 
 **OBJ-10 é o objetivo-âncora.** Toda a estrutura de métricas pareadas existe para torná-lo mensurável.
 
+#### A coluna `Métrica` é descritiva, e não é o valor de `metric_binding`
+
+A coluna acima diz **o que evidencia** cada objetivo, em linguagem de leitura humana: por isso admite par (`TTCD/TTCV`), expressão (`TTIV − TTRV`), mecanismo de avaliação (`calibração`) e ausência (`—`).
+
+**`metric_binding` é escalar**, como §1.1 o exibe, e aponta **a métrica de disparo** — aquela cujo instante o motor marca a partir dos eventos do objetivo. Nunca o par, nunca a expressão.
+
+- **Pares** não precisam ser declarados: §3 já define quais são, e o AAR os monta a partir da métrica declarada. OBJ-05 vincula `TTCD`; TTCV vem do predicado de verificação do pack, não do objetivo.
+- **Deltas são computação do AAR**, não binding. **OBJ-10 vincula `TTIV`**, e a diferença para TTRV é a leitura que §9 item 3 manda pôr em destaque. Registrado aqui em vez de deixado ao leitor: sem isso, quem lê esta tabela conclui que o campo precisa carregar a expressão, e essa conclusão exigiria mudar a forma de um campo dentro da mesma `schema_version` — o que `04_SCENARIO_SCHEMA.md` §4 proíbe.
+- **`calibração` não é métrica** e não entra em `metric_binding`. É o mecanismo de avaliação de §5, e OBJ-04 simplesmente omite o campo, que é opcional.
+
+O conjunto de valores admissíveis é o das siglas de §3 — `TTA`, `TTT`, `TTCM`, `TTCD`, `TTCV`, `TTRD`, `TTRV`, `TTID`, `TTIV` —, todas em inglês, como `00_MASTER_SPEC.md` §8 exige de identificador.
+
 ---
 
 ## 2. Rubricas BARS
