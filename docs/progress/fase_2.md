@@ -527,6 +527,59 @@ chama é quem sabe.
 clock" está fechado; "bloqueia disparo agendado" é do inject-engine. O clock
 oferece `is_paused` e não agenda nada: quem decide não disparar é quem dispara.
 
+### 3.8 A medição do item 8
+
+`scripts/bench_reconstruction.py`, contra Postgres em container efêmero.
+Windows 11, Python 3.12.10. **Não roda no CI**: tempo em runner compartilhado
+varia com o vizinho, e gate que falha por vizinho ensina a reexecutar até passar
+— o mesmo argumento que tirou o `sleep` dos testes do clock.
+
+**Duas formas, porque o custo não é linear no número de eventos.** A máscara é
+laço por intervalo abandonado: `R` rollbacks com intervalos longos custam
+diferente de `N` eventos sem rollback. A forma **patológica** — 100 rollbacks
+todos ancorados no `exercise_started`, cada um marcando o prefixo inteiro, que é
+`O(R × N)` — é alcançável: é o facilitador rebobinando repetidamente para o
+início.
+
+| Forma | Eventos | `read_all` | `project` | Total |
+|---|---:|---:|---:|---:|
+| realista | 50 000 | 0,817 s | 0,029 s | **0,846 s** |
+| patológica | 50 000 | 0,790 s | 0,068 s | **0,859 s** |
+| realista | 100 000 | 1,641 s | 0,050 s | **1,691 s** |
+| patológica | 100 000 | 2,001 s | 0,188 s | **2,189 s** |
+| realista | 150 000 | 2,776 s | 0,098 s | **2,874 s** |
+| realista | 200 000 | 4,165 s | 0,139 s | **4,304 s** |
+
+**O ponto de quebra é medido, não extrapolado: ~150 mil eventos.**
+
+**E as duas metades não são as que se esperava.** Em 150 mil:
+
+| | Tempo | Fatia |
+|---|---:|---:|
+| consulta + hidratação | 1,836 s | 64% |
+| verificação da cadeia | 0,941 s | 33% |
+| `project` — o fold | 0,098 s | **3%** |
+
+Se o orçamento apertar, a decisão é sobre o **caminho de leitura**, e não sobre
+a recomputação do fold. Hidratação primeiro, cadeia depois. Isso desarma a
+P2-10: a estratégia do fold pode ser construída em cima sem reserva.
+
+**O envelope, declarado porque é suposição.** O critério fala de "exercício de
+4 h", não de contagem de eventos, e não existe pack nem engine para produzir um
+exercício real. O que está medido é a curva volume → tempo. O item 8 fecha
+quando o volume de 4 h for conhecido e estiver abaixo de 150 mil.
+
+**O que reabre:** a **Fase 9**, com `telemetry_emitted`. É a única fonte com
+ordem de grandeza diferente das demais — injects são dezenas, ações de
+participante são centenas, e telemetria é a que pode chegar às centenas de
+milhares sozinha.
+
+**Achado lateral, fora do item 8:** `append` abre uma conexão por chamada. A
+medição usou escrita em lote de propósito, para não contar custo de escrita como
+se fosse de reconstrução — mas para carga real o `append` merece revisão
+própria, e isso não é problema desta fase porque a Fase 2 grava a ritmo de
+facilitador.
+
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
 Os testes do `range-core` entraram como passo do job **`contratos`**, que é
@@ -569,7 +622,7 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
 | 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ⬜ | Forma normatizada em `06` T3; o campo é a **P2-4** |
-| 8 | Reconstrução completa em < 3 s | ⬜ | **Não medido** — é a P2-10, e vence antes de construir em cima do fold |
+| 8 | Reconstrução completa em < 3 s | ⬜ **medido, não fechado** | Passa com folga até ~150 mil eventos (2,87 s) e estoura em 200 mil (4,30 s). Fecha quando o volume real de 4 h for conhecido — depende do pack e do engine, que não existem. Números e envelope na §3.8 |
 | 9 | Flag não declarada impede boot com mensagem clara | ⬜ | Não há boot. O fold recusa inject e opção fora do pack, que é outra coisa |
 
 **Quatro de nove fechados, e o item 3 pela metade**, com cada ✅ nomeando o teste que o prova — atestação sem fonte é
@@ -592,7 +645,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
 | P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
-| P2-10 | Medir o item 8 da DoD antes de construir em cima do fold | **Fase 2**, assim que houver fluxo de 4 h |
+| P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -775,27 +828,16 @@ jeito.
 **Sem prazo amarrado à Fase 3:** pode ir antes, sozinha, ou junto do
 spec-change que a ligação declarativa vier a exigir.
 
-#### P2-10 — os itens 4 e 8 da DoD se cruzam, e a ordem de medir importa
+#### P2-10 — medição do item 8 — **FECHADA**
 
-O item 4 — aplicar A01 duas vezes produz projeção idêntica — está provado no
-fold por **recomputação do zero a cada chamada**, e a máscara de sobrevivência é
-O(n) por rollback, com laço sobre o intervalo abandonado. É a estratégia correta:
-filtrar antes de aplicar dispensa a premissa de escrita absoluta, e rollbacks
-encadeados compõem sem caso especial.
+Medida em 15/08/2026, antes de qualquer coisa ser construída em cima do fold,
+que era a ordem que a pendência fixava. Números, formas e envelope na **§3.8**.
 
-**O que não se sabe é se ela cabe no item 8** — reconstrução completa em menos de
-3 s para exercício de 4 h. Nunca foi medida, porque não existe fluxo desse
-tamanho.
-
-**Não otimizar antes de medir**, e a ordem tem consequência: se a medição obrigar
-a mudar a estratégia de recomputação, ela muda uma decisão que **já tem testes e
-prova negativa apoiados nela** — seis propriedades, e oito mutações cujos
-conjuntos esperados foram calibrados contra o comportamento atual.
-
-**Vencimento: dentro da Fase 2, assim que o event store produzir fluxo de 4 h, e
-ANTES de construir em cima do fold.** Medir depois de haver consumidores torna a
-troca de estratégia cara em vez de barata — a mesma razão pela qual `Sequence`
-veio antes de `Iterable`.
+**O resultado desarma a preocupação que abriu a pendência.** Ela existia porque
+o fold recomputa do zero e a máscara é O(n) por rollback: se a medição obrigasse
+a trocar a estratégia, mexeria numa decisão com seis propriedades e oito
+mutações apoiadas nela. **O fold é 3% do orçamento.** A estratégia de
+recomputação não é o risco, e pode ser construída em cima sem reserva.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
