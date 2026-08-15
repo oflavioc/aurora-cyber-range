@@ -74,6 +74,52 @@ requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-# `range-core` tem hífen e não é pacote importável por nome; a árvore desta
-# fase é esqueleto, não distribuição. Nada a empacotar ainda.
-packages = []
+# `range-core` tem hífen e não é pacote importável por nome. A Fase 1 deixou
+# isso declarado e sem resolver, porque a árvore dela era esqueleto: "nada a
+# empacotar ainda". A Fase 2 tem o que empacotar, e resolve por MAPEAMENTO.
+#
+# `package-dir` separa as duas coisas que estavam confundidas: o CAMINHO NO
+# DISCO, que `01_ARCHITECTURE.md` §2 normatiza como `range-core/` e que
+# `tools/check_core_boundary.py` varre por esse nome, e o NOME DE IMPORT, que
+# precisa ser identificador Python válido.
+#
+# A alternativa era renomear o diretório para `range_core/`, e ela é pior por
+# dois motivos: contradiria o layout que a spec fixa — exigindo spec-change para
+# agradar ao empacotador — e moveria o alvo do verificador do invariante 1.
+# A lista é explícita, e não `packages.find`: com `package-dir` mapeando um
+# nome de pacote a um diretório, a descoberta automática enxergaria `state`,
+# `clock` e `engine` como pacotes de TOPO, fora de `range_core`.
+packages = [
+  "range_core",
+  "range_core.aar",
+  "range_core.api",
+  "range_core.clock",
+  "range_core.engine",
+  "range_core.engine.branching",
+  "range_core.engine.loader",
+  "range_core.engine.migrations",
+  "range_core.events",
+  "range_core.evidence",
+  "range_core.metrics",
+  "range_core.objectives",
+  "range_core.rubrics",
+  "range_core.state",
+  "range_core.telemetry",
+  # O core precisa das constantes de `event_type` geradas: literal de catálogo
+  # dentro de `range-core/` viola o invariante 2, e `tools/check_contract_literals.py`
+  # isenta `contracts/` justamente por ser onde o artefato legítimo vive.
+  #
+  # Sem esta entrada o import só funciona com o CWD na raiz do repositório —
+  # verificado: fora dela, `ModuleNotFoundError`. Passaria em todo teste local e
+  # quebraria no container da Fase 4.
+  #
+  # Não é violação do invariante 1: ele proíbe o core de importar `domains/`.
+  # `contracts/` é a fonte canônica compartilhada, e o catálogo de eventos é
+  # agnóstico de domínio — os nomes de FLAG, que são de domínio, continuam
+  # chegando como dado em `Declarations`, nunca por import.
+  "contracts",
+  "contracts.generated",
+]
+
+[tool.setuptools.package-dir]
+range_core = "range-core"
