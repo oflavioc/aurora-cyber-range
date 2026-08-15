@@ -1,6 +1,7 @@
 # Fase 2 — Clock, eventos, estado, engine mínimo
 
-**Status: EM CURSO.** Checkpoint ⏸ submetido e decidido em 15/08/2026. Nenhum
+**Status: EM CURSO.** Checkpoint ⏸ submetido e decidido em 15/08/2026. O
+spec-change que ele exigia está em `main` no commit `a3aded5` (PR #21). Nenhum
 código de fase escrito ainda.
 
 ---
@@ -311,20 +312,24 @@ pendências — em especial: `check_contract_examples.py` é laço fechado, e
 
 ## 4. Itens da Definition of Done
 
-Da `07` Fase 2, com as correções de E1 e E2 aplicadas **se e quando o
-spec-change entrar**. Nenhum item iniciado.
+Da `07` Fase 2, **já com as correções de E1 e E2**, que entraram em `main` no
+`a3aded5`. A coluna "o que mudou" existe porque três itens são mais exigentes
+agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 
-| | Item | Status |
-|---|---|---|
-| 1 | Três marcas temporais e `clock_multiplier` em todo evento | ⬜ |
-| 2 | `RANDOM_SEED` lido por código do `range-core` | ⬜ |
-| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ |
-| 4 | Aplicar A01 duas vezes produz projeção idêntica | ⬜ |
-| 5 | Rollback grava evento, incrementa epoch, reconstrói sem apagar | ⬜ |
-| 6 | `participant_action` da epoch anterior legível e marcada | ⬜ |
-| 7 | `technical_failure` **registra** o intervalo a descontar (E1) | ⬜ |
-| 8 | Reconstrução completa da projeção em < 3 s | ⬜ |
-| 9 | Flag não declarada impede boot com mensagem clara | ⬜ |
+| | Item | O que mudou no `a3aded5` | Status |
+|---|---|---|---|
+| 1 | `exercise_time`, `exercise_timestamp`, `wall_timestamp` e `clock_multiplier` em todo evento | `wall_time` → `wall_timestamp` (E2) | ⬜ |
+| 2 | `RANDOM_SEED` lido por código do `range-core` | — | ⬜ |
+| 3 | PAUSAR congela o clock e bloqueia disparo agendado | `01` §3 passou a dizer que congela **as duas** marcas de exercício, e `06` T4 a verificar isso | ⬜ |
+| 4 | Aplicar A01 duas vezes produz projeção idêntica | — | ⬜ |
+| 5 | Rollback grava evento, incrementa epoch, reconstrói sem apagar | — | ⬜ |
+| 6 | `participant_action` da epoch anterior legível e marcada | — | ⬜ |
+| 7 | `technical_failure` **registra** os extremos do intervalo, em `exercise_timestamp` | Registro em vez de cálculo (E1), mais a forma exigida por `06` T3 | ⬜ |
+| 8 | Reconstrução completa da projeção em < 3 s | — | ⬜ |
+| 9 | Flag não declarada impede boot com mensagem clara | — | ⬜ |
+
+O item 7 é o único cujo cumprimento depende de contrato que ainda não existe: o
+campo de payload que carrega os extremos é a **P2-4**.
 
 ---
 
@@ -334,7 +339,11 @@ spec-change entrar**. Nenhum item iniciado.
 |---|---|---|
 | P2-1 | Propriedade entre projeções: abandono lido só pelo motivo declarado | **Fase 6** |
 | P2-2 | AST sobre a superfície de leitura do store | **Fase 2**, após a API existir |
-| P2-3 | E1, E2, o resíduo e a linha normativa pendentes de merge | Antes de qualquer código desta fase |
+| P2-3 | ~~Spec-change com os itens do checkpoint~~ | **FECHADA** em 15/08/2026, `a3aded5` |
+| P2-4 | Campo de payload dos extremos do intervalo congelado | **Fase 2**, no PR de código |
+| P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
+| P2-6 | Sem forma declarativa de ligar `participant_action` a flag | Pergunta antes da Fase 3 |
+| P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 
 #### P2-1 — propriedade entre projeções
 
@@ -365,21 +374,170 @@ superfície é **um módulo**, não um conjunto aberto de chamadores.
 **Se a enumeração se mostrar instável, vira limite declarado** — não passa em
 silêncio.
 
-#### P2-3 — spec-change pendente de merge
+#### P2-3 — spec-change — **FECHADA**
 
-**O que falta.** Um spec-change com quatro itens: E1 (§1.1), E2 (§1.2), o
-resíduo em `01` §4 (§1.8) e a linha normativa em `01` §4.1 (§1.9 camada a).
+Mergeada em 15/08/2026 como `a3aded5`, PR #21, quatro checks verdes.
 
-**Por que bloqueia.** `CLAUDE.md`: alterar spec e código no mesmo PR é proibido,
-e a spec é imutável durante a implementação. Os itens 1 e 7 da DoD desta fase
-dependem de E2 e E1; começar código antes do merge é implementar contra texto
-que se sabe errado.
+**Foi aberta com quatro itens e fechou com nove.** Os quatro decididos: E1
+(§1.1), E2 (§1.2), o resíduo em `01` §4 (§1.8) e a linha normativa em `01` §4.1
+(§1.9 camada a). Os cinco que se juntaram a eles **não foram escopo novo** — são
+a mesma exigência nos outros lugares onde ela vivia, e cada um teria deixado a
+spec pior se ficasse de fora:
 
-**Vencimento: antes de qualquer código da Fase 2.**
+| | O que era | Por que não dava para deixar |
+|---|---|---|
+| `06` T3 | trazia a exigência do item 7 **com as mesmas palavras**, etiquetada Fase 2 | Corrigir só o `07` criaria conflito entre dois não-master no PR que existe para resolver um |
+| `06` T10 + DoD Fase 6 | o cálculo não tinha destino | Sem eles o E1 não moveria o requisito: **apagaria** |
+| `06` T14 + DoD Fase 10 | `rehearsal` era **duas** exigências tratadas como uma | `09` §3.1 lhe dá dois efeitos, e eles são de fases diferentes |
+| `06` T4 | listava três das quatro marcas | É o critério que **julga** o item que o E2 corrige |
+| `01` §3 | a semântica de `exercise_timestamp` não estava enunciada | T3 passou a exigir os extremos nesse campo; exigência apoiada em propriedade não enunciada é a classe que o PR conserta |
+
+**A lição de método, que é o que sobrevive.** Escalar contra um documento sem
+varrer onde mais a exigência vive é meia correção, e a metade que fica produz
+contradição nova. A varredura que achou as cinco foi `git grep` contra
+`origin/main` com **dois** padrões: o nome do motivo (`technical_failure`) e um
+que pega o enunciado sem o nome (`congel|desconta|intervalo`). O segundo é o que
+encontrou `03` §3.5, que nenhuma auditoria reportou — e foi ele que deu apoio
+documental à Fase 6 como casa do cálculo, via o mapa de `00` §7, em vez de só
+coerência.
+
+**Três auditorias do `spec-guardian`, uma por mudança de escopo** — quatro
+itens, seis, nove. A segunda achou dois BLOCKERs reais, e os dois teriam
+mergeado: `06` T3 contradizendo o `07` já corrigido, e a cláusula de forma
+apontando para `exercise_time`, que rebobina.
+
+#### P2-4 — campo de payload dos extremos do intervalo congelado
+
+**O que falta.** `contracts/events.schema.yaml` deixa `payload` aberto
+(`type: object`, sem schema por `event_type`), declarando que os schemas chegam
+nesta fase. O item 7 da DoD pressupõe um campo concreto, e ele não existe — nem
+no `x-aurora-registry`, nem no exemplo de `rollback_performed` de `01` §4.2, que
+lista só `to_inject_id`, `by_user`, `role` e `reason`.
+
+**A forma já está decidida e não é pendência:** extremos, nunca duração; em
+`exercise_timestamp`, nunca em `exercise_time` nem em `wall_timestamp`. Está
+normatizada em `06` T3 pelo `a3aded5`. Aberto é só o nome e o tipo do campo.
+
+**Por que não veio no spec-change.** Contrato é código, e `CLAUDE.md` proíbe
+spec e código no mesmo PR.
+
+**Vencimento: dentro da Fase 2**, no PR de código, junto dos schemas de payload
+por `event_type`.
+
+#### P2-5 — `00` §5.6 enumera duas das quatro marcas
+
+`00_MASTER_SPEC.md` §5.6 se chama "Dois relógios, sempre" e enumera
+`exercise_time` e `wall_timestamp` mais `clock_multiplier`, omitindo
+`exercise_timestamp` — que `01` §3 exige, `09` §1.1 lista como obrigatória e o
+`required` do contrato cobra.
+
+**Conferido que não é contradição, e o argumento importa:** o texto não diz
+"apenas" nem "somente", então é afirmação existencial e não enumeração fechada.
+E `00` conta **relógios**, que são dois, enquanto `01` conta **marcas**, que são
+três — o exercise-clock produz duas. O `a3aded5` reforça essa leitura ao
+declarar `exercise_timestamp` marca do exercise-clock, em vez de um terceiro
+relógio.
+
+**Por isso é cosmética, e por isso não foi escalação.** O MASTER não afirma nada
+sobre `exercise_timestamp`, e silêncio não é contradição.
+
+**Vencimento: antes da Fase 3**, junto da P37.
+
+#### P2-6 — sem forma declarativa de ligar `participant_action` a flag
+
+`effects` existe em `inject` e em `option` de `decision_point`
+(`04` §5). Não há como um pack ligar um `event_type` de `participant_action` —
+os cinco `state_effect` — a uma flag. A ligação é por serviço, e `01` §4.4 passa
+a dizer isso como norma.
+
+**Não é defeito: é o que torna a §4.4 estrutural em vez de opcional.** Fica como
+pergunta a fazer quando a API existir: essa ligação deve ganhar forma
+declarativa, ou permanecer no serviço?
+
+**Vencimento: antes da Fase 3.**
+
+#### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
+
+`09` §1.1 traz `exercise_time: "T+01:12:04"` e
+`exercise_timestamp: "2026-08-13T10:12:04"` com `simulation_epoch: 1`. Com
+T0 = 09:00:00 os dois coincidem — isto é, um evento pós-rollback em que nada de
+tempo de exercício foi descartado, o que só ocorre em rollback de rebobinagem
+zero.
+
+**Não é contradição e não foi escalado:** nenhum documento declara T0, e
+qualquer par de valores define um por subtração. Sem proposição falsificável não
+há conflito entre não-master a escalar.
+
+**Não é verificável hoje:** `check_spec_examples.py` valida forma contra schema,
+não relação aritmética entre `exercise_time`, `exercise_timestamp` e
+`simulation_epoch`.
+
+Levantado pelo `spec-guardian` na terceira auditoria, que recomendou escalação.
+**A recomendação foi recusada com o argumento acima**, e o que mudou foi o texto
+do `01` §3: `"depois do primeiro rollback deixam de coincidir"` virou
+`"separam-se pela quantidade de tempo de exercício que o rollback descartou"` —
+porque rollback de rebobinagem zero não separa nada, e a frase anterior afirmava
+que sim.
+
+**Sem prazo.** É candidato a exemplo mais claro em `09`, não defeito normativo.
 
 ---
 
-## 6. Próxima fase
+## 6. Os verificadores, nominalmente
+
+Escrito porque a contagem oscilou em voz alta durante o spec-change — "nove",
+depois "dez", contra os "seis" do `01` §2 — e três conjuntos diferentes estavam
+sendo chamados pelo mesmo nome.
+
+**Definição, e ela vale daqui em diante.** *Verificador* são os seis de `tools/`
+que o `01` §2 normatiza, e nada mais. O que roda em `scripts/` é **harness** ou
+**probe**, e se chama assim. Atestação de "todos os verificadores passam" que use
+outro recorte é inconferível — foi exatamente o defeito que apareceu neste
+spec-change, onde "verde" correu contra um conjunto que não existia em documento
+nenhum.
+
+**Os seis são exatamente seis.** `_common.py` é biblioteca compartilhada, não
+verificador; `codegen.py` conta porque `--check` é verificação que não escreve.
+
+| | Verificador | Job |
+|---|---|---|
+| 1 | `tools/check_core_boundary.py` | `arquitetura` |
+| 2 | `tools/check_contract_literals.py` | `arquitetura` |
+| 3 | `tools/check_event_envelope.py` | `arquitetura` |
+| 4 | `tools/codegen.py --check` | `arquitetura` |
+| 5 | `tools/check_security_constraints.py` | `seguranca` |
+| 6 | `tools/check_synthetic_data.py` | `seguranca` |
+
+**`scripts/` não são verificadores no sentido do `01` §2**, e o CI executa seis
+deles — dois checks, um cruzamento de registro e três testes negativos:
+
+| | Script | Job | O que é |
+|---|---|---|---|
+| 7 | `scripts/check_progress_consistency.py` | `arquitetura` | cruza tabela × seções deste tipo de registro |
+| 8 | `scripts/phase0_negative_tests.py` | `arquitetura` | prova que os **seis** reprovam violação plantada |
+| 9 | `scripts/check_contract_examples.py` | `contratos` | exemplos dos seis contratos |
+| 10 | `scripts/check_contract_examples_probes.py` | `contratos` | prova que o 9 reprova |
+| 11 | `scripts/check_spec_examples.py` | `contratos` | exemplos normativos da spec contra os contratos |
+| 12 | `scripts/check_spec_examples_probes.py` | `contratos` | prova que o 11 reprova |
+
+Fora do CI: `scripts/audit_report.py` e `scripts/start_checkpoint_audit.sh` são
+ferramenta de auditoria, não gate.
+
+**O número certo depende da pergunta, e é por isso que ele oscilava:**
+
+- *"Quantos verificadores a spec normatiza?"* — **seis**, e é o que o `01` §2 e o
+  README dizem.
+- *"Quantas invocações Python o CI roda?"* — **doze**, mais `pip install` e
+  `alembic --help` no job `contratos`.
+- *"Quantas eu rodei localmente durante o spec-change?"* — **dez**. Não era
+  nenhum dos dois conjuntos: faltavam os dois `*_probes.py`. Rodados depois, os
+  dois passam, mas o registro fica: eu chamei de "verificadores" um recorte que
+  não era nem o normativo nem o do CI.
+
+O `spec_freeze` não aparece nas tabelas porque não roda script: é `git diff`
+contra o conjunto `CODE` mais o prefixo do título, dentro do próprio workflow.
+
+## 7. Próxima fase
 
 `07` Fase 3 — API mínima. ENTRY: Fase 2 completa.
 
