@@ -402,9 +402,18 @@ x-aurora-registry:
     continuity_action_taken: state_effect
     vpn_access_revoked: state_effect
     identity_scope_disabled: state_effect
-    # A opcao escolhida carrega `effects` que mutam flags. O uso real em
-    # branching passa pelas folhas `decision` e `option` de 04 secao 6.1.
-    decision_made: state_effect
+    # A opcao escolhida carrega `effects` que mutam flags, mas QUEM MUTA O
+    # ESTADO SAO OS EFFECTS, NAO O EVENTO. `decision_made` registra que a equipe
+    # ESCOLHEU, e escolher e afirmacao — do mesmo tipo que `containment_declared`.
+    #
+    # Como `state_effect`, `containment: {all: [{event: decision_made}]}` seria
+    # satisfeito no instante do clique, ANTES DE QUALQUER EFEITO EXISTIR: o
+    # buraco que este campo existe para fechar, com outro nome.
+    #
+    # Quando um cenario precisar que uma decisao conte como contencao
+    # verificada, o caminho e o `effect` dela materializar um fato e o predicado
+    # referenciar esse fato — decisao -> efeito -> estado observavel.
+    decision_made: declaration
     capability_gap_declared: declaration
 
     bars_score_submitted: declaration
