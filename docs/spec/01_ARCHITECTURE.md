@@ -66,7 +66,7 @@ docs/
 
 **Verificadores de CI obrigatórios.** São **seis**, todos em `tools/`, todos por AST ou leitura de contrato — nunca por grep. Regex fica no hook de feedback rápido; o CI precisa enxergar import dinâmico, alias e outros casos que regex perde.
 
-**Exceção delimitada: TypeScript.** A stdlib de Python não traz analisador de TypeScript, e o CI não pode depender da aplicação que julga. Onde o alvo for `.ts`/`.tsx`/`.js`/`.jsx`, a varredura pode ser **léxica**, desde que seja declaradamente **conservadora** — admitindo falso positivo e nunca falso negativo — e que o limite esteja declarado no próprio verificador. A proibição continua valendo integralmente para Python, onde há AST.
+**Exceção delimitada: TypeScript.** A stdlib de Python não traz analisador de TypeScript, e o CI não pode depender da aplicação que julga. Onde o alvo for `.ts`/`.tsx`/`.js`/`.jsx`, a varredura pode ser **léxica**, desde que seja declaradamente **conservadora** — admitindo falso positivo e nunca falso negativo — e que o limite esteja declarado no próprio verificador. A proibição continua valendo integralmente para Python, onde há AST. Esta exceção vale enquanto não houver analisador de TypeScript disponível sem depender da aplicação que o CI julga. Se essa condição deixar de valer, a exceção cai e os verificadores passam a exigir AST também para TypeScript.
 
 O motivo da proibição original é preservado: regex é vedada porque **perde** casos. Varredura sobre-inclusiva não tem essa falha, e o custo que ela impõe — um falso positivo exige justificativa humana — recai sobre quem escreve o código, não sobre a garantia.
 
