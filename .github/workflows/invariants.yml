@@ -184,6 +184,16 @@ jobs:
       - name: teste negativo do executor de exemplos
         run: python scripts/check_contract_examples_probes.py
 
+      # A CAMADA QUE FALTAVA. A terceira auditoria mediu o buraco: cinco
+      # divergencias entre contrato e spec, e a suite de exemplos encontrou
+      # ZERO delas, porque valida cada contrato contra fixtures escritas por
+      # quem escreveu o contrato. Aqui a SPEC e a entrada.
+      - name: exemplos normativos da spec contra os contratos
+        run: python scripts/check_spec_examples.py
+
+      - name: teste negativo do verificador de exemplos da spec
+        run: python scripts/check_spec_examples_probes.py
+
       # P1-9: Alembic estava inicializado em arquivo e nunca executavel —
       # `import alembic` resolvia para o diretorio do proprio repositorio como
       # namespace package. Com a dependencia declarada, isto passa a ser

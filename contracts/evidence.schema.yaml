@@ -65,7 +65,13 @@ $defs:
 
   source:
     type: object
-    required: [file, format, delivery_mode, projects_facts, sha256]
+    # `window` E OBRIGATORIA EM TODA FONTE. 08 secao 7 lista o que o MANIFEST
+    # carrega "cada arquivo, JANELA TEMPORAL, modo de entrega, hash, e os
+    # fact_id que projeta" — por arquivo, nao por modo de entrega. A forma
+    # anterior so a exigia em `released_by_inject`, e um arquivo pre-posicionado
+    # cobre uma janela do mesmo jeito: sem ela, o facilitador nao sabe o que o
+    # log abrange. L3 da terceira auditoria.
+    required: [file, format, delivery_mode, window, projects_facts, sha256]
     # Fechado. E o que torna anexo inexpressavel no manifesto (05 secao 2), em
     # vez de apenas desaconselhado.
     additionalProperties: false
@@ -104,15 +110,9 @@ $defs:
         minimum: 0
 
     allOf:
-      # 08 secao 5: fonte liberada por inject precisa da janela temporal que ela
-      # cobre, senao o facilitador nao sabe o que esta liberando.
-      - if:
-          required: [delivery_mode]
-          properties:
-            delivery_mode:
-              const: released_by_inject
-        then:
-          required: [window]
+      # O condicional que exigia `window` so em `released_by_inject` saiu: ela
+      # passou a ser obrigatoria em toda fonte (L3), e a regra condicional virou
+      # no-op. Regra que nao pode falhar e ruido que se confunde com garantia.
 
       # O atraso configuravel simula dependencia de fornecedor e so faz sentido
       # sob demanda. Declarado em outro modo, seria campo que nao produz efeito.
@@ -246,11 +246,13 @@ examples:
       - file: identity_audit.jsonl
         format: jsonl
         delivery_mode: pre_positioned
+        window: 'T-9d → T-8d'
         projects_facts: [GT-A-014, GT-A-019]
         sha256: '1111111111111111111111111111111111111111111111111111111111111111'
       - file: database_audit.jsonl
         format: jsonl
         delivery_mode: on_request
+        window: 'T-9d → T-8d'
         requires_request_delay_minutes: 20
         projects_facts: [GT-B-001]
         sha256: '2222222222222222222222222222222222222222222222222222222222222222'
@@ -272,10 +274,16 @@ x-aurora-invalid-examples:
         - file: vpn.log
           format: syslog_text
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: []
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 
-  - reason: 'released_by_inject sem window'
+  # Era 'released_by_inject sem window', de quando a janela so era exigida nesse
+  # modo. Com a L3 ela passou a ser obrigatoria em TODA fonte, e o modo deixou de
+  # ser o que a torna necessaria — a fixture passou a exercitar a regra geral,
+  # sobre o modo mais desfavoravel a ela: o pre-posicionado, que era o caso que a
+  # regra anterior deixava passar.
+  - reason: 'fonte sem window: o facilitador nao sabe o que o arquivo abrange (08 secao 7)'
     rejected_by: schema
     instance:
       generated_from:
@@ -285,7 +293,7 @@ x-aurora-invalid-examples:
       sources:
         - file: vpn.log
           format: syslog_text
-          delivery_mode: released_by_inject
+          delivery_mode: pre_positioned
           projects_facts: [GT-A-014]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 
@@ -300,6 +308,7 @@ x-aurora-invalid-examples:
         - file: phishing.eml
           format: rfc5322
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-A-001]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
           attachments: [fatura.xlsm]
@@ -315,6 +324,7 @@ x-aurora-invalid-examples:
         - file: captura.pcap
           format: pcap
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-A-014]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 
@@ -329,6 +339,7 @@ x-aurora-invalid-examples:
         - file: vpn.log
           format: syslog_text
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-A-014]
 
   - reason: 'atraso de fornecedor declarado fora do modo sob demanda: campo sem efeito'
@@ -342,6 +353,7 @@ x-aurora-invalid-examples:
         - file: vpn.log
           format: syslog_text
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-A-014]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
           requires_request_delay_minutes: 20
@@ -353,6 +365,7 @@ x-aurora-invalid-examples:
         - file: vpn.log
           format: syslog_text
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-A-014]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 
@@ -367,5 +380,6 @@ x-aurora-invalid-examples:
         - file: vpn.log
           format: syslog_text
           delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
           projects_facts: [GT-Z-999]
           sha256: '0000000000000000000000000000000000000000000000000000000000000000'

@@ -56,7 +56,7 @@ Este defeito apareceu num documento que **eu escrevi depois** das dezenove rodad
 
 #### O que fechou
 
-`scripts/check_contract_examples.py` executa os exemplos nas duas camadas, e `scripts/check_contract_examples_probes.py` prova que o executor reprova, em seis eixos de defeito plantado. O item 1 só voltou a ✅ depois disso — e a execução, quando chegou, encontrou **oito defeitos** nos exemplos que estavam ali marcados como suficientes. Ver P1-6.
+`scripts/check_contract_examples.py` executa os exemplos nas duas camadas, e `scripts/check_contract_examples_probes.py` prova que o executor reprova contra defeito plantado. **As contagens ficam na saída dos próprios scripts, não repetidas aqui** — número em prosa envelhece sozinho, e envelheceu: ver L2 da terceira auditoria em P1-19. O item 1 só voltou a ✅ depois disso — e a execução, quando chegou, encontrou **oito defeitos** nos exemplos que estavam ali marcados como suficientes. Ver P1-6.
 
 **Consequência adotada:** item de DoD cuja evidência seja a existência de um artefato, e não a execução dele, é ⚠️ até que algo o execute.
 
@@ -140,14 +140,16 @@ O executor de exemplos mora em `scripts/` e não em `tools/` porque `01_ARCHITEC
 
 ### 4.1 O que passou a ser executado nesta fase
 
-Nove verificações, todas verdes na árvore limpa:
+Onze verificações, todas verdes na árvore limpa:
 
 | Verificação | O que prova | Dependência |
 |---|---|---|
 | os seis verificadores de `tools/` | os quatro invariantes arquiteturais | stdlib |
 | `scripts/phase0_negative_tests.py` | que os seis **reprovam** — **27** leituras, 36 escritas, 112 provas | stdlib |
 | `scripts/check_contract_examples.py` | 9 exemplos positivos validam; **61** negativos são recusados **pela camada que cada um declara**, cada um por **um só** defeito; `effect_class` cobre o catálogo exatamente | `jsonschema` |
-| `scripts/check_contract_examples_probes.py` | que o executor **reprova**, em **9** eixos de defeito | `jsonschema` |
+| `scripts/check_contract_examples_probes.py` | que o executor **reprova** contra defeito plantado, em cada eixo de fixture mentirosa e de instância real inválida | `jsonschema` |
+| `scripts/check_spec_examples.py` | que **todo exemplo normativo da spec é aceito** pelo contrato que o governa, e que nenhum bloco fica sem dono | `jsonschema`, `pyyaml` |
+| `scripts/check_spec_examples_probes.py` | que esse verificador **reprova** quando o contrato regride, quando um bloco perde dono e quando uma âncora envelhece | `jsonschema`, `pyyaml` |
 
 As duas últimas rodam no job `contratos`, separado, **o único que instala dependência** — ver P1-6 e P1-10.
 
@@ -159,7 +161,7 @@ As duas últimas rodam no job `contratos`, separado, **o único que instala depe
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Os seis contratos existem e validam exemplos positivos e negativos | ✅ **executados** — 9 positivos validam, 60 negativos são recusados pela camada que cada um declara, cada um por um só defeito, e o executor reprova em 9 eixos. Ver §1.3 e P1-6 |
+| 1 | Os seis contratos existem e validam exemplos positivos e negativos | ✅ **executados** — positivos validam, negativos são recusados pela camada que cada um declara e por um só defeito, instâncias reais validadas, e o executor reprova contra defeito plantado em cada eixo. Contagens na saída do script. Ver §1.3, P1-6 e P1-19 |
 | 2 | Constantes tipadas geradas em Python e TypeScript para flags e event types | ✅ 32 event types, 12 flags, seis artefatos |
 | 3 | Teste de fronteira core/adapter passa (por AST) | ✅ e falha contra import plantado |
 | 4 | `event_type` fora do catálogo é rejeitado | ✅ catálogo fechado; literal fora do gerador reprova |
@@ -201,6 +203,8 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
 | P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
 | P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ⚠️ **aberta** — check removido; volta após o merge do PR de código |
+| P1-19 | Terceira auditoria: contrato divergia da spec em 4 campos | ✅ corrigidos, com a camada que faltava |
+| P1-20 | `information_distribution.yaml` sem contrato | ⚠️ aberta, resolve na Fase 10 |
 | P1-2 | `RANDOM_SEED` declarado, não consumido | ⚠️ aberta por decisão — item 8 da DoD |
 | P1-3 | `evidence.schema.yaml` valida artefato ainda não produzido | ⚠️ aberta, resolve na Fase 9 |
 | P1-4 | `observability_hooks.yaml` tem dois hooks | ⚠️ aberta, resolve na Fase 3 |
@@ -294,7 +298,7 @@ Era o item 1 da DoD, e ele não fechava sozinho. Ver §1.3 para o defeito que es
 
 **A correspondência com `rejected_by` é o que impede a fixture mentirosa.** O executor não aceita "falhou, logo está provado": para `rejected_by: schema` o schema precisa recusar; para `rejected_by: x-aurora-*` o schema precisa **aceitar** — senão a fixture não isola a regra que diz provar — e a regra nomeada precisa ser a **única** a disparar.
 
-**Resultado:** 9 exemplos positivos, 53 negativos, 6 contratos. E o executor reprova nos seis eixos de fixture mentirosa: positivo que não valida, positivo que viola regra `x-aurora`, `rejected_by: schema` que o schema aceita, regra declarada que não dispara, fixture que o schema já recusa, e fixture sem `rejected_by`.
+**Resultado no fechamento desta pendência** — os números cresceram depois, e ficam registrados aqui como o estado daquele momento: 9 exemplos positivos, 53 negativos, 6 contratos. E o executor reprovava nos seis eixos de fixture mentirosa de então: positivo que não valida, positivo que viola regra `x-aurora`, `rejected_by: schema` que o schema aceita, regra declarada que não dispara, fixture que o schema já recusa, e fixture sem `rejected_by`.
 
 **A execução encontrou oito defeitos nos exemplos que já estavam marcados como suficientes:**
 
@@ -479,6 +483,66 @@ Fixture própria acrescentada, e não é redundante com a de `containment_declar
 
 **Cobertura de `effect_class` é verificada, não presumida.** A tabela é uma **segunda lista** dos mesmos 32 tipos, e segunda lista é o que diverge em silêncio — foi assim que `must_exist_in_event_catalog` ganhou dois nomes na D4. O executor exige cobertura exata nos três sentidos: todo tipo do catálogo classificado, nenhuma classe órfã, nenhum valor fora do conjunto declarado. **Dois eixos novos de probe** provam que ele reprova nos dois primeiros. Eixos: 9. Exemplos negativos: 60.
 
+#### P1-19 — Terceira auditoria: o achado foi sobre o meu mecanismo, não sobre um campo
+
+FAIL, e o relatório está em `docs/progress/audit_20260815T012753Z.md`. Foi a primeira rodada em que o auditor **executou** a prova central da fase — o H3 anterior fechou a allowlist.
+
+**O achado central não é finding nenhum. É a seção "TESTES QUE NÃO PROVAM O REQUISITO":**
+
+> A suíte encontrou **zero** dos cinco defeitos de fidelidade.
+
+B1, B2, B3, M1 e M2 saíram todos da leitura dos contratos contra a spec, campo a campo. `check_contract_examples.py` valida cada contrato contra fixtures que vivem **dentro do próprio contrato**, escritas pelo mesmo autor no mesmo commit — laço fechado, que prova consistência interna e não tem como provar fidelidade. E os nove eixos de probe **todos pressupunham que a fixture certa existe**: fechavam o eixo *"o executor enxerga?"* e deixavam aberto o eixo *"o autor olhou?"*.
+
+##### Os quatro BLOCKERs, e a causa única
+
+Não li a spec errado nesses campos: **não li a spec nesses campos.** Montei o inventário a partir do meu próprio contrato anterior, e a reescrita da D4 foi tradução fiel da fonte errada.
+
+| | O que estava errado | De onde veio |
+|---|---|---|
+| **B1** `evidence_release` | `array of string`; a spec traz `{source, window}` em **dois** documentos | O contrato antigo o listava só como NOME em `optional_fields`, sem forma. Inventei uma sem abrir a spec |
+| **B2** `reveals` | objeto único; a spec traz sequência | O erro **já estava** no contrato antigo. A reescrita o traduziu com fidelidade em vez de encontrá-lo |
+| **B3** `note_to_facilitator` | ausente do braço de branch | Omissão herdada — mas **inócua** antes, porque nada fechava o vocabulário |
+| **B4** `inject_id` | `^[A-Z]+[0-9]+$` recusa `A09B`/`A09C` do exemplo normativo | Padrão inventado por mim, mesma família da D6 |
+
+**B4 não é da auditoria: saiu da releitura campo a campo que o operador mandou fazer antes de corrigir**, exatamente porque três lacunas da mesma causa sugeriam uma quarta. A varredura completa dos quatro blocos (`04` §5, `04` §6, `08` §2, `08` §5) achou essa e mais nenhuma — `04` §7 e `08` §2 batem campo a campo.
+
+**Um agravante estrutural que vale isolar:** `additionalProperties: false` é decisão certa e **amplifica** esse defeito. Fechar um vocabulário transcrito incompletamente converte cada lacuna de transcrição em regra que quebra pacote. Foi o que aconteceu no B3: a omissão era inofensiva no contrato permissivo e virou recusa de pack legítimo no contrato fechado.
+
+##### Correções, cada uma com exemplo positivo usando o **valor literal** da spec
+
+Por exigência do operador, e a razão é boa: *"se a fixture é `A09B` e o padrão aceitar `A09B`, a correção está provada contra a fonte"* — não contra a minha leitura dela, que é o que falhou nos quatro.
+
+`evidence_release`, `reveals`, o par `A09B`/`A09C` e o `note_to_facilitator` foram transcritos tal e qual de `04` §5 e §6. O exemplo de branches é agora transcrição literal do bloco normativo inteiro, id por id.
+
+##### H1 — o único artefato real da fase não era validado
+
+`01` §5.2 diz, literalmente, *"`domains/<adapter>/flags.yaml`, **validado contra** `contracts/state_flags.schema.yaml`"*. Ninguém o validava: o executor abria o arquivo só para colher nomes e tipos. Um `category: disponibilidade` ali sairia rc=0 nos quatro jobs — e o arquivo é entrada do `codegen` e da checagem de `effects`.
+
+Fechado, com **dois eixos novos de probe** que plantam `flags.yaml` inválido e restauram. Instâncias reais validadas passam a aparecer na saída.
+
+##### O buraco que apareceu de novo dentro do meu executor
+
+Ao corrigir o B4, as fixtures continuaram apontando `next: A09`, que **deixou de existir** no mini-pacote — e passaram. Minha regra de isolamento agrupava por **nome de regra**, então duas violações da mesma regra passavam: a fixture nomeava um defeito e carregava dois, e seguiria sendo recusada se o defeito nomeado fosse corrigido.
+
+Corrigido para exigir **uma violação**, não uma regra violada — o mesmo critério que o lado do schema já usava com o sítio de defeito. Eixo de probe próprio.
+
+É a terceira vez nesta fase que a regra de isolamento encontra um defeito no ato de ser endurecida. O padrão vale registrar: **toda vez que exijo mais do mecanismo, ele acha o que passava.**
+
+##### Os MEDIUM e LOW
+
+**M1** — `package_files.required` exigia `ground_truth.yaml`, `objectives.yaml` e `injects.yaml`, o que recusaria os dois pacotes "apenas manifesto" que `04` §9 manda entregar. Separado em `required` e `required_for_complete_pack`.
+
+**M2** — `calibracao` saiu do enum: identificador em português contra `00` §8, derivado de prosa de coluna. A ambiguidade maior — a tabela de `03` §1.3 pedir par e delta de um campo escalar — era **contradição interna ao `03`** e foi resolvida por spec-change, não aqui.
+
+**M3** — `pack_decision_options` era registro estruturalmente vazio: nenhum inject de exemplo tinha `decision_point`, então a folha `option` do branching não podia disparar contra nada. Regra que passava por ser inalcançável. Exemplo acrescentado com os ids literais de `04` §5.
+
+**L1** — varredura léxica de TypeScript: desvio literal de `01` §2 em **dois** verificadores, um deles desde a Fase 0. Resolvido por spec-change delimitando a exceção, não por silêncio.
+
+**L2** — documentação contradizendo a execução: o README dizia "seis eixos" com nove no código, e o `fase_1.md` dizia 60 num lugar e 61 em outro. **As contagens saíram da prosa** e ficam na saída dos scripts — número em prosa envelhece sozinho, e envelheceu.
+
+**L3** — `window` passou a ser obrigatória em **toda** fonte, e não só em `released_by_inject`: `08` §7 a lista por arquivo. O condicional que a exigia só naquele modo virou no-op e foi removido — regra que não pode falhar é ruído que se confunde com garantia.
+
+
 ### Abertas
 
 #### P1-2 — `RANDOM_SEED` declarado, não consumido
@@ -555,6 +619,14 @@ A remoção foi de **um** context, o único impossível de satisfazer naquele PR
 `contratos` está **fora** dos required checks agora. Ele volta **depois do merge do PR de código**, que é o commit que leva o job para `main`. A partir daí todo PR contra `main` passa a produzi-lo, e a exigência passa a ser satisfazível — o que a P1-10 sempre quis dizer.
 
 Enquanto não voltar, vale o que a P1-10 já registrava: o job roda e reporta, mas um PR com fixture quebrada pode ser mergeado com ele vermelho.
+
+#### P1-20 — `information_distribution.yaml` é arquivo de pack sem contrato
+
+`04` §1 o lista entre os arquivos do pacote e `03` §4 traz o bloco normativo, mas nenhum dos seis contratos o cobre — e `01` §2 fixa o conjunto em seis. Apareceu ao montar a lista de ignorados do verificador de exemplos da spec: é um bloco normativo que nenhum contrato reivindica.
+
+Mesma classe do M4 da segunda auditoria (`observability_hooks.yaml`), e com a mesma consequência: um campo com erro de digitação ali sai rc=0 em todos os gates. Não bloqueia a Fase 1 — o arquivo não consta dos OUTPUTS —, e a assimetria de informação que ele governa chega na Fase 10.
+
+Fica registrado com o motivo escrito na própria lista de ignorados, para não virar omissão silenciosa.
 
 #### P1-11 — Nenhum driver de banco nem cliente Redis declarado
 

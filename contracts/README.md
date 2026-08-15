@@ -126,8 +126,28 @@ Uma fixture que declara `x-aurora-*` mas que o schema já recusa é reprovada �
 passaria mesmo se a regra que diz provar fosse removida.
 
 `scripts/check_contract_examples_probes.py` prova que o executor **reprova**,
-plantando defeito nos seis eixos possíveis de fixture mentirosa. Executor que
+plantando defeito em cada eixo de fixture mentirosa, e valida também as **instâncias reais** — `domains/<adapter>/flags.yaml`, que `01` §5.2 manda validar contra `state_flags.schema.yaml`. Executor que
 nunca falhou contra defeito plantado prova que a árvore passa, não que ele enxerga.
+
+### `x-aurora-spec-examples` — a spec como entrada
+
+Cada contrato declara **quais blocos de `docs/spec/` ele governa**:
+
+```yaml
+x-aurora-spec-examples:
+  - doc: '04_SCENARIO_SCHEMA.md'
+    anchor: '5. Inject'
+    pointer: '#/$defs/inject'
+    form: sequence-item
+```
+
+`scripts/check_spec_examples.py` valida o exemplo **normativo** contra o schema. É a camada que faltava: sem ela, o contrato só era conferido contra fixtures escritas por quem o escreveu — laço fechado que prova consistência interna e não fidelidade. A terceira auditoria mediu o custo disso: cinco divergências entre contrato e spec, e a suíte de exemplos encontrou **zero**.
+
+`form` resolve que nem todo bloco é documento completo: `document`, `sequence-item` (o bloco é `- ...`) ou `property: <nome>` (o bloco é `<nome>: ...`). `index` distingue dois blocos sob o mesmo cabeçalho.
+
+**Bloco não reivindicado reprova.** Blocos que legitimamente não são instância de contrato ficam na lista `IGNORADOS` do script, **cada um com motivo escrito** — lista de ignorados sem justificativa vira lugar onde defeito se esconde.
+
+**Alcance, declarado:** pega o subconjunto expressável em exemplo. Não pega divergência que a spec só declara em prosa ou tabela.
 
 ### Registros de fixture
 

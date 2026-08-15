@@ -155,6 +155,22 @@ $defs:
   # Pares declaracao x verificacao, mais as simples sem par. `metric_binding`
   # amarra o objetivo a metrica que o evidencia.
   # -------------------------------------------------------------------------
+  # ESCALAR, e aponta a METRICA DE DISPARO — 03 secao 1.1 e 1.3, esta ultima
+  # esclarecida pelo spec-change `varredura-lexica-e-metric-binding`.
+  #
+  # A coluna `Métrica` da tabela de 03 secao 1.3 e DESCRITIVA: por isso admite
+  # par (`TTCD/TTCV`), expressao (`TTIV − TTRV`), mecanismo (`calibração`) e
+  # ausencia (`—`). Nada disso e valor de campo.
+  #
+  # Pares nao precisam ser declarados: 03 secao 3 ja define quais sao, e o AAR
+  # os monta. OBJ-05 vincula TTCD; TTCV vem do predicado do pack. Deltas sao
+  # computacao do AAR: OBJ-10, o objetivo-ancora, vincula TTIV, e a diferenca
+  # para TTRV e a leitura de 03 secao 9 item 3.
+  #
+  # `calibracao` SAIU. Era identificador em portugues, contra 00 secao 8, e nao
+  # consta das nove siglas de 03 secao 3 — eu o havia derivado de prosa de
+  # coluna, que nao e valor de campo. OBJ-04 omite o campo, que e opcional.
+  # M2 da terceira auditoria.
   metric_binding:
     enum:
       - TTA
@@ -166,12 +182,20 @@ $defs:
       - TTRV
       - TTID
       - TTIV
-      - calibracao
 
 x-aurora-linter-rules:
   - 'as tres ancoras BARS — excellent, adequate, poor — sao esperadas quando `scoring` existe (03 secao 1.1)'
   - '`rubric` deve constar de `required_rubrics` do manifesto, na mesma versao (04 secao 2)'
   - 'objetivo com `metric_binding: TTRV` exige `service_restoration` computavel no ground truth (D5)'
+
+# ---------------------------------------------------------------------------
+# BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — ver scripts/check_spec_examples.py.
+# ---------------------------------------------------------------------------
+x-aurora-spec-examples:
+  - doc: '03_EXERCISE_DESIGN.md'
+    anchor: '1.1 Contrato'
+    pointer: ''
+    form: document
 
 # ---------------------------------------------------------------------------
 # Exemplo POSITIVO — o OBJ-03 normativo de 03 secao 1.1.
