@@ -248,17 +248,29 @@ As duas últimas rodam no job `contratos`, separado, **o único que instala depe
 | 7 | `docker compose up` sobe Postgres e Redis | ✅ **verificado por execução** em 14/08/2026 — ver P1-1 |
 | ~~8~~ | ~~`RANDOM_SEED` lido de `.env`~~ | ➡️ **migrado para a Fase 2** pelo spec-change `effect-class-marcas-temporais-e-seed`. Ver P1-2 e P1-17 |
 
-**A DoD da Fase 1 passa a ter sete itens, e os sete passam** — condicionado ao merge do spec-change `effect-class-marcas-temporais-e-seed`, que é quem move o item 8 para a Fase 2. Enquanto ele não mergear, o item 8 continua formalmente nesta lista e a fase continua aberta.
+## FASE 1 CONCLUÍDA — 15/08/2026
+
+**Os sete itens da DoD passam**, e o último requisito de processo fechou.
+
+`docs/process/WORKFLOW.md` diz que a fase não se declara concluída até a proteção de branch ser **configurada e comprovada**. Comprovada:
+
+```json
+{"contexts": ["arquitetura", "spec_freeze", "seguranca", "contratos"], "strict": true}
+```
+
+com `enforce_admins: true`, lido da API em 15/08/2026. O job `contratos` — que executa os quatro executores e sustenta o item 1 — passou em CI real no PR #15 e agora **bloqueia merge**. Era o H1 das três últimas auditorias, e é o que faltava.
+
+**Auditoria PASS** contra `457a423`, na quinta rodada, depois de quatro FAIL. Nenhum finding de uma rodada reapareceu na seguinte depois que a P1-16 estabeleceu que registrar não é tratar.
+
+**O item 8 não foi abandonado: migrou.** `RANDOM_SEED` é item da Fase 2 desde o spec-change `effect-class-marcas-temporais-e-seed`, com o texto endurecido para *"lido de `.env` por código do `range-core`, **não por atestação**"*. Fechá-lo aqui por atestação seria declarar fato que não ocorreu — a decisão está registrada abaixo.
 
 **Por que o item 8 migrou, e não foi fechado por atestação.** Eu havia proposto escrever um `range-core/config.py` mínimo para o item poder fechar. O operador recusou:
 
 > *"Você marcou o item honestamente como ⚠️ e agora propõe escrever código para poder marcá-lo ✅. Isso é fechar item de DoD criando o consumidor, não é evidência."*
 
-Depois, com o auditor apontando o mesmo item como BLOCKER nas duas rodadas, a decisão foi migrá-lo por spec-change, e o raciocínio registrado pelo operador é o que importa aqui:
+Depois, com o auditor apontando o mesmo item como BLOCKER nas duas rodadas, a decisão foi migrá-lo por spec-change:
 
 > *"Os itens 9-13 da Fase 0 eram inverificáveis por qualquer auditor — CI, branch protection, coisas fora do worktree. Este é perfeitamente verificável, só não está feito. Atestação para item verificável é declarar fato que não ocorreu."*
-
-O item não sumiu: virou item da Fase 2, com o texto endurecido para **"lido de `.env` por código do `range-core`, não por atestação"**. O teste real continua sendo `00` §8 — mesmo seed, dataset byte-idêntico em duas execuções.
 
 O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/flags.py`, e a §2 deste mesmo documento já dizia 12 — o registro se contradizia. Corrigido.
 
@@ -280,7 +292,7 @@ O item 2 dizia **14 flags**. São **12**, conforme `domains/academus/generated/f
 | P1-15 | `exercise_timestamp`: `01` §3 x `09` §1.1 | ✅ fechada pelo spec-change — ver P1-17 |
 | P1-16 | Falha de processo: relatório registrado sem ser tratado | ✅ registrada, regra adotada |
 | P1-17 | Spec-change aplicado: `effect_class`, marcas temporais, item 8 | ✅ spec commitada, código implementado |
-| P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ⚠️ **aberta** — check removido; volta após o merge do PR de código |
+| P1-18 | `contratos` exigido antes de existir em `main` travou o spec-change | ✅ fechada — quatro contexts exigidos, verificado na API |
 | P1-19 | Terceira auditoria: contrato divergia da spec em 4 campos | ✅ corrigidos, com a camada que faltava |
 | P1-20 | `information_distribution.yaml` sem contrato | ⚠️ aberta, resolve na Fase 10 |
 | P1-21 | Quinta auditoria: PASS, com limites declarados | ✅ tratados, salvo os limites abaixo |
@@ -674,7 +686,43 @@ Um DEMO inexecutável não é DEMO. Vai por spec-change **depois** do merge do P
 
 Repetição literal da terceira e da quarta auditoria: `contratos` fora dos required checks. A DoD passa — itens 1 a 6 com evidência executada pelo auditor, 7 verificado pelo operador, 8 fora de escopo. **O que impede declarar a fase concluída é o H1**, e ele fecha depois do merge deste PR, quando o check passar a existir em `main`.
 
+#### P1-18 — `contratos` como required check: FECHADA
+
+Para mergear o PR #12 foi preciso **remover** `contratos` dos required status checks. A causa era circular: o job só existia na branch de código, e o GitHub esperava um check que aquele PR não tinha como produzir. Nem `--admin` passava, porque o check não estava *falhando* — estava **ausente**:
+
+```text
+GraphQL: Required status check "contratos" is expected. (mergePullRequest)
+```
+
+Privilégio administrativo contorna check que falha, não check que não existe.
+
+**Reposto depois do merge do PR #15**, que é o commit que levou o job para `main`. Verificado na API em 15/08/2026, e não por relato:
+
+```json
+{"contexts": ["arquitetura", "spec_freeze", "seguranca", "contratos"], "strict": true}
+```
+
+com `enforce_admins: true`. O job passou em CI real pela primeira vez no próprio PR #15 — 19s, executando os quatro executores; até ali só havia execução local.
+
+**A regra que fica:** um status check só pode ser exigido depois de ter aparecido num run em `main`. Antes disso, exigi-lo não fortalece nada — trava todo PR que não o produza, inclusive os que não têm como. A P1-10 registrava metade dessa regra; esta é a outra metade.
+
+##### Esta seção esteve perdida, e a tabela seguiu afirmando a pendência
+
+Ao fechar a P1-18 descobri que **o texto dela não existia no arquivo**: sobrevivera só a linha da tabela-resumo. A seção se perdeu num dos meus splices programáticos de registro, e nada acusou.
+
+É a §1.6 num lugar novo — a tabela afirmava uma pendência cujo referente havia sumido —, e o motivo de nada acusar é que **nada cruza a tabela-resumo com as seções de detalhe**. Limite declarado: a consistência do registro de fase não tem verificador. Os artefatos têm; o documento que os descreve, não.
+
 ### Abertas
+
+#### P1-20 — `information_distribution.yaml` é arquivo de pack sem contrato
+
+`04` §1 o lista entre os arquivos do pacote e `03` §4 traz o bloco normativo, mas **nenhum dos seis contratos o cobre** — e `01` §2 fixa o conjunto em seis.
+
+Apareceu ao montar a lista de ignorados do verificador de exemplos da spec: é um bloco normativo que nenhum contrato reivindica, e por isso está em `IGNORADOS` com motivo declarado.
+
+Mesma classe do M4 da segunda auditoria (`observability_hooks.yaml`), e com a mesma consequência: um campo com erro de digitação ali sai rc=0 em todos os gates. Não bloqueia a Fase 1 — o arquivo não consta dos OUTPUTS —, e a assimetria de informação que ele governa chega na **Fase 10**.
+
+Esta seção também esteve perdida, e foi encontrada pelo mesmo cruzamento que restaurou a P1-18.
 
 #### P1-2 — `RANDOM_SEED` declarado, não consumido
 
@@ -717,12 +765,70 @@ O mesmo vale para o cliente Redis: `redis-py` cobre sync e async, mas a escolha 
 
 ---
 
-## 7. Próxima fase
+## 7. O que a Fase 2 herda
 
-**Fase 2 — Clock, eventos, estado, engine mínimo.** ENTRY exige Fase 1 completa. Falta **P1-2** (item 8 da DoD), que fica aberta por decisão registrada em §5.
+**A Fase 2 é a mais densa do roadmap.** Este é o inventário do que ela recebe pronto, do que fica aberto, e do que ela precisa decidir cedo. Nada aqui é surpresa a descobrir no meio dela.
 
-Uma ação de operador fica pendente fora do repositório, e não é decisão: acrescentar `contratos` aos required status checks, **depois do merge deste PR** — o GitHub só aceita exigir check que já apareceu em algum run (P1-10).
+### 7.1 O que chega pronto
 
-O que a Fase 2 herda daqui: o envelope com `truth_layer` de cinco valores, o catálogo fechado de 32 tipos, as 12 flags com tipo e domínio declarados, a taxonomia de motivo de rollback — que a Fase 2 vai usar para congelar o relógio de métricas em `technical_failure` — e os seis contratos em JSON Schema, com o conjunto `x-aurora-*` que o **loader de pack da Fase 2 é quem passa a executar** sobre packs reais, e não só sobre os exemplos.
+| | |
+|---|---|
+| **Contratos** | Seis, em JSON Schema 2020-12, com `x-aurora-*` para integridade referencial. Validados contra os exemplos normativos da própria spec |
+| **Envelope** | `truth_layer` de cinco valores, `effect_class` de quatro, catálogo fechado de 32 tipos, três marcas temporais e `clock_multiplier` obrigatórios, `simulation_epoch` começando em **zero** |
+| **Taxonomia de rollback** | Quatro motivos com semântica métrica definida — a Fase 2 usa `technical_failure` para congelar o relógio de métricas |
+| **Gates** | Quatro required status checks, `strict: true`, `enforce_admins: true`. Onze verificações, cada mecanismo com prova negativa própria |
+| **Infra** | Postgres e Redis com digest pinado, verificados por execução; Alembic executável; `pyproject.toml` e `constraints.txt` com fecho transitivo pinado |
 
-Três coisas nascem lá, e estão registradas aqui para não se perderem: o `config.py` que lê `RANDOM_SEED` (P1-2), o driver de banco e o cliente Redis (P1-11), e o payload por persona que decide se o id do inject chega ao operador (P1-7).
+**O que a Fase 2 passa a executar e ninguém executou ainda:** as regras `x-aurora-*` sobre **packs reais**. Hoje elas rodam sobre os exemplos dos contratos, que são um mini-pacote sintético. O loader da Fase 2 é o primeiro consumidor de verdade.
+
+### 7.2 Herdado da Fase 0 — e duas venciam nesta fase
+
+| | Estado | Nota |
+|---|---|---|
+| **P23** | Aberta, declarada | 10 falsos bloqueios de leitura no hook do auditor, afirmados e provados pelo harness. Não escondidos: o harness reprova se um deles passar a ser liberado sem atualizar a lista |
+| **P25** | **Aberta, e vencia na Fase 1** | `actions/checkout@v4` e `actions/setup-python@v5` seguem em tag major mutável, contra `00` §8 e T15. Verificado: as sete ocorrências continuam lá |
+| **P36** | Consequências abertas | Item 4 da DoD da Fase 0 reformulado; o eixo de leitura continua sendo lista escrita à mão, não propriedade |
+| **P37** | **Aberta, e vencia na Fase 1** | `docs/process/` fora do conjunto `CODE` do `spec_freeze`. Verificado: o `CODE` do workflow não o inclui. Um PR pode alterar a DoD e o mecanismo que ela julga no mesmo commit |
+
+**P25 e P37 foram explicitamente adiadas para a Fase 1, e a Fase 1 não as resolveu.** A fase fecha porque a DoD dela não as inclui — mas passá-las adiante sem dizer isso seria a §1.6 outra vez. Ficam registradas como **vencidas**, não como herdadas.
+
+### 7.3 Aberto da Fase 1
+
+| | O que é | Quando resolve |
+|---|---|---|
+| **P1-2** | `RANDOM_SEED` sem consumidor | **Fase 2** — é item da DoD dela, com o texto endurecido para "por código, não por atestação" |
+| **P1-11** | Sem driver de banco nem cliente Redis | **Fase 2** — e a escolha do driver acompanha a decisão sync × async do `range-core` |
+| **P1-7** | Id de inject pode vazar a linha | **Fase 3** — o contrato já desacoplou o prefixo da linha; falta decidir se o payload por persona entrega o id ao operador |
+| **P1-4** | `observability_hooks.yaml` com dois hooks | **Fase 3**, com a API |
+| **P1-3** | `evidence.schema.yaml` valida artefato ainda não produzido | **Fase 9** |
+| **P1-20** | `information_distribution.yaml` sem contrato | **Fase 10** |
+
+### 7.4 Limites declarados — não são pendências
+
+Estes não vão ser fechados, e a diferença importa: pendência é trabalho adiado; limite é propriedade que o mecanismo **não tem** e não vai ter.
+
+- **A exigência sobre a lista de exclusão é de forma.** O texto do motivo em `IGNORADOS` nunca é lido por máquina. Um motivo bem formatado e falso passa. Julgar se uma prosa descreve corretamente um bloco de YAML é julgamento, não verificação — e foi a leitura humana do auditor que sustentou o PASS. Ele disse isso no relatório.
+- **`check_contract_examples.py` é laço fechado.** Valida contratos contra fixtures que vivem dentro deles. `check_spec_examples.py` cobre o que a spec mostra **em exemplo**; o que ela declara só em prosa ou tabela continua fora do alcance de qualquer verificador.
+- **A consistência do registro de fase não tem verificador.** Descoberto ao fechar a P1-18: duas seções de pendência haviam sumido do arquivo e as linhas da tabela seguiam afirmando-as. Os artefatos têm verificação; o documento que os descreve, não.
+- **`tools/_common.py::parse_yaml` nunca foi comparado com um parser conforme.** É o único leitor dos contratos nos jobs stdlib. Se ele mal-parsear um contrato, toda a validação opera sobre uma árvore diferente da que a aplicação lerá.
+
+### 7.5 O que a Fase 2 precisa decidir cedo
+
+**Sync ou async no `range-core`.** É a decisão que trava as outras: `psycopg2` é síncrono e exigiria `asyncpg` ao lado; `psycopg` 3 traz as duas faces. O cliente Redis segue a mesma escolha. Decidir o driver antes do modelo de concorrência é decidir o segundo por acidente do primeiro, e `04` §4 proíbe alterar semântica dentro da mesma `schema_version`.
+
+**Onde vive a execução das regras `x-aurora-*`.** O loader da Fase 2 é o primeiro a aplicá-las sobre pack real. As regras estão declaradas em `contracts/README.md` como conjunto fechado; a implementação de referência é `scripts/check_contract_examples.py`, que as executa sobre os exemplos. Duas implementações da mesma regra é a classe que a D4 desfez — vale decidir se o loader **reusa** aquele código ou se ele vira módulo do core.
+
+### 7.6 Armadilhas específicas, medidas nesta fase
+
+- **`simulation_epoch` começa em ZERO.** O contrato já o exige, e o teste de aceitação T3 depende disso. Um piso em 1 recusaria todo evento da primeira linha temporal — foi o P1-12.
+- **Predicado de verificação só referencia `effect_class: state_effect`.** `containment_declared` e `decision_made` são `declaration` e estão barrados por regra, com fixture. É o que impede TTCD e TTCV de colapsarem no mesmo instante.
+- **Nenhum evento carrega `objective_ids`.** Guardado em duas camadas independentes — schema e AST, esta última em qualquer profundidade e agora também em TypeScript.
+- **`effects` de inject é declarativo.** Aplicar o mesmo inject duas vezes produz projeção idêntica; é o que torna rollback possível, e é item da DoD da Fase 2.
+
+### 7.7 As duas lições, para não serem reaprendidas
+
+**§1.5** — não li a fonte: em três rodadas seguidas li *outra coisa*, e nunca errado. Exemplo de instância em vez da norma; artefato anterior em vez da spec; meu próprio dump em vez do bloco.
+
+**§1.6** — a afirmação que envelheceu depois de correta. Não há momento em que alguém errou, e nenhuma revisão de commit a pega. A regra: **afirmação de estado diz contra o quê foi verificada, ou não é escrita.**
+
+A Fase 2 herda as duas como método, e herda também o motivo de elas terem sido encontradas: quatro FAIL antes de um PASS, cada um mais estrutural que o anterior.
