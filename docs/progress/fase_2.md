@@ -469,6 +469,34 @@ olhava só a classe em `store.py`; uma subclasse em outro arquivo podia
 acrescentar `read_since` e passar. Apareceu ao escrever `PostgresEventStore`, que
 é quando esse buraco aparece — a primeira implementação não tem com que divergir.
 
+### 3.6 Dois escritores contra a mesma tabela
+
+`sequence` e `previous_hash` são escolhidos pela **aplicação** a partir da última
+linha — ler-e-escrever. Dois processos podiam, em tese, ler o mesmo topo e
+produzir sequência repetida ou dois elos no mesmo `previous_hash`: a cadeia
+**bifurca**, e a verificação passaria a acusar sem que ninguém tivesse
+adulterado nada.
+
+`_persist` toma `LOCK TABLE … IN EXCLUSIVE MODE` antes de ler o topo. O
+`EXCLUSIVE` permite leitura concorrente e bloqueia escrita, que é a forma exata
+do problema.
+
+**E "o lock resolve" era suposição até ser testada.** Quatro threads, cinco
+appends cada: sequência contígua 1–20, nenhum erro, cadeia íntegra. E a variante
+**sem** o lock, rodada como prova descartável, produziu `UniqueViolation`, 7
+linhas de 20 e sequência com buracos — então o teste pega a ausência em vez de
+passar por acaso.
+
+Isso também confirmou a **segunda linha de defesa**, que era afirmação de
+docstring: `sequence` é chave primária e `row_hash` é único, então mesmo sem o
+lock a colisão vira erro de integridade em vez de cadeia bifurcada em silêncio.
+
+**Uma correção de estrutura veio junto.** `CadeiaAcusaReescrita` herdava de
+`StoreEmPostgres` para reusar o `setUp`, e com isso os quatro casos da base
+**rodavam duas vezes** — a contagem subia sem que nada a mais fosse provado. Os
+"12 pulados" da rodada anterior eram 8 distintos e 4 repetidos. Base sem teste
+próprio resolve.
+
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
 Os testes do `range-core` entraram como passo do job **`contratos`**, que é
@@ -504,18 +532,19 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 
 | | Item | Status | Verificado contra o quê |
 |---|---|---|---|
-| 1 | As quatro marcas em todo evento | ✅ | O store carimba de **uma** leitura do clock, e `EventDraft` não tem campo onde o produtor escreva tempo. `test_append_carimba_as_quatro_marcas_do_clock` e `test_o_produtor_nao_tem_onde_escrever_tempo` |
+| 1 | As quatro marcas em todo evento | ✅ | `test_event_store.Carimbo.test_append_carimba_as_quatro_marcas_do_clock` — as quatro vêm de **uma** leitura. `…test_o_produtor_nao_tem_onde_escrever_tempo` — `EventDraft` não tem os seis campos que o store atribui |
 | 2 | `RANDOM_SEED` lido por código do `range-core` | ⬜ | Nada escrito. Decidido que **não** é aqui que ele é consumido — `event_id` usa `secrets` |
 | 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ | O clock não existe; há a porta. `01` §3 passou a exigir que congele **as duas** marcas de exercício |
-| 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_p3`, com 2, 3 e 7 repetições — guarda de idempotência seria exposta —, mais a mutação que o derruba, mais o par store → fold |
-| 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | As três metades: o store **grava** o evento, atribui epoch 1 ao seguinte, e a projeção volta ao default com os 3 eventos ainda na tabela. Em memória e em Postgres |
-| 6 | `participant_action` da epoch anterior legível e marcada | ✅ | Permanece no fluxo com a própria epoch, não move estado, e sobrevive a instância nova sobre o mesmo banco |
+| 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_simulation_state.Propriedades.test_p3_reaplicar_o_mesmo_inject_nao_muda_o_estado`, com 2, 3 e 7 repetições. Prova negativa: a mutação *"defaults removidos"* e a *"limite do intervalo movido"* o derrubam, em `test_simulation_state_probes` |
+| 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
+| 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
 | 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ⬜ | Forma normatizada em `06` T3; o campo é a **P2-4** |
 | 8 | Reconstrução completa em < 3 s | ⬜ | **Não medido** — é a P2-10, e vence antes de construir em cima do fold |
 | 9 | Flag não declarada impede boot com mensagem clara | ⬜ | Não há boot. O fold recusa inject e opção fora do pack, que é outra coisa |
 
-**Quatro de nove.** O que falta é clock, seed, loader com validação de flags, o
-campo de payload do intervalo, e a medição do item 8.
+**Quatro de nove**, e cada ✅ nomeia o teste que o prova — atestação sem fonte é
+o que esta fase já registrou como caro. O que falta é clock, seed, loader com
+validação de flags, o campo de payload do intervalo, e a medição do item 8.
 
 O item 7 é o único cujo cumprimento depende de contrato que ainda não existe: o
 campo de payload que carrega os extremos é a **P2-4**.
