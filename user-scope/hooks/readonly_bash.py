@@ -59,7 +59,8 @@ ALLOWED = [
     # hook nao intercepta. O auditor roda as duas formas sem argumento, entao
     # admitir um token arbitrario afrouxaria a ancora `$` sem ganho nenhum.
     rf"^{SAFE_ENV_PREFIX}python\s+scripts/"
-    rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes)"
+    rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes"
+    rf"|check_spec_examples|check_spec_examples_probes)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
     # travessia como .claude/hooks/../../x.py nao casa.

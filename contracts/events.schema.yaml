@@ -428,6 +428,15 @@ x-aurora-registry:
     exercise_reset: machine
 
 # ---------------------------------------------------------------------------
+# BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — ver scripts/check_spec_examples.py.
+# ---------------------------------------------------------------------------
+x-aurora-spec-examples:
+  - doc: '09_EVENT_MODEL.md'
+    anchor: '1. Envelope universal'
+    pointer: ''
+    form: document
+
+# ---------------------------------------------------------------------------
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
 examples:

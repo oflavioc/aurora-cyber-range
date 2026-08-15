@@ -6,19 +6,25 @@ que ele pega alguma coisa. E a mesma distincao que `phase0_negative_tests.py`
 aplica aos seis verificadores de invariante, e o motivo pelo qual a Fase 0 levou
 dezenove rodadas: **o mecanismo existir nao e a propriedade valer.**
 
-Cada probe copia `contracts/` para um diretorio temporario, planta UM defeito por
-substituicao de texto, e exige rc=1 com a mensagem do eixo correspondente.
+DOIS TIPOS DE PROBE, e a contagem esta em PROBES e PROBES_INSTANCIA — nunca
+repetida em prosa. A versao anterior deste docstring dizia "os seis eixos" e
+enumerava seis enquanto o codigo ja executava nove: documentacao que sobrevive a
+mudanca e a contradiz, a linhagem P10/P15/P22 que este repositorio nomeia. Foi o
+L2 da terceira auditoria, e a licao e nao escrever numero que o codigo ja sabe.
 
-Os seis eixos, um por forma de mentira que uma fixture pode contar:
+FIXTURE MENTIROSA — copia `contracts/` para diretorio temporario e planta UM
+defeito por substituicao de texto. Cobre as formas de um exemplo afirmar o que
+nao prova: positivo que nao valida, positivo que viola regra x-aurora, negativo
+que o schema aceita, regra declarada que nao dispara, fixture que o schema ja
+recusa, fixture com dois defeitos, duas violacoes da mesma regra, `effect_class`
+incompleto ou com valor invalido, e negativa sem `rejected_by`.
 
-  1. exemplo positivo que nao valida
-  2. exemplo positivo que viola regra x-aurora
-  3. fixture `rejected_by: schema` que o schema na verdade aceita
-  4. fixture x-aurora cuja regra declarada nao dispara
-  5. fixture x-aurora que o schema ja recusa — nao isola a regra que diz provar
-  6. fixture negativa sem `rejected_by`
+INSTANCIA REAL INVALIDA — planta em `domains/<adapter>/flags.yaml` e restaura.
+Cobre o eixo que a auditoria mostrou aberto: o executor validar exemplos e nao
+validar o artefato real que o contrato governa.
 
-Nao escreve em `contracts/`. Rodado no mesmo job de CI que o executor.
+Cada probe exige rc=1 e a mensagem do eixo correspondente. Rodado no mesmo job
+de CI que o executor.
 """
 
 from __future__ import annotations
@@ -89,6 +95,21 @@ PROBES = [
         "defeitos distintos, esperado 1",
     ),
     (
+        "fixture x-aurora com duas violacoes da MESMA regra",
+        "scenario.schema.v2.yaml",
+        "          reconverge_at: Z99\n"
+        "          evaluate:\n"
+        "            - id: z\n"
+        "              default: true\n"
+        "              next: A09B\n",
+        "          reconverge_at: Z99\n"
+        "          evaluate:\n"
+        "            - id: z\n"
+        "              default: true\n"
+        "              next: Y88\n",
+        "vezes, esperado 1",
+    ),
+    (
         "effect_class sem cobrir o catalogo inteiro",
         "events.schema.yaml",
         "    containment_declared: declaration\n",
@@ -111,6 +132,63 @@ PROBES = [
         "sem `rejected_by`",
     ),
 ]
+
+
+#: Probes de INSTANCIA REAL. Diferentes dos demais: nao ha copia de contrato,
+#: porque o alvo e `domains/<adapter>/flags.yaml`, que o executor le sempre da
+#: raiz do repositorio. Estes plantam no lugar e restauram no fim — escrita
+#: instrumental do proprio teste, a mesma excecao delimitada que
+#: `scripts/phase0_negative_tests.py` ja faz.
+FLAG_VALIDA = (
+    "flags:\n"
+    "  - name: academus.probe_flag\n"
+    "    type: boolean\n"
+    "    default: false\n"
+    "    category: availability\n"
+    "    domain_area: academic\n"
+    "    severity_weight: 5\n"
+    "    wallboard_group: 'Probe'\n"
+    "    consumers: [academus-api]\n"
+    "    effect_ui: 'Probe'\n"
+    "    reversible: true\n"
+)
+
+PROBES_INSTANCIA = [
+    (
+        "flags.yaml com category fora do conjunto fechado",
+        FLAG_VALIDA.replace("category: availability", "category: disponibilidade"),
+        "nao valida contra state_flags.schema.yaml",
+    ),
+    (
+        "flags.yaml com flag numerica sem dominio declarado (D7)",
+        FLAG_VALIDA.replace(
+            "    type: boolean\n    default: false\n",
+            "    type: number\n    default: 0\n",
+        ),
+        "nao valida contra state_flags.schema.yaml",
+    ),
+]
+
+
+def roda_probe_instancia(rotulo, conteudo, esperado) -> bool:
+    alvo = REPO_ROOT / "domains" / "academus" / "flags.yaml"
+    original = alvo.read_bytes()
+    try:
+        alvo.write_text(conteudo, encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, str(EXECUTOR)], capture_output=True, text=True, cwd=REPO_ROOT
+        )
+        saida = r.stdout + r.stderr
+        if r.returncode != 1:
+            print(f"FALHA: probe '{rotulo}' saiu com rc={r.returncode}, esperado 1")
+            return False
+        if esperado not in saida:
+            print(f"FALHA: probe '{rotulo}' reprovou, mas nao pelo eixo esperado")
+            return False
+    finally:
+        alvo.write_bytes(original)
+    print(f"OK: reprovou com defeito plantado - {rotulo}")
+    return True
 
 
 def arvore_limpa() -> bool:
@@ -170,14 +248,16 @@ def main() -> int:
     if not arvore_limpa():
         return 1
     resultados = [roda_probe(*p) for p in PROBES]
+    resultados += [roda_probe_instancia(*p) for p in PROBES_INSTANCIA]
     print()
     if all(resultados):
         print(
-            f"check_contract_examples.py reprova nos {len(PROBES)} eixos de defeito "
-            f"de fixture."
+            f"check_contract_examples.py reprova nos {len(PROBES) + len(PROBES_INSTANCIA)} "
+            f"eixos: {len(PROBES)} de fixture mentirosa, {len(PROBES_INSTANCIA)} de "
+            f"instancia real invalida."
         )
         return 0
-    print(f"{resultados.count(False)} de {len(PROBES)} probes nao provaram o eixo.")
+    print(f"{resultados.count(False)} de {len(resultados)} probes nao provaram o eixo.")
     return 1
 
 

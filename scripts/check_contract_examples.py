@@ -398,7 +398,35 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     falhas = []
-    positivos = negativos = 0
+    positivos = negativos = instancias = 0
+
+    # -----------------------------------------------------------------------
+    # INSTANCIAS REAIS — `domains/<adapter>/flags.yaml`.
+    #
+    # 01 secao 5.2 diz, literalmente, "domains/<adapter>/flags.yaml, VALIDADO
+    # CONTRA contracts/state_flags.schema.yaml". Ninguem o validava: este script
+    # abria o arquivo so para colher nomes e tipos para o registro.
+    #
+    # Era o unico artefato real desta fase governado por contrato, e o unico sem
+    # validacao — `category: disponibilidade` ali sairia rc=0 nos quatro jobs. E
+    # ele e entrada do codegen e do `x-aurora-effects-match-flag-types`, entao o
+    # erro se propagaria para as constantes e para a checagem de effects.
+    # H1 da terceira auditoria.
+    # -----------------------------------------------------------------------
+    flags_schema = contratos.get("state_flags")
+    if flags_schema is not None:
+        validador_flags = Draft202012Validator(flags_schema, registry=registry)
+        arquivos = sorted((REPO_ROOT / "domains").glob("*/flags.yaml"))
+        if not arquivos:
+            falhas.append("domains/*/flags.yaml: nenhum encontrado")
+        for caminho in arquivos:
+            instancias += 1
+            erros = sorted(validador_flags.iter_errors(parse_yaml(caminho) or {}), key=str)
+            for e in erros:
+                falhas.append(
+                    f"{rel(caminho)}: nao valida contra state_flags.schema.yaml\n"
+                    f"    {e.json_path}: {e.message}"
+                )
 
     for caminho in caminhos:
         schema = parse_yaml(caminho)
@@ -496,12 +524,25 @@ def main(argv: list[str] | None = None) -> int:
                         f"tambem {sorted(regras - {declarado})}: a fixture nao isola "
                         f"um defeito"
                     )
+                elif len(viola) > 1:
+                    # UMA violacao, nao uma regra violada. Agrupar por NOME DE
+                    # REGRA deixava passar a fixture com dois `next` pendurados,
+                    # que viola `pack_injects` duas vezes: ela nomeia um defeito
+                    # e carrega dois, e continuaria sendo recusada se o defeito
+                    # nomeado fosse corrigido. Mesmo criterio do lado do schema,
+                    # onde o sitio de defeito ja incluia a propriedade ausente.
+                    detalhe = "; ".join(d for _, d in viola)
+                    falhas.append(
+                        f"{rotulo}\n    viola `{declarado}` {len(viola)} vezes, "
+                        f"esperado 1: {detalhe}"
+                    )
             else:
                 falhas.append(f"{rotulo}\n    `rejected_by: {declarado}` desconhecido")
 
     print(f"Contratos: {len(caminhos)}")
     print(f"Exemplos positivos executados: {positivos}")
     print(f"Exemplos negativos executados: {negativos}")
+    print(f"Instancias reais validadas: {instancias}")
 
     if falhas:
         print(f"\nFALHAS: {len(falhas)}\n", file=sys.stderr)

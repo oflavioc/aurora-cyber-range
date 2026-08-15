@@ -221,6 +221,18 @@ x-aurora-linter-rules:
   - '`min` deve ser menor que `max` quando `max` e numerico'
 
 # ---------------------------------------------------------------------------
+# BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — lidos por
+# scripts/check_spec_examples.py, que valida o exemplo NORMATIVO contra este
+# schema. E a camada que faltava: sem ela, o contrato so era conferido contra
+# fixtures escritas por quem o escreveu.
+# ---------------------------------------------------------------------------
+x-aurora-spec-examples:
+  - doc: '01_ARCHITECTURE.md'
+    anchor: '5.2 Declaração'
+    pointer: ''
+    form: document
+
+# ---------------------------------------------------------------------------
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
 examples:

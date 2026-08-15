@@ -52,6 +52,16 @@ dependencies = [
     # Alembic inicializado em arquivo e nunca executável.
     "alembic==1.19.1",
     "sqlalchemy==2.0.52",
+
+    # USADO POR UM SCRIPT SO: scripts/check_spec_examples.py, que valida os
+    # blocos de exemplo de `docs/spec/` contra os contratos.
+    #
+    # A spec e escrita por humanos em YAML completo — usa mapeamento em fluxo,
+    # que `tools/_common.py::parse_yaml` recusa por construcao. Aquele parser e
+    # deliberadamente estrito e le NOSSOS contratos, escritos no subconjunto por
+    # regra nossa. Aplica-lo a spec seria exigir que o documento normativo se
+    # dobrasse a limitacao da ferramenta.
+    "pyyaml==6.0.3",
 ]
 
 [build-system]

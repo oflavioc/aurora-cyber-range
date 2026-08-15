@@ -26,10 +26,26 @@ x-aurora-documents:
   injects.yaml: '#/$defs/injects_document'
   branches.yaml: '#/$defs/branches_document'
 
+# PACOTE COMPLETO x PACOTE APENAS-MANIFESTO — 04 secoes 1 e 9.
+#
+# A forma anterior declarava `ground_truth.yaml`, `objectives.yaml` e
+# `injects.yaml` como `required`, o que recusaria DOIS dos quatro pacotes que a
+# spec manda entregar: `vazamento-lgpd` e `pesquisa-comprometida` sao "apenas
+# manifesto, sem injects", e existem justamente para "validar que o loader lida
+# com pacote incompleto".
+#
+# Ou o loader da Fase 7 recusaria dois pacotes normativos, ou ignoraria este
+# registro — e registro ignorado e prosa marcada como contrato. M1 da terceira
+# auditoria.
 x-aurora-registry:
   package_files:
+    # Sem manifesto nao ha pacote: e ele que declara `pack_id` e
+    # `schema_version`, sem os quais o loader nao sabe nem o que esta lendo.
     required:
       - manifest.yaml
+    # Exigidos apenas do pacote COMPLETO. O pacote apenas-manifesto e forma
+    # legitima, nao pacote defeituoso.
+    required_for_complete_pack:
       - ground_truth.yaml
       - objectives.yaml
       - injects.yaml
@@ -214,9 +230,15 @@ $defs:
       # efeito de triagem sob viés. Ver a pendencia apontada para a Fase 3 em
       # docs/progress/fase_1.md.
       # ---------------------------------------------------------------------
+      # SUFIXO DE LETRA ADMITIDO. 04 secao 6 ramifica para `A09B` e `A09C`, que
+      # reconvergem em `A12`: e assim que a spec nomeia as variantes de caminho.
+      # O padrao anterior, `^[A-Z]+[0-9]+$`, RECUSAVA os ids do exemplo
+      # normativo — mesma familia da D6, padrao inventado por mim contra a
+      # fonte. B4 desta rodada, achado na releitura campo a campo que a
+      # auditoria motivou.
       id:
         type: string
-        pattern: '^[A-Z]+[0-9]+$'
+        pattern: '^[A-Z]+[0-9]+[A-Z]*$'
         x-aurora-unique: true
 
       t_relative:
@@ -265,16 +287,37 @@ $defs:
           type: string
           x-aurora-ref: pack_facts
 
+      # SEQUENCIA DE {source, window} — 04 secao 5 e 08 secao 5, que trazem o
+      # mesmo bloco em dois documentos independentes.
+      #
+      # A forma anterior era `array of string`, invencao minha: o contrato
+      # ANTERIOR a reescrita da D4 listava `evidence_release` so como NOME numa
+      # lista de `optional_fields`, sem forma nenhuma, e eu inventei uma sem
+      # abrir a spec. O exemplo normativo era recusado, e a forma aceita nao
+      # conseguia carregar a janela.
+      #
+      # A janela importa: `evidence.schema.yaml` exige `window` para
+      # `delivery_mode: released_by_inject`, e a origem dela e exatamente aqui.
+      # B1 da terceira auditoria.
       evidence_release:
         type: array
         minItems: 1
-        uniqueItems: true
         items:
-          type: string
-          minLength: 1
+          $ref: '#/$defs/evidence_release_item'
 
+      # SEQUENCIA — 04 secao 5. A forma anterior aceitava UM objeto, e o defeito
+      # e anterior a reescrita: o contrato de antes ja declarava
+      # `required_fields: [persona, content]`, um mapeamento so. A D4 traduziu o
+      # erro com fidelidade em vez de encontra-lo.
+      #
+      # Com um objeto so, um inject revela para UMA persona, e a assimetria de
+      # informacao multi-persona — consequencia normativa 3 de 00 secao 3 — fica
+      # inexpressavel num pack de sete personas. B2 da terceira auditoria.
       reveals:
-        $ref: '#/$defs/reveals'
+        type: array
+        minItems: 1
+        items:
+          $ref: '#/$defs/reveals'
 
       decision_point:
         $ref: '#/$defs/decision_point'
@@ -295,6 +338,22 @@ $defs:
           const: true
     else:
       required: [objectives]
+
+  # Item de `evidence_release` — 04 secao 5, 08 secao 5.
+  evidence_release_item:
+    type: object
+    required: [source, window]
+    additionalProperties: false
+    properties:
+      # Mesmo conjunto fechado de `projections` do ground truth e de
+      # `evidence_sources` do manifesto (08 secao 3).
+      source:
+        enum: [vpn, identity_audit, database_audit, email, cef, precursor]
+      # OBRIGATORIA. E a janela que o MANIFEST de evidencia exige quando o modo
+      # e `released_by_inject`, e este e o unico lugar que a produz.
+      window:
+        type: string
+        minLength: 1
 
   reveals:
     type: object
@@ -462,6 +521,15 @@ $defs:
         $ref: '#/$defs/branch_condition'
       default:
         type: boolean
+      # 04 secao 6 traz este campo no braco do exemplo normativo. Faltava, e a
+      # omissao vinha do contrato anterior — mas la era INOCUA, porque nada
+      # fechava o vocabulario. O `additionalProperties: false` da reescrita
+      # converteu lacuna silenciosa em RECUSA DE PACK LEGITIMO: fechar um
+      # vocabulario transcrito incompletamente transforma cada falha de
+      # transcricao em regra que quebra pacote. B3 da terceira auditoria.
+      note_to_facilitator:
+        type: string
+        minLength: 1
 
   # -------------------------------------------------------------------------
   # CONDICAO DE BRANCH — arvore fechada, 04 secao 6.1.
@@ -626,6 +694,35 @@ x-aurora-linter-rules:
   - '`required_rubrics` deve cobrir toda rubrica citada em objectives.yaml'
 
 # ---------------------------------------------------------------------------
+# BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — ver scripts/check_spec_examples.py.
+#
+# TRES DOS QUATRO DEFEITOS da terceira auditoria estavam nos blocos abaixo, e
+# nenhum exemplo meu os exercitava. Sao eles que passam a ser lidos pela
+# maquina em vez de pela minha leitura.
+# ---------------------------------------------------------------------------
+x-aurora-spec-examples:
+  - doc: '04_SCENARIO_SCHEMA.md'
+    anchor: '2. Manifesto'
+    pointer: ''
+    form: document
+  - doc: '04_SCENARIO_SCHEMA.md'
+    anchor: '5. Inject'
+    pointer: '#/$defs/inject'
+    form: sequence-item
+  - doc: '04_SCENARIO_SCHEMA.md'
+    anchor: '6. Branching'
+    pointer: '#/$defs/branches_document'
+    form: document
+  - doc: '04_SCENARIO_SCHEMA.md'
+    anchor: '7. Eventos de mídia'
+    pointer: '#/$defs/media_event'
+    form: 'property: media_event'
+  - doc: '08_EVIDENCE_SIMULATOR.md'
+    anchor: '5. Modos de entrega'
+    pointer: '#/$defs/inject/properties/evidence_release'
+    form: 'property: evidence_release'
+
+# ---------------------------------------------------------------------------
 # Exemplo POSITIVO — manifesto minimo valido. `pointer` nomeia o ponteiro que
 # valida a instancia; ausente significa a raiz.
 # ---------------------------------------------------------------------------
@@ -656,6 +753,12 @@ x-aurora-document-examples:
   # que `at_inject`, `reconverge_at` e `next` resolvem em
   # scripts/check_contract_examples.py. Branch apontando para inject que o
   # exemplo irmao nao declara seria a propria falha que o contrato diz recusar.
+  # OS VALORES SAO OS LITERAIS DO EXEMPLO NORMATIVO, nao equivalentes que eu
+  # escrevesse. `evidence_release`, `reveals`, o par A09B/A09C e o
+  # `note_to_facilitator` abaixo vieram tal e qual de 04 secoes 5 e 6. Se a
+  # fixture usa `A09B` e o padrao aceita `A09B`, a correcao esta provada contra
+  # a fonte — e nao contra a minha leitura dela, que foi o que falhou nos quatro
+  # defeitos desta rodada.
   - pointer: '#/$defs/injects_document'
     instance:
       injects:
@@ -667,20 +770,55 @@ x-aurora-document-examples:
           objectives: [OBJ-03]
           effects:
             academus.portal_defaced: true
+          # B1 — literal de 04 secao 5 e 08 secao 5.
+          evidence_release:
+            - source: vpn
+              window: 'T-9d → T-8d'
+          # B2 — literal de 04 secao 5, e agora sequencia: duas personas no
+          # mesmo inject, que e o que a forma anterior nao expressava.
+          reveals:
+            - persona: reitoria
+              content: 'possível vazamento de dados de alunos'
+              confidence: low
+            - persona: juridico
+              content: 'exposição regulatória em avaliação'
+              confidence: medium
         - id: A08
           linha: A
           t_relative: '00:55'
           titulo_operacional: 'Comunicado 08'
           objectives: [OBJ-03]
-        - id: A09
+          # M3 — sem `decision_point` em exemplo nenhum, o registro
+          # `pack_decision_options` ficava VAZIO e a folha `option` do branching
+          # nao podia disparar corretamente contra nada. Regra que passava por
+          # ser inalcancavel. Ids literais de 04 secao 5.
+          decision_point:
+            id: DP-A03
+            question: 'Suspender a matrícula online?'
+            objectives: [OBJ-03]
+            timer_minutes: 15
+            options:
+              - id: suspend
+                label: 'Suspender imediatamente'
+                effects:
+                  academus.enrollment_offline: true
+                tradeoff: 'Contém exposição; interrompe período letivo, gera fila física'
+              - id: monitor
+                label: 'Manter no ar sob monitoramento'
+                effects:
+                  academus.lms_session_drop_rate: 0.6
+                tradeoff: 'Preserva calendário; amplia janela de exposição'
+        # B4 — as variantes de caminho do exemplo normativo de 04 secao 6. O
+        # padrao anterior recusava as duas.
+        - id: A09B
           linha: A
           t_relative: '01:10'
-          titulo_operacional: 'Comunicado 09'
+          titulo_operacional: 'Comunicado 09B'
           objectives: [OBJ-03]
-        - id: A10
+        - id: A09C
           linha: A
           t_relative: '01:15'
-          titulo_operacional: 'Comunicado 10'
+          titulo_operacional: 'Comunicado 09C'
           objectives: [OBJ-03]
         - id: A12
           linha: A
@@ -694,23 +832,29 @@ x-aurora-document-examples:
           titulo_operacional: 'Comunicado 11'
           noise: true
 
+  # Transcricao literal do exemplo normativo de 04 secao 6, id por id: mesmo
+  # `BR-A-CONTAINMENT`, mesmos `A08`/`A09B`/`A09C`/`A12`, mesma condicao e mesmo
+  # `note_to_facilitator`. Tres dos quatro defeitos desta rodada estavam neste
+  # bloco da spec e nenhum exemplo o exercitava.
   - pointer: '#/$defs/branches_document'
     instance:
       branches:
-        - id: BR-A-01
-          at_inject: A08
-          reconverge_at: A12
+        - id: BR-A-CONTAINMENT
           line: A
+          at_inject: A08
           evaluate:
-            - id: conteve_a_tempo
+            - id: contained_early
               when:
                 all:
                   - event: vpn_access_revoked
                   - before: '01:30'
-              next: A09
-            - id: nao_conteve
+              next: A09B
+              # B3 — literal de 04 secao 6.
+              note_to_facilitator: 'Alcance reduzido; dados já exfiltrados permanecem.'
+            - id: not_contained
               default: true
-              next: A10
+              next: A09C
+          reconverge_at: A12
 
 # ---------------------------------------------------------------------------
 # Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
@@ -777,7 +921,7 @@ x-aurora-invalid-examples:
           evaluate:
             - id: x
               default: true
-              next: A09
+              next: A09B
 
   - reason: 'condicao de branch que depende de juizo: cenario deixa de ser ensaiavel'
     rejected_by: schema
@@ -791,7 +935,7 @@ x-aurora-invalid-examples:
             - id: y
               when:
                 facilitator_thinks_response_was_good: true
-              next: A09
+              next: A09B
 
   # A lacuna de capacidade NAO E SAIDA SEM CUSTO: `effects` e `tradeoff`
   # continuam obrigatorios. Sao duas exigencias distintas, e a fixture unica que
@@ -835,7 +979,7 @@ x-aurora-invalid-examples:
           evaluate:
             - id: z
               default: true
-              next: A09
+              next: A09B
 
   - reason: 'effects escreve flag nao declarada no adapter'
     rejected_by: 'x-aurora-ref:adapter_flags'
