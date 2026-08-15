@@ -191,9 +191,38 @@ x-aurora-linter-rules:
 # ---------------------------------------------------------------------------
 # BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — ver scripts/check_spec_examples.py.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# AUTORIDADE, COMO DADO E NAO COMO COMENTARIO.
+#
+# O cabecalho deste arquivo ja declarava de que secoes da spec ele e autoridade,
+# em prosa. Prosa nao e verificavel: foi assim que um bloco normativo de uma
+# secao reivindicada por este contrato foi para IGNORADOS com motivo falso, e a
+# suite ficou verde por exclui-lo (B1 da quarta auditoria).
+#
+# scripts/check_spec_examples.py cruza esta lista com IGNORADOS: bloco ignorado
+# sob secao que algum contrato reivindica passa a EXIGIR que o motivo diga por
+# que aquele bloco nao e instancia DAQUELE contrato. Nao e falha automatica — e
+# exigencia de forma, que obriga a ler o bloco. Era exatamente o passo que
+# faltou.
+# ---------------------------------------------------------------------------
+x-aurora-authority:
+  - doc: '03_EXERCISE_DESIGN.md'
+    sections: [1]
+  - doc: '09_EVENT_MODEL.md'
+    sections: [6]
+
 x-aurora-spec-examples:
   - doc: '03_EXERCISE_DESIGN.md'
     anchor: '1.1 Contrato'
+    pointer: ''
+    form: document
+  # O bloco que o B1 da quarta auditoria escondeu. Este contrato ja se declarava
+  # autoridade de 09 secao 6, e o bloco de indice 1 e uma instancia de
+  # objectives.yaml — a linha que o introduz diz "E scenarios/<pack>/
+  # objectives.yaml faz o binding:". Reivindicado, nao ignorado.
+  - doc: '09_EVENT_MODEL.md'
+    anchor: '6. Instrumentação'
+    index: 1
     pointer: ''
     form: document
 

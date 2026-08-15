@@ -27,6 +27,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTRACTS = REPO_ROOT / "contracts"
+SPEC = REPO_ROOT / "docs" / "spec"
 VERIFICADOR = REPO_ROOT / "scripts" / "check_spec_examples.py"
 
 
@@ -56,6 +57,13 @@ PROBES = [
         "    form: sequence-item\n",
         "",
         "nenhum contrato reivindica",
+    ),
+    (
+        "ignorado sob secao reivindicada como autoridade, sem justificar por que",
+        "objectives.schema.yaml",
+        "  - doc: '03_EXERCISE_DESIGN.md'\n    sections: [1]\n",
+        "  - doc: '03_EXERCISE_DESIGN.md'\n    sections: [1, 2]\n",
+        "e o motivo nao diz por que o",
     ),
     (
         "declaracao apontando para ancora que nao existe mais",
@@ -113,13 +121,59 @@ def roda_probe(rotulo, arquivo, antes, depois, esperado) -> bool:
     return True
 
 
+#: Probes que plantam na SPEC, e nao no contrato. Sao as regras que dependem do
+#: conteudo dos documentos: rotulo de cerca e entrada orfa em IGNORADOS.
+PROBES_SPEC = [
+    (
+        "cerca sem rotulo carregando estrutura de dados",
+        "09_EVENT_MODEL.md",
+        "```yaml\nhooks:\n",
+        "```\nhooks:\n",
+        "parece carregar estrutura de dados",
+    ),
+    (
+        "entrada de IGNORADOS que ficou orfa",
+        "05_SECURITY_REQUIREMENTS.md",
+        "## 3. Dados",
+        "## 3. Dados renomeada",
+        "que nao existe mais em docs/spec/",
+    ),
+]
+
+
+def roda_probe_spec(rotulo, arquivo, antes, depois, esperado) -> bool:
+    with tempfile.TemporaryDirectory() as tmp:
+        destino = Path(tmp) / "spec"
+        shutil.copytree(SPEC, destino)
+        alvo = destino / arquivo
+        texto = alvo.read_text(encoding="utf-8")
+        if texto.count(antes) < 1:
+            print(f"FALHA: probe '{rotulo}' nao ancorou em {arquivo}")
+            return False
+        alvo.write_text(texto.replace(antes, depois, 1), encoding="utf-8")
+        r = subprocess.run(
+            [sys.executable, str(VERIFICADOR), str(CONTRACTS), str(destino)],
+            capture_output=True, text=True, cwd=REPO_ROOT,
+        )
+        saida = r.stdout + r.stderr
+        if r.returncode != 1:
+            print(f"FALHA: probe '{rotulo}' saiu com rc={r.returncode}, esperado 1")
+            return False
+        if esperado not in saida:
+            print(f"FALHA: probe '{rotulo}' reprovou, mas nao pelo eixo esperado")
+            return False
+    print(f"OK: reprovou com defeito plantado - {rotulo}")
+    return True
+
+
 def main() -> int:
     if not arvore_limpa():
         return 1
     resultados = [roda_probe(*p) for p in PROBES]
+    resultados += [roda_probe_spec(*p) for p in PROBES_SPEC]
     print()
     if all(resultados):
-        print(f"check_spec_examples.py reprova nos {len(PROBES)} eixos.")
+        print(f"check_spec_examples.py reprova nos {len(PROBES) + len(PROBES_SPEC)} eixos: {len(PROBES)} de contrato, {len(PROBES_SPEC)} de spec.")
         return 0
     print(f"{resultados.count(False)} de {len(resultados)} probes nao provaram o eixo.")
     return 1
