@@ -199,5 +199,58 @@ class StoreMaisFold(unittest.TestCase):
         self.assertEqual(len(store.read_all()), 3, "nada foi removido do store")
 
 
+
+class Integridade(unittest.TestCase):
+    """A cadeia, sem banco.
+
+    O encadeamento e a peca com consequencia de seguranca, e ela nao pode
+    depender de haver Postgres para ser exercitada: sem esta classe, um CI sem
+    servico de banco pularia justamente o que mais importa e ficaria verde.
+    """
+
+    def _linhas(self, quantos: int):
+        from range_core.events.integrity import FIRST_SEQUENCE, GENESIS_HASH, row_hash
+
+        store = InMemoryEventStore(RelogioFixo())
+        eventos = [store.append(started_draft()) for _ in range(quantos)]
+        linhas, anterior, sequencia = [], GENESIS_HASH, FIRST_SEQUENCE
+        for evento in eventos:
+            atual = row_hash(evento, anterior)
+            linhas.append((sequencia, anterior, atual, evento))
+            anterior, sequencia = atual, sequencia + 1
+        return linhas
+
+    def test_cadeia_integra_passa(self):
+        from range_core.events.integrity import verify_chain
+
+        verify_chain(self._linhas(5))
+
+    def test_campo_alterado_quebra(self):
+        from dataclasses import replace
+
+        from range_core.events.integrity import ChainBroken, verify_chain
+
+        linhas = self._linhas(3)
+        seq, anterior, gravado, evento = linhas[1]
+        linhas[1] = (seq, anterior, gravado, replace(evento, producer="outro"))
+        with self.assertRaises(ChainBroken):
+            verify_chain(linhas)
+
+    def test_buraco_na_sequencia_quebra(self):
+        from range_core.events.integrity import ChainBroken, verify_chain
+
+        linhas = self._linhas(3)
+        with self.assertRaises(ChainBroken):
+            verify_chain([linhas[0], linhas[2]])
+
+    def test_hash_anterior_que_nao_encadeia_quebra(self):
+        from range_core.events.integrity import ChainBroken, GENESIS_HASH, verify_chain
+
+        linhas = self._linhas(3)
+        seq, _, gravado, evento = linhas[1]
+        linhas[1] = (seq, GENESIS_HASH, gravado, evento)
+        with self.assertRaises(ChainBroken):
+            verify_chain(linhas)
+
 if __name__ == "__main__":
     unittest.main()

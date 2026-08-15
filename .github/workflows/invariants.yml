@@ -192,6 +192,40 @@ jobs:
   # ---------------------------------------------------------------------------
   contratos:
     runs-on: ubuntu-latest
+
+    # POSTGRES DE SERVICO, e nao o compose do projeto. As credenciais aqui sao
+    # descartaveis e vivem dentro do job — 05 secao 8 proibe senha trivial
+    # REUTILIZAVEL, e esta nao sai daqui nem serve para mais nada.
+    #
+    # Servico nao cria context novo na branch protection, entao a P1-18 nao se
+    # aplica: e o mesmo job `contratos`, com uma dependencia a mais.
+    #
+    # Imagem pinada por digest, igual ao docker-compose.yml: tag e rotulo
+    # mutavel, e "pinado" em 00 secao 8 quer dizer conteudo imutavel.
+    services:
+      postgres:
+        image: postgres:16.4-alpine@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c
+        env:
+          POSTGRES_DB: aurora_test
+          POSTGRES_USER: aurora_test
+          POSTGRES_PASSWORD: efemero-do-job-de-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aurora_test -d aurora_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # A migration le `DATABASE_URL`; os testes leem
+      # `AURORA_TEST_DATABASE_URL`. Sao DUAS variaveis de proposito: a segunda
+      # declara que aquele banco e descartavel, e os testes TRUNCAM a tabela.
+      # Apontar os testes para `DATABASE_URL` faria um `unittest` distraido
+      # apagar o banco de desenvolvimento de quem tivesse o `.env` carregado.
+      DATABASE_URL: postgresql+psycopg://aurora_test:efemero-do-job-de-ci@127.0.0.1:5432/aurora_test
+      AURORA_TEST_DATABASE_URL: postgresql+psycopg://aurora_test:efemero-do-job-de-ci@127.0.0.1:5432/aurora_test
+
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -233,6 +267,12 @@ jobs:
       # verificavel, e falha se o env.py quebrar.
       - name: alembic executavel
         run: python -m alembic.config --help
+
+      # A migration da Fase 2 roda contra o servico. Sem este passo os testes de
+      # Postgres PULARIAM por tabela ausente em vez de por banco ausente — e
+      # pulo por motivo errado e verde que mente.
+      - name: migrations aplicadas
+        run: python -m alembic upgrade head
 
       # ESTE JOB SE CHAMA `contratos` E PASSA A RODAR TESTE DE CODIGO. O nome
       # deixa de descrever o escopo, e o desvio e deliberado: job novo e context
