@@ -48,7 +48,13 @@ DEFINITION OF DONE checklist binária
 
 **NON-GOALS** — nenhuma lógica de negócio, nenhuma tela, nenhum seed.
 
-**DEMO** — `range-cli scenario validate` recusa pack com flag inexistente; import de `domains/` dentro do core falha no CI.
+**DEMO** — o executor de exemplos recusa contrato que diverge do exemplo normativo da spec; import de `domains/` dentro do core falha no CI.
+
+> A primeira metade dizia *"`range-cli scenario validate` recusa pack com flag inexistente"*. **`range-cli` é entregável da Fase 7**, e o DEMO desta fase é anterior a ele: metade do roteiro era inexecutável, e conflitava com o NON-GOAL *"nenhuma lógica de negócio"*. Um DEMO inexecutável não é DEMO — é descrição de fase futura no lugar do roteiro desta.
+>
+> A demonstração equivalente **que esta fase de fato entrega** é a mesma propriedade um nível acima: em vez de o CLI recusar um pack que contradiz o contrato, o executor recusa o **contrato** que contradiz a spec. As duas provam que divergência entre camadas falha alto em vez de passar em silêncio.
+>
+> A segunda metade permanece: está provada por violação plantada, e é o invariante 1.
 
 **DONE quando:**
 - [ ] Os seis contratos existem e validam exemplos positivos e negativos
