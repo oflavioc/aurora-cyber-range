@@ -1,0 +1,74 @@
+#!/bin/sh
+# GUARDA DE BRANCH — recusa commit direto na branch default.
+#
+# POR QUE EXISTE
+#
+# `CLAUDE.md` ja instrui a criar branch antes de commitar quando se esta na
+# branch default. A instrucao existe e NAO SEGUROU: em 15/08/2026 um commit foi
+# parar em `main` local porque `HEAD` se moveu no meio da operacao — o operador
+# rodou `gh pr merge --delete-branch`, que apaga a branch local e troca `HEAD`,
+# enquanto o agente commitava.
+#
+# Ninguem errou isoladamente. E corrida: a arvore de trabalho e compartilhada, e
+# `HEAD` e estado global.
+#
+# O que decidiu mecanizar foi COMO o caso foi detectado: por acaso, lendo
+# `[main d9ec0de]` na saida do `git commit`. Deteccao por sorte nao e deteccao.
+#
+# E o mesmo paralelo da secao 1.6 do registro da Fase 1: instrucao e regra;
+# hook e impedimento. A fase inteira foi estabelecendo essa distincao.
+#
+# LIMITE DECLARADO — E GUARDA LOCAL, NAO GATE.
+#
+# Protege ESTE CLONE, nao o repositorio. Quem clonar sem rodar `bootstrap.sh`
+# nao o tem, e `git commit --no-verify` o contorna: hook de cliente e
+# contornavel POR DESENHO, e isso nao e defeito a corrigir.
+#
+# A protecao real de `main` continua sendo a branch protection do GitHub, com os
+# quatro required status checks e `enforce_admins`. Este hook cobre o erro
+# acidental na maquina de quem desenvolve, e so.
+#
+# E ele NAO impede a corrida. Se `HEAD` se mover no meio de uma LEITURA, o hook
+# nao ve nada — ele so olha para onde o commit vai cair. A convencao de anuncio
+# em `docs/process/WORKFLOW.md` cobre a parte que mecanismo nenhum alcanca.
+#
+# Fonte versionada em `user-scope/hooks/pre-commit`; `bootstrap.sh` a instala em
+# `.git/hooks/pre-commit`. Mesmo desenho do `readonly_bash.py`.
+
+set -e
+
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# HEAD destacado: o worktree de auditoria roda assim, e la nao ha commit a
+# proteger. Sem branch, nao ha branch default a violar.
+[ -z "$branch" ] && exit 0
+
+# A branch default vem do remoto quando ele existe, e cai para `main` quando
+# nao existe — clone novo, ou repositorio sem `origin`.
+default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+[ -z "$default" ] && default="main"
+
+[ "$branch" != "$default" ] && exit 0
+
+cat >&2 <<EOF
+
+  COMMIT RECUSADO — voce esta em '$branch', que e a branch default.
+
+  CLAUDE.md: uma fase = uma branch = um PR. Commit direto na default pula o
+  spec_freeze, os invariantes e a revisao.
+
+  Se isto foi acidente de HEAD se movendo sob a operacao — o caso que criou
+  este hook —, o trabalho NAO se perdeu: ele esta no indice.
+
+      git switch -c <nome-da-branch>
+      git commit ...
+
+  Se for deliberado e voce sabe por que:
+
+      git commit --no-verify ...
+
+  O bypass existe por desenho. Hook de cliente nao e gate: a protecao real de
+  '$default' e a branch protection do GitHub.
+
+EOF
+exit 1

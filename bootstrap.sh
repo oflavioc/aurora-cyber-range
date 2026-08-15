@@ -40,6 +40,23 @@ mkdir -p "$HOME/.claude/agents" "$HOME/.claude/hooks"
 cp user-scope/agents/checkpoint-auditor.md "$HOME/.claude/agents/checkpoint-auditor.md"
 cp user-scope/hooks/readonly_bash.py       "$HOME/.claude/hooks/readonly_bash.py"
 
+# GUARDA DE BRANCH — recusa commit direto na branch default.
+#
+# Vai para .git/hooks/, e nao para ~/.claude/: e hook do GIT, nao do agente.
+# Guarda LOCAL, nao gate: quem clonar sem rodar este script nao o tem, e
+# `--no-verify` o contorna por desenho. A protecao real de main e a branch
+# protection do GitHub.
+mkdir -p .git/hooks
+cp user-scope/hooks/pre-commit             .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
+echo "==> smoke test do guarda de branch"
+if ! git -c core.hooksPath=.git/hooks hook run pre-commit >/dev/null 2>&1; then
+  echo "    OK: pre-commit recusa commit na branch default"
+else
+  echo "    (na branch atual o guarda libera — esperado fora da default)"
+fi
+
 echo "==> smoke test do hook do auditor"
 if ! printf '%s\n' '{"tool_input":{"command":"rm -rf range-core"}}' \
      | python "$HOME/.claude/hooks/readonly_bash.py" >/dev/null 2>&1; then
