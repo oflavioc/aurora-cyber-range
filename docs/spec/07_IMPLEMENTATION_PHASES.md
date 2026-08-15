@@ -78,15 +78,21 @@ DEFINITION OF DONE checklist binária
 **DEMO** — via CLI: carregar pack, disparar A01, ler projeção, rollback, ler projeção restaurada.
 
 **DONE quando:**
-- [ ] Todo evento carrega `exercise_time`, `exercise_timestamp`, `wall_time` e `clock_multiplier`
+- [ ] Todo evento carrega `exercise_time`, `exercise_timestamp`, `wall_timestamp` e `clock_multiplier`
 - [ ] `RANDOM_SEED` lido de `.env` **por código do `range-core`**, não por atestação
 - [ ] PAUSAR congela o clock e bloqueia disparo agendado
 - [ ] Aplicar A01 duas vezes produz projeção idêntica
 - [ ] Rollback grava `rollback_performed`, incrementa `simulation_epoch` e reconstrói a projeção sem apagar eventos
 - [ ] Evento de `participant_action` da epoch anterior permanece legível e marcado
-- [ ] `reason: technical_failure` desconta o intervalo do cálculo de métricas
+- [ ] `reason: technical_failure` **registra no evento** o intervalo a descontar do cálculo de métricas, pelos seus extremos e marcados em `exercise_timestamp`
 - [ ] Reconstrução completa da projeção a partir do store roda em < 3 s
 - [ ] Flag não declarada impede boot do engine com mensagem clara
+
+> Dois itens desta checklist foram corrigidos no `spec-change` `fase-2-escalacoes-e-exclusao`, no checkpoint ⏸ desta fase e antes de qualquer código dela.
+>
+> **O item 1 dizia `wall_time`.** O envelope não tem esse campo. `09_EVENT_MODEL.md` §1.1, o `required` de `contracts/events.schema.yaml`, `00_MASTER_SPEC.md` §5.6 e `01_ARCHITECTURE.md` §3 dizem `wall_timestamp`, e nenhum dos quatro conhece `wall_time`. Lido ao pé da letra, o item era insatisfazível por construção: cumpri-lo exigiria emitir um campo que o contrato recusa, e a implementação correta o deixaria por marcar. Mesma forma da checagem impossível que já custou uma rodada nesta linhagem.
+>
+> **O item 7 exigia cálculo de métrica de uma fase cujo NON-GOAL é "métricas".** Os dois não podiam valer ao mesmo tempo, e a contradição estava dentro da mesma seção. Resolvida do lado do NON-GOAL: esta fase **registra** o intervalo congelado no `rollback_performed`; quem **calcula** é a Fase 6, que é onde as métricas pareadas nascem. A semântica do motivo não muda — `09_EVENT_MODEL.md` §3.1 e `01_ARCHITECTURE.md` §3 continuam valendo sem alteração —, muda a fase que a executa. Antecipar o cálculo para cá duplicaria motor de métrica em duas fases, e a duplicação de mecanismo é a classe de defeito que a Fase 1 já pagou para desfazer.
 
 ---
 
@@ -167,6 +173,8 @@ estado restaurado; evento de rollback registrado
 **DONE quando:**
 - [ ] Consultar a trilha com filtro de período emite `audit_query_performed`
 - [ ] Cada par declaração × verificação é disparável e testado
+- [ ] Métricas descontam o intervalo registrado por `rollback_performed` com `reason: technical_failure`, pela **união** dos intervalos e nunca pela soma das durações
+- [ ] Nenhum evento de epoch com `reason: rehearsal` entra em cálculo de métrica
 - [ ] Declaração não altera nenhum valor de ground truth
 - [ ] Declaração prematura produz lista de eventos incompatíveis no AAR
 - [ ] Pack sem `verification_predicates` não carrega
@@ -174,6 +182,10 @@ estado restaurado; evento de rollback registrado
 - [ ] Brier calculado só dentro do escopo revisado; lacuna de cobertura em separado
 - [ ] Rubrica ausente ou em versão divergente impede carga do pack
 - [ ] Divergência ≥ 2 pontos entre avaliadores gera alerta
+
+> Os itens do desconto por `technical_failure` e da exclusão por `rehearsal` entraram no `spec-change` `fase-2-escalacoes-e-exclusao`. O primeiro é **o outro lado da correção do item 7 da Fase 2**. Aquela fase passou a apenas registrar o intervalo; esta é a que calcula, porque é a das métricas pareadas. Sem este item, o requisito ficaria sem fase nenhuma obrigada a cumpri-lo: a norma continuaria em `09_EVENT_MODEL.md` §3.1, em `01_ARCHITECTURE.md` §3 e em `03_EXERCISE_DESIGN.md` §3.5 — este último já mapeado a esta fase por `00_MASTER_SPEC.md` §7 —, e nenhuma checklist binária o cobraria. Registrado e nunca verificado é como um requisito morre sem que nada fique vermelho. Critérios correspondentes em `06_ACCEPTANCE_TESTS.md` T10.
+>
+> O segundo veio de T3, onde `rehearsal` estava etiquetado Fase 2. Só a metade de cálculo é desta fase: `09_EVENT_MODEL.md` §3.1 dá a `rehearsal` dois efeitos, e o descarte do AAR é da Fase 10, em T14 e no DoD dela.
 
 ---
 
@@ -219,6 +231,7 @@ estado restaurado; evento de rollback registrado
 - [ ] Personas recebem conteúdo divergente conforme `information_distribution.yaml`
 - [ ] AAR compara número comunicado com ground truth e marca divergência
 - [ ] AAR renderiza epochs separadas com motivo de rollback
+- [ ] Epoch com `reason: rehearsal` é descartada do AAR
 - [ ] AAR tem as doze seções de `03_EXERCISE_DESIGN.md` §9
 - [ ] Notas do facilitador aparecem rotuladas como qualitativas, separadas das métricas
 

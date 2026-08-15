@@ -23,13 +23,31 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - Evento de `participant_action` gravado na epoch 0 continua legível após rollback, marcado com sua epoch.
 - Reconstrução da projeção do zero para exercício de 4 h roda em < 3 s.
 - Reinício do processo restaura a projeção corrente sem intervenção.
-- Rollback com `reason: technical_failure` desconta o intervalo do cálculo de métricas; com `reason: rehearsal`, a epoch não entra no AAR.
+- Rollback com `reason: technical_failure` **registra no evento** o intervalo a descontar do cálculo de métricas, pelos seus **extremos** e marcados em **`exercise_timestamp`**.
+
+> Este critério dizia *"desconta o intervalo do cálculo de métricas"*, e esta seção é a da **Fase 2**, cujo NON-GOAL declarado é "métricas". Corrigido no `spec-change` `fase-2-escalacoes-e-exclusao`, junto com o item 7 da DoD daquela fase, que trazia a mesma exigência com as mesmas palavras. **O requisito não foi removido, foi realocado:** quem desconta é a Fase 6, por item próprio de DoD em `07_IMPLEMENTATION_PHASES.md` e por critério em T10. Corrigir só um dos dois lugares deixaria `06` e `07` se contradizendo sobre o escopo da mesma fase — dois documentos não-master em conflito, que é o que `CLAUDE.md` manda escalar.
+>
+> **A segunda metade saiu daqui pelo mesmo motivo, e não por arrumação.** Ela dizia *"com `reason: rehearsal`, a epoch não entra no AAR"*: critério sobre AAR etiquetado Fase 2, e o AAR é entregável da Fase 10. Repetia exatamente a forma do defeito que este `spec-change` conserta — cobrar de uma fase a verificação de artefato que ela não produz. E, ao sair, mostrou que era **duas** exigências e não uma: `09_EVENT_MODEL.md` §3.1 dá a `rehearsal` dois efeitos — "Nenhum evento da epoch entra em cálculo" e "Epoch descartada do AAR". Cada um foi para a fase que o entrega: o cálculo em T10, o descarte do AAR em T14. Nenhum dos dois ficou em duas fases.
+>
+> **Extremos, e em `exercise_timestamp`, é exigência de forma — e cabe aqui porque o campo que a carrega é contrato, e contrato não entra em `spec-change`.** Três formas erradas, e nenhuma delas dá erro: as três produzem número plausível, e só na Fase 6.
+>
+> **Duração, não.** Ela impede unir intervalos que se sobrepõem: dois congelamentos cruzados contam o trecho comum duas vezes, e a duração já somada não guarda com que detectar isso. É por isso que T10 pode exigir união em vez de soma.
+>
+> **`wall_timestamp`, não.** O PAUSAR avança o relógio de parede sem avançar o de exercício (`01_ARCHITECTURE.md` §3), e a métrica que sofre o desconto é medida em tempo de exercício.
+>
+> **O que o intervalo mede, e por que ele pode ser zero.** Tempo de exercício que **correu**: `01_ARCHITECTURE.md` §3 diz que na falha do range "o clock de exercício continua correndo; apenas a projeção de métricas desconta o intervalo". Falha técnica e PAUSAR são mecanismos distintos, e a primeira não congela o exercise-clock. Se o facilitador também pausar, o trecho pausado não avança `exercise_timestamp` — e não precisa: tempo pausado nunca entrou no cálculo, e descontá-lo seria descontar duas vezes. Um congelamento inteiramente contido numa pausa registra **zero**, que é o valor certo. Esta é a razão final de o campo ser `exercise_timestamp`: é o único dos três que exclui a pausa sem que ninguém tenha de subtraí-la depois.
+>
+> **`exercise_time`, também não — e este é o menos óbvio dos três.** O intervalo vai do inject falho até a retomada, e o `rollback_performed` incrementa `simulation_epoch` no meio dele (§4.2 de `01_ARCHITECTURE.md`): os dois extremos caem em epochs diferentes **por construção, em todo congelamento**. E `09_EVENT_MODEL.md` §1.1 diz que sem `exercise_timestamp` "evento de `simulation_epoch` 2 e evento de epoch 0 não são ordenáveis entre si na linha do exercício — só dentro da própria epoch". `exercise_time` é o rótulo `T+` que rebobina no rollback; `exercise_timestamp` é o que não rebobina, e foi acrescentado ao envelope exatamente para este problema. A união que T10 exige é operação de ordem total entre extremos de rollbacks distintos — com `exercise_time` ela herda o defeito inteiro.
 
 ## T4 — Relógios (Fase 2)
 
-- Todo evento carrega `exercise_time`, `wall_timestamp` e `clock_multiplier`.
+- Todo evento carrega `exercise_time`, `exercise_timestamp`, `wall_timestamp` e `clock_multiplier`.
 - Com multiplicador 5x, o intervalo de `wall_timestamp` entre dois eventos é ~1/5 do de `exercise_time`.
-- Durante PAUSAR, `exercise_time` não avança e `wall_timestamp` avança.
+- Durante PAUSAR, `exercise_time` e `exercise_timestamp` não avançam e `wall_timestamp` avança.
+
+> O primeiro critério listava três das quatro marcas, omitindo `exercise_timestamp`. Corrigido no `spec-change` `fase-2-escalacoes-e-exclusao`, pelo mesmo motivo que levou o E2 a corrigir `wall_time` no item 1 da DoD desta fase: **é este critério que julga aquele item**, e a DoD passaria a exigir uma marca que o teste de aceitação não confere. `09_EVENT_MODEL.md` §1.1 é explícito sobre o custo da omissão — sem `exercise_timestamp`, eventos de epochs distintas não são ordenáveis entre si na linha do exercício —, e a Fase 2 é justamente a fase que cria as epochs.
+>
+> **O terceiro critério ganhou `exercise_timestamp` no mesmo `spec-change`, e por motivo próprio.** Que ele congela no PAUSAR não estava enunciado em lugar nenhum: era implicação de ele ser marca do exercise-clock, e `01_ARCHITECTURE.md` §3 passou a dizê-lo, junto de que ele não rebobina no rollback. T3 exige que os extremos do intervalo congelado sejam marcados nesse campo, e uma exigência apoiada em propriedade não enunciada é a mesma classe que este `spec-change` conserta em outros dois lugares. Aqui ela vira verificável na fase que constrói o relógio.
 
 ## T5 — Vertical slice (Fase 4)
 
@@ -73,6 +91,14 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - Com contenção declarada depois do predicado, o AAR marca lacuna de consciência situacional.
 - Pack sem `verification_predicates` não carrega.
 - `TTIV` é computado por limiar de calibração, não por predicado de estado do mundo.
+- Métricas descontam o intervalo registrado por `rollback_performed` com `reason: technical_failure`. O desconto usa a **união** dos intervalos registrados, nunca a soma das durações.
+- Nenhum evento de epoch com `reason: rehearsal` entra em cálculo de métrica.
+
+> Os dois últimos critérios entraram no `spec-change` `fase-2-escalacoes-e-exclusao`. **O primeiro é o destino do que a Fase 2 deixou de calcular**: T3 e o item 7 da DoD da Fase 2 passaram a exigir apenas que o intervalo seja *registrado*, e sem este critério o desconto ficaria registrado e nunca verificado — norma viva em `09_EVENT_MODEL.md` §3.1, em `01_ARCHITECTURE.md` §3 e em `03_EXERCISE_DESIGN.md` §3.5, sem nenhuma fase obrigada a executá-la.
+>
+> **O segundo veio de T3, e chegou aqui pela metade.** `rehearsal` tem *dois* efeitos declarados em `09_EVENT_MODEL.md` §3.1 — "Nenhum evento da epoch entra em cálculo" e "Epoch descartada do AAR" —, e o critério original de T3 os tratava como um só. São duas exigências, com duas fases: o cálculo é Fase 6 e está aqui; o descarte do AAR é Fase 10 e está em T14. Mandar as duas para cá manteria, com outro nome, o defeito que T3 acabou de perder — critério de AAR cobrado de uma fase que não o entrega.
+>
+> A união em vez da soma é a metade que o registro por extremos torna possível, e é por isso que T3 exige extremos: com duração, dois congelamentos sobrepostos contam o trecho comum duas vezes e nada acusa.
 
 ## T11 — Calibração (Fase 6)
 
@@ -106,8 +132,11 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - Persona recebe apenas o conteúdo definido em `information_distribution.yaml`; endpoint de persona não vaza ground truth.
 - AAR detecta automaticamente comunicação externa de número divergente do ground truth via `fact_check_against`.
 - Timeline do AAR renderiza epochs separadas, com motivo de rollback.
+- Epoch de rollback com `reason: rehearsal` é descartada do AAR.
 - Notas do facilitador aparecem rotuladas como qualitativas, fora do bloco de métricas.
 - Opção com `capability_gap` escolhida emite `decision_made` **e** `capability_gap_declared`; a lacuna aparece na seção 12 do AAR com função de controle, objetivo afetado e métrica impactada.
+
+> O critério de `rehearsal` entrou no `spec-change` `fase-2-escalacoes-e-exclusao`. Ele estava em T3, etiquetado Fase 2, colado ao critério de `technical_failure` e falando de AAR — artefato que a Fase 2 não produz. `09_EVENT_MODEL.md` §3.1 dá a `rehearsal` dois efeitos, e eles pertencem a fases diferentes: o de cálculo está em T10, este é o de renderização, e é desta fase. Nenhuma exigência ficou nos dois lugares.
 
 ## T15 — Segurança transversal (todas as fases)
 
