@@ -161,7 +161,7 @@ Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evi
 | `participant_action` | `continuity_action_taken` | `state_effect` |
 | `participant_action` | `vpn_access_revoked` | `state_effect` |
 | `participant_action` | `identity_scope_disabled` | `state_effect` |
-| `participant_action` | `decision_made` | `state_effect` |
+| `participant_action` | `decision_made` | `declaration` |
 | `participant_action` | `capability_gap_declared` | `declaration` |
 | `evaluator_assessment` | `bars_score_submitted` | `declaration` |
 | `evaluator_assessment` | `observed_marker_set` | `declaration` |
@@ -176,7 +176,7 @@ Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evi
 **Trinta e dois tipos.** Vinte e seis são inequívocos; os cinco abaixo são decisão registrada, e o sexto é o `verification_predicate_satisfied` já justificado acima.
 
 - **`communication_submitted` e `regulatory_notice_submitted` são `state_effect`.** O *conteúdo* de uma comunicação é afirmação; o *ato* de emiti-la tem efeito externo — o público soube, o regulador foi notificado, o prazo regulatório correu. A classificação segue o ato. O conteúdo continua tratado como afirmação em outro lugar: `04_SCENARIO_SCHEMA.md` §7 compara o número comunicado com o ground truth.
-- **`decision_made` é `state_effect`.** A opção escolhida carrega `effects` que mutam flags. O uso real em branching passa pelas folhas `decision` e `option` de `04_SCENARIO_SCHEMA.md` §6.1, não por esta.
+- **`decision_made` é `declaration`.** A opção escolhida carrega `effects` que mutam flags, mas **quem muta o estado são os `effects`, não o evento**: `decision_made` registra que a equipe *escolheu*, e escolher é afirmação, do mesmo tipo que `containment_declared`. Classificá-lo por `state_effect` abriria `containment: {all: [{event: decision_made}]}`, satisfeito no instante do clique, **antes de qualquer efeito existir** — o mesmo buraco que este campo fecha, com outro nome. Se um cenário precisar que uma decisão conte como contenção verificada, o caminho é o `effect` dela materializar um fato e o predicado referenciar esse fato, preservando a cadeia **decisão → efeito → estado observável**.
 - **`fact_materialized` e `attack_stage_reached` são `state_effect`.** São mudança do mundo, ainda que produzidas pelo motor. Isso permite um predicado dizer *"contido = nenhum estágio novo alcançado"*, que é objetivamente observável — o critério que §3.1 do `03` exige.
 
 > `separate_incident_declared` foi acrescentado no `spec-change` `facilitation-e-separate-incident`. Ele já era usado como evidência `auto` do OBJ-03 em `03_EXERCISE_DESIGN.md` §1.1 e na §6 deste documento, sem constar do catálogo — e o catálogo é **registro fechado**, com CI que falha em `event_type` não registrado. Um `objectives.yaml` escrito conforme o exemplo normativo do `03` seria recusado pelo linter.
