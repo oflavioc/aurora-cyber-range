@@ -216,15 +216,25 @@ hooks:
     payload_fields: [scope, principal]
 ```
 
-E `scenarios/<pack>/objectives.yaml` faz o binding:
+E `scenarios/<pack>/objectives.yaml` faz o binding. **A forma normativa do arquivo é a de `03_EXERCISE_DESIGN.md` §1.1**; o bloco abaixo é uma instância completa dela, mostrada aqui pelo que interessa a esta seção — o `event_type` do hook aparecendo em `evidence.auto`:
 
 ```yaml
-OBJ-03:
-  competency: incident_triage
-  rubric: incident_triage.v2
-  evidence:
-    auto: [audit_query_performed, separate_incident_declared]
-    observed: [articulated_competing_hypotheses]
+objectives:
+  OBJ-03:
+    title: "Reconhecer incidentes concorrentes"
+    competency: incident_triage
+    rubric: incident_triage.v2
+    evidence:
+      auto:
+        - audit_query_performed
+        - separate_incident_declared
+      observed:
+        - id: articulated_competing_hypotheses
+          prompt_to_evaluator: "A equipe verbalizou mais de uma hipótese antes de convergir?"
 ```
+
+> Esta seção exibia uma forma **abreviada e divergente** do mesmo arquivo: sem o invólucro `objectives`, sem `title`, e com `observed` como sequência de strings em vez de sequência de marcadores com `id` e `prompt_to_evaluator`. Omitir `title` é abreviação; trocar o tipo de `observed` é **outra forma**, e um `objectives.yaml` escrito conforme aquele bloco era recusado pelo contrato — a falha que a §4 chama de "a mais cara possível", pela mesma razão que motivou o `spec-change` do `separate_incident_declared`.
+>
+> Corrigido alinhando este bloco à forma de `03` §1.1, e não o contrário: `03` §1 é onde o contrato de objetivos é definido, e esta seção o consome. Os dois blocos passam a ser validados contra o mesmo schema por `scripts/check_spec_examples.py`, então divergirem de novo deixa de ser possível em silêncio — que era o que tornava a duplicação perigosa.
 
 O core responde por **como pontuar** a competência. O pack responde por **onde ela se manifesta**.
