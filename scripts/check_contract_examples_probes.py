@@ -124,6 +124,13 @@ PROBES = [
         "valor de effect_class fora do conjunto",
     ),
     (
+        "faixas sinteticas divergindo entre contrato e verificador",
+        "evidence.schema.yaml",
+        "    - .localhost\n    - .local",
+        "    - .localhost",
+        "faixas de dominio divergentes",
+    ),
+    (
         "fixture negativa sem `rejected_by`",
         "objectives.schema.yaml",
         "  - reason: 'classe derived nao existe: a ontologia de evidencia e binaria'\n"
