@@ -759,9 +759,9 @@ Não acrescentei ao `pyproject.toml` porque a aprovação do operador foi para t
 
 O mesmo vale para o cliente Redis: `redis-py` cobre sync e async, mas a escolha só faz sentido depois que o core declarar qual dos dois ele é.
 
-### Herdadas da Fase 0, ainda abertas
+### Herdadas da Fase 0
 
-**P25** — actions do CI em tag major mutável, adiada por decisão do operador para esta fase. **P36 M1** — a contagem de pendências do `fase_0.md` não fecha. **P37** — `docs/process/` fora do conjunto `CODE` do `spec_freeze`; a decisão registrada foi resolver *depois do início da Fase 1*, que é agora. **Item 4 da DoD da Fase 0** — o eixo de leitura ainda é lista, não propriedade.
+**O estado atual delas está em §7.2**, com o que foi verificado em cada uma. Esta seção dizia que a P37 resolveria *"depois do início da Fase 1, que é agora"* — afirmação escrita quando era verdadeira e que envelheceu quando a fase terminou sem resolvê-la. **Não repetir estado em dois lugares é a forma mais barata de aplicar a §1.6**: o segundo lugar envelhece sozinho.
 
 ---
 
@@ -786,11 +786,16 @@ O mesmo vale para o cliente Redis: `redis-py` cobre sync e async, mas a escolha 
 | | Estado | Nota |
 |---|---|---|
 | **P23** | Aberta, declarada | 10 falsos bloqueios de leitura no hook do auditor, afirmados e provados pelo harness. Não escondidos: o harness reprova se um deles passar a ser liberado sem atualizar a lista |
-| **P25** | **Aberta, e vencia na Fase 1** | `actions/checkout@v4` e `actions/setup-python@v5` seguem em tag major mutável, contra `00` §8 e T15. Verificado: as sete ocorrências continuam lá |
+| **P25** | **Vencida — decidida, resolve no PR do cruzamento** | Pinagem das sete ocorrências por SHA. Decisão do operador ao receber este inventário |
 | **P36** | Consequências abertas | Item 4 da DoD da Fase 0 reformulado; o eixo de leitura continua sendo lista escrita à mão, não propriedade |
-| **P37** | **Aberta, e vencia na Fase 1** | `docs/process/` fora do conjunto `CODE` do `spec_freeze`. Verificado: o `CODE` do workflow não o inclui. Um PR pode alterar a DoD e o mecanismo que ela julga no mesmo commit |
+| **P37** | **Aberta, com prazo declarado: antes da Fase 3** | `docs/process/` fora do `CODE` do `spec_freeze`. Um PR pode alterar a DoD e o mecanismo que ela julga no mesmo commit |
 
-**P25 e P37 foram explicitamente adiadas para a Fase 1, e a Fase 1 não as resolveu.** A fase fecha porque a DoD dela não as inclui — mas passá-las adiante sem dizer isso seria a §1.6 outra vez. Ficam registradas como **vencidas**, não como herdadas.
+**P25 e P37 foram explicitamente adiadas para a Fase 1, e a Fase 1 não as resolveu.** Passá-las adiante sem dizer isso seria a §1.6 outra vez, então ficaram registradas como **vencidas** — e o operador decidiu as duas ao receber este inventário:
+
+- **P25 decidida: pinar por SHA**, no mesmo PR do verificador de cruzamento. É mecânico, e o risco que a regra existe para cobrir é real — tag major é rótulo mutável, e o conteúdo por trás dela muda sem que nada apareça em diff neste repositório. Mesmo argumento que valeu para as imagens do compose e para o fecho de dependências.
+- **P37 segue aberta, agora com prazo: antes da Fase 3.** O motivo é de custo, e é datado: a Fase 2 vai alterar processo junto com código várias vezes, e incluir `docs/process/` no `CODE` agora obrigaria PR separado a cada ajuste. O custo cai depois que o motor estabilizar.
+
+**Prazo declarado é diferente de adiamento.** As duas anteriores foram adiadas sem data e venceram em silêncio; esta tem marco, e o marco é verificável — se a Fase 3 abrir com a P37 aberta, o inventário dela vai dizer isso.
 
 ### 7.3 Aberto da Fase 1
 
@@ -812,7 +817,9 @@ Estes não vão ser fechados, e a diferença importa: pendência é trabalho adi
 - **A consistência do registro de fase não tem verificador.** Descoberto ao fechar a P1-18: duas seções de pendência haviam sumido do arquivo e as linhas da tabela seguiam afirmando-as. Os artefatos têm verificação; o documento que os descreve, não.
 - **`tools/_common.py::parse_yaml` nunca foi comparado com um parser conforme.** É o único leitor dos contratos nos jobs stdlib. Se ele mal-parsear um contrato, toda a validação opera sobre uma árvore diferente da que a aplicação lerá.
 
-### 7.5 O que a Fase 2 precisa decidir cedo
+### 7.5 O que o checkpoint ⏸ da Fase 2 deve submeter
+
+A Fase 2 é ⏸, e as duas perguntas abaixo vão no **kickoff**, não no meio da implementação. É a correção direta do defeito registrado em §1.2: naquele checkpoint eu submeti duas escalações de contradição da spec — que eu tinha obrigação de submeter de qualquer forma — e as decisões genuinamente arriscadas ficaram de fora. Estas duas são decisões, não escalações.
 
 **Sync ou async no `range-core`.** É a decisão que trava as outras: `psycopg2` é síncrono e exigiria `asyncpg` ao lado; `psycopg` 3 traz as duas faces. O cliente Redis segue a mesma escolha. Decidir o driver antes do modelo de concorrência é decidir o segundo por acidente do primeiro, e `04` §4 proíbe alterar semântica dentro da mesma `schema_version`.
 
