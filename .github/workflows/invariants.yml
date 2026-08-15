@@ -60,6 +60,19 @@ jobs:
       - name: registro de fase consistente
         run: python scripts/check_progress_consistency.py
 
+      # P2-2 — a outra metade da garantia de 01 secao 4.1. O fold ja nao
+      # consegue consultar o store (nao ha parametro por onde um store entre);
+      # aqui se verifica que o store nao consegue OFERECER filtro.
+      #
+      # Em `scripts/` e nao em `tools/`: 01 secao 2 normatiza SEIS
+      # verificadores, e um setimo arquivo ali contradiria a contagem que a spec
+      # fixa. Ver a secao 6 do registro da Fase 2.
+      - name: superficie de leitura do event store
+        run: python scripts/check_store_read_surface.py
+
+      - name: teste negativo da superficie de leitura
+        run: python scripts/check_store_read_surface_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 

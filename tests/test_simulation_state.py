@@ -51,6 +51,7 @@ from contracts.generated.events import (
     INJECT_FIRED,
     ROLLBACK_PERFORMED,
 )
+from range_core.events.envelope import Correlation, Event
 from range_core.state.simulation_state import (
     OPTION_ID,
     PACK_CANONICALIZATION,
@@ -58,9 +59,7 @@ from range_core.state.simulation_state import (
     PACK_ID,
     PACK_SCHEMA_VERSION,
     TO_EVENT_ID,
-    Correlation,
     Declarations,
-    Event,
     MalformedStream,
     PackMismatch,
     Site,

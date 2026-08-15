@@ -51,9 +51,19 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-FOLD_PATH = REPO_ROOT / "range-core" / "state" / "simulation_state.py"
 TESTS_PATH = Path(__file__).resolve().parent / "test_simulation_state.py"
-FOLD_MODULE = "range_core.state.simulation_state"
+
+#: OS MODULOS MUTAVEIS, em ordem de dependencia.
+#:
+#: Sao dois porque a regra da epoch e COMPARTILHADA entre o fold e o store —
+#: `range_core.events.epoch` — e mutar so o fold deixaria de alcanca-la. A
+#: primeira versao desta prova mutava um arquivo so, e quebrou alto no dia em
+#: que o calculo mudou de casa: a guarda de "casar exatamente uma vez" acusou em
+#: vez de plantar nada em silencio, que e o comportamento desejado.
+MUTAVEIS: tuple[tuple[str, str, Path], ...] = (
+    ("epoch", "range_core.events.epoch", REPO_ROOT / "range-core" / "events" / "epoch.py"),
+    ("fold", "range_core.state.simulation_state", REPO_ROOT / "range-core" / "state" / "simulation_state.py"),
+)
 
 
 def _carrega(nome: str, caminho: Path) -> types.ModuleType:
@@ -74,9 +84,11 @@ def _carrega(nome: str, caminho: Path) -> types.ModuleType:
     return modulo
 
 
-def _fonte_mutada(substituicoes: list[tuple[str, str]]) -> str:
-    source = FOLD_PATH.read_text(encoding="utf-8")
-    for alvo, troca in substituicoes:
+def _fonte_mutada(caminho: Path, chave: str, substituicoes) -> str:
+    source = caminho.read_text(encoding="utf-8")
+    for onde, alvo, troca in substituicoes:
+        if onde != chave:
+            continue
         ocorrencias = source.count(alvo)
         if ocorrencias != 1:
             raise AssertionError(
@@ -94,27 +106,30 @@ def _vermelhos(substituicoes: list[tuple[str, str]]) -> set[str]:
     O parametro de `subTest` e descartado: o que se afirma e QUAL teste acusa,
     e nao quantos subcasos dele.
     """
+    anteriores: dict[str, types.ModuleType | None] = {}
     with tempfile.TemporaryDirectory() as temporario:
-        alvo = Path(temporario) / "fold_mutado.py"
-        alvo.write_text(_fonte_mutada(substituicoes), encoding="utf-8")
-        fold = _carrega("fold_mutado", alvo)
+        # Os mutaveis sao carregados EM ORDEM DE DEPENDENCIA e injetados em
+        # `sys.modules` sob o nome real, para que o import de um resolva para a
+        # versao mutada do outro. Sem isso, o fold mutado importaria a epoch
+        # original e a mutacao ficaria pela metade.
+        for chave, modulo, caminho in MUTAVEIS:
+            destino = Path(temporario) / f"{chave}_mutado.py"
+            destino.write_text(_fonte_mutada(caminho, chave, substituicoes), encoding="utf-8")
+            anteriores[modulo] = sys.modules.get(modulo)
+            sys.modules[modulo] = _carrega(f"{chave}_mutado", destino)
 
-        # A copia da suite e carregada com o fold mutado no lugar do real, para
-        # o `from ... import ...` dela resolver para o mutado. O modulo
-        # compartilhado e restaurado em seguida: recarregar o que o runner esta
-        # executando seria mexer na propria suite em curso.
-        anterior = sys.modules.get(FOLD_MODULE)
-        sys.modules[FOLD_MODULE] = fold
         try:
             suite_modulo = _carrega("testes_contra_fold_mutado", TESTS_PATH)
+            suite = unittest.defaultTestLoader.loadTestsFromModule(suite_modulo)
+            resultado = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
         finally:
-            if anterior is not None:
-                sys.modules[FOLD_MODULE] = anterior
-            else:  # pragma: no cover - o fold sempre esta importado aqui
-                del sys.modules[FOLD_MODULE]
-
-        suite = unittest.defaultTestLoader.loadTestsFromModule(suite_modulo)
-        resultado = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+            # Restaurar e obrigatorio: recarregar o que o runner esta executando
+            # deixaria a suite em curso apontando para modulos mutados.
+            for modulo, anterior in anteriores.items():
+                if anterior is not None:
+                    sys.modules[modulo] = anterior
+                else:  # pragma: no cover - ambos estao importados aqui
+                    sys.modules.pop(modulo, None)
 
     nomes = set()
     for caso, _ in list(resultado.failures) + list(resultado.errors):
@@ -125,25 +140,26 @@ def _vermelhos(substituicoes: list[tuple[str, str]]) -> set[str]:
 # ---------------------------------------------------------------------------
 # AS MUTACOES. Cada uma: o que se planta, e QUEM exatamente deve acusar.
 # ---------------------------------------------------------------------------
-MUTACOES: dict[str, tuple[list[tuple[str, str]], set[str]]] = {
+MUTACOES: dict[str, tuple[list[tuple[str, str, str]], set[str]]] = {
     "limite do intervalo abandonado movido em um": (
-        [("for j in range(anchor + 1, index):", "for j in range(anchor + 2, index):")],
+        [("fold", "for j in range(anchor + 1, index):", "for j in range(anchor + 2, index):")],
         {
             "test_rollback_devolve_a_flag_escrita_ao_default",
             "test_rollback_atravessa_escrita_de_participant_action",
         },
     ),
     "raise de ancora posterior ao rollback removido": (
-        [("if anchor > index:", "if anchor > index and False:")],
+        [("fold", "if anchor > index:", "if anchor > index and False:")],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
     "raise de ancora ja abandonada removido": (
-        [("if not surviving[anchor]:", "if not surviving[anchor] and False:")],
+        [("fold", "if not surviving[anchor]:", "if not surviving[anchor] and False:")],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
     "conferencia de epoch de evento desligada": (
         [
             (
+                "fold",
                 "if event.simulation_epoch != rollbacks:",
                 "if event.simulation_epoch != rollbacks and False:",
             )
@@ -151,12 +167,13 @@ MUTACOES: dict[str, tuple[list[tuple[str, str]], set[str]]] = {
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
     "pino do pack desligado": (
-        [("if atual != esperado:", "if atual != esperado and False:")],
+        [("fold", "if atual != esperado:", "if atual != esperado and False:")],
         {"test_p6_pack_divergente_do_pino_e_recusado"},
     ),
     "estado deixa de ser total: nao semeia com os defaults": (
         [
             (
+                "fold",
                 "flags: dict[str, FlagValue] = dict(declarations.flag_defaults)",
                 "flags: dict[str, FlagValue] = {}",
             )
@@ -171,6 +188,7 @@ MUTACOES: dict[str, tuple[list[tuple[str, str]], set[str]]] = {
     "discriminante trocado num sitio so": (
         [
             (
+                "fold",
                 "                Site.ANCHOR_UNKNOWN,\n",
                 "                Site.ANCHOR_MISSING,\n",
             )
@@ -180,6 +198,7 @@ MUTACOES: dict[str, tuple[list[tuple[str, str]], set[str]]] = {
     "epoch corrente sempre zero": (
         [
             (
+                "epoch",
                 "return sum(1 for event in events if event.event_type == ROLLBACK_PERFORMED)",
                 "return 0",
             )
