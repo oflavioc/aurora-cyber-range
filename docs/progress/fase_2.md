@@ -497,6 +497,36 @@ lock a colisão vira erro de integridade em vez de cadeia bifurcada em silêncio
 "12 pulados" da rodada anterior eram 8 distintos e 4 repetidos. Base sem teste
 próprio resolve.
 
+### 3.7 O `exercise-clock`
+
+**O tempo de parede entra por injeção.** `now` é parâmetro do construtor, com
+`time.time` de default. Não é cerimônia de testabilidade: um clock que lê o
+relógio do processo exige `sleep` e tolerância no teste, e teste com tolerância
+sobre relógio ou é lento ou é intermitente — e intermitente é pior que ausente,
+porque ensina a reexecutar até passar. Com a fonte controlada, *"durante o
+PAUSAR o `exercise_time` não avança e o `wall_timestamp` avança"* é igualdade, e
+não aproximação. Nenhum teste do clock dorme.
+
+**Multiplicador é conjunto fechado — 1x, 5x, 20x — e não faixa.** `01` §3 os
+enumera. Valor livre tornaria a timeline do AAR irreconstruível por combinação
+que ninguém testou, apesar de `09` §1.1 gravar o multiplicador em cada evento
+justamente para reconstruí-la.
+
+**Trocar de multiplicador fecha o acumulado com o antigo.** Sem isso, passar de
+1x para 20x no meio multiplicaria **retroativamente** o tempo já decorrido.
+
+**Pausa dupla e retomada sem pausa são recusadas.** Não são idempotentes por
+desenho: pausa dupla costuma ser dois facilitadores agindo sobre o mesmo
+exercício, e silenciar isso esconde o conflito em vez de resolvê-lo.
+
+**`start_new_epoch` rebobina o rótulo e não o timestamp** — a separação que o
+`a3aded5` normatizou, agora com teste. O clock não sabe o que é rollback; quem
+chama é quem sabe.
+
+**O item 3 fecha pela metade, e a outra metade não é dele.** "PAUSAR congela o
+clock" está fechado; "bloqueia disparo agendado" é do inject-engine. O clock
+oferece `is_paused` e não agenda nada: quem decide não disparar é quem dispara.
+
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
 Os testes do `range-core` entraram como passo do job **`contratos`**, que é
@@ -534,7 +564,7 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 |---|---|---|---|
 | 1 | As quatro marcas em todo evento | ✅ | `test_event_store.Carimbo.test_append_carimba_as_quatro_marcas_do_clock` — as quatro vêm de **uma** leitura. `…test_o_produtor_nao_tem_onde_escrever_tempo` — `EventDraft` não tem os seis campos que o store atribui |
 | 2 | `RANDOM_SEED` lido por código do `range-core` | ⬜ | Nada escrito. Decidido que **não** é aqui que ele é consumido — `event_id` usa `secrets` |
-| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ | O clock não existe; há a porta. `01` §3 passou a exigir que congele **as duas** marcas de exercício |
+| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ **metade** | **Congela**: fechada — `test_exercise_clock.Pausar.test_durante_a_pausa_o_exercicio_congela_e_a_parede_avanca` e `…test_as_duas_marcas_de_exercicio_congelam_JUNTAS`, que é a norma que o `a3aded5` acrescentou ao `01` §3. **Bloqueia disparo agendado**: aberta, e é do inject-engine — o clock oferece `is_paused` e não agenda nada |
 | 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_simulation_state.Propriedades.test_p3_reaplicar_o_mesmo_inject_nao_muda_o_estado`, com 2, 3 e 7 repetições. Prova negativa: a mutação *"defaults removidos"* e a *"limite do intervalo movido"* o derrubam, em `test_simulation_state_probes` |
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
@@ -542,7 +572,7 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 | 8 | Reconstrução completa em < 3 s | ⬜ | **Não medido** — é a P2-10, e vence antes de construir em cima do fold |
 | 9 | Flag não declarada impede boot com mensagem clara | ⬜ | Não há boot. O fold recusa inject e opção fora do pack, que é outra coisa |
 
-**Quatro de nove**, e cada ✅ nomeia o teste que o prova — atestação sem fonte é
+**Quatro de nove fechados, e o item 3 pela metade**, com cada ✅ nomeando o teste que o prova — atestação sem fonte é
 o que esta fase já registrou como caro. O que falta é clock, seed, loader com
 validação de flags, o campo de payload do intervalo, e a medição do item 8.
 
