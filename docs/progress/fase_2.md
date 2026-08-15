@@ -296,17 +296,97 @@ Inventário completo em `fase_1.md` §7. O que muda de estado aqui:
 | P1-2 (`RANDOM_SEED` sem consumidor) | Aberta | Item 2 da DoD desta fase |
 | P25 (actions em tag major mutável) | **Vencida na Fase 1** | Continua vencida |
 | P37 (`docs/process/` fora do `CODE` do `spec_freeze`) | **Vencida na Fase 1** | Prazo declarado: **antes da Fase 3** |
-| P23, P36 | Limites declarados | Sem mudança |
+| P23 (falso bloqueio de hook) | Limite declarado | **Ganhou ocorrência em código.** Ver abaixo |
+| P36 | Limite declarado | Sem mudança |
 
 Os quatro limites declarados de `fase_1.md` §7.4 continuam limites, não
 pendências — em especial: `check_contract_examples.py` é laço fechado, e
 `tools/_common.py::parse_yaml` nunca foi comparado com parser conforme.
 
+**A P23 ganhou ocorrência de tipo novo, e ela vale registro.** Até aqui os dez
+falsos bloqueios afirmados eram de **leitura**, no hook do auditor. O primeiro
+módulo desta fase produziu o primeiro em **código**: `.claude/hooks/check_architecture.py`
+recusou a escrita de `range-core/state/simulation_state.py` porque a docstring
+do tipo `Event` **citava o nome do campo proibido pelo invariante 4** — em prosa,
+explicando que o campo não existe ali.
+
+Regex não distingue menção de emissão, e essa é exatamente a troca declarada do
+hook: falso positivo sim, falso negativo não. **Não é defeito e não se mexe
+nela.** O gate real continua sendo `tools/check_event_envelope.py`, por AST, que
+não confunde string constante com emissão.
+
+O texto foi reescrito nomeando a seção da spec em vez do campo. Custo: uma
+reescrita. É o preço correto do lado conservador.
+
+### 2.1 Limite novo — `check_core_boundary.py` não olha para `contracts/`
+
+O primeiro módulo desta fase importa `contracts.generated.events`, para não ter
+literal de `event_type` no core. O import é legítimo: o invariante 1 proíbe
+`domains/`, e o catálogo de eventos é agnóstico de domínio.
+
+**Mas ele passa porque o verificador não olha, e isso não é o mesmo que ele
+aprovar o caso.** `tools/check_core_boundary.py` detecta, por AST, só o que
+aponta para `domains` — import direto, com alias, relativo que escape, e
+dinâmico via `import_module`/`__import__`. Sobre `contracts` ele não tem opinião
+nenhuma.
+
+**A consequência, dita:** a próxima coisa importada de `contracts/` para dentro
+do core não encontra guarda. Hoje só há um artefato lá que é código — o catálogo
+gerado —, então a superfície é pequena. Quando deixar de ser, a ausência de
+opinião passa a valer mais que a permissão.
+
+Fica como **limite declarado**, não pendência: não é trabalho adiado, é
+propriedade que o mecanismo não tem. Vira pendência no dia em que o core
+importar de `contracts/` algo que não seja constante gerada.
+
 ---
 
 ## 3. Estrutura, migrations e variáveis de ambiente
 
-*Reservado.* Preenche conforme a fase produz.
+### 3.1 Empacotamento — a Fase 1 declarou que não havia o que empacotar
+
+`pyproject.toml` tinha `packages = []`, com a nota de que **`range-core` tem
+hífen e não é pacote importável por nome** e de que a árvore daquela fase era
+esqueleto. A Fase 2 tem o que empacotar, e a decisão é registrada aqui porque é
+**distribuição**, não detalhe de arquivo.
+
+**Mapeamento, não renomeação:**
+
+```toml
+[tool.setuptools.package-dir]
+range_core = "range-core"
+```
+
+`package-dir` separa as duas coisas que estavam confundidas — o **caminho no
+disco**, que `01` §2 normatiza como `range-core/` e que
+`tools/check_core_boundary.py` varre por esse nome, e o **nome de import**, que
+precisa ser identificador Python válido. Renomear o diretório para `range_core/`
+contradiria o layout que a spec fixa, exigindo `spec-change` para agradar ao
+empacotador, e moveria o alvo do verificador do invariante 1.
+
+A lista de pacotes é **explícita**, e não `packages.find`: com `package-dir`
+mapeando um nome a um diretório, a descoberta automática enxergaria `state`,
+`clock` e `engine` como pacotes de topo, fora de `range_core`.
+
+### 3.2 `contracts` no conjunto empacotado, e o limite que isso encontra
+
+O fold importa `contracts.generated.events` — literal de `event_type` dentro de
+`range-core/` violaria o invariante 2, e `check_contract_literals.py` isenta
+`contracts/` justamente por ser onde o artefato legítimo vive.
+
+**Sem a entrada no `pyproject`, o import só funcionava com o CWD na raiz do
+repositório.** Verificado de fora dela: `ModuleNotFoundError`. Passaria em todo
+teste local e quebraria no container da Fase 4.
+
+Não fere o invariante 1 — ele proíbe o core de importar `domains/`, e o catálogo
+de eventos é agnóstico de domínio. Os nomes de **flag**, que são de domínio,
+continuam chegando como dado em `Declarations`, nunca por import.
+
+> **Esta entrada vive na zona que o `check_core_boundary.py` não varre**, e o
+> limite está descrito na **§2.1**: o verificador só tem opinião sobre
+> `domains`, e sobre `contracts` ele não olha. A decisão de empacotar `contracts`
+> e o limite de não haver guarda sobre esse caminho são a mesma coisa vista de
+> dois lados — lidas separadas, a decisão parece coberta.
 
 ---
 
@@ -342,8 +422,10 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-3 | ~~Spec-change com os itens do checkpoint~~ | **FECHADA** em 15/08/2026, `a3aded5` |
 | P2-4 | Campo de payload dos extremos do intervalo congelado | **Fase 2**, no PR de código |
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
-| P2-6 | Sem forma declarativa de ligar `participant_action` a flag | Pergunta antes da Fase 3 |
+| P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
+| P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
+| P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
 #### P2-1 — propriedade entre projeções
 
@@ -424,6 +506,20 @@ spec e código no mesmo PR.
 **Vencimento: dentro da Fase 2**, no PR de código, junto dos schemas de payload
 por `event_type`.
 
+**A lista de chaves saiu do fold, e é por isso que ela está aqui.** Escrever o
+corpo de `project` obrigou a nomear as chaves que ele exige, e elas viraram
+constantes em `range-core/state/simulation_state.py`. São **contrato de facto
+hoje**: o fold recusa sem elas, e nada as valida.
+
+| Chave | Em que evento | Para quê |
+|---|---|---|
+| `pack_id`, `pack_schema_version`, `pack_content_hash`, `pack_canonicalization` | `exercise_started` | o pino do pack |
+| `to_event_id` | `rollback_performed` | âncora do corte, ao lado do `to_inject_id` que `01` §4.2 exige |
+| `option_id` | `decision_made` | resolver os effects da opção; o inject vem de `correlation.inject_id` |
+
+Anotado aqui porque o schema não pode ser escrito por quem não sabe quais chaves
+o consumidor exige — seria contrato desenhado sem o seu único cliente.
+
 #### P2-5 — `00` §5.6 enumera duas das quatro marcas
 
 `00_MASTER_SPEC.md` §5.6 se chama "Dois relógios, sempre" e enumera
@@ -445,16 +541,60 @@ sobre `exercise_timestamp`, e silêncio não é contradição.
 
 #### P2-6 — sem forma declarativa de ligar `participant_action` a flag
 
-`effects` existe em `inject` e em `option` de `decision_point`
-(`04` §5). Não há como um pack ligar um `event_type` de `participant_action` —
-os cinco `state_effect` — a uma flag. A ligação é por serviço, e `01` §4.4 passa
-a dizer isso como norma.
+`effects` existe em `inject` e em `option` de `decision_point` (`04` §5). Não há
+como ligar um `event_type` de `participant_action` — os cinco `state_effect` —
+a uma flag.
 
-**Não é defeito: é o que torna a §4.4 estrutural em vez de opcional.** Fica como
-pergunta a fazer quando a API existir: essa ligação deve ganhar forma
-declarativa, ou permanecer no serviço?
+**A §4.4 do `01` depende desta pendência**, e a dependência só apareceu ao
+tentar escrever o teste dela. Sob a quarta leitura, serviço nenhum escreve flag:
+o fold resolve effects contra o pack. Sem ligação declarativa,
+`vpn_access_revoked` não move flag nenhuma, e a §4.4 descreve mudança de estado
+sem caminho reconstruível — o que contraria `01` §4.1, porque estado que não vem
+do fold não sobrevive à reconstrução do zero.
 
-**Vencimento: antes da Fase 3.**
+**Por que não decidir agora.** Desenhar a ligação antes de a API existir é
+inventar vocabulário para prever o módulo — classe da D6, já paga nesta fase. E
+`vpn_access_revoked` é produzido por serviço que nasce na Fase 3: o valor de
+esperar é o consumidor nascer junto do contrato.
+
+**O que segura até lá:** `tests/test_simulation_state.py` prova a tese da §4.4
+na classe `declaration`, com `decision_made` — a flag reverte e o evento
+permanece no fluxo. Falta a classe `state_effect`, e o teste diz isso na própria
+docstring.
+
+**Vencimento: Fase 3.**
+
+#### P2-9 — a frase do mecanismo na `01` §4.4 envelheceu
+
+**É a §1.6 acontecendo dentro da spec, produzida por duas decisões deste mesmo
+ciclo.** A §4.4 diz *"o serviço que atende a rota escreve
+`academus.federated_session_active`"*. Era verdadeiro quando foi escrito, no
+spec-change `a3aded5`. A **quarta leitura** — effects resolvidos contra o pack,
+decidida depois, no desenho do fold — derrubou a frase: serviço nenhum escreve
+flag.
+
+Não houve momento em que alguém errou. A primeira decisão estava certa contra o
+que se sabia; a segunda foi aprovada sem que se visse que derrubava a primeira.
+É a classe que a §1.6 da Fase 1 nomeia — a afirmação que envelhece depois de
+correta —, aqui com as duas decisões nomeadas, em vez de descoberta três fases
+adiante.
+
+**O que morreu é só a frase do caminho.** A tese da §4.4 continua inteira, e
+nada nela dependia de quem escreve a flag:
+
+- rollback reverte a flag e não reverte o efeito de domínio;
+- a exposição é estrutural, e não escolha de autoria de cenário;
+- o resíduo é maior nos dois `event_type` de efeito externo;
+- o participante pode ver o mundo simulado contradizer a própria ação, e isso é
+  desenho, não defeito.
+
+**Não é a mesma pendência que a P2-6, e por isso são duas.** A Fase 3 entrega a
+ligação declarativa; corrigir a frase é `spec-change`, e continua necessário
+depois de a ligação existir — a frase descreveria o mecanismo errado de todo
+jeito.
+
+**Sem prazo amarrado à Fase 3:** pode ir antes, sozinha, ou junto do
+spec-change que a ligação declarativa vier a exigir.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
@@ -480,6 +620,33 @@ porque rollback de rebobinagem zero não separa nada, e a frase anterior afirmav
 que sim.
 
 **Sem prazo.** É candidato a exemplo mais claro em `09`, não defeito normativo.
+
+#### P2-8 — retenção do pack por conteúdo
+
+**A decisão já está tomada, e o que falta é a casa dela.** Os `effects` são
+resolvidos contra o pack, não gravados no store (quarta leitura), e o pack é
+fixado pelo `content_hash` que o `exercise_started` grava. Disso decorre que
+reconstruir exercício passado exige **o pack como era**, e um pack legitimamente
+corrigido entre execuções tornaria todo exercício anterior irreconstruível.
+
+Regra decidida: **packs versionados por conteúdo, com o antigo retido.** Pack
+imutável após o primeiro uso foi descartado — cenário é iterado entre execuções,
+e a regra seria violada na primeira correção.
+
+| | |
+|---|---|
+| **O que a Fase 2 entrega** | O **pino** e a **recusa**: `project` compara o hash do `exercise_started` com o de `Declarations` e levanta `PackMismatch`, com mensagem que nomeia `pack_id`, hash esperado, hash recebido e a etiqueta de canonicalização |
+| **O que falta** | O **arquivo morto**: armazenamento endereçado por conteúdo, para o AAR de exercício passado abrir sem árvore de trabalho |
+| **O que segura até lá** | O pack como era vem do **Git**, recuperado pelo hash que a mensagem de recusa nomeia. Serve para operador com o repositório à mão; não serve para o AAR abrir sozinho |
+
+**Vencimento: Fase 10**, que é quando o AAR completo nasce — e **com item de DoD
+próprio em `07`**, não só com esta pendência.
+
+**Por que o destino é nomeado agora.** A decisão nasceu em docstring de
+`range-core/state/simulation_state.py`, e docstring não é checklist binária.
+Deixá-la só ali repetiria a forma do E1: requisito decidido, sem fase obrigada a
+cumpri-lo, que não é mover — é apagar com passo intermediário. O item de DoD da
+Fase 10 é spec-change, e é dele que esta pendência é a fila.
 
 ---
 
