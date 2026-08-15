@@ -68,15 +68,22 @@ fi
 
 echo "Bootstrap validado. Nenhum commit/push/tag foi executado."
 echo
-echo "Proxima tarefa da Fase 0: implementar os SEIS verificadores em tools/:"
-echo "  check_core_boundary.py"
-echo "  check_contract_literals.py"
-echo "  check_event_envelope.py"
-echo "  check_security_constraints.py"
-echo "  check_synthetic_data.py"
-echo "  codegen.py (--check)"
+# NAO AFIRMA EM QUE FASE O PROJETO ESTA.
+#
+# A versao anterior dizia "Proxima tarefa da Fase 0: implementar os SEIS
+# verificadores" e mandava rodar finalize_phase0.sh. Era verdade quando foi
+# escrita, e envelheceu duas fases atras — os seis existem desde a Fase 0 e a
+# Fase 1 fechou. E a classe da secao 1.6 do registro da Fase 1, no lugar mais
+# visivel que existe: a primeira coisa que um clone novo le.
+#
+# O conserto duravel nao e atualizar o texto a cada fase. E apontar para onde o
+# estado mora, em vez de repeti-lo aqui.
+echo "Onde esta o projeto agora:"
+echo "  docs/progress/     registro por fase, com pendencias e o que a proxima herda"
+echo "  docs/spec/07_IMPLEMENTATION_PHASES.md   roadmap e a Definition of Done de cada fase"
 echo
-echo "Depois execute o checklist e somente entao: bash finalize_phase0.sh"
+echo "Comece lendo o registro da ULTIMA fase concluida: a secao final dele"
+echo "e o inventario do que a fase seguinte recebe."
 echo
 echo "IMPORTANTE: abra o Claude Code com  claude --permission-mode default"
 echo "e aceite o dialogo de confianca do workspace na primeira vez, para que os"
