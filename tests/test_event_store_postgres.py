@@ -47,7 +47,15 @@ RAZAO = (
 
 
 @unittest.skipIf(_URL is None, RAZAO)
-class StoreEmPostgres(unittest.TestCase):
+class _BaseComBanco(unittest.TestCase):
+    """`setUp` e utilitarios. SEM teste proprio, de proposito.
+
+    A primeira versao usava heranca entre classes de teste para reusar o
+    `setUp`, e com isso os quatro casos da base RODAVAM DUAS VEZES — a contagem
+    subia sem que nada a mais fosse provado. Base sem teste resolve: cada
+    subclasse contribui so o que e dela.
+    """
+
     def setUp(self) -> None:
         import psycopg
 
@@ -62,6 +70,9 @@ class StoreEmPostgres(unittest.TestCase):
         with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute(sql, params)
 
+
+@unittest.skipIf(_URL is None, RAZAO)
+class StoreEmPostgres(_BaseComBanco):
     def test_grava_e_le_na_ordem_de_append(self):
         primeiro = self.store.append(started_draft())
         segundo = self.store.append(draft(INJECT_FIRED, inject_id="A01"))
@@ -105,7 +116,7 @@ class StoreEmPostgres(unittest.TestCase):
 
 
 @unittest.skipIf(_URL is None, RAZAO)
-class CadeiaAcusaReescrita(StoreEmPostgres):
+class CadeiaAcusaReescrita(_BaseComBanco):
     """A garantia que a Fase 2 entrega no lugar do mecanismo da Fase 5.
 
     Nao ha `REVOKE` nem trigger ate a Fase 5 — quem tem a connection string
@@ -163,6 +174,69 @@ class CadeiaAcusaReescrita(StoreEmPostgres):
 
         self._executa(f"DELETE FROM {TABLE} WHERE sequence = %s", 3)
         self.assertEqual(len(self.store.read_all()), 2, "a cauda sumiu sem acusar")
+
+
+@unittest.skipIf(_URL is None, RAZAO)
+class DoisEscritoresConcorrentes(_BaseComBanco):
+    """O caso que ninguem escreve por acidente.
+
+    `sequence` e `previous_hash` sao escolhidos pela APLICACAO a partir da
+    ultima linha — ler-e-escrever. Dois processos contra a mesma tabela podem,
+    em tese, ler o mesmo topo e produzir duas linhas com a mesma sequencia, ou
+    duas encadeadas no mesmo `previous_hash`: a cadeia BIFURCA, e a verificacao
+    passaria a acusar sem que ninguem tenha adulterado nada.
+
+    `_persist` toma `LOCK TABLE ... IN EXCLUSIVE MODE` antes de ler o topo,
+    justamente por isso. Este teste existe porque "o lock resolve" e suposicao
+    ate alguem tentar — e porque a alternativa seria confiar em que ninguem
+    rodara dois escritores.
+
+    O banco e a segunda linha de defesa, e nao a primeira: `sequence` e chave
+    primaria e `row_hash` e unico, entao mesmo sem o lock a colisao viraria erro
+    de integridade em vez de cadeia bifurcada em silencio.
+    """
+
+    def test_escritas_concorrentes_nao_bifurcam_a_cadeia(self):
+        import threading
+
+        import psycopg
+
+        ESCRITORES, POR_ESCRITOR = 4, 5
+        erros: list[BaseException] = []
+
+        def escreve() -> None:
+            try:
+                store = PostgresEventStore(RelogioFixo(), _URL)
+                for _ in range(POR_ESCRITOR):
+                    store.append(started_draft())
+            except BaseException as exc:  # pragma: no cover - so falha se houver corrida
+                erros.append(exc)
+
+        threads = [threading.Thread(target=escreve) for _ in range(ESCRITORES)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(erros, [], "append concorrente levantou")
+
+        total = ESCRITORES * POR_ESCRITOR
+        with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+            cur.execute(f"SELECT sequence FROM {TABLE} ORDER BY sequence")
+            sequencias = [linha[0] for linha in cur.fetchall()]
+
+        self.assertEqual(
+            sequencias,
+            list(range(1, total + 1)),
+            "sequencia com buraco ou repeticao: dois escritores leram o mesmo topo",
+        )
+
+        # A verificacao da cadeia e o teste de bifurcacao propriamente dito: se
+        # duas linhas tivessem encadeado no mesmo `previous_hash`, o segundo elo
+        # nao fecharia.
+        eventos = PostgresEventStore(RelogioFixo(), _URL).read_all()
+        self.assertEqual(len(eventos), total)
+        self.assertEqual(len({e.event_id for e in eventos}), total)
 
 
 if __name__ == "__main__":
