@@ -226,6 +226,26 @@ allOf:
         event_type:
           $ref: '#/$defs/event_type_facilitation'
 
+  # ---------------------------------------------------------------------------
+  # PAYLOAD POR event_type — o primeiro, e o motivo dele estar sozinho.
+  #
+  # `payload` continua ABERTO para os outros 32 tipos. Fechar todos de uma vez
+  # seria escrever 32 contratos sem consumidor; cada um nasce quando o seu
+  # consumidor nasce. Este nasce agora porque tem DOIS: o fold exige
+  # `to_event_id` para ancorar o corte, e o item 7 da DoD da Fase 2 exige o
+  # intervalo congelado.
+  # ---------------------------------------------------------------------------
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: rollback_performed
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: '#/$defs/rollback_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
@@ -330,6 +350,19 @@ $defs:
       - branch_selected
       - exercise_started
       - exercise_paused
+      # CONTINUAR ganha rastro. Acrescentado no spec-change `exercise-resumed`:
+      # 01 secao 6 da quatro comandos de execucao ao console e o catalogo tinha
+      # evento para tres. Sem este, `exercise_paused` sem nada depois e o mesmo
+      # fluxo para "ainda pausado" e para "retomado e nada aconteceu" — e a
+      # heuristica de "evento posterior implica retomada" nao vale, porque o
+      # disparo MANUAL continua permitido na pausa (01 secao 3 bloqueia so o
+      # agendado).
+      #
+      # A duracao da pausa NAO precisa de campo: e a distancia entre os
+      # `wall_timestamp` dos dois eventos. Extremos, nunca duracao — a forma
+      # que 06 T3 ja fixou —, e em tempo de PAREDE porque as duas marcas de
+      # exercicio congelam na pausa e mediriam zero.
+      - exercise_resumed
       - exercise_reset
 
   # -------------------------------------------------------------------------
@@ -345,6 +378,105 @@ $defs:
       - rehearsal
       - facilitation
       - adjudication
+
+  # -------------------------------------------------------------------------
+  # PAYLOAD DE `rollback_performed` — 01 secao 4.2 e 06 T3. Fecha a P2-4 e o
+  # item 7 da DoD da Fase 2.
+  #
+  # E O PRIMEIRO SCHEMA DE PAYLOAD POR event_type, e por enquanto o unico. O
+  # `payload` do envelope continua aberto para os demais tipos: fechar todos de
+  # uma vez seria desenhar 32 contratos sem consumidor, e cada um deles nasce
+  # quando o seu consumidor nasce. Este nasce agora porque o fold JA o exige —
+  # `to_event_id` e chave de facto desde a projecao, e o item 7 cobra o
+  # intervalo.
+  #
+  # FECHADO POR `additionalProperties: false`, ao contrario do payload generico.
+  # Aqui a lista de chaves e conhecida e pequena, e chave nova sem contrato e
+  # erro de digitacao que em runtime vira campo que ninguem le — a mesma classe
+  # do event_type inexistente de 09 secao 4.
+  # -------------------------------------------------------------------------
+  rollback_payload:
+    type: object
+    required:
+      - to_event_id
+      - reason
+      - by_user
+      - role
+    additionalProperties: false
+    properties:
+
+      # ANCORA DO CORTE, por `event_id`. `01` secao 4.2 lista `to_inject_id`, que
+      # e o rotulo legivel; quem ancora e este, porque localizar o corte por
+      # inject exigiria varrer `inject_fired` — dependencia de uma projecao de
+      # estado num evento de facilitacao que nada na spec autoriza.
+      to_event_id:
+        type: string
+        minLength: 1
+
+      # NULO E FORMA LEGITIMA: a ancora nem sempre e um `inject_fired`. Rebobinar
+      # ate o `exercise_started` e caso real — e o facilitador voltando ao
+      # inicio —, e ali nao ha inject a nomear.
+      to_inject_id:
+        type: [string, 'null']
+
+      by_user:
+        type: string
+        minLength: 1
+
+      role:
+        type: string
+        minLength: 1
+
+      reason:
+        $ref: '#/$defs/rollback_reason'
+
+      frozen_interval:
+        $ref: '#/$defs/frozen_interval'
+
+    # `technical_failure` EXIGE o intervalo, e os outros tres nao o admitem por
+    # obrigacao — 09 secao 3.1 da o efeito "relogio de metricas congelado" a
+    # este motivo e so a ele.
+    #
+    # Sem esta condicional o campo seria opcional em todo rollback, e um
+    # `technical_failure` gravado sem intervalo passaria: a Fase 6 o leria como
+    # se nao houvesse congelamento, e o desconto sumiria sem nada acusar. E o
+    # buraco que o item 7 existe para fechar.
+    if:
+      required: [reason]
+      properties:
+        reason:
+          const: technical_failure
+    then:
+      required: [frozen_interval]
+
+  # -------------------------------------------------------------------------
+  # O INTERVALO CONGELADO — 06 T3, e a forma la e normativa.
+  #
+  # EXTREMOS, NUNCA DURACAO. Duracao impede unir intervalos que se sobrepoem:
+  # dois congelamentos cruzados contariam o trecho comum duas vezes, e a duracao
+  # ja somada nao guarda com que detectar isso. T10 exige uniao, e e o registro
+  # por extremos que a torna possivel.
+  #
+  # EM `exercise_timestamp`, e T3 percorre os outros tres e descarta cada um:
+  # `wall_timestamp` nao, porque o PAUSAR o avanca sem avancar o exercicio;
+  # `exercise_time` nao, porque rebobina no rollback e os dois extremos caem em
+  # epochs diferentes POR CONSTRUCAO em todo congelamento.
+  #
+  # SEM `pattern`, de proposito: o `exercise_timestamp` do envelope tambem nao
+  # tem. Inventar aqui um formato que o campo de origem nao exige seria exigir de
+  # uma copia mais do que do original.
+  # -------------------------------------------------------------------------
+  frozen_interval:
+    type: object
+    required: [start, end]
+    additionalProperties: false
+    properties:
+      start:
+        type: string
+        minLength: 1
+      end:
+        type: string
+        minLength: 1
 
 # ---------------------------------------------------------------------------
 # EFFECT_CLASS — 09 secao 4.0, acrescentada pelo spec-change
@@ -425,6 +557,7 @@ x-aurora-registry:
     branch_selected: machine
     exercise_started: machine
     exercise_paused: machine
+    exercise_resumed: machine
     exercise_reset: machine
 
 # ---------------------------------------------------------------------------
@@ -480,9 +613,41 @@ examples:
       fact_id:
     # Mapeamento vazio nao e expressavel no subconjunto YAML da Fase 0 (`{}` e
     # fluxo), entao o exemplo traz uma chave real. A forma do payload varia por
-    # event_type e seus schemas chegam na Fase 2.
+    # event_type, e o unico com schema proprio e `rollback_performed` — ver o
+    # exemplo abaixo e o `$defs/rollback_payload`.
     payload:
       rows_returned: 128
+
+  # -------------------------------------------------------------------------
+  # ROLLBACK COM CONGELAMENTO — item 7 da DoD da Fase 2 e 06 T3.
+  #
+  # O intervalo esta em `exercise_timestamp`, pelos EXTREMOS. Note que `start`
+  # coincide com o `exercise_timestamp` da ancora e `end` com o do proprio
+  # evento: e o que 06 T3 chama de "do inject falho ate a retomada", e e por
+  # isso que um congelamento inteiramente contido numa pausa registra ZERO —
+  # `exercise_timestamp` nao avanca durante o PAUSAR.
+  # -------------------------------------------------------------------------
+  - event_id: '01J9F000000000000000000010'
+    event_type: rollback_performed
+    truth_layer: facilitation
+    producer: inject-engine
+    exercise_time: 'T+00:41:00'
+    exercise_timestamp: '2026-08-13T09:41:00'
+    wall_timestamp: '2026-08-13T10:58:12-03:00'
+    clock_multiplier: 1
+    simulation_epoch: 0
+    correlation:
+      scenario_id: ransomware-universidade
+      inject_id: A07
+    payload:
+      to_event_id: '01J9F00000000000000000000A'
+      to_inject_id: A07
+      by_user: 'gm-001'
+      role: facilitador
+      reason: technical_failure
+      frozen_interval:
+        start: '2026-08-13T09:33:12'
+        end: '2026-08-13T09:41:00'
 
 # ---------------------------------------------------------------------------
 # Exemplos NEGATIVOS — cada instancia DEVE falhar a validacao.
@@ -662,3 +827,123 @@ x-aurora-invalid-examples:
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
       simulation_epoch: -1
+
+  # -------------------------------------------------------------------------
+  # PAYLOAD DE `rollback_performed` — os quatro defeitos que o schema novo pega.
+  #
+  # Cada instancia e completa e carrega UM defeito. Sem eles, o schema de payload
+  # existiria e nada provaria que ele enxerga: mecanismo existir nao e a
+  # propriedade valer.
+  # -------------------------------------------------------------------------
+  - reason: 'technical_failure sem frozen_interval: o item 7 sumiria em silencio'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000008'
+      event_type: rollback_performed
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+00:41:00'
+      exercise_timestamp: '2026-08-13T09:41:00'
+      wall_timestamp: '2026-08-13T10:58:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        to_event_id: '01J9F00000000000000000000A'
+        to_inject_id: A07
+        by_user: 'gm-001'
+        role: facilitador
+        reason: technical_failure
+
+  # OS DOIS EXTREMOS, e por isso sao DUAS fixtures.
+  #
+  # A primeira tentativa era uma so — `frozen_interval` trazendo `seconds` no
+  # lugar de `start` e `end` —, e o executor a reprovou por carregar TRES
+  # defeitos: chave fora do contrato, `start` ausente e `end` ausente. Fixture
+  # com tres defeitos passa mesmo se o defeito que ela nomeia for corrigido, e a
+  # regra do "um defeito por fixture" existe exatamente para isso.
+  #
+  # Separadas, cada uma prova metade da forma que 06 T3 fixa: a primeira, que os
+  # DOIS extremos sao exigidos; a segunda, que duracao nao entra ao lado deles.
+  - reason: 'frozen_interval com um extremo so: intervalo sem fim nao e intervalo'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F000000000000000000009'
+      event_type: rollback_performed
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+00:41:00'
+      exercise_timestamp: '2026-08-13T09:41:00'
+      wall_timestamp: '2026-08-13T10:58:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        to_event_id: '01J9F00000000000000000000A'
+        to_inject_id: A07
+        by_user: 'gm-001'
+        role: facilitador
+        reason: technical_failure
+        frozen_interval:
+          start: '2026-08-13T09:33:12'
+
+  # DURACAO AO LADO DOS EXTREMOS. Parece inofensiva e nao e: passa a haver duas
+  # fontes para a mesma grandeza, e a uniao que 06 T10 exige nao sabe qual
+  # obedecer quando elas divergirem.
+  - reason: 'frozen_interval com duracao ao lado dos extremos'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000D'
+      event_type: rollback_performed
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+00:41:00'
+      exercise_timestamp: '2026-08-13T09:41:00'
+      wall_timestamp: '2026-08-13T10:58:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        to_event_id: '01J9F00000000000000000000A'
+        to_inject_id: A07
+        by_user: 'gm-001'
+        role: facilitador
+        reason: technical_failure
+        frozen_interval:
+          start: '2026-08-13T09:33:12'
+          end: '2026-08-13T09:41:00'
+          seconds: 468
+
+  - reason: 'rollback sem to_event_id: o corte fica sem ancora'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000B'
+      event_type: rollback_performed
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+00:41:00'
+      exercise_timestamp: '2026-08-13T09:41:00'
+      wall_timestamp: '2026-08-13T10:58:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        to_inject_id: A07
+        by_user: 'gm-001'
+        role: facilitador
+        reason: facilitation
+
+  - reason: 'motivo de rollback fora da taxonomia de 09 secao 3.1'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000C'
+      event_type: rollback_performed
+      truth_layer: facilitation
+      producer: inject-engine
+      exercise_time: 'T+00:41:00'
+      exercise_timestamp: '2026-08-13T09:41:00'
+      wall_timestamp: '2026-08-13T10:58:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        to_event_id: '01J9F00000000000000000000A'
+        to_inject_id: A07
+        by_user: 'gm-001'
+        role: facilitador
+        reason: porque_sim
