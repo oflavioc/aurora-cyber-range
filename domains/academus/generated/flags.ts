@@ -6,6 +6,7 @@ export const ACADEMUS_ENROLLMENT_OFFLINE = "academus.enrollment_offline";
 export const ACADEMUS_ENROLLMENT_SERVICE_STATE = "academus.enrollment_service_state";
 export const ACADEMUS_FEDERATED_SESSION_ACTIVE = "academus.federated_session_active";
 export const ACADEMUS_GRADE_INTEGRITY_SUSPECT = "academus.grade_integrity_suspect";
+export const ACADEMUS_GRADES_READONLY = "academus.grades_readonly";
 export const ACADEMUS_LMS_DEGRADED = "academus.lms_degraded";
 export const ACADEMUS_LMS_SESSION_DROP_RATE = "academus.lms_session_drop_rate";
 export const ACADEMUS_PORTAL_DEFACED = "academus.portal_defaced";
@@ -20,6 +21,7 @@ export const ALL_FLAGS = [
   ACADEMUS_ENROLLMENT_SERVICE_STATE,
   ACADEMUS_FEDERATED_SESSION_ACTIVE,
   ACADEMUS_GRADE_INTEGRITY_SUSPECT,
+  ACADEMUS_GRADES_READONLY,
   ACADEMUS_LMS_DEGRADED,
   ACADEMUS_LMS_SESSION_DROP_RATE,
   ACADEMUS_PORTAL_DEFACED,

@@ -8,6 +8,7 @@ ACADEMUS_ENROLLMENT_OFFLINE: Final[str] = "academus.enrollment_offline"
 ACADEMUS_ENROLLMENT_SERVICE_STATE: Final[str] = "academus.enrollment_service_state"
 ACADEMUS_FEDERATED_SESSION_ACTIVE: Final[str] = "academus.federated_session_active"
 ACADEMUS_GRADE_INTEGRITY_SUSPECT: Final[str] = "academus.grade_integrity_suspect"
+ACADEMUS_GRADES_READONLY: Final[str] = "academus.grades_readonly"
 ACADEMUS_LMS_DEGRADED: Final[str] = "academus.lms_degraded"
 ACADEMUS_LMS_SESSION_DROP_RATE: Final[str] = "academus.lms_session_drop_rate"
 ACADEMUS_PORTAL_DEFACED: Final[str] = "academus.portal_defaced"
@@ -22,6 +23,7 @@ ALL_FLAGS: Final[tuple[str, ...]] = (
     ACADEMUS_ENROLLMENT_SERVICE_STATE,
     ACADEMUS_FEDERATED_SESSION_ACTIVE,
     ACADEMUS_GRADE_INTEGRITY_SUSPECT,
+    ACADEMUS_GRADES_READONLY,
     ACADEMUS_LMS_DEGRADED,
     ACADEMUS_LMS_SESSION_DROP_RATE,
     ACADEMUS_PORTAL_DEFACED,

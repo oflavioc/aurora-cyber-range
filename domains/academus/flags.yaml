@@ -89,6 +89,27 @@ flags:
     effect_ui: "Banner de notas sob verificação; histórico marcado como provisório"
     reversible: true
 
+  # Exigida pelo item 2 da DoD da Fase 3: "bloqueia POST de nota com mensagem de
+  # negocio". Era citada em `07_IMPLEMENTATION_PHASES.md` e nao existia aqui —
+  # item insatisfazivel por construcao, da familia do E2 da Fase 2, e invisivel
+  # porque a DoD e markdown. Achada por `scripts/check_spec_flags.py` na primeira
+  # execucao dele.
+  #
+  # `integrity`, e nao `availability`: `02` secao 9 nomeia o congelamento de
+  # lancamento de notas como acao de continuidade cujo EFEITO e "impede
+  # propagacao de adulteracao" e cujo custo e travar o calendario. O que ela
+  # protege e o dado, nao o servico.
+  - name: academus.grades_readonly
+    type: boolean
+    default: false
+    category: integrity
+    domain_area: academic
+    severity_weight: 7
+    wallboard_group: "Integridade Acadêmica"
+    consumers: [academus-api, academus-web, wallboard]
+    effect_ui: "Lançamento e alteração de nota recusados; leitura e histórico seguem disponíveis"
+    reversible: true
+
   - name: academus.transcript_issuance_blocked
     type: boolean
     default: false
