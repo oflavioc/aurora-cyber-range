@@ -62,13 +62,30 @@ RAZAO = (
 FLAG_LIGADA_POR_DEFAULT = "fixture.sessao_ativa"
 FLAG_DESLIGADA = "fixture.portal_fora"
 
+#: Flag `number`, e ela existe por um motivo estreito: sem nenhuma flag numerica
+#: no fixture, o teste de tipo afirmava `bool` sobre um `bool` e anunciava
+#: proteger o caso numerico. Era o L1 da terceira auditoria da Fase 3, e a mesma
+#: familia do H1 da segunda — teste que promete e nao exerce. E a forma de
+#: `academus.lms_session_drop_rate`, a unica `number` da Fase 3.
+FLAG_PROPORCIONAL = "fixture.taxa_de_queda"
+
 DECLARACOES = Declarations(
     pack_id="pack-de-teste",
     schema_version=2,
     content_hash="0" * 64,
     canonicalization="v1",
-    flag_defaults={FLAG_LIGADA_POR_DEFAULT: True, FLAG_DESLIGADA: False},
-    inject_effects={"A01": {FLAG_LIGADA_POR_DEFAULT: False, FLAG_DESLIGADA: True}},
+    flag_defaults={
+        FLAG_LIGADA_POR_DEFAULT: True,
+        FLAG_DESLIGADA: False,
+        FLAG_PROPORCIONAL: 0.0,
+    },
+    inject_effects={
+        "A01": {
+            FLAG_LIGADA_POR_DEFAULT: False,
+            FLAG_DESLIGADA: True,
+            FLAG_PROPORCIONAL: 0.5,
+        }
+    },
     option_effects={},
 )
 
@@ -252,10 +269,29 @@ class NoRedis(unittest.TestCase):
     def test_a_serializacao_preserva_o_TIPO_do_valor(self):
         """`True` e `1` são distintos em Python, e JSON não os confunde — mas a
         volta pode. Uma flag numérica que voltasse booleana degradaria o endpoint
-        errado, e o wallboard mostraria o número como estado."""
+        errado, e o wallboard mostraria o número como estado.
+
+        A VERSÃO ANTERIOR NÃO EXERCIA O CASO QUE ANUNCIAVA: ela afirmava
+        `assertIsInstance(lido, bool)` sobre uma flag **booleana**, e o fixture
+        não tinha nenhuma flag `number`. Era o L1 da terceira auditoria — mesma
+        família do H1 da segunda. Agora as duas atravessam o Redis, e a asserção
+        que importa é a segunda: `isinstance(True, int)` é verdadeiro em Python,
+        então provar que o número não virou `bool` exige dizê-lo.
+        """
         current(self.store, DECLARACOES, self.cache)
-        lido = self.cache.read().state.flags[FLAG_LIGADA_POR_DEFAULT]
-        self.assertIsInstance(lido, bool)
+        flags = self.cache.read().state.flags
+
+        self.assertIsInstance(flags[FLAG_LIGADA_POR_DEFAULT], bool)
+
+        proporcional = flags[FLAG_PROPORCIONAL]
+        self.assertNotIsInstance(
+            proporcional,
+            bool,
+            "a flag `number` voltou booleana do Redis: o caminho `proporcional` "
+            "leria 1.0 onde a declaracao diz 0,5",
+        )
+        self.assertIsInstance(proporcional, float)
+        self.assertEqual(proporcional, 0.5)
 
     def test_sobrevive_a_instancia_nova_sobre_a_mesma_chave(self):
         """É a razão de o Redis existir aqui: o processo morre, a projeção não."""

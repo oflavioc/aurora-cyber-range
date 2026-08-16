@@ -1,16 +1,25 @@
 # Fase 3 — API mínima
 
-**Status: AUDITADA — PASS**, sem BLOCKER, em **duas** rodadas de auditoria: a de
-`a857d76` (§8) e a de `5b219a7` (§8.5). Cinco peças entregues, **quatro de
-quatro** itens da DoD com prova executável (§5.1), e as três pendências de
-aparato que venciam neste checkpoint fechadas.
+**Status: EM CORREÇÃO — a terceira auditoria emitiu FAIL** (§8.6), e o BLOCKER não
+é sobre o código: o auditor não conseguiu **executar** nada, porque a camada de
+permissão da sessão negava o que a allowlist do hook autoriza. Os quatro itens da
+DoD seguem sem defeito na revisão estática dele; o que falta é a prova executável
+que a próxima rodada vai produzir.
+
+Rodadas anteriores, ambas **PASS** sem BLOCKER: `a857d76` (§8) e `5b219a7` (§8.5).
+Cinco peças entregues, **quatro de quatro** itens da DoD com prova executável
+(§5.1) — provados por auditor que os executou nas duas primeiras rodadas —, e as
+três pendências de aparato que venciam neste checkpoint fechadas.
 
 Da primeira rodada, o HIGH e os três achados corrigíveis foram fechados e dois
 viraram pendência com destino. **Da segunda, os dois HIGH estão fechados** (§8.5):
 o teste vacuoso passou a discriminar, e a guarda de base ganhou o predicado que
 pega a inversão real — formulado antes, aprovado pelo operador, implementado
-depois, com sete eixos de prova negativa. O que sobra dela é a **P3-8**, os dois
-falsos bloqueios do hook.
+depois, com sete eixos de prova negativa — mais o oitavo, achado ao rodar. O que
+sobra dela é a **P3-8**, os dois falsos bloqueios do hook.
+
+**Da terceira**, o B1 e os quatro achados corrigíveis estão fechados (§8.6), e
+dois viraram pendência: **P3-9** e **P3-10**, ambas Fase 4.
 
 > **Havia dois cabeçalhos de status contraditórios aqui** — *"EM CURSO"* e
 > *"AUDITADA — PASS"*, um sob o outro, com uma data de fechamento no futuro. Era
@@ -24,7 +33,7 @@ que o produziu:
 | Medida | Comando |
 |---|---|
 | **217 testes**, zero pulos com a stack efêmera no ar | `python -m unittest discover -s tests` |
-| **188 arquivos** classificados pelo gate — 12 SPEC, 115 CODE, 61 descritivos | `python scripts/check_gate_coverage.py` |
+| **189 arquivos** classificados pelo gate — 12 SPEC, 115 CODE, 62 descritivos | `python scripts/check_gate_coverage.py` |
 | **32 passos** de verificação no CI | `grep -c "run: python" .github/workflows/invariants.yml` |
 
 > **Estes números eram 211, 183 e 27, e foi o commit anterior que invalidou os
@@ -689,7 +698,7 @@ nenhuma linha desta tabela é atestação minha.
 | 1 | `academus.enrollment_offline: true` faz o endpoint de matrícula retornar 503 | `tests/test_api_degradacao.py::ItensDaDoD::test_item_1_matricula_responde_503_com_a_flag_ligada` — 201 antes do inject, 503 depois, com o efeito vindo do **fold** sobre um `inject_fired` real |
 | 2 | `academus.grades_readonly: true` bloqueia POST de nota com mensagem de negócio | `::test_item_2_nota_bloqueada_COM_MENSAGEM_DE_NEGOCIO` — 409 e o texto manda falar com a coordenação. E `::test_a_leitura_de_nota_segue_disponivel_com_a_flag_ligada`, porque o `effect_ui` da flag diz que a leitura segue |
 | 3 | RBAC nega acesso cruzado entre perfis | `tests/test_api_rbac.py::RBAC::test_ACESSO_CRUZADO_e_negado_nas_duas_direcoes` — professor não lê aluno, aluno não lê turma, **e** professor lê a turma dele. O par é o que discrimina: negar tudo passaria em dois terços |
-| 4 | Nenhuma string solta de flag no código-fonte, verificado por lint | `python tools/check_contract_literals.py`, no job `arquitetura`. Exercido nesta fase: o hook **recusou** a primeira versão de `tests/test_api_degradacao.py`, que escrevia os quatro nomes de flag como literal |
+| 4 | Nenhuma string solta de flag no código-fonte, verificado por lint | `python tools/check_contract_literals.py`, no job `arquitetura` — **este é o gate**, e varre `range-core/` e `domains/` (`SCANNED_DIRS`). O episódio do hook recusando a primeira versão de `tests/test_api_degradacao.py` é anedota de desenvolvimento e **não é evidência do item**: o `check_architecture.py` se declara não-gate no próprio cabeçalho. Correção do L4 da terceira auditoria |
 
 **O item 4 não é herdado de fase anterior.** Ele estava mecanizado desde a Fase 1,
 mas a Fase 3 é a primeira que escreve código consumindo flag por nome — e a
@@ -716,6 +725,8 @@ três primeiros já passavam desde a Fase 1.
 | P3-6 | `POST .../notas` grava nota antes de a trilha de auditoria existir | **Fase 5**, com `06` T7 |
 | P3-7 | ~~A guarda de base do lançador cobre `BASE_SHA == HEAD_SHA`, e a inversão real é merge peça a peça~~ | ✅ **FECHADA** — predicado (ii) ∧ (iii) com sete eixos; furo do squash declarado em `WORKFLOW.md` |
 | P3-8 | Dois falsos bloqueios do hook do auditor: `->` citado lido como redirecionamento, path de URL lido como caminho absoluto | **Antes do checkpoint da Fase 4** — `WORKFLOW.md` §"Bloqueio indevido" |
+| P3-9 | `PostgresEventStore._head()` entra no núcleo sem nenhum teste, e é a leitura de que a validade do cache depende | **Fase 4** — é o que a stack efêmera existe para exercitar |
+| P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4, e não é reconstruível do event store | **Fase 4** — com o texto normativo citado |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -1195,6 +1206,56 @@ não é o critério; auditar por inferência quando havia medição disponível 
 
 **Vencimento: antes do checkpoint da Fase 4.**
 
+#### P3-9 — `PostgresEventStore._head()` entra no núcleo sem teste
+
+**M1 da terceira auditoria.** `range-core/events/postgres_store.py:116-137`.
+`tests/test_event_store_postgres.py` não contém nenhuma ocorrência de `head` nem
+de `StreamHead`; `tests/test_projection_cache.py` exercita `head()` **só** contra
+`InMemoryEventStore` — inclusive a classe `NoRedis`, que troca o *cache* por Redis
+e mantém o store em memória. O método irmão `_stored()` tem cobertura contra
+Postgres. `_head()` não tem nenhuma.
+
+**O que está em jogo:** a correção de `_head()` repousa sobre `sequence` ser
+contígua, e a afirmação **procede** — `alembic/versions/0001_event_store.py:53`
+com `autoincrement=False`, sequência calculada pela aplicação, mais o
+`CheckConstraint` de `:72`. Mas nenhum teste a exercita contra Postgres real, que
+é justamente o serviço que o lançador sobe.
+
+**A consequência é a forma que este projeto mais teme:** um `_head()` que
+devolvesse `count` errado ou `last_event_id` de outra linha faria `current()`
+(`range-core/state/cache.py:151-157`) servir projeção **obsoleta** sem nada ficar
+vermelho — e o sintoma apareceria no container da Fase 4, longe da causa.
+
+**Vencimento: Fase 4**, e por dois motivos que se somam: `06` T3 (*"reinício do
+processo restaura a projeção corrente"*) passa por este caminho, e a stack efêmera
+da P2-19 existe exatamente para que teste de persistência não seja teoria.
+
+#### P3-10 — `Cota` é estado mutável fora das cinco camadas
+
+**L3 da terceira auditoria.** `domains/academus/api/degradacao.py:95-113` e `:129`.
+O acumulador de `proporcional` vive na instância do `Degradador`, é chaveado por
+`(rota, flag)` e **não deriva de nenhum evento**.
+
+**O texto normativo, citado e não parafraseado.** `01_ARCHITECTURE.md` §4 enumera
+**cinco** camadas de estado — Simulation State, Participant Actions, Facilitation
+Audit, Business State e Derived/Projections — e nenhuma comporta um acumulador de
+processo. A mesma §4 diz da linha de business state que ela é *"não reversível por
+rollback; só por reset total"*, e §4.2 fixa o que rollback faz: repõe estado de
+simulação e gera novo `simulation_epoch`.
+
+**Duas consequências, e nenhuma é hipótese:**
+
+1. **Reinício da API zera a cota.** A docstring do módulo justifica o desenho por
+   determinismo — *"Reproduzível, e o facilitador consegue prever o efeito"* —, e
+   isso vale **por processo desde o início**, não entre execuções.
+2. **Rollback devolve a flag e não devolve o acumulador.** A taxa volta ao valor
+   de antes; a cota acumulada continua onde parou. O exercício reencena com o
+   mesmo `RANDOM_SEED` e a sequência de recusas não é a mesma.
+
+**Não afeta item de DoD** — `lms_session_drop_rate` é o terceiro endpoint que os
+OUTPUTS pedem, não a DoD. **Vencimento: Fase 4**, com a P3-5: é a fase em que
+existe processo que reinicia, e é quando as duas consequências saem do papel.
+
 ### O que confirmei na allowlist, na fonte e não por suposição
 
 Rodei a cópia **instalada** do hook contra 21 comandos, incluindo os oito
@@ -1362,6 +1423,27 @@ primeira:**
 **Cinco ocorrências, quatro nesta fase, uma no `readonly_bash.py` da Fase 0. Isso
 é padrão, não acaso, e a Fase 4 começa sabendo:** correção de achado é o lugar de
 maior risco do projeto, e o antídoto que funciona é execução, não vigilância.
+
+#### 7.3.2 A variante: a declaração existe, está certa, e não chega a quem decide
+
+Três vezes nesta fase, e é uma forma diferente da §7.3.1 — não é verificação
+vazia, é **verificação correta cujo resultado morre antes do destinatário**:
+
+| | A declaração | Onde ela parava |
+|---|---|---|
+| 1ª | *"degradar antes de autenticar entregaria o estado da simulação"* | num **comentário** de `degradacao.py`. O FastAPI é que decidia, e nada afirmava a ordem — o M2 |
+| 2ª | o veredito da guarda de base | era calculado contra `--base` em vez da branch default: certo para a pergunta errada — o eixo (h) |
+| 3ª | *"esta auditoria é LAUDO, e não porta"* | no **stderr** do lançador. O auditor deduziu "porta" do silêncio e julgou como gate — a §8.6.2 |
+
+**O que as três têm em comum:** em nenhuma delas alguém errou o raciocínio. O
+argumento estava certo nas três, e o defeito é de **transporte** — o canal entre
+quem sabe e quem decide.
+
+**A regra que sai daqui:** *toda declaração precisa de destinatário nomeado, e o
+teste é sobre o destinatário, não sobre a declaração.* Provar que o aviso foi
+impresso não prova que ele chegou ao prompt. É por isso que o eixo (i) lê o
+**prompt montado**, e não o stderr — e é a mesma escolha que fez o teste da ordem
+`autoriza → degrada` ser comportamental antes de ser estrutural.
 
 ### O contraste que vale registrar
 
@@ -1554,6 +1636,104 @@ primeiro faria o canal de temporização nunca ser a linha vermelha.
 Revertida a inversão, 217/217. **A quinta linha vermelha é o achado inteiro**, e
 o que ela ensina está na §7.3.1 — não aqui, porque não é episódio: é a terceira
 lição desta fase reincidindo dentro da correção do achado que a nomeou.
+
+---
+
+## 8.6 A terceira auditoria — FAIL, e o BLOCKER não é sobre o código
+
+**FAIL**, commit `8135055`. `docs/progress/audit_20260816T210908Z.md`.
+
+O auditor delimitou o próprio achado com precisão, e a frase merece ser citada:
+*"B1 é sobre o **checkpoint**, não sobre defeito encontrado no código. A revisão
+estática **não** encontrou defeito nos quatro itens da DoD. B1 diz que ninguém
+provou que eles passam — não que eles falham."*
+
+### 8.6.1 O B1 — onze tentativas, seis formas de comando, nenhuma execução
+
+**E nenhuma foi bloqueada pelo hook.** `readonly_bash.py` autoriza
+`python -m unittest discover -s tests`, os verificadores de `tools/` e os de
+`scripts/`. Quem negou foi a **camada de permissão da sessão**:
+`--permission-mode default` e `.claude/settings.json` sem entrada
+`permissions.allow` para `Bash`. `git log`, `git diff`, `ls` e `grep` passaram —
+o corte é exatamente sobre execução.
+
+**Duas causas empilhadas, e só a primeira é acidente:**
+
+| | |
+|---|---|
+| **contingente** | a sessão foi para segundo plano aos 120 s, ficou sem terminal, e não havia quem aprovasse. Nas duas rodadas anteriores o operador estava na janela clicando — foi assim que os 217 testes rodaram |
+| **estrutural** | a capacidade do auditor de **medir** dependia de um humano lembrar de clicar. A allowlist do hook — dezenove rodadas de endurecimento, prova negativa nas duas direções — **não era quem concedia execução** |
+
+`WORKFLOW.md` dizia *"Bash passa por allowlist textual"*. Passava por allowlist
+textual **e** por aprovação manual, e era a segunda que decidia. **A frase
+descrevia metade do mecanismo, e a metade que não era a que rodava** — corrigida
+na fonte, não aqui.
+
+**A correção, decidida pelo operador:** `--allowedTools Bash` **no lançador**, e
+não em `settings.json`. O escopo é a razão: a concessão vive versionada, vale só
+para a sessão do auditor, e `readonly_bash.py` volta a ser a restrição inteira.
+Uma entrada em `settings.json` valeria para toda sessão do repositório — onde o
+hook do auditor nem roda.
+
+**Este é o quarto episódio da mesma linhagem**, e o hook o registra no próprio
+cabeçalho: *"o auditor da Fase 2 nao conseguiu executar NENHUM teste da fase e
+voltou a avaliar por leitura de codigo"*. A diferença é que desta vez a causa não
+estava no hook — estava na camada acima dele, que ninguém tinha olhado.
+
+### 8.6.2 O veredito da guarda não chegava ao prompt
+
+No item 6 do que não conseguiu verificar, o auditor escreveu: *"Deduzi que sim
+pela ausência do bloco de AVISO no prompt"*.
+
+**Dedução razoável, resposta errada, e o defeito é meu.** O `PROMPT` do lançador
+carregava `$BASE_SHA`, `$BASE_REF` e `$SERVICOS`. O veredito da guarda ia para o
+**stderr** e morria ali. O auditor auditou como **porta** o que era **laudo** —
+e porta e laudo mudam o que um BLOCKER significa.
+
+**É a terceira vez nesta fase que a declaração existe, está correta, e não chega
+a quem decide com ela:**
+
+| | Onde |
+|---|---|
+| 1ª | a ordem `autoriza → degrada`, provada em **comentário** — o M2 da primeira auditoria |
+| 2ª | o eixo (h): `--base` trocava o veredito porque a avaliação não distinguia base de branch default |
+| 3ª | esta: o aviso de laudo impresso no stderr, ausente do prompt |
+
+Corrigido: a saída da guarda é **capturada** e entra no prompt verbatim, sob o
+rótulo *"porta ou laudo está DITO aqui, e não deve ser deduzido do que o prompt
+deixa de conter"*. O probe é o eixo **(i)**, e ele lê o **prompt montado** — extrai
+o bloco `PROMPT=` do próprio lançador e o executa com as variáveis definidas.
+Ler o stderr provaria a metade errada.
+
+### 8.6.3 Os achados, e o que foi feito com cada um
+
+| | Achado | Disposição |
+|---|---|---|
+| **B1** | o auditor não executou nada | **corrigido** — `--allowedTools Bash` no lançador; `WORKFLOW.md` passa a descrever o mecanismo que roda |
+| **H1** | `02383e4` (spec-change) dentro do intervalo da fase: o diff carrega spec **e** código, e o `spec_freeze` reprovaria | **procedimento escrito** em `WORKFLOW.md` §"`spec-change` primeiro" — spec-change mergeado antes, rebase da branch, **âncora regravada**. É clique do operador, não condição do repositório |
+| **M1** | `PostgresEventStore._head()` sem teste | **P3-9**, Fase 4 |
+| **L1** | `test_a_serializacao_preserva_o_TIPO_do_valor` promete proteger flag `number` e afirma `bool` sobre flag booleana | **corrigido** — ver abaixo |
+| **L2** | `check_fold_authority` varre só `range-core/`, limite não declarado | **corrigido** — o limite está em `CORE_ROOT` e no cabeçalho |
+| **L3** | `Cota` fora das cinco camadas de `01` §4 | **P3-10**, Fase 4 |
+| **L4** | o registro citava o hook — que se declara não-gate — como evidência do item 4 | **corrigido** na tabela da §5.1 |
+
+**O L1 é a família do H1 da segunda rodada, e fechou do mesmo jeito.** O fixture
+de `test_projection_cache.py` não tinha **nenhuma** flag `number`: a asserção
+afirmava `bool` sobre um `bool`. Agora existe `fixture.taxa_de_queda`, `number`,
+com default `0.0` e efeito `0.5` — a forma de `academus.lms_session_drop_rate` —,
+e ela atravessa o Redis de verdade.
+
+A asserção que importa é `assertNotIsInstance(proporcional, bool)`, e ela precisa
+ser dita porque **`isinstance(True, int)` é verdadeiro em Python**: sem essa
+linha, um número que voltasse booleano passaria pelo `assertIsInstance(…, float)`
+apenas se alguém lembrasse que `bool` é subclasse de `int`, não de `float`.
+
+**Medido, com a stack efêmera no ar — 217 testes, ZERO pulos:** plantando
+`{k: bool(v) for k, v in projecao.state.flags.items()}` na serialização de
+`RedisProjectionCache`, o teste fica vermelho com *"a flag `number` voltou
+booleana do Redis: o caminho `proporcional` leria 1.0 onde a declaração diz
+0,5"*. Revertido, 217/217. A lição da §7.3.1 aplicada na primeira vez, e não na
+segunda.
 
 ---
 

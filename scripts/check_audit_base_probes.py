@@ -34,6 +34,8 @@ nada. O (a) e o (d) sao a metade que impede a outra de virar supersticao — e o
 from __future__ import annotations
 
 import io
+import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -277,6 +279,73 @@ def probe_h() -> bool:
     return False
 
 
+LANCADOR = REPO_ROOT / "scripts" / "start_checkpoint_audit.sh"
+
+
+def probe_i() -> bool:
+    """(i) O veredito da guarda chega ao PROMPT — lido do prompt MONTADO.
+
+    O B1 da terceira rodada da Fase 3 nao foi so a camada de permissao. No mesmo
+    relatorio, no item 6 do que ele nao conseguiu verificar, o auditor escreveu:
+    *"Deduzi que sim pela ausencia do bloco de AVISO no prompt"*. O aviso ia para
+    o stderr do lancador e morria ali — ele auditou como GATE o que era LAUDO.
+
+    Terceira vez na fase que a declaracao existe, esta correta, e nao chega a
+    quem decide com ela: a primeira foi a ordem `autoriza -> degrada` provada em
+    comentario, a segunda foi o eixo (h).
+
+    ESTE PROBE EXECUTA A ATRIBUICAO REAL. Ele extrai o bloco `PROMPT=...` do
+    proprio lancador e o roda com as variaveis definidas — nao e uma copia da
+    linha, e sim a linha. Quem remover `$GUARDA_SAIDA` do prompt derruba isto.
+
+    Limite declarado: a extracao e textual (acha o inicio e o fim do bloco), e o
+    resto do lancador nao e exercido aqui — subir Docker e abrir sessao nao cabe
+    num probe. A tecnica e a mesma que `check_gate_coverage.py` usa para ler os
+    pathspecs do workflow em vez de repeti-los.
+    """
+    fonte = LANCADOR.read_text(encoding="utf-8")
+
+    if "GUARDA_SAIDA=$(" not in fonte:
+        print("  FALHA (i): o lancador nao CAPTURA a saida da guarda")
+        return False
+
+    linhas = fonte.splitlines()
+    try:
+        ini = next(i for i, l in enumerate(linhas) if l.startswith('PROMPT="'))
+        fim = next(i for i, l in enumerate(linhas[ini:], ini) if l.rstrip().endswith('."'))
+    except StopIteration:
+        print("  FALHA (i): nao achei o bloco PROMPT= no lancador")
+        return False
+
+    bash = shutil.which("bash")
+    if bash is None:
+        print("  FALHA (i): este probe precisa de `bash` para montar o prompt de verdade")
+        return False
+
+    marca = "AVISO: parte do trabalho da fase 3 JA ESTA em 'x'. LAUDO, e nao porta."
+    script = "\n".join(
+        [
+            "PHASE=3",
+            "HEAD_SHA=aaaa",
+            "BASE_SHA=bbbb",
+            "BASE_REF=main",
+            "SERVICOS=ATIVOS",
+            f"GUARDA_SAIDA={shlex.quote(marca)}",
+            *linhas[ini : fim + 1],
+            'printf "%s" "$PROMPT"',
+        ]
+    )
+    montado = subprocess.run(
+        [bash, "-c", script], capture_output=True, text=True, check=False
+    ).stdout
+
+    if marca in montado:
+        print("  ok    (i) o veredito da guarda aparece no PROMPT montado")
+        return True
+    print(f"  FALHA (i): o PROMPT montado NAO contem o veredito da guarda:\n        {montado[:200]!r}")
+    return False
+
+
 def probe_da_deteccao() -> bool:
     """O probe dos probes: a ancora legitima nao pode ser confundida com outra.
 
@@ -304,6 +373,7 @@ def main_probes() -> int:
     resultados = [roda(*p) for p in PROBES]
     resultados.append(probe_g())
     resultados.append(probe_h())
+    resultados.append(probe_i())
     resultados.append(probe_da_deteccao())
 
     print()
