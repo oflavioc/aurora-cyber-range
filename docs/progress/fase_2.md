@@ -1,13 +1,13 @@
 # Fase 2 — Clock, eventos, estado, engine mínimo
 
-**Status: EM CURSO.** Checkpoint ⏸ submetido e decidido em 15/08/2026. O
-spec-change que ele exigia está em `main` no commit `a3aded5` (PR #21).
+**Status: CONCLUÍDA** em 16/08/2026. **Nove de nove** itens da Definition of Done
+(§4), auditoria de checkpoint **PASS** contra `8c293e5` — zero BLOCKER, zero
+HIGH, zero MEDIUM —, e os três LOW dispostos: dois corrigidos, um convertido em
+pendência com destino.
 
-**Código escrito até aqui:** a projeção `simulation_state`, o envelope, o
-cálculo compartilhado de epoch, o `event_id`, a porta do relógio, o event store
-com as implementações em memória e em Postgres, o `exercise-clock`, as regras
-`x-aurora-*` como módulo do núcleo, o loader de pack, o inject-engine e a leitura
-do `RANDOM_SEED`. **Sete dos nove itens da DoD fechados** — ver a §4.
+Três `spec-change` nasceram nesta fase e estão em `main`: `a3aded5` (as
+escalações do checkpoint ⏸), `c160522` (`exercise_resumed`) e `f52e924` (a
+realocação do item 8). O registro final está na **§7**.
 
 ---
 
@@ -1963,9 +1963,21 @@ que sustenta a parte que ele não roda.
 | **(a)** | o launcher passa ao auditor a URL de um Postgres efêmero (o mesmo `docker compose` que o projeto já traz) | o auditor passa a executar os nove; exige Docker na máquina de quem audita |
 | **(b)** | o auditor consulta o estado do CI para o commit auditado, por `gh run list --commit` | precisa de rede e de `gh` na allowlist — que é ampliar o julgador de novo, e por um caminho que fala com fora |
 
-**Inclinação: (a)**, porque mantém o auditor sem rede — propriedade que ele tem
-hoje e que vale mais que a conveniência. Mas é decisão do operador, e ela muda o
-que o checkpoint exige da máquina.
+**Decidida pelo operador: (a).** O auditor sem rede é **propriedade**, não
+limitação, e `gh` na allowlist abriria **superfície permanente** para resolver
+**dúvida pontual**.
+
+**A consequência é maior que a pendência, e fica dita aqui para ninguém
+implementar só a metade que o título nomeia.** O Postgres efêmero não fecha
+apenas *"o auditor não vê o CI"*: ele **faz os nove testes pularem de pular**. Com
+`AURORA_TEST_DATABASE_URL` definida no worktree, o auditor passa a executar a
+persistência, o critério de reinício de `06` T3, os três casos de detecção de
+reescrita por cadeia de hash, a contiguidade de `sequence` e o caso de dois
+escritores concorrentes — que é o **item 1** da lista de não-verificados do
+relatório, e o que mantém metade dos itens 5 e 6 verificada por leitura.
+
+Quem implementar (a) e parar em "o auditor sabe do CI" terá resolvido a menor das
+duas coisas.
 
 **Vencimento: Fase 3**, junto da P2-16.
 
@@ -2221,8 +2233,175 @@ O store grava e lê; o clock dá as marcas e o `is_paused`; o fold projeta e
 recusa o que não fecha. O engine é quem chama os três — e é o primeiro
 consumidor das regras `x-aurora-*` sobre pack real, que é o que a §1.4 antecipou.
 
-## 7. Próxima fase
+## 7. Registro final da fase
 
-`07` Fase 3 — API mínima. ENTRY: Fase 2 completa.
+O que `07` §248 manda gravar ao concluir, mais duas coisas que ele não pede e que
+esta fase pagou para aprender.
 
-**P37 vence antes dela**, com prazo declarado em `fase_1.md` §7.2.
+### 7.1 Resumo técnico
+
+A Fase 2 entrega o **núcleo determinista**: um relógio, um registro append-only,
+uma projeção e o motor que os chama. Nenhuma tela, nenhuma rota, nenhuma métrica.
+
+| Peça | Onde | O que ela é |
+|---|---|---|
+| `exercise-clock` | `range-core/clock/` | T0, pausa, multiplicador fechado (1x/5x/20x), as **quatro marcas** de uma leitura só. Tempo de parede por injeção — nenhum teste dorme |
+| event store | `range-core/events/` | append-only, envelope de `09` §1.1, carimbo no append (D1), duas implementações — memória e Postgres com `sequence` contígua e cadeia de hash |
+| projeção `simulation_state` | `range-core/state/` | fold puro, `project(events, declarations)`, **onze sítios de recusa** nomeados. A exclusão de epoch abandonada vive aqui e em lugar nenhum mais |
+| loader de pack | `range-core/engine/loader/` | duas camadas — JSON Schema e as regras `x-aurora-*`, **as mesmas do gate de CI** —, pino por `content_hash` canônico |
+| inject-engine | `range-core/engine/inject_engine.py` | dispara, agenda, decide, pausa, rebobina. Não guarda estado: consulta o clock e o store |
+| determinismo | `range-core/determinism.py` | `RANDOM_SEED` do ambiente ou de `.env`, com fluxos derivados por escopo |
+
+**As quatro decisões que mais restringem o que vem depois:** o núcleo é
+**síncrono** (§1.3); as marcas são carimbadas **pelo store** (§1.5); a exclusão de
+rollback vive **só no fold** (§1.6); e `effects` é **estado final declarado**,
+nunca delta (§1.7) — que é o que torna idempotência e rollback possíveis.
+
+### 7.2 Estrutura de diretórios
+
+```text
+range-core/
+  determinism.py            RANDOM_SEED e fluxos derivados por escopo
+  clock/                    exercise_clock.py, port.py
+  events/                   envelope, epoch, ids, integrity, store, postgres_store
+  state/                    simulation_state.py — o fold
+  engine/
+    inject_engine.py        dispara, agenda, decide, pausa, rebobina
+    loader/                 canonical, contract_rules, contract_source, pack_loader
+    branching/ migrations/  vazios — Fase 7
+  aar/ api/ evidence/ metrics/ objectives/ rubrics/ telemetry/   vazios
+tests/                      12 arquivos — 11 suítes e o harness de mutação; 155 testes
+  fixtures/pack_minimo/     manifest.yaml, injects.yaml, objectives.yaml
+scripts/                    +6 nesta fase, dos quais 5 rodam no CI
+alembic/versions/           0001_event_store.py
+```
+
+### 7.3 Endpoints criados
+
+**Nenhum, e é NON-GOAL.** `07` Fase 2 exclui UI e API; a `academus-api` é da Fase
+3. O que existe de superfície pública nesta fase são dois métodos de
+`EventStore` — `append` e `read_all` — e a lista é **fechada por verificação**
+(`scripts/check_store_read_surface.py`, cinco eixos de prova negativa).
+
+### 7.4 Migrations
+
+| Revisão | Arquivo | O que cria |
+|---|---|---|
+| `0001_event_store` | `alembic/versions/0001_event_store.py` | tabela do event store, com `simulation_epoch NOT NULL`, `sequence` como chave primária atribuída pela **aplicação** e `row_hash` único |
+
+`sequence` não é `BIGSERIAL` de propósito: sequência de banco consome número em
+transação que faz rollback, e o buraco resultante seria alarme falso — detecção
+que grita sem defeito é detecção que se aprende a ignorar (§3.5).
+
+### 7.5 Variáveis de ambiente
+
+| Variável | Quem lê | Por quê |
+|---|---|---|
+| `DATABASE_URL` | a migration | o banco de desenvolvimento |
+| `AURORA_TEST_DATABASE_URL` | os testes de Postgres | **duas variáveis de propósito**: os testes fazem `TRUNCATE`, e apontá-los para a primeira faria um `unittest` distraído apagar o banco de quem tivesse o `.env` carregado (§3.5) |
+| `RANDOM_SEED` | `range-core/determinism.py` | item 2 da DoD. Sem valor padrão: seed inventado reproduz a si mesmo |
+
+Ausente `AURORA_TEST_DATABASE_URL`, os nove testes de Postgres **pulam**, e o
+`skip` imprime o comando para rodá-los — pulo silencioso lido como verde é o que
+a **P2-19** ataca.
+
+### 7.6 Pendências abertas, por quem as recebe
+
+**Oito fechadas** — P2-2, P2-3, P2-4, P2-10, P2-12, P2-13, P2-14 e P2-15 —, e
+**onze abertas**, contadas na tabela da §5 no momento de escrever esta linha.
+
+> A primeira redação desta frase dizia *"seis fechadas"* e listava sete nomes. A
+> §6.1 acontecendo dentro da seção que a descreve, três parágrafos acima de
+> "número afirmado é contado na fonte dele". Pega por contar, não por reler.
+
+Separadas por destinatário:
+
+#### Fase 3 — quem começar lê isto primeiro
+
+| Id | O que é |
+|---|---|
+| **P2-5** | `00` §5.6 enumera duas das quatro marcas — cosmético, `spec-change` |
+| **P2-6** | sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela |
+| **P2-9** | a frase do mecanismo em `01` §4.4 envelheceu — `spec-change` |
+| **P37** | `docs/process/` fora do `CODE` do `spec_freeze` — herdada da Fase 1 |
+
+**P2-5 e P2-9 cabem no mesmo `spec-change`**; a P37 é mecanismo e vai em PR
+próprio. Nenhuma das quatro impede o início da Fase 3 — as duas de spec vencem
+antes de ela **fechar**.
+
+#### Fases posteriores
+
+| Id | Destino | O que é |
+|---|---|---|
+| **P2-1** | Fase 6 | propriedade entre projeções: abandono lido só pelo motivo declarado |
+| **P2-17** | Fase 6 | o `start` do intervalo congelado vem da âncora, não do inject falho |
+| **P2-11** | Fase 9 | `append` abre uma conexão por chamada |
+| **P2-8** | Fase 10 | retenção do pack por conteúdo, com item de DoD próprio |
+| **P2-7** | sem prazo | o exemplo de `09` §1.1 e a aritmética de epoch única — candidato, não defeito |
+
+#### Aparato de auditoria — não são da fase, e se repetem sem dono
+
+| Id | O que é |
+|---|---|
+| **P2-16** | o worktree resolve `main` para o ref **local**, que envelhece — produziu um HIGH falso |
+| **P2-18** | o harness de mutação escreve em `tempfile` fora do worktree, contra a suposição de contenção |
+| **P2-19** | o auditor não confirma o CI no commit auditado — e o Postgres efêmero que a fecha **também faz os nove testes deixarem de pular** |
+
+**As três cabem num PR só**, e vencem antes do próximo checkpoint: nenhuma delas
+se conserta mexendo no código de fase alguma.
+
+### 7.7 O que a fase aprendeu sobre o próprio método
+
+Três lições, e **nenhuma está numa Definition of Done**. As três custaram caro.
+
+**1. Escalar sem varrer é meia correção — a lição do E1.**
+O E1 corrigiu um item do `07`, e a mesma exigência vivia em mais cinco lugares. A
+varredura que os achou usou **dois** padrões: o nome do motivo, e um que pega o
+enunciado **sem** o nome. O segundo é o que encontrou `03` §3.5, que nenhuma
+auditoria tinha reportado.
+
+Repetiu-se três vezes depois, e o padrão que paga é sempre o que **não** usa o
+nome: no `exercise_resumed`, foi o das *enumerações de atos* que achou `00` §3.1
+— no MASTER — enumerando "start/pause/reset"; no item 8, foi comparar os três
+sítios lado a lado que revelou que **eles não diziam a mesma coisa**, e que a
+redação do item já o dava por cumprido.
+
+**2. Número lembrado de outro conjunto, e reler não pega — a §6.1.**
+Três correções de contagem na mesma fase: "nove verificadores" contra seis, "sete
+sítios de recusa" contra onze, "doze itens de DoD" contra nove. A §1.5 da Fase 1
+manda **reler a fonte** — e reler não corrige nenhuma delas, porque o número não
+veio de leitura errada: veio **lembrado de outro conjunto**.
+
+A regra é outra: **número afirmado diz de que conjunto é, e é contado na fonte
+dele no momento em que se escreve.** Custou de novo no L1 da auditoria PASS — "32
+tipos" numa docstring, escrita antes de a própria fase acrescentar o trigésimo
+terceiro.
+
+**3. A fase que cria o mecanismo estende o julgador no mesmo commit — o B1.**
+Esta fase criou a primeira suíte real do projeto, em `unittest`, e não
+acrescentou uma linha à allowlist do auditor. O auditor não executou **nada** e
+voltou a julgar por leitura: sete dos nove itens ficaram NÃO VERIFICADO, e o
+veredito foi FAIL por uma omissão de uma linha.
+
+**A regra já estava escrita dentro do arquivo que ela governa** — *"script novo
+que precise ser executado pelo auditor entra aqui por nome, no commit que o
+cria"* —, e é reincidência nomeada do H3 da segunda auditoria da Fase 1. Regra
+escrita não segura; o que segura é o commit que a cumpre.
+
+**O que as três têm em comum**, e é o que sobrevive: nenhuma é erro de raciocínio.
+São **afirmações que envelhecem** — a correção que não varreu, o número que veio
+de outro conjunto, o mecanismo que não acompanhou o que ele julga. É a §1.6 da
+Fase 1 em três formas, e o remédio nunca é atenção: é fazer a afirmação depender
+de algo que **falha alto** quando ela deixa de valer.
+
+## 8. Próxima fase
+
+`07` Fase 3 — API mínima. **ENTRY: Fase 2 completa** ✅
+
+O que a Fase 3 herda em condição de uso: o fold, o store nas duas implementações,
+o clock, o loader e o engine — com 155 testes, 17 verificações no CI e prova
+negativa por mutação sobre os três módulos que decidem estado.
+
+**O que ela precisa resolver cedo:** a **P2-6**. A `01` §4.4 descreve mudança de
+estado sem caminho reconstruível enquanto não houver forma declarativa de ligar
+`participant_action` a flag — e é na Fase 3 que nasce o serviço que a consome.
