@@ -232,6 +232,84 @@ LEITURA_LEGITIMA = [
     # `nc` dentro de texto nao e acesso de rede: a fronteira de palavra casava
     # dentro de uma sequencia escapada. Era o L2 da 15a auditoria.
     ("nc como substring nao e rede", r'printf "%s" "\nc = 6"'),
+    # ------------------------------------------------------------------
+    # P3-8, PRIMEIRA METADE — a seta citada. As tres primeiras estavam em
+    # FALSOS_BLOQUEIOS_CONHECIDOS desde a 19a auditoria da Fase 0, declaradas e
+    # nao corrigidas; a segunda auditoria da Fase 3 mediu o custo, e o achado
+    # dela se apoiou em leitura de quatro sitios porque a medicao estava
+    # bloqueada. `>` nao redireciona dentro de aspas em bash nenhum: a regra
+    # lia outro shell. Ver `_redirecionamento_para_arquivo`.
+    # ------------------------------------------------------------------
+    ("seta dentro de padrao de busca", r'grep -rn "\-> None:" tools/codegen.py'),
+    ("arrow function dentro de padrao de busca",
+     'grep -n "=>" .github/workflows/invariants.yml'),
+    ("seta dentro de --format do for-each-ref",
+     "git for-each-ref --format='%(refname) -> %(objectname:short)' refs/tags"),
+    ("a ordem `autoriza -> degrada`, que e o vocabulario da Fase 3",
+     'grep -rn "autoriza -> degrada" domains/academus/api'),
+    ("maior-que citado em format de git", 'git log --format="%h > %s" -1'),
+    # ------------------------------------------------------------------
+    # P3-8, SEGUNDA METADE — path de URL. As tres rotas da DoD da Fase 3
+    # comecam com `/`, e o tokenizador de alvo as resolvia contra o cwd. Sao as
+    # buscas mais rotineiras que existem numa fase de API.
+    # ------------------------------------------------------------------
+    ("path de URL em padrao de busca",
+     'grep -n "/turmas/{turma_id}/diario" domains/academus/api_surface.yaml'),
+    ("path de URL sem chaves", 'grep -rn "/matricula" domains/academus'),
+    ("path de URL com rg", 'rg -n "/alunos/\\{aluno_id\\}" domains'),
+    ("path de URL depois de pipe", 'git ls-files | grep "/turmas"'),
+]
+
+#: REINTERPRETACAO DE SHELL — a direcao adversarial da correcao do `>` citado.
+#:
+#: A seguranca da correcao NAO esta na mascara: esta em que, para um `>` entre
+#: aspas virar redirecionamento de verdade, algum comando precisa reinterpretar
+#: a string como shell. Nenhum deles esta na allowlist, e e isso que estes
+#: probes afirmam — se um dia `sh`, `bash`, `eval` ou `xargs` entrarem, a
+#: correcao do `>` citado passa a ser fail-open e estes reprovam primeiro.
+REINTERPRETACAO_DE_SHELL = [
+    ("sh -c com redirecionamento citado", 'sh -c "echo x > out.txt"'),
+    ("bash -c com redirecionamento citado", 'bash -c "echo x > out.txt"'),
+    ("eval com redirecionamento citado", 'eval "echo x > out.txt"'),
+    ("xargs como trampolim de shell", 'git ls-files | xargs sh -c "echo x > out.txt"'),
+    ("python -c com redirecionamento citado", 'python -c "print(1)" > out.txt'),
+    # A queda para o texto cru, nas duas formas em que o parse pode divergir do
+    # bash. Sem elas, a isencao valeria justamente onde a mascara nao sabe o que
+    # esta fazendo.
+    ("aspas escapadas caem para o cru e o redirecionamento volta a valer",
+     'echo \\" > out.txt'),
+    ("aspas nao fechadas caem para o cru", 'echo "abre > out.txt'),
+]
+
+#: ALVO EXISTENTE FORA DO WORKTREE — a isencao da P3-8 exige NAO EXISTIR, e
+#: estes provam a metade que ela nao alcanca. `{fora}` e o diretorio pai da
+#: arvore: existe sempre, e nunca esta contido nela.
+#:
+#: A grafia do Git Bash e a que o defeito teria: `os.path.exists("/c/...")` no
+#: Python de Windows resolve contra a raiz da unidade corrente e diz "nao
+#: existe" para o caminho real da arvore principal — que e o alvo que a
+#: contencao mais precisa negar. Ver `_existe_no_disco`.
+ALVO_EXISTENTE_FORA_BLOQUEIA = [
+    ("leitura por caminho absoluto que EXISTE fora do worktree", "ls {fora}"),
+    ("stat em caminho que EXISTE fora do worktree", "stat {fora}"),
+    ("busca em caminho que EXISTE fora do worktree", 'grep -rn "x" {fora}'),
+]
+
+#: LEITOR SEM ESCRITA + ALVO INEXISTENTE: as DUAS condicoes juntas. Aqui o alvo
+#: nao existe e o comando nao tem forma de escrever, entao passa. Sozinha,
+#: nenhuma das duas bastaria — e as duas listas ao lado provam isso.
+ALVO_INEXISTENTE_DE_LEITOR_PASSA = [
+    ("leitor puro com alvo inexistente", "cat /rota/que/nao/existe"),
+    ("busca com alvo inexistente", 'grep -n "x" /rota/que/nao/existe'),
+]
+
+#: COMANDO COM FORMA DE ESCRITA + ALVO INEXISTENTE: bloqueia. Sao as duas
+#: exclusoes deliberadas de LEITORES_SEM_ESCRITA, com a forma de escrita de cada
+#: uma. `tree -o` nao esta no escopo da regra de flags: quem o contem e esta.
+ESCRITA_COM_ALVO_INEXISTENTE_BLOQUEIA = [
+    ("tree -o, fora da isencao por escrever", "tree -o /c/nao_existe/saida.txt"),
+    ("sort -o, fora da isencao por escrever",
+     "git ls-files | sort -o /c/nao_existe/saida.txt"),
 ]
 
 #: MASCARA DE CITACAO — probes ADVERSARIAIS da correcao do P23.
@@ -285,19 +363,20 @@ FALSOS_BLOQUEIOS_CONHECIDOS = [
     # reescrever o padrao sem o token. Era o H1 da 16a auditoria, que apontou
     # com razao que este caso nao estava nem corrigido nem declarado.
     # DECLARADOS pela 19a auditoria, e declarados e o que o item 4(e) pede: o
-    # estado fica como a 19a o encontrou, com a superficie dita. Nao sao
-    # corrigidos, por decisao registrada em §6 P40 — parar a iteracao sobre o
-    # item 4. Os dois falham FECHADO: recusam leitura, nao abrem escrita.
+    # estado fica como a 19a o encontrou, com a superficie dita.
     #
-    # (M1) `>` dentro de argumento citado casa a regra de redirecionamento.
-    # `->` (anotacao de retorno Python) e `=>` (arrow function TS) sao buscas
-    # rotineiras, e o custo cresce na Fase 1, que entrega geradores TypeScript.
-    # A leitura continua obtenivel por outra grafia ou pela ferramenta Grep.
-    ("seta dentro de padrao de busca", r'grep -rn "\-> None:" tools/codegen.py'),
-    ("arrow function dentro de padrao de busca",
-     'grep -n "=>" .github/workflows/invariants.yml'),
-    ("seta dentro de --format do for-each-ref",
-     "git for-each-ref --format='%(refname) -> %(objectname:short)' refs/tags"),
+    # (M1) SAIU DAQUI NA P3-8, e nao por mudanca de criterio: `>` nao
+    # redireciona dentro de aspas, entao a regra estava lendo outro shell. As
+    # cinco linhas migraram para LEITURA_LEGITIMA. O que fica desta familia e o
+    # residuo abaixo, e ele e residuo por decisao.
+    #
+    # `git` NAO esta em LEITORES_SEM_ESCRITA — `git diff|log|show --output=` e
+    # escrita provada por probe —, entao path de URL em argumento de `git` segue
+    # bloqueado. Declarado em vez de estendido: a isencao admite quem nao tem
+    # NENHUMA forma de escrita, e afrouxar isso para caber uma busca comoda e
+    # como os furos deste arquivo sempre entraram. A leitura continua obtenivel
+    # por `grep`, que esta liberado.
+    ("path de URL em argumento de git log -S", 'git log -S "/turmas/{turma_id}" --oneline'),
     # (M2) `git branch` foi removido dos subcomandos na 11a auditoria, porque
     # muta o ref store compartilhado por -m/-M/-f/-c/-d/-D. Listar ramos passou
     # a ser feito com `git for-each-ref`, que nao tem forma que mute e esta em
@@ -559,6 +638,17 @@ ESCRITA_POR_ALVO = [
 BURACOS_CONHECIDOS: list[tuple[str, str]] = []
 
 
+def _grafia_git_bash(caminho: str) -> str:
+    """`C:/Projetos` -> `/c/Projetos`. Em POSIX devolve o mesmo caminho.
+
+    O alvo e o MESMO nas duas grafias, e e por isso que as duas sao testadas: o
+    probe que so cobre a grafia lembrada nao prova ausencia da esquecida — B2 da
+    decima auditoria, aplicado a existencia em vez de a contencao.
+    """
+    m = re.match(r"^([A-Za-z]):(/.*)?$", caminho)
+    return f"/{m.group(1).lower()}{m.group(2) or ''}" if m else caminho
+
+
 def _hooks_sob_teste() -> list[tuple[str, Path]]:
     """Fonte versionada SEMPRE; copia instalada TAMBEM, quando existir.
 
@@ -739,6 +829,37 @@ def allowlist_e_a_revisada() -> None:
     comando entre em COMANDOS_REVISADOS, o que forca a revisao de capacidade de
     escrita a acontecer no momento da mudanca, e nao na auditoria seguinte.
     """
+    encontrados, padroes = _comandos_da_allowlist()
+
+    if not padroes:
+        _reject("allowlist do readonly_bash.py",
+                "nenhum padrao reconhecido no bloco ALLOWED — a extracao "
+                "depende da forma como as entradas sao escritas, e a forma mudou", "")
+
+    novos = encontrados - COMANDOS_REVISADOS
+    if novos:
+        _reject(
+            "allowlist do readonly_bash.py",
+            f"contem comando(s) NAO REVISADO(S): {sorted(novos)}. "
+            "Acrescente a COMANDOS_REVISADOS somente apos examinar se o comando "
+            "tem caminho de escrita — por acao, por flag ou por invocacao de "
+            "outro processo. Foi assim que `env` passou onze rodadas",
+            "",
+        )
+    sumidos = COMANDOS_REVISADOS - encontrados
+    print(
+        f"OK: allowlist e o conjunto revisado ({len(encontrados)} comandos)"
+        + (f"; removidos desde a ultima revisao: {sorted(sumidos)}" if sumidos else "")
+    )
+
+
+def _comandos_da_allowlist() -> tuple[set[str], list[str]]:
+    """Comandos extraidos do bloco ALLOWED do hook, e os padroes reconhecidos.
+
+    Extraido de `allowlist_e_a_revisada` na P3-8, porque a isencao de leitor
+    puro precisa da MESMA lista: uma segunda extracao seria a segunda escrita do
+    mesmo fato, que e a classe que a P3-1 registrou.
+    """
     fonte = READONLY_HOOK_SOURCE.read_text(encoding="utf-8")
     bloco = fonte.split("ALLOWED = [", 1)[1].split("\n]", 1)[0]
 
@@ -767,26 +888,73 @@ def allowlist_e_a_revisada() -> None:
             if nome:
                 encontrados.add(nome.group(1))
 
-    if not padroes:
-        _reject("allowlist do readonly_bash.py",
-                "nenhum padrao reconhecido no bloco ALLOWED — a extracao "
-                "depende da forma como as entradas sao escritas, e a forma mudou", "")
+    return encontrados, padroes
 
-    novos = encontrados - COMANDOS_REVISADOS
-    if novos:
+
+#: Comandos que NAO podem entrar na isencao de alvo inexistente, com a forma de
+#: escrita de cada um. A lista e do harness e nao do hook de proposito: e ela
+#: que reprova se alguem acrescentar um deles la.
+ESCREVEM_E_NAO_SAO_ISENTOS = {
+    "tree": "tree -o <arquivo>",
+    "sort": "sort -o / sort --output=",
+    "git": "git diff|log|show --output=",
+    "python": "python -c",
+    "pytest": "--junitxml, --basetemp",
+    "ruff": "--fix, format, --output-file",
+    "mypy": "--junit-xml, --cache-dir",
+    "eslint": "--fix, -o",
+    "tsc": "--outFile",
+    "npm": "roda script arbitrario",
+    "docker": "docker compose config -o",
+    "range-cli": "escreve evidencia",
+    "black": "reescreve arquivo",
+}
+
+
+def isencao_de_leitor_e_a_revisada() -> None:
+    """`LEITORES_SEM_ESCRITA` e subconjunto revisado da allowlist — nas duas pontas.
+
+    A isencao da P3-8 abre uma porta estreita: alvo absoluto que nao existe
+    passa quando o comando do segmento nao tem forma de escrever. A porta so e
+    estreita enquanto a LISTA for a revisada — acrescentar `tree` ali devolveria
+    `tree -o /fora/x` sem que probe nenhum reprovasse, porque `tree -o` nao esta
+    no escopo da regra de flags.
+
+    Tres afirmacoes, e a terceira e a que segura a porta:
+
+      1. todo isento esta na allowlist  — isentar quem nao roda e lista morta;
+      2. todo isento foi revisado       — o mesmo criterio de COMANDOS_REVISADOS;
+      3. nenhum comando com forma de escrita conhecida esta isento.
+    """
+    fonte = READONLY_HOOK_SOURCE.read_text(encoding="utf-8")
+    bloco = fonte.split("LEITORES_SEM_ESCRITA = (", 1)[1].split(")", 1)[0]
+    isentos = set(re.findall(r'"([A-Za-z][\w-]*)"', bloco))
+    if not isentos:
+        _reject("isencao de leitor puro",
+                "LEITORES_SEM_ESCRITA vazia ou ilegivel — a extracao depende da "
+                "forma da tupla, e a forma mudou", "")
+
+    allowlistados, _ = _comandos_da_allowlist()
+    fora_da_allowlist = isentos - allowlistados
+    if fora_da_allowlist:
+        _reject("isencao de leitor puro",
+                f"isenta comando(s) que a allowlist nao admite: "
+                f"{sorted(fora_da_allowlist)}", "")
+
+    nao_revisados = isentos - COMANDOS_REVISADOS
+    if nao_revisados:
+        _reject("isencao de leitor puro",
+                f"isenta comando(s) NAO REVISADO(S): {sorted(nao_revisados)}", "")
+
+    escrevem = isentos & set(ESCREVEM_E_NAO_SAO_ISENTOS)
+    if escrevem:
         _reject(
-            "allowlist do readonly_bash.py",
-            f"contem comando(s) NAO REVISADO(S): {sorted(novos)}. "
-            "Acrescente a COMANDOS_REVISADOS somente apos examinar se o comando "
-            "tem caminho de escrita — por acao, por flag ou por invocacao de "
-            "outro processo. Foi assim que `env` passou onze rodadas",
+            "isencao de leitor puro",
+            "isenta comando com forma de escrita conhecida: "
+            + ", ".join(f"{c} ({ESCREVEM_E_NAO_SAO_ISENTOS[c]})" for c in sorted(escrevem)),
             "",
         )
-    sumidos = COMANDOS_REVISADOS - encontrados
-    print(
-        f"OK: allowlist e o conjunto revisado ({len(encontrados)} comandos)"
-        + (f"; removidos desde a ultima revisao: {sorted(sumidos)}" if sumidos else "")
-    )
+    print(f"OK: isencao de alvo inexistente cobre {len(isentos)} leitores revisados")
 
 
 def hook_copies_in_sync() -> None:
@@ -1143,11 +1311,26 @@ def main() -> int:
             expect_hook_blocks(f"{label_forma} [grafia {label_grafia}]", molde.format(alvo))
     for label, comando in MASCARA_ADVERSARIAL:
         expect_hook_blocks(f"mascara de citacao: {label}", comando)
+    # P3-8: a correcao do `>` citado se apoia na allowlist, e nao na mascara.
+    for label, comando in REINTERPRETACAO_DE_SHELL:
+        expect_hook_blocks(f"reinterpretacao de shell: {label}", comando)
+    # P3-8: as duas condicoes da isencao de alvo, cada uma sozinha e as duas
+    # juntas. `fora` e o pai da arvore: existe sempre, e nunca esta contido nela.
+    fora = ROOT.parent.as_posix()
+    for label, molde in ALVO_EXISTENTE_FORA_BLOQUEIA:
+        expect_hook_blocks(f"{label} [grafia posix]", molde.format(fora=fora))
+        expect_hook_blocks(f"{label} [grafia git bash]",
+                           molde.format(fora=_grafia_git_bash(fora)))
+    for label, comando in ESCRITA_COM_ALVO_INEXISTENTE_BLOQUEIA:
+        expect_hook_blocks(label, comando)
+    for label, comando in ALVO_INEXISTENTE_DE_LEITOR_PASSA:
+        expect_hook_allows(label, comando)
     for label, comando in FALSOS_BLOQUEIOS_CONHECIDOS:
         expect_hook_blocks_known_defect(label, comando)
     for label, comando in BURACOS_CONHECIDOS:
         expect_hook_allows_known_hole(label, comando)
     allowlist_e_a_revisada()
+    isencao_de_leitor_e_a_revisada()
     verdict_probes()
     hook_copies_in_sync()
     guarda_de_branch()

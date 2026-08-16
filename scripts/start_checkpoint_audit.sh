@@ -175,6 +175,65 @@ rm -rf "$WT"
 git worktree add --detach "$WT" "$HEAD_SHA" >/dev/null
 cd "$WT"
 
+# ---------------------------------------------------------------------------
+# P3-4 — O NUCLEO EXECUTADO TEM DE VIR DESTE CHECKOUT.
+#
+# Medido antes desta correcao, com o CWD no worktree: `domains` e `contracts`
+# resolviam pelo worktree e `range_core` resolvia pela ARVORE PRINCIPAL. A
+# instalacao editavel grava caminho ABSOLUTO, e `range-core/` tem hifen — nao e
+# importavel pela arvore, entao nao ha CWD que corrija. O auditor executava o
+# adapter e os testes do commit candidato contra o nucleo de outro commit, e o
+# resultado parecia normal.
+#
+# Ate a Fase 3 isso nao mordia por construcao: a auditoria rodava depois do
+# merge, e os dois lados coincidiam. A Fase 4 e a primeira auditada ANTES do
+# merge — os dois SHAs sao diferentes de verdade, e um commit na arvore
+# principal durante a auditoria trocaria o nucleo sob os testes do auditor.
+#
+# A metade que prova e `tests/test_procedencia_dos_pacotes.py`. Esta e a metade
+# que faz a prova passar: um venv proprio, com a arvore AUDITADA instalada.
+#
+# FORA DO WORKTREE, em `.aurora-worktrees/venv`: o worktree E o objeto da
+# auditoria, e um diretorio de 100 MB no meio dele apareceria em toda listagem
+# que o auditor fizesse. `.aurora-worktrees/` ja e ignorado pelo Git.
+#
+# RECRIADO A CADA RODADA. Venv reaproveitado carrega as dependencias do commit
+# ANTERIOR — a mesma classe de defeito que esta correcao existe para fechar,
+# entrando pela porta das dependencias em vez da do codigo.
+#
+# FALHA ALTO, e isto e o ponto: auditoria que roda contra o nucleo da arvore
+# principal porque o pip falhou em silencio e pior que auditoria que nao roda.
+# Sem rede, sem venv; sem venv, sem auditoria.
+#
+# A REDE E DO LANCADOR, E NAO DO AUDITOR. Esta linha e a mesma que a P2-19
+# decidiu ao recusar `gh` na allowlist do julgador: quem prepara o ambiente tem
+# rede, quem emite o veredito nao. Ver docs/process/WORKFLOW.md.
+# ---------------------------------------------------------------------------
+VENV="$ROOT/.aurora-worktrees/venv"
+echo "Criando o venv da auditoria e instalando a arvore auditada (P3-4)..."
+rm -rf "$VENV"
+if ! python -m venv "$VENV" >/dev/null 2>&1; then
+  echo "ERRO: nao foi possivel criar o venv em $VENV." >&2
+  echo "      Sem ele, o nucleo executado viria da arvore principal." >&2
+  exit 1
+fi
+VENV_BIN="$VENV/bin"
+[ -x "$VENV/Scripts/python.exe" ] && VENV_BIN="$VENV/Scripts"
+if ! "$VENV_BIN/python" -m pip install --disable-pip-version-check \
+     -e "$WT[test]" -c "$WT/constraints.txt" >"$VENV/pip.log" 2>&1; then
+  echo "ERRO: a instalacao editavel do checkout auditado FALHOU." >&2
+  echo "      Ultimas linhas de $VENV/pip.log:" >&2
+  tail -n 15 "$VENV/pip.log" >&2
+  echo >&2
+  echo "      A auditoria PARA aqui, de proposito. Seguir sem esta instalacao" >&2
+  echo "      faria os testes do commit candidato rodarem contra o nucleo da" >&2
+  echo "      arvore principal — que e exatamente a P3-4." >&2
+  exit 1
+fi
+export PATH="$VENV_BIN:$PATH"
+export VIRTUAL_ENV="$VENV"
+echo "Venv da auditoria: $VENV (python de $VENV_BIN)"
+
 # Identificador da sessao PRE-ATRIBUIDO. Sem isto o relatorio so seria
 # localizavel por heuristica ("arquivo mais recente do diretorio") — origem das
 # tres confusoes de ID da Fase 0.

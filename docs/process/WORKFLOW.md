@@ -140,6 +140,61 @@ O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textua
 
 **Bloqueio indevido também é defeito.** Um auditor que não consegue rodar a prova central audita por inferência de leitura de código, e continua emitindo veredito enquanto isso — foi a lição do H4 da primeira auditoria da Fase 0. Por isso o item 4(e) trata falso bloqueio novo como finding, e não como inconveniência.
 
+### Onde passa a linha da rede: o lançador tem, o auditor não
+
+**A regra:** tudo o que exige rede acontece **antes da sessão**, no lançador, na
+máquina do operador. A sessão do auditor roda sem rede, e `curl`, `wget`, `nc`,
+`ssh`, `pip install` e `npm install` estão em `DENIED_ANYWHERE` — não por
+esquecimento de allowlist, mas porque **preparar o ambiente e emitir o veredito
+são papéis diferentes**, e é a mesma separação que faz o auditor não ter `Write`.
+
+A linha já tinha sido traçada uma vez, e a decisão está registrada: a P2-19
+considerou dar ao auditor o `gh` para ele consultar o CI, e **recusou** — poria
+rede na allowlist do julgador, superfície permanente para resolver um problema
+de uma vez. A saída foi o lançador subir a stack efêmera.
+
+**O que o lançador faz com rede, hoje:**
+
+| | Por quê |
+|---|---|
+| `git fetch origin main` | a base de comparação é `origin/main` atualizado, e não `main` local — P2-16 |
+| `docker compose up` da stack efêmera | sem ela, doze testes pulam e o pulo é lido como verde — P2-19 |
+| `pip install -e <worktree>` num venv próprio | sem ele, `range_core` resolve pela árvore principal — P3-4, abaixo |
+
+**Falha de rede no lançador falha ALTO.** Nenhum dos três degrada para "segue
+sem". O caso da P3-4 é o mais direto: auditoria que roda contra o núcleo da
+árvore principal porque o `pip` falhou em silêncio é pior que auditoria que não
+roda — ela produz veredito, e o veredito é sobre outro commit.
+
+**Para quem vier depois:** precisar de rede não é argumento para acrescentá-la à
+allowlist do auditor. É argumento para fazer a coisa no lançador, antes da
+sessão, e entregar o resultado pronto — como as três linhas acima.
+
+### O venv da auditoria, e o que ele fecha — P3-4
+
+Medido no worktree da Fase 3, com o CWD dentro dele: `domains` e `contracts`
+resolviam pelo worktree, e **`range_core` resolvia pela árvore principal**. A
+instalação editável grava caminho absoluto, e `range-core/` tem hífen — não é
+importável pela árvore, então não há CWD que corrija. O auditor executava o
+adapter e os testes do commit candidato **contra o núcleo de outro commit**.
+
+Até a Fase 3 isso não mordia por construção: a auditoria rodava depois do merge,
+e os dois lados coincidiam. **A Fase 4 é a primeira auditada antes do merge** —
+os dois SHAs são diferentes de verdade.
+
+São duas metades, e nenhuma serve sozinha:
+
+- `tests/test_procedencia_dos_pacotes.py` afirma que todo módulo importado dos
+  três pacotes veio da árvore em execução — é a que fica **vermelha**;
+- o venv em `.aurora-worktrees/venv`, criado pelo lançador com a árvore auditada
+  instalada, é a que a faz **passar**.
+
+O venv fica **fora** do worktree, porque o worktree é o objeto da auditoria e um
+diretório de dependências dentro dele apareceria em toda listagem que o auditor
+fizesse. E é **recriado a cada rodada**: venv reaproveitado carrega as
+dependências do commit anterior, que é a mesma classe de defeito entrando pela
+porta das dependências em vez da do código.
+
 A integridade do repositório repousa em branch protection com `enforce_admins`, no job `spec_freeze` e nos seis verificadores — nenhum deles alcançável pelo hook do auditor. Qualquer sujeira incidental de teste **dentro da árvore** morre com o worktree temporário.
 
 > **A exceção, declarada — P2-18.** A frase acima prometia contenção total, e a promessa era meio verdadeira. `tests/mutation_harness.py` e os `*_probes.py` escrevem a fonte mutada em `tempfile.TemporaryDirectory()`, que fica **fora do worktree**: o diretório é autolimpante e o alvo não é escolhido por quem roda, mas ele não morre com o worktree — morre com o processo.

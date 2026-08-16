@@ -1,8 +1,8 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM PLANEJAMENTO.** Nenhuma peça aberta. A branch nasceu em
-`6efca2e` — a âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o
-primeiro item do procedimento novo, não formalidade.
+**Status: EM CURSO — peça 0 de 7 fechada.** A branch nasceu em `6efca2e` — a
+âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
+do procedimento novo, não formalidade.
 
 **Um status só**, e ele é o do documento inteiro. Foi o L2 da segunda auditoria
 da Fase 3: um registro com dois cabeçalhos de estado não tem estado.
@@ -126,7 +126,7 @@ O resto é limite, e limite se declara com nome, não se omite.
 
 ## 3. As decisões, tomadas antes do código
 
-### D0 — o aparato primeiro: a peça 0 é P3-4 e P3-8 — **PROPOSTA**
+### D0 — o aparato primeiro: a peça 0 é P3-4 e P3-8 — **APROVADA, e implementada**
 
 As duas vencem **antes deste checkpoint**, e as duas mudam o que o auditor
 consegue medir. Fazê-las depois seria auditar a fase inteira com o aparato que
@@ -157,6 +157,14 @@ esta linhagem.
 **O custo, dito:** o lançador passa a precisar de rede uma vez por auditoria (o
 `pip install`). É o **lançador**, na máquina do operador, e não o auditor — a
 decisão da P2-19 de não pôr rede na allowlist do julgador continua intacta.
+
+> **Aprovada, com três condições do operador, e as três estão na peça:**
+> a linha da rede fica **escrita** em `WORKFLOW.md` (§"Onde passa a linha da
+> rede"), senão a próxima pessoa que precisar de rede lê o venv como precedente;
+> a instalação **falha alto** — auditoria contra o núcleo da árvore principal
+> porque o `pip` falhou em silêncio é pior que auditoria que não roda; e o teste
+> dos três pacotes é provado **reprovando**, com divergência plantada, e não só
+> passando. Ver a §4.1.
 
 ### D1 — as três telas em React 18 + Vite + Tailwind, sob `range-core/web/` — **DECIDIDA**
 
@@ -273,6 +281,37 @@ chegar depois e a ler como fonte.
 `paused_in` já trata `EXERCISE_RESET` no fluxo, e isso continua: ler um evento
 que ainda não é emitido não antecipa nada.
 
+#### E há um padrão de onde essas afirmações moram: **docstring**
+
+A observação é do operador, e conferi na fonte em vez de concordar: **`Fase 4`
+aparece 13 vezes no código**, em 10 arquivos, e **todas** em docstring ou
+comentário — nenhuma em contrato, em YAML declarativo ou em teste que a exerça.
+
+```text
+range-core/engine/inject_engine.py      3     range-core/state/cache.py           1
+range-core/state/simulation_state.py    2     range-core/engine/loader/*.py       2
+tools/check_event_envelope.py           1     domains/academus/api/{app,surface}  2
+tests/{test_api_tokens,test_inject_engine}.py 2
+```
+
+**Por que a docstring, e não outro lugar:** é o único sítio onde escrever *"isto
+é da fase seguinte"* não custa nada. Contrato exigiria campo, teste exigiria
+asserção, o registro tem `check_progress_consistency.py` cruzando tabela com
+seção — a docstring não tem gate nenhum, e é por isso que a afirmação vai parar
+lá. Não é desleixo: é o caminho de menor resistência funcionando.
+
+**A regra que sai disso é barata e entra no procedimento da fase:** ao abrir a
+Fase *n*, `grep -rn "Fase <n>"` no código é **a lista das promessas que vencem
+agora**. Cada citação é uma de duas coisas — um item que esta fase entrega, ou
+uma frase que esta fase torna falsa —, e as duas exigem leitura no começo, não
+no fim. As 13 desta fase estão lidas: doze descrevem entregas das peças 3 a 7 e
+seguem verdadeiras; a décima terceira é a de `exercise_reset`, que a D7 corrige.
+
+Não vira verificador. Um gate que cruzasse citação com fase teria de decidir o
+que uma frase em português afirma, e o custo de errar é falso bloqueio em
+comentário — que é caro e inútil. Vira **leitura de entrada de fase**, que é
+onde ela cabe.
+
 ### D8 — P3-5: as três tabelas em Postgres, e o que **não** é seed — **DECIDIDA**
 
 `01` §4 põe Business State em Postgres e o declara *"não reversível por rollback;
@@ -349,7 +388,7 @@ vezes nesta linhagem.
 **Se a medição mostrar que não morde, a pendência fecha com número** — e não com
 opinião.
 
-### D12 — o reinício é provado no **container** — **PROPOSTA**
+### D12 — o reinício é provado no **container** — **APROVADA**
 
 O item 4 da DoD diz *"reinício do **container** do engine"*. Provar no processo e
 declarar o container como limite seria trocar a condição por um proxy — que é
@@ -365,6 +404,11 @@ O que isso implica, e é por isso que é PROPOSTA:
 
 O teste cobre os dois níveis — processo e container — e o par de T5 em cada um:
 pausado restaura pausado, retomado restaura correndo.
+
+> **Aprovada, e com a exigência de fechar as duas pontas no mesmo commit:** CI e
+> stack efêmera da auditoria. Se só o CI ganhar o serviço, a correção existe onde
+> ninguém julga e falta onde alguém julga — e o teste **pula** na auditoria, que
+> é o que a P2-19 atacou.
 
 ### D13 — o pack do DEMO é o `pack_minimo` do fixture — **DECIDIDA**
 
@@ -400,7 +444,7 @@ sem nada guardado em lugar nenhum.
 
 | | Peça | Por que nesta posição |
 |---|---|---|
-| 0 | **aparato**: P3-4 e P3-8 | as duas vencem antes deste checkpoint, e as duas mudam o que o auditor consegue medir |
+| 0 | **aparato**: P3-4 e P3-8 ✅ | as duas vencem antes deste checkpoint, e as duas mudam o que o auditor consegue medir |
 | 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) | antes de existir rota, como na Fase 3 |
 | 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) | funções puras, testadas sem servidor |
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa | é o item 4 da DoD e T5, e não depende de HTTP |
