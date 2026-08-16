@@ -41,6 +41,11 @@ ALUNO_QUE_EXISTE = "A-1001"
 ALUNO_QUE_NAO_EXISTE = "A-9999"
 TURMA_QUE_EXISTE = "T-2001"
 
+#: O professor de `T-2001`, e o aluno que e ele mesmo. A peca 5 tornou o SUJEITO
+#: relevante: ate a peca 4 qualquer `sub` servia, porque so o papel era julgado.
+TITULAR = "P-3001"
+OUTRO_PROFESSOR = "P-3002"
+
 
 class RBAC(unittest.TestCase):
     def setUp(self) -> None:
@@ -57,7 +62,13 @@ class RBAC(unittest.TestCase):
         for papel in ("aluno", "secretaria"):
             with self.subTest(papel=papel):
                 resposta = self.cliente.get(
-                    f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho(papel)
+                    f"/alunos/{ALUNO_QUE_EXISTE}",
+                    # O SUJEITO IMPORTA DESDE A PECA 5: um `aluno` so le a si
+                    # mesmo, entao o `sub` dele e o proprio `aluno_id`. A
+                    # `secretaria` nao tem regra de escopo e le qualquer um.
+                    headers=self._cabecalho(
+                        papel, ALUNO_QUE_EXISTE if papel == "aluno" else "S-1"
+                    ),
                 )
                 self.assertEqual(resposta.status_code, 200)
                 self.assertEqual(resposta.json()["aluno_id"], ALUNO_QUE_EXISTE)
@@ -80,7 +91,7 @@ class RBAC(unittest.TestCase):
         self.assertEqual(tambem_negado.status_code, 403)
 
         permitido = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor")
+            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
         )
         self.assertEqual(permitido.status_code, 200)
 
@@ -130,6 +141,113 @@ class RBAC(unittest.TestCase):
             f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("professor")
         )
         self.assertNotIn(ALUNO_QUE_EXISTE, resposta.text)
+
+
+class EscopoDeObjeto(unittest.TestCase):
+    """P3-3 — a regra de objeto, e por que ela nao contradiz a peca 4.
+
+    A peca 4 fixou 403 para negacao de PAPEL, decidida sem consultar recurso
+    nenhum. Aqui a pergunta e outra — *"este recurso e seu?"* — e ela so pode ser
+    respondida lendo o recurso.
+
+    A saida nao e negar depois de achar: e fazer **"nao e sua" e "nao existe"
+    virarem o mesmo caminho de codigo**. `repositorio.turma(id, escopo)` devolve
+    `None` nos dois casos, e o handler, que so sabe tratar `None`, responde 404
+    sem nunca aprender a diferenca.
+
+    A politica continua sendo UMA: a resposta nunca varia com a existencia de um
+    recurso que quem pergunta nao pode ver. 403 e 404 sao consequencias dela em
+    perguntas diferentes.
+    """
+
+    def setUp(self) -> None:
+        self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
+        self.cliente = TestClient(montar(self.autenticacao))
+
+    def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+
+    def test_proprio_o_aluno_le_a_si_mesmo_e_nao_ao_colega(self):
+        meu = self.cliente.get(
+            f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
+        )
+        self.assertEqual(meu.status_code, 200)
+
+        alheio = self.cliente.get(
+            "/alunos/A-1002", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
+        )
+        self.assertEqual(alheio.status_code, 404)
+
+    def test_titular_o_professor_le_a_turma_dele_e_nao_a_do_colega(self):
+        minha = self.cliente.get(
+            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
+        )
+        self.assertEqual(minha.status_code, 200)
+
+        alheia = self.cliente.get(
+            f"/turmas/{TURMA_QUE_EXISTE}",
+            headers=self._cabecalho("professor", OUTRO_PROFESSOR),
+        )
+        self.assertEqual(alheia.status_code, 404)
+
+    def test_papel_SEM_regra_de_escopo_ve_tudo(self):
+        """A `secretaria` nao esta no mapa, e isso e desenho e nao esquecimento."""
+        resposta = self.cliente.get(
+            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("secretaria", "S-1")
+        )
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_recurso_ALHEIO_e_recurso_INEXISTENTE_sao_a_mesma_resposta(self):
+        """A propriedade inteira da P3-3, num assert.
+
+        Se fossem distinguiveis, um professor enumeraria as turmas da
+        universidade pela diferenca entre "nao e sua" e "nao existe" — e saberia
+        quais turmas existem sem poder ver nenhuma delas.
+        """
+        cabecalho = self._cabecalho("professor", OUTRO_PROFESSOR)
+        alheia = self.cliente.get(f"/turmas/{TURMA_QUE_EXISTE}", headers=cabecalho)
+        inexistente = self.cliente.get("/turmas/T-9999", headers=cabecalho)
+
+        self.assertEqual(alheia.status_code, inexistente.status_code)
+        self.assertEqual(alheia.content, inexistente.content)
+
+    def test_o_diario_herda_o_escopo_da_turma(self):
+        """Nota nao tem regra propria — ela e alcancada ATRAVES da turma.
+
+        Uma segunda regra aqui seria a mesma regra escrita duas vezes, que e a
+        classe D4. O teste afirma que a heranca acontece, em vez de confiar nela.
+        """
+        alheio = self.cliente.get(
+            f"/turmas/{TURMA_QUE_EXISTE}/diario",
+            headers=self._cabecalho("professor", OUTRO_PROFESSOR),
+        )
+        self.assertEqual(alheio.status_code, 404)
+
+        meu = self.cliente.get(
+            f"/turmas/{TURMA_QUE_EXISTE}/diario",
+            headers=self._cabecalho("professor", TITULAR),
+        )
+        self.assertEqual(meu.status_code, 200)
+
+    def test_o_aluno_nao_matricula_o_colega(self):
+        """A escrita tambem passa pelo escopo, e nao so a leitura.
+
+        Sem isto, a regra protegeria a consulta e deixaria a acao aberta — que e
+        a metade que costuma ser esquecida porque ninguem consulta para testar.
+        """
+        alheia = self.cliente.post(
+            "/matricula",
+            json={"aluno_id": "A-1002", "turma_id": TURMA_QUE_EXISTE},
+            headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE),
+        )
+        self.assertEqual(alheia.status_code, 404)
+
+        minha = self.cliente.post(
+            "/matricula",
+            json={"aluno_id": ALUNO_QUE_EXISTE, "turma_id": TURMA_QUE_EXISTE},
+            headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE),
+        )
+        self.assertEqual(minha.status_code, 201)
 
 
 class FalhaFechada(unittest.TestCase):

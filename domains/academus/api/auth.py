@@ -71,6 +71,7 @@ from fastapi import HTTPException, Request
 
 from range_core.api.tokens import TokenClaims, TokenInvalid, issue, jwt_secret, verify
 
+from domains.academus.api.repositorio import Escopo
 from domains.academus.api.surface import Superficie, carregar
 
 PREFIXO = "Bearer "
@@ -162,4 +163,22 @@ async def autoriza(request: Request) -> TokenClaims | None:
     if claims.role not in declarada.papeis:
         raise HTTPException(status_code=403, detail=NEGADO)
 
+    # A REGRA DE ESCOPO E RESOLVIDA AQUI, e nao no handler (P3-3). Quem sabe
+    # qual rota o FastAPI casou e este ponto; o handler recebe o `Escopo` pronto
+    # e nao tem por onde escolher outro, entao escolher errado deixa de ser
+    # possivel. Aplicar a regra, no entanto, e da busca do recurso: ver o
+    # cabecalho de `repositorio.py`.
+    request.state.escopo = Escopo(
+        sub=claims.sub, regra=declarada.regra_de_escopo(claims.role)
+    )
     return claims
+
+
+def escopo_do_pedido(request: Request) -> Escopo:
+    """O escopo que `autoriza` ja resolveu. Dependencia de handler.
+
+    Rota publica nao passa por aqui, e nenhuma das implementadas e publica. Se
+    um dia houver rota publica que leia recurso, esta funcao e o lugar de
+    decidir o que isso significa, e nao o handler.
+    """
+    return request.state.escopo

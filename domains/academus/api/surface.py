@@ -38,6 +38,29 @@ ARQUIVO = "api_surface.yaml"
 
 
 @dataclass(frozen=True, slots=True)
+class Degradacao:
+    """Uma entrada de `degradacao:`. O que a flag faz com ESTA rota.
+
+    `mensagem` e o que o PARTICIPANTE le, e por isso ela e dado declarado e nao
+    string no handler: a sala precisa ver o sistema cair, e nao ler um aviso
+    dizendo que ele foi derrubado. `scripts/check_api_surface.py` recusa
+    mensagem que nomeie a flag ou o mecanismo.
+    """
+
+    flag: str
+    condicao: str
+    efeito: str
+    status: int | None
+    mensagem: str
+    segundos: float
+
+
+#: As duas regras de escopo de objeto, e nao ha uma terceira. Ver a P3-3.
+PROPRIO = "proprio"
+TITULAR = "titular"
+
+
+@dataclass(frozen=True, slots=True)
 class RotaDeclarada:
     """Uma linha de `rotas:`, ja normalizada.
 
@@ -55,6 +78,12 @@ class RotaDeclarada:
     papeis: frozenset[str]
     publica: bool
     flags: tuple[str, ...]
+    degradacao: tuple[Degradacao, ...]
+    #: `papel -> regra`. Papel ausente nao tem restricao de objeto.
+    escopo: Mapping[str, str]
+
+    def regra_de_escopo(self, papel: str) -> str | None:
+        return self.escopo.get(papel)
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +119,18 @@ def carregar() -> Superficie:
             papeis=frozenset(bruta.get("papeis") or []),
             publica=bool(bruta.get("publica", False)),
             flags=tuple(bruta.get("flags") or []),
+            degradacao=tuple(
+                Degradacao(
+                    flag=str(d["flag"]),
+                    condicao=str(d["condicao"]),
+                    efeito=str(d["efeito"]),
+                    status=int(d["status"]) if d.get("status") is not None else None,
+                    mensagem=str(d.get("mensagem") or ""),
+                    segundos=float(d.get("segundos") or 0.0),
+                )
+                for d in (bruta.get("degradacao") or [])
+            ),
+            escopo=dict(bruta.get("escopo") or {}),
         )
         rotas[(rota.method, rota.path)] = rota
 

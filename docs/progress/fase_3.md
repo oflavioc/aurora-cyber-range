@@ -3,11 +3,13 @@
 **Status: EM CURSO.** Aberta em 16/08/2026, com a Fase 2 concluída — nove de nove
 itens e auditoria PASS.
 
-**Quatro peças entregues de cinco.** A superfície da API declarada e conferida nas
-duas direções, a projeção materializada com o fold como única autoridade de
-escrita, e o JWT com os dois conjuntos de papéis separados por guarda. Falta a
-peça 5 — as três entidades e a degradação declarativa, que são os itens 1 e 2 da
-DoD.
+**As cinco peças entregues, e os quatro itens da DoD passam.** A superfície
+declarada e conferida nas duas direções, a projeção materializada com o fold como
+única autoridade de escrita, o JWT com os dois conjuntos de papéis separados por
+guarda, e a degradação por flag declarativa em três endpoints.
+
+Falta o fechamento da fase: inventário de pendências, tabela de DoD com prova por
+item, e a auditoria de checkpoint.
 
 ---
 
@@ -486,6 +488,149 @@ em vez de imprimir *"0 imagens, todas pinadas"*.
 
 ---
 
+## 4.4 A peça 5 — as três entidades, e a degradação que não se explica
+
+### A forma declarativa: o que a flag faz com a rota
+
+Até a peça 4, `degradacao` era **prosa** no `api_surface.yaml` — e prosa não
+executa. A peça 5 é quem a torna dado, na mesma família dos `effects` do pack:
+
+```yaml
+degradacao:
+  - flag: academus.lms_degraded
+    condicao: ligada
+    efeito: latencia
+    segundos: 2.5
+  - flag: academus.lms_session_drop_rate
+    condicao: proporcional
+    efeito: recusa
+    status: 503
+    mensagem: 'Sua sessao foi encerrada. Faca login novamente para continuar.'
+```
+
+**A checagem que reprova rota que degrada fora dela não procura `if flag`** — e
+essa é a decisão. Procurar o `if` seria a checagem óbvia e a fraca: bastaria
+escrevê-lo de outro jeito. O que está afirmado é mais forte:
+
+| | O handler |
+|---|---|
+| `range_core.state` | só `degradacao.py` importa. Estado ao alcance do handler é `if flag:` esperando para acontecer |
+| constantes de flag geradas | **nenhum** módulo de `api/` importa. O nome chega como dado da declaração, como `flag_defaults` chega ao core |
+
+O handler não tem `if flag` porque **não tem flag ao alcance**. É a forma da
+peça 3 outra vez, e da peça 4: em vez de detectar o defeito, retirar o material
+com que ele se escreve.
+
+Mais seis eixos sobre a estrutura: vocabulário fechado de `condicao` e `efeito`;
+`flags` e `degradacao` como conjuntos iguais nas duas direções; `recusa` sem
+status de erro ou sem mensagem; `latencia` de zero segundos — degradação que não
+se observa.
+
+**E a `condicao` conferida contra o TIPO da flag em `flags.yaml`.** É o defeito
+que eu teria cometido sem a checagem: `ligada` sobre `lms_session_drop_rate`, que
+é `number` de 0 a 1, degradaria com `0.0` — o mundo normal — e o efeito ficaria
+ligado o exercício inteiro, sem ninguém entender por quê.
+
+### A degradação é observável sem ser explicada — e `flags.yaml` já sabia disso
+
+A sala precisa **ver** o sistema cair, não ler um aviso dizendo que ele foi
+derrubado. Uma resposta com "flag ativa" no corpo transforma exercício em
+demonstração e destrói a assimetria que `00` §5 chama de desenho.
+
+**A fonte já tinha a resposta, e eu não precisei inventá-la:** `flags.yaml`
+declara `effect_ui` em linguagem de negócio desde a Fase 1 — *"Lançamento e
+alteração de nota recusados; leitura e histórico seguem disponíveis"*. As
+mensagens da degradação são a mesma língua, dirigidas ao participante.
+
+Duas guardas, e elas olham coisas diferentes:
+
+| | Onde |
+|---|---|
+| a checagem recusa mensagem que nomeie **a flag** ou vocabulário de mecanismo | no declarado |
+| o teste varre a **resposta inteira** — corpo e cabeçalhos | no que sai pelo fio |
+
+A segunda é a forma que `06` T6 fixa para isolamento de papel, aplicada a outro
+assunto: teste de payload, não de intenção.
+
+E há a metade que impede a primeira de virar superstição: **sem flag ligada,
+nada muda** — as três rotas respondem 201, 201 e 200, e nenhuma latência é
+aplicada. Uma API que recusasse sempre passaria em metade dos testes desta suíte.
+
+### Um defeito da peça 4, achado aqui: `/openapi.json` respondia 200 sem token
+
+A "falha fechada" da peça 4 valia para rota declarada e **não valia para rota que
+o framework declara por você**. `/docs`, `/redoc` e `/openapi.json` entram por
+`add_route`, que é Starlette puro e não passa pelo sistema de dependências — a
+dependência global não as cobria.
+
+Medido, não suposto: **200, 3.870 bytes** descrevendo a API inteira, sem token.
+`05` §8 exige que nenhum serviço fique exposto sem autenticação, e num exercício
+sobre assimetria a lista de rotas conta a quem ainda não entrou o que existe para
+ser encontrado. As três estão desligadas, e há teste.
+
+### A P3-3 respondida: **um campo**, e a resposta veio das três entidades
+
+A pendência perguntava se o escopo de objeto era um campo ou três. Com Aluno,
+Turma e Nota dá para ver: **é um campo**, porque todos os casos são *"um campo do
+recurso é igual ao `sub`"*, e o que muda é **qual** campo — o que é valor, não
+dimensão.
+
+```yaml
+escopo:
+  professor: titular
+```
+
+`proprio` — o recurso **é** o sujeito. `titular` — o recurso **pertence** a ele.
+Papel fora do mapa não tem restrição, e a `secretaria` está fora por desenho.
+
+**A regra mora dentro da busca, e é isso que preserva a peça 4.** A negação de
+papel é decidida sem consultar nada; a de objeto não pode ser — decidir se a
+turma é sua exige lê-la. Então a saída não é negar depois de achar: é fazer
+*"não é sua"* e *"não existe"* virarem **o mesmo caminho de código**.
+`repositorio.turma(id, escopo)` devolve `None` nos dois casos, e o handler, que
+só sabe tratar `None`, responde 404 sem nunca aprender a diferença.
+
+A política continua sendo **uma**: a resposta nunca varia com a existência de um
+recurso que quem pergunta não pode ver. 403 e 404 são consequências dela em
+perguntas diferentes — *"este papel pode usar esta rota?"* e *"este recurso é
+seu?"*. Um 403 aqui diria "existe, e não é sua".
+
+E a escrita passa pelo mesmo lugar: o aluno não matricula o colega. Sem isso a
+regra protegeria a consulta e deixaria a ação aberta, que é a metade que costuma
+ser esquecida porque ninguém consulta para testar.
+
+### O corte das três entidades, declarado
+
+`07` põe **modelo completo** e **seed em escala** nos NON-GOALS, e sem o corte
+escrito a peça cresce até parecer a Fase 7. Ele está no cabeçalho de
+`registros.py`, com motivo por linha. Em resumo:
+
+**Entra** — Aluno, Turma, Nota, mais `Turma.professor_id` (a regra `titular`
+precisa de um dono, e dono que não existe no dado não é verificável) e
+`Matricula` (rota que degrada precisa de caminho feliz, senão a degradação não é
+*diferença*). Seis registros literais, em memória.
+
+**Fica de fora** — tabela, SQLAlchemy e migration (**Fase 5**, que é quem tem o
+seed: modelar agora seria modelar duas vezes, e migration desfeita é histórico
+que mente); os volumes de `02` §6; regra de negócio de nota; Histórico, Diploma,
+Bolsa e o papel `financeiro` — que continua declarado sem rota, e isso é a
+superfície dizendo o que ainda não existe; paginação e busca; **e evento emitido
+pela API**, que é Fase 5 (`06` T7) e Fase 8.
+
+### A regra da peça 4 não se calou sozinha — ela foi substituída
+
+A cerca da peça 4 dizia *"enquanto nenhuma rota implementada declarar flag,
+`api/` não lê estado"*. Ela se calaria **hoje**, no commit em que a peça 5
+declarou a primeira flag — e uma regra que evapora no dia em que o assunto dela
+começa a existir não é uma regra.
+
+Foi trocada pela whitelist permanente — só `degradacao.py` lê estado —, e há
+probe afirmando que a troca está viva na árvore real: **exatamente um módulo lê
+estado, e é o motor**. Se um dia o conjunto ficar vazio, a whitelist passaria a
+ser verdadeira por vacuidade, e o probe fica vermelho antes disso virar silêncio.
+
+---
+
 ## 5. Ordem das peças
 
 | | Peça | Estado |
@@ -494,7 +639,7 @@ em vez de imprimir *"0 imagens, todas pinadas"*.
 | 2 | superfície da API declarada + a checagem que a fixa (D5) | ✅ |
 | 3 | leitura de flag pela API (D1) — a porta e a autoridade do fold, antes do FastAPI | ✅ |
 | 4 | JWT + RBAC (D2, D3), com os dois conjuntos de papéis separados | ✅ |
-| 5 | as três entidades e a degradação declarativa (D4) — itens 1 e 2 da DoD | |
+| 5 | as três entidades e a degradação declarativa (D4) — itens 1 e 2 da DoD | ✅ |
 
 **A peça 1 é a única que paga antes de existir código dependendo dela**, e foi por
 isso que veio primeiro: ela achou um item de DoD insatisfazível **antes** de
@@ -507,8 +652,8 @@ alguém tentar implementá-lo.
 | Id | O que é | Vencimento |
 |---|---|---|
 | P3-1 | O digest de imagem é pinado em dois lugares e nada cruza os dois | ✅ **fechada na peça 4** |
-| P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 3**, com o FastAPI |
-| P3-3 | O RBAC é de papel, e aluno lê aluno: falta a regra de objeto | **Fase 3**, peça 5 |
+| P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 4** — redatada, ver abaixo |
+| P3-3 | O RBAC é de papel, e aluno lê aluno: falta a regra de objeto | ✅ **fechada na peça 5** |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -552,10 +697,23 @@ ordem que a P2-10 fixou e que se mostrou certa.
 
 **Vencimento: Fase 3, junto do FastAPI.**
 
-> **A peça 4 trouxe o FastAPI e não trouxe o single-flight**, e isso é
-> deliberado: as duas rotas desta peça não leem a projeção — a checagem da
-> degradação garante que nenhuma leia. A concorrência que a pendência espera
-> nasce na **peça 5**, que é quando uma rota consulta flag pela primeira vez.
+> **REDATADA PARA A FASE 4, e a premissa do prazo original estava errada.**
+>
+> Eu datei esta pendência por um *proxy* — "quando o FastAPI chegar" — em vez de
+> pela condição que ela descreve: **quando houver duas leituras simultâneas**. O
+> proxy chegou e a condição não: a peça 5 lê a projeção a cada request, mas não
+> há servidor. `app` é um objeto ASGI, `uvicorn` não é dependência desta fase, e
+> a suíte roda `TestClient`, que é sequencial. Concorrência aqui é literalmente
+> impossível.
+>
+> É a mesma forma da P2-6, e é por isso que registro em vez de simplesmente
+> mover: **um prazo apoiado em proxy vence sem que a condição ocorra**, e o
+> risco é o oposto do que parece — não é atrasar, é *fechar* uma pendência
+> porque a data passou.
+>
+> O gatilho correto tem nome: **o primeiro processo que serve requisições
+> concorrentes**, que é o container da Fase 4. E a ordem da P2-10 continua
+> valendo: medir antes de escolher o mecanismo.
 
 #### P3-3 — o RBAC é de papel, e a regra de objeto ainda não existe
 
@@ -575,6 +733,16 @@ degradadas, e é lá que se vê se o escopo é um campo ou três.
 recurso nenhum, então a regra de objeto **não reabre** a questão de 403 × 404.
 
 **Vencimento: Fase 3, peça 5.**
+
+> **Fechada na peça 5** — §4.4. A resposta é **um campo**, com duas regras
+> (`proprio` e `titular`), e ela veio das três entidades: todos os casos são "um
+> campo do recurso é igual ao `sub`", e o que muda é qual campo.
+>
+> O que eu não tinha previsto ao abrir a pendência: a regra `titular` **exige ler
+> o recurso**, o que reabriria a questão de 403 × 404 se a negação acontecesse
+> depois da busca. Resolvido pondo a regra **dentro** da busca — "não é sua" e
+> "não existe" devolvem `None` pelo mesmo caminho —, e a propriedade da peça 4
+> continua valendo sem ninguém se lembrar dela.
 
 ---
 
