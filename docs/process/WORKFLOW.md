@@ -60,6 +60,47 @@ base — e cada um custou uma auditoria que parecia gate e não era.
 bifurcação muda mesmo. Regrave a linha no mesmo commit do rebase; o verificador
 recusa com essa leitura impressa entre as duas possíveis.
 
+### `spec-change` primeiro, fase depois — e a âncora se move junto
+
+`CLAUDE.md` proíbe alterar spec e código no mesmo PR, e o gate `spec_freeze`
+reprova quem tentar. O que faltava escrito é **a ordem**, e ela não é óbvia
+quando o `spec-change` nasce *durante* a fase — que é o caso normal, porque é
+implementando que se descobre que a spec está errada.
+
+Foi o H1 da terceira auditoria da Fase 3: o commit `02383e4`
+(`spec-change: quem traz o consumidor da ligacao e a Fase 8`) ficou **dentro** do
+intervalo da fase, entre a peça 1 e a peça 2. O diff da fase passou a carregar
+`docs/spec/` junto com código, e o `spec_freeze` reprovaria o PR.
+
+**O procedimento, na ordem:**
+
+```text
+# 1. o spec-change vira PR PRÓPRIO e é mergeado primeiro
+git checkout -b spec-change/<slug> <origin/main>
+gh pr create --title "spec-change: <descrição>"
+gh pr merge --rebase                    # aprovação humana antes disto
+
+# 2. a branch da fase é rebaseada sobre a main que já contém o spec-change
+git checkout fase-<n>-<slug>
+git fetch origin main
+git rebase origin/main
+
+# 3. a ÂNCORA MUDOU — o ponto de bifurcação é outro. Regrave-a
+git merge-base origin/main HEAD          # <- o novo START
+# atualize a linha da fase em docs/process/phase_anchors.tsv, no mesmo commit
+
+# 4. só agora o checkpoint
+bash scripts/start_checkpoint_audit.sh <n>
+```
+
+O passo 3 não é burocracia: sem ele `check_audit_base.py` recusa a auditoria
+seguinte com *"a âncora ficou desatualizada"*, que é o comportamento certo — o
+rebase moveu o começo da fase de verdade.
+
+**Este furo é um clique do operador, e não condição do repositório** — a mesma
+natureza do squash. Por isso mora aqui, no procedimento, e não só na pendência
+que o descobriu.
+
 ### Rebase, nunca squash, no merge de branch de fase
 
 **Regra:** o merge de uma branch de fase é `--rebase` (ou fast-forward). **`--squash`
@@ -91,7 +132,11 @@ O objetivo é garantir simultaneamente:
 
 O launcher cria um worktree **explicitamente a partir do `HEAD` candidato** e então inicia `claude --agent checkpoint-auditor` nele. Isso evita depender do worktree automático do frontmatter, cujo ponto de partida pode ser a branch default e não a branch candidata.
 
-O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textual. Essa combinação preserva a **separação de papéis** — impede que o auditor corrija por acidente em vez de reportar. Ela não contém adversário, e isso é declarado, não omitido: o hook decide por casamento textual, não por análise sintática de shell, e sua superfície é enumerada em `scripts/phase0_negative_tests.py` nas duas direções — escrita conhecida e não bloqueada, e leitura legítima bloqueada por engano (`PHASE_0_CHECKLIST.md` §Definition of Done, item 4, condições c e e).
+O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textual — e o lançador concede `--allowedTools Bash` à sessão do auditor, **de propósito**, para que a allowlist do hook seja de fato quem decide. Essa combinação preserva a **separação de papéis**: o auditor não corrige por acidente porque não tem com que escrever, e não deixa de medir porque não tem quem aprove.
+
+> **A frase anterior descrevia metade do mecanismo, e a metade errada.** Ela dizia apenas *"Bash passa por allowlist textual"*. Passava por allowlist textual **e** pela camada de permissão da sessão — e era a segunda que decidia: `.claude/settings.json` não tem entrada `permissions.allow` para `Bash`, então cada comando exigia aprovação humana. Nas duas primeiras auditorias da Fase 3 isso não apareceu porque o operador estava na janela clicando; na terceira, a sessão rodou sem terminal e **onze tentativas em seis formas de comando foram todas negadas** — nenhuma pelo hook. O auditor emitiu FAIL por não conseguir executar nada, e estava certo.
+>
+> Um mecanismo cuja propriedade central depende de alguém lembrar de clicar não é mecanismo. A concessão vive no **lançador**, versionada, e não em `settings.json`: ela vale para a sessão do auditor e para mais nada. A restrição inteira continua sendo o `readonly_bash.py` — allowlist por segmento, `DENIED_ANYWHERE` contra o comando cru, alvo resolvido contra o worktree —, com a superfície enumerada em `scripts/phase0_negative_tests.py`. Ela não contém adversário, e isso é declarado, não omitido: o hook decide por casamento textual, não por análise sintática de shell, e sua superfície é enumerada em `scripts/phase0_negative_tests.py` nas duas direções — escrita conhecida e não bloqueada, e leitura legítima bloqueada por engano (`PHASE_0_CHECKLIST.md` §Definition of Done, item 4, condições c e e).
 
 **Bloqueio indevido também é defeito.** Um auditor que não consegue rodar a prova central audita por inferência de leitura de código, e continua emitindo veredito enquanto isso — foi a lição do H4 da primeira auditoria da Fase 0. Por isso o item 4(e) trata falso bloqueio novo como finding, e não como inconveniência.
 

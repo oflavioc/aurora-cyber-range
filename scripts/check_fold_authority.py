@@ -15,9 +15,11 @@ la dentro, e nao ha metodo que aceite um estado pronto.
 
 **Mas forma sem verificacao envelhece.** Esta checagem afirma as duas metades:
 
-1. **`SimulationState` e construido so onde esta declarado.** A procedencia nao
-   esta no valor — e um dataclass, qualquer um constroi um —, esta em QUEM
-   calcula. Entao a lista de quem constroi e a lista de quem tem autoridade.
+1. **`SimulationState` e construido so onde esta declarado, DENTRO de
+   `range-core/`.** A procedencia nao esta no valor — e um dataclass, qualquer um
+   constroi um —, esta em QUEM calcula. Entao a lista de quem constroi e a lista
+   de quem tem autoridade. O escopo da varredura e limite declarado, e esta dito
+   em `CORE_ROOT`.
 2. **Nenhum metodo publico do cache aceita `SimulationState`.** Se aceitasse, o
    ponto 1 nao bastaria: bastaria construir dentro do fold e passar adiante um
    estado obtido de outro jeito.
@@ -45,6 +47,20 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+#: LIMITE DECLARADO, e ele e de ESCOPO: esta checagem varre `range-core/` e mais
+#: nada. Uma construcao de `SimulationState` dentro de `domains/` nao seria vista
+#: por ela.
+#:
+#: Hoje o efeito pratico e nulo, e por dois motivos que se sustentam sozinhos: a
+#: porta continua sem metodo publico que aceite estado pronto — o que esta
+#: arquivo afirma logo abaixo —, e a Invariante 1 impede o caminho inverso.
+#: Nenhum dos dois e "ninguem escreveu ainda".
+#:
+#: Foi o L2 da terceira auditoria da Fase 3, e o achado nao era o escopo: era o
+#: escopo NAO DITO. Este verificador ja declara outros dois limites (ver
+#: `metodos_que_aceitam_estado`), e a assimetria e que fazia o cabecalho
+#: prometer mais do que a varredura entrega.
 CORE_ROOT = REPO_ROOT / "range-core"
 
 RULE = "o fold e a unica autoridade de estado"

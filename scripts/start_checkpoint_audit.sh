@@ -144,7 +144,18 @@ if [ -n "$BASE_EXPLICITA" ]; then
   # branch default.
   GUARDA+=(--base "$BASE_SHA")
 fi
-if ! "${GUARDA[@]}"; then
+# A SAIDA DA GUARDA E CAPTURADA, e nao so impressa. Ela entra no PROMPT: o
+# veredito "porta ou laudo" e informacao que o AUDITOR precisa para saber o que
+# esta julgando. Na terceira rodada da Fase 3 ele deduziu "porta" da AUSENCIA do
+# bloco de aviso no prompt — o aviso ia para o stderr e morria ali, e ele
+# auditou como gate o que era laudo. Declaracao que existe e nao chega a quem
+# decide com ela e a terceira ocorrencia desta forma na fase; ver 7.3.1.
+set +e
+GUARDA_SAIDA=$("${GUARDA[@]}" 2>&1)
+GUARDA_RC=$?
+set -e
+echo "$GUARDA_SAIDA"
+if [ "$GUARDA_RC" != "0" ]; then
   exit 1
 fi
 
@@ -306,7 +317,16 @@ echo
 # E o estado dos servicos vai junto porque o auditor precisa saber se um `skip`
 # que ele veja e ausencia de ambiente ou defeito da fase — sem isso, os dois
 # sao indistinguiveis para quem le a saida.
-PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEAD_SHA. Compare contra a base $BASE_SHA ($BASE_REF, atualizado agora pelo lancador) — nao resolva 'main' por conta propria, os refs locais deste worktree podem estar atras. Servicos: $SERVICOS Leia spec + diff + testes reais e emita o formato obrigatorio PASS/FAIL. Nao corrija nada."
+#
+# O VEREDITO DA GUARDA VAI VERBATIM, e nao resumido: porta e laudo mudam o que um
+# BLOCKER significa, e na terceira rodada o auditor teve de DEDUZIR qual era —
+# pela ausencia do bloco de aviso, que nunca chegava ate aqui.
+PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEAD_SHA. Compare contra a base $BASE_SHA ($BASE_REF, atualizado agora pelo lancador) — nao resolva 'main' por conta propria, os refs locais deste worktree podem estar atras. Servicos: $SERVICOS
+
+VEREDITO DA GUARDA DE BASE, verbatim do lancador. Porta ou laudo esta DITO aqui, e nao deve ser deduzido do que o prompt deixa de conter:
+$GUARDA_SAIDA
+
+Leia spec + diff + testes reais e emita o formato obrigatorio PASS/FAIL. Nao corrija nada."
 
 set +e
 if [ "$MODE" = headless ]; then
@@ -315,10 +335,12 @@ if [ "$MODE" = headless ]; then
   # o stdout converteria a sessao em nao-interativa (`claude --help`).
   claude -p --output-format text \
     --session-id "$SESSION_ID" --agent checkpoint-auditor --permission-mode default \
+    --allowedTools Bash \
     "$PROMPT" | tee "$RAW"
   CLAUDE_RC=${PIPESTATUS[0]}
 else
   claude --session-id "$SESSION_ID" --agent checkpoint-auditor --permission-mode default \
+    --allowedTools Bash \
     "$PROMPT"
   CLAUDE_RC=$?
 fi
