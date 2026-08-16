@@ -334,13 +334,19 @@ if [ "$MODE" = headless ]; then
   # fallback se a leitura do transcript falhar. Em interativa nao ha pipe: canalizar
   # o stdout converteria a sessao em nao-interativa (`claude --help`).
   claude -p --output-format text \
-    --session-id "$SESSION_ID" --agent checkpoint-auditor --permission-mode default \
-    --allowedTools Bash \
+    --session-id "$SESSION_ID" --agent checkpoint-auditor \
+    --allowedTools Bash --permission-mode default \
     "$PROMPT" | tee "$RAW"
   CLAUDE_RC=${PIPESTATUS[0]}
 else
-  claude --session-id "$SESSION_ID" --agent checkpoint-auditor --permission-mode default \
-    --allowedTools Bash \
+  # `--allowedTools` E VARIADICO (`<tools...>` no `claude --help`): ele engole
+  # todos os argumentos seguintes que nao comecem com `-`. Posto imediatamente
+  # antes de "$PROMPT", ele consumia o PROMPT como se fosse nome de ferramenta, e
+  # a sessao morria com "Input must be provided either through stdin or as a
+  # prompt argument". Por isso ele vem ANTES de `--permission-mode`: a flag
+  # seguinte fecha a lista variadica, e o prompt volta a ser operando.
+  claude --session-id "$SESSION_ID" --agent checkpoint-auditor \
+    --allowedTools Bash --permission-mode default \
     "$PROMPT"
   CLAUDE_RC=$?
 fi
