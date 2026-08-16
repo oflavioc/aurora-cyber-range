@@ -1,15 +1,17 @@
 # Fase 3 — API mínima
 
-**Status: EM CORREÇÃO — a terceira auditoria emitiu FAIL** (§8.6), e o BLOCKER não
-é sobre o código: o auditor não conseguiu **executar** nada, porque a camada de
-permissão da sessão negava o que a allowlist do hook autoriza. Os quatro itens da
-DoD seguem sem defeito na revisão estática dele; o que falta é a prova executável
-que a próxima rodada vai produzir.
+**Status: AUDITADA — PASS**, em **quatro** rodadas: `a857d76` (§8), `5b219a7`
+(§8.5), `8135055` — FAIL, e o BLOCKER era o auditor não conseguir executar (§8.6)
+— e `9b7d753` (§8.7), com ele medindo: 217 testes, zero pulos, todos os
+verificadores.
 
-Rodadas anteriores, ambas **PASS** sem BLOCKER: `a857d76` (§8) e `5b219a7` (§8.5).
+**A quarta é LAUDO, e não porta**, e o próprio relatório abre dizendo isso: a fase
+foi mergeada peça a peça antes do checkpoint, então o código dos quatro itens da
+DoD entrou em `main` sem PASS anterior. Não é reparável neste commit — é o que a
+**P3-7** e o procedimento do `WORKFLOW.md` passam a impedir da Fase 4 em diante.
+
 Cinco peças entregues, **quatro de quatro** itens da DoD com prova executável
-(§5.1) — provados por auditor que os executou nas duas primeiras rodadas —, e as
-três pendências de aparato que venciam neste checkpoint fechadas.
+(§5.1), e as três pendências de aparato que venciam neste checkpoint fechadas.
 
 Da primeira rodada, o HIGH e os três achados corrigíveis foram fechados e dois
 viraram pendência com destino. **Da segunda, os dois HIGH estão fechados** (§8.5):
@@ -18,8 +20,9 @@ pega a inversão real — formulado antes, aprovado pelo operador, implementado
 depois, com sete eixos de prova negativa — mais o oitavo, achado ao rodar. O que
 sobra dela é a **P3-8**, os dois falsos bloqueios do hook.
 
-**Da terceira**, o B1 e os quatro achados corrigíveis estão fechados (§8.6), e
-dois viraram pendência: **P3-9** e **P3-10**, ambas Fase 4.
+**Da terceira**, o B1 e os quatro achados corrigíveis estão fechados (§8.6). **Da
+quarta**, quatro achados fechados — M1, M4, M5 e L2 — e três seguem como pendência
+com destino: **P3-10**, **P3-11** e a P3-5, todas Fase 4.
 
 > **Havia dois cabeçalhos de status contraditórios aqui** — *"EM CURSO"* e
 > *"AUDITADA — PASS"*, um sob o outro, com uma data de fechamento no futuro. Era
@@ -32,8 +35,8 @@ que o produziu:
 
 | Medida | Comando |
 |---|---|
-| **217 testes**, zero pulos com a stack efêmera no ar | `python -m unittest discover -s tests` |
-| **189 arquivos** classificados pelo gate — 12 SPEC, 115 CODE, 62 descritivos | `python scripts/check_gate_coverage.py` |
+| **223 testes**, zero pulos com a stack efêmera no ar | `python -m unittest discover -s tests` |
+| **190 arquivos** classificados pelo gate — 12 SPEC, 115 CODE, 63 descritivos | `python scripts/check_gate_coverage.py` |
 | **32 passos** de verificação no CI | `grep -c "run: python" .github/workflows/invariants.yml` |
 
 > **Estes números eram 211, 183 e 27, e foi o commit anterior que invalidou os
@@ -725,8 +728,9 @@ três primeiros já passavam desde a Fase 1.
 | P3-6 | `POST .../notas` grava nota antes de a trilha de auditoria existir | **Fase 5**, com `06` T7 |
 | P3-7 | ~~A guarda de base do lançador cobre `BASE_SHA == HEAD_SHA`, e a inversão real é merge peça a peça~~ | ✅ **FECHADA** — predicado (ii) ∧ (iii) com sete eixos; furo do squash declarado em `WORKFLOW.md` |
 | P3-8 | Dois falsos bloqueios do hook do auditor: `->` citado lido como redirecionamento, path de URL lido como caminho absoluto | **Antes do checkpoint da Fase 4** — `WORKFLOW.md` §"Bloqueio indevido" |
-| P3-9 | `PostgresEventStore._head()` entra no núcleo sem nenhum teste, e é a leitura de que a validade do cache depende | **Fase 4** — é o que a stack efêmera existe para exercitar |
+| P3-9 | ~~`PostgresEventStore._head()` entra no núcleo sem nenhum teste~~ | ✅ **FECHADA** — quatro testes contra Postgres real, com mutação medida |
 | P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4, e não é reconstruível do event store | **Fase 4** — com o texto normativo citado |
+| P3-11 | Flag declarada em `api_surface.yaml` e ausente do estado vira no-op silencioso: o adapter não tem guarda de boot | **Fase 4** — quando existir processo que sobe |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -1229,6 +1233,39 @@ vermelho — e o sintoma apareceria no container da Fase 4, longe da causa.
 **Vencimento: Fase 4**, e por dois motivos que se somam: `06` T3 (*"reinício do
 processo restaura a projeção corrente"*) passa por este caminho, e a stack efêmera
 da P2-19 existe exatamente para que teste de persistência não seja teoria.
+
+> **✅ FECHADA na quarta rodada, e antes do vencimento.** O auditor apertou o
+> argumento com um fato que o adiamento não tinha: *"a suíte rodou 217 testes com
+> zero pulos e `AURORA_TEST_DATABASE_URL` no ar — **o teste era executável nesta
+> rodada e não existe**"*. Prazo por vencimento futuro não sobrevive a um custo
+> presente que já é zero.
+>
+> `tests/test_event_store_postgres.py::CabecaDoFluxoEmPostgres`: fluxo vazio, a
+> cabeça acompanhando o append, concordância com `read_all()` **e com instância
+> nova**, e `EXPLAIN` sem `Seq Scan`. Trocando `DESC` por `ASC` em `_head()`, dois
+> ficam vermelhos; revertido, 223/223 sem pulos. Ver §8.7.4.
+
+#### P3-11 — flag declarada e ausente do estado vira no-op silencioso
+
+**L1 da quarta auditoria.** `domains/academus/api/degradacao.py:131-135`:
+`estado.flags.get(entrada.flag)` devolve `None` quando a flag citada em
+`api_surface.yaml` não existe no estado corrente — e aí `ligada` não dispara e
+`proporcional` lê `0.0`. **A rota não degrada, e nada avisa.**
+
+**O CI cobre; o runtime não.** `check_api_surface.py` reprova flag que o adapter
+não declara, com probe negativo. Mas o **boot do adapter** não tem guarda, ao
+contrário do loader do engine — que recusa alto, e cujo comportamento é item de
+`06` T2: *"flag não declarada impede boot, com mensagem nomeando flag e arquivo
+esperado"*. `01_ARCHITECTURE.md` §5.4 diz *"nenhum serviço lê ou escreve flag não
+declarada"*, e a leitura silenciosa de uma flag inexistente é a forma fraca disso.
+
+**Um `api_surface.yaml` editado dentro do container degradaria nada, em silêncio**
+— e é a assimetria que importa: o gate protege o repositório, não o exercício em
+curso. A `FalhaFechada` de `tests/test_api_rbac.py` já fez essa distinção para
+rota não declarada; falta fazê-la para flag.
+
+**Vencimento: Fase 4** — é a fase em que existe processo que sobe, e a guarda de
+boot só tem sentido onde há boot.
 
 #### P3-10 — `Cota` é estado mutável fora das cinco camadas
 
@@ -1798,6 +1835,104 @@ apenas se alguém lembrasse que `bool` é subclasse de `int`, não de `float`.
 booleana do Redis: o caminho `proporcional` leria 1.0 onde a declaração diz
 0,5"*. Revertido, 217/217. A lição da §7.3.1 aplicada na primeira vez, e não na
 segunda.
+
+---
+
+## 8.7 A quarta auditoria — PASS, com o auditor medindo
+
+**PASS**, commit `9b7d753`, sem BLOCKER. `docs/progress/audit_20260816T220943Z.md`.
+
+**As três correções do aparato funcionaram, e cada uma é verificável no próprio
+relatório dele:**
+
+| Correção | Prova no relatório |
+|---|---|
+| `--allowedTools Bash` | **217 testes, zero pulos**, mais todos os verificadores e o harness negativo. Ele mediu em vez de inferir |
+| veredito no prompt | o relatório **abre** com *"Este veredito é LAUDO, não porta"*, citando âncora e merge-base — e ele ainda conferiu a topologia por conta própria |
+| ordem da invocação | a sessão nasceu |
+
+E ele confirmou os dois defeitos anteriores **medindo, não lendo**: *"o par `[2.5]`
+com token / `[]` sem token"* e *"uma flag `number` de verdade pelo Redis real, com
+`assertNotIsInstance(..., bool)`"*.
+
+### 8.7.1 Os achados, e o que foi feito com cada um
+
+| | Achado | Disposição |
+|---|---|---|
+| **H1** | a fase foi mergeada peça a peça; e `02383e4` tem um commit de **código** como pai — não nasceu de branch `spec-change/<slug>` a partir de `main` | **História, não reparável neste commit.** É exatamente o que a P3-7 e o procedimento do `WORKFLOW.md` passam a impedir da Fase 4 em diante |
+| **M1** | `_head()` sem teste, **com a stack ativa** | **corrigido** — quatro testes contra Postgres real. **P3-9 fechada** |
+| **M2** | business state em memória | **P3-5**, Fase 4 |
+| **M3** | `Cota` fora das cinco camadas | **P3-10**, Fase 4 |
+| **M4** | o lint do item 4 não varre `tests/` | **corrigido** — `SCANNED_DIRS` inclui `tests`; `scripts/` fica fora **declarado** |
+| **M5** | a prova negativa da guarda de base não é executável pelo auditor | **corrigido** — `check_audit_base_probes` na allowlist, por nome |
+| **L1** | flag declarada em `api_surface.yaml` e ausente do estado vira no-op silencioso, sem guarda no boot do adapter | **P3-11**, Fase 4 |
+| **L2** | escopo de objeto na **escrita** de nota sem asserção | **corrigido** — e fecha de verdade a P3-3 |
+
+### 8.7.2 O M5 é a ironia da rodada, e a regra estava escrita no próprio hook
+
+`check_audit_base.py` decide se uma auditoria é **porta ou laudo** — a decisão mais
+consequente do aparato. E a única forma de conferir que ele reprova nos oito eixos
+foi **ler o código**: os probes ficaram fora da allowlist do auditor, no commit que
+os criou.
+
+A regra violada está escrita em `readonly_bash.py`, cinco linhas acima do lugar
+onde a entrada faltava: *"Script novo que precise ser executado pelo auditor entra
+aqui por nome, no commit que o cria"*. Quatro pares análogos da mesma fase estão
+lá — `check_spec_flags`, `check_api_surface`, `check_fold_authority`,
+`check_pinned_images`. Este não.
+
+**É a degradação para inferência que o B1 da terceira rodada custou uma auditoria
+inteira, sobrevivendo dentro do mecanismo que a corrigiu.**
+
+**Entrou só o `_probes`, e a omissão do outro é decisão:** `check_audit_base.py`
+exige argumentos (`--phase`, `--default`), e a forma da allowlist termina em `.py$`
+de propósito. Admitir argumento para um script abriria **superfície de argumento**,
+e o histórico daquele arquivo é uma lista de furos que entraram exatamente assim.
+Os probes rodam sem argumento e provam os oito eixos, que é o que o M5 cobra.
+
+A cópia instalada em `~/.claude/hooks/` foi sincronizada — `phase0_negative_tests`
+confere as duas, e agora libera **47** leituras legítimas.
+
+### 8.7.3 O M4, e por que `scripts/` fica de fora
+
+`SCANNED_DIRS` era `("range-core", "domains")`. O item 4 da DoD diz *"nenhuma
+string solta de flag no código-fonte"* e `06` T2 não restringe diretório — mas a
+varredura excluía justamente `tests/`, **o único diretório em que esta fase correu
+o risco**. Quem barrou a primeira versão de `tests/test_api_degradacao.py` foi o
+hook `check_architecture.py`, que se declara **não-gate** no próprio cabeçalho.
+
+**Medido, e não presumido:** com `tests` no escopo, plantando
+`PLANTADO = "academus.lms_degraded"` em `tests/test_api_degradacao.py`, o lint
+reprova com *"literal 'academus.lms_degraded' declarado em
+domains/academus/flags.yaml. Use a constante gerada"*. Sem o plantio, rc=0.
+
+**`scripts/` fica fora, e é decisão declarada:** os `*_probes.py` plantam literal
+de flag **de propósito** — a violação plantada é o que prova que o verificador
+reprova. Varrê-los seria reprovar a própria prova negativa.
+
+### 8.7.4 O M1 e o L2, fechados com o par que discrimina
+
+**M1 — `head()` contra Postgres.** Quatro testes novos: fluxo vazio, a cabeça
+acompanhando o append, concordância com `read_all()` **e com uma instância nova**
+— que é o caso real do cache, um processo que não tem memória do append —, e o
+plano do banco. O último afirma `EXPLAIN` sem `Seq Scan` em vez de medir tempo:
+tempo oscila com a máquina, e `01` §7 proíbe varredura em rota de tempo real.
+
+*Medido:* trocando `ORDER BY sequence DESC` por `ASC` em `_head()`, dois dos quatro
+ficam vermelhos. Revertido, **223 testes, zero pulos**.
+
+**L2 — a escrita de nota.** A classe `EscopoDeObjeto` prometia *"a escrita também
+passa pelo escopo"* e exercitava a matrícula; a nota, não. Todas as chamadas de
+nota da suíte usavam o `TITULAR`, então o caminho negado nunca era percorrido — e
+a **P3-3 estava declarada FECHADA** sobre isso.
+
+Dois testes: `OUTRO_PROFESSOR` lançando nota em turma alheia responde **404**, com
+o par positivo que discrimina; e nota em turma alheia × turma inexistente têm
+**status e corpo idênticos** — a mesma indistinguibilidade que a leitura já tinha,
+fechada pela porta dos fundos da escrita.
+
+**Nota é o vetor da Linha B**, e por isso o buraco importava mais aqui que na
+matrícula: o cenário trata alteração de nota como a ação que o exercício investiga.
 
 ---
 

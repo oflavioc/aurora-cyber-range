@@ -127,6 +127,19 @@ ALLOWED = [
     # compara dois sha256 de 64 caracteres a olho — que e exatamente como o
     # digest inventado da peca 3 passou pela minha propria revisao.
     rf"|check_pinned_images|check_pinned_images_probes"
+    # `check_audit_base_probes` — P3-7. A guarda de base decide se uma auditoria
+    # e PORTA ou LAUDO, isto e, e a checagem mais consequente do aparato; e ela
+    # ficou fora da allowlist no commit que a criou, contra a regra escrita
+    # acima. O resultado foi o M5 da quarta auditoria da Fase 3: os oito eixos
+    # avaliados por LEITURA, no mecanismo que julga o proprio auditor.
+    #
+    # SO OS PROBES, e nao `check_audit_base.py`: o verificador exige argumentos
+    # (`--phase`, `--default`) e esta forma da allowlist termina em `.py$` de
+    # proposito. Admitir argumento para um script abriria superficie de
+    # argumento — e o historico deste arquivo e uma lista de furos que entraram
+    # exatamente assim. Os probes rodam sem argumento e provam os oito eixos,
+    # que e o que o M5 cobra.
+    rf"|check_audit_base_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

@@ -178,6 +178,11 @@ LEITURA_LEGITIMA = [
      "python scripts/check_pinned_images.py"),
     ("teste negativo das imagens pinadas",
      "python scripts/check_pinned_images_probes.py"),
+    # P3-7, e entrou uma rodada ATRASADA: o commit que criou a guarda de base
+    # nao a pos na allowlist, e o auditor da quarta rodada teve de avaliar por
+    # leitura o mecanismo que decide se a auditoria dele e porta ou laudo. M5.
+    ("teste negativo da guarda de base (P3-7)",
+     "python scripts/check_audit_base_probes.py"),
     ("executor de exemplos com stderr descartado",
      "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
