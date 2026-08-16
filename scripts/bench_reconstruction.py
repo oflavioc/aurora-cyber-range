@@ -182,7 +182,24 @@ def main() -> int:
         return 1
     dsn = normalize_dsn(url)
 
+    # O NUMERO SO VALE COM O CONTEXTO. Ele e medido contra uma versao de
+    # Postgres, de driver e de schema; daqui a tres fases, "2,874 s em 150 mil"
+    # sozinho e a secao 1.6 esperando acontecer — afirmacao que era verdadeira
+    # quando escrita. E medicao e o tipo de coisa que ninguem repete antes de
+    # citar.
+    import datetime
+
+    import psycopg as _psycopg
+
+    with psycopg.connect(dsn) as _c, _c.cursor() as _cur:
+        _cur.execute("SELECT version()")
+        versao_pg = _cur.fetchone()[0].split(",")[0]
+        _cur.execute("SELECT version_num FROM alembic_version")
+        revisao = _cur.fetchone()[0]
+
+    print(f"data:    {datetime.date.today().isoformat()}")
     print(f"maquina: {platform.platform()} | python {platform.python_version()}")
+    print(f"stack:   {versao_pg} | psycopg {_psycopg.__version__} | migration {revisao}")
     print(f"{'forma':<12} {'eventos':>8} {'rb':>5} {'read_all':>10} {'cadeia':>9} "
           f"{'consulta':>9} {'project':>9} {'TOTAL':>8}")
     print("-" * 76)
