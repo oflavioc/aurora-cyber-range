@@ -73,6 +73,21 @@ jobs:
       - name: teste negativo da superficie de leitura
         run: python scripts/check_store_read_surface_probes.py
 
+      # P2-15 — o limite que a secao 2.1 do registro da Fase 2 declarou, com o
+      # gatilho que ela mesma nomeou: o dia em que o core importasse de
+      # `contracts/` algo que nao fosse constante gerada. Disparou no loader.
+      #
+      # `check_core_boundary.py` so tem opiniao sobre `domains`. Esta checagem
+      # nao proibe nada em `contracts/`: ela afirma que o conjunto de imports do
+      # core e EXATAMENTE o declarado, com motivo por entrada. Whitelist, pelo
+      # mesmo argumento da P2-2 — nenhuma lista de proibicoes preve a proxima
+      # palavra.
+      - name: imports do core para contracts/
+        run: python scripts/check_core_contract_imports.py
+
+      - name: teste negativo dos imports do core
+        run: python scripts/check_core_contract_imports_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 
