@@ -137,6 +137,23 @@ LEITURA_LEGITIMA = [
      "python scripts/check_spec_examples_probes.py"),
     ("consistencia do registro de fase",
      "python scripts/check_progress_consistency.py"),
+    # AS SEIS DA FASE 2. Cada entrada da allowlist tem prova aqui, e cada prova
+    # aqui exige entrada la — as duas direcoes, porque entrada sem prova admite
+    # sem saber o que admitiu, e prova sem entrada reprova o harness.
+    #
+    # Sem elas o auditor da Fase 2 nao executou NENHUM teste da fase e voltou a
+    # avaliar por leitura de codigo: B1 da auditoria de 16/08/2026, reincidencia
+    # do H3 da segunda auditoria da Fase 1.
+    ("suite de testes do range-core", "python -m unittest discover -s tests"),
+    ("superficie de leitura do store (P2-2)",
+     "python scripts/check_store_read_surface.py"),
+    ("teste negativo da superficie de leitura",
+     "python scripts/check_store_read_surface_probes.py"),
+    ("imports do core para contracts (P2-15)",
+     "python scripts/check_core_contract_imports.py"),
+    ("teste negativo dos imports do core",
+     "python scripts/check_core_contract_imports_probes.py"),
+    ("DEMO SCRIPT da Fase 2", "python scripts/demo_fase2.py"),
     ("executor de exemplos com stderr descartado",
      "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
@@ -293,6 +310,24 @@ ESCRITA_DELIBERADA = [
     ("git branch -m muta ref compartilhado", "git branch -m aaa bbb"),
     ("git branch -f muta ref compartilhado", "git branch -f main HEAD"),
     ("git branch -c muta ref compartilhado", "git branch -c aaa bbb"),
+    # A ENTRADA DE `unittest` E POR FORMA EXATA, E ESTES PROVAM QUE NAO E FAMILIA.
+    #
+    # `python -m unittest <modulo>` carrega modulo arbitrario por nome, que e
+    # execucao arbitraria com outro nome; `discover -s <dir>` livre alcanca
+    # qualquer diretorio. A allowlist admite UMA forma, com `$` ancorando o fim —
+    # e sem estes probes, afrouxa-la para `python\s+-m\s+unittest` passaria
+    # despercebido, porque a leitura legitima continuaria liberada.
+    ("unittest carregando modulo por nome", "python -m unittest tests.test_event_store"),
+    ("unittest descobrindo fora de tests/", "python -m unittest discover -s ."),
+    ("unittest com argumento extra depois da forma admitida",
+     "python -m unittest discover -s tests -k rm"),
+    # `bench_reconstruction.py` NAO entra na allowlist: exige Postgres, escreve
+    # centenas de milhares de linhas e demora minutos. O item 8 pede a curva com
+    # maquina, data e stack declaradas — que o script gera por codigo —, e nao a
+    # reproducao da medicao. Este probe fixa a ausencia: readmiti-lo passa a
+    # exigir decisao explicita, em vez de entrar junto de outro nome.
+    ("bench de reconstrucao fica fora da allowlist",
+     "python scripts/bench_reconstruction.py"),
     ("git diff --output escreve arquivo", "git diff --output=out.txt HEAD~1 HEAD"),
     ("git log --output escreve arquivo", "git log --output=out.txt"),
     ("git show --output escreve arquivo", "git show --output=out.txt HEAD"),

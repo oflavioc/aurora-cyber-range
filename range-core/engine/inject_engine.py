@@ -435,7 +435,9 @@ class InjectEngine:
         ele e o rotulo passa a ser exatamente quanto o rollback descartou, que e
         o que `01` §3 exige.
 
-        `technical_failure` e RECUSADO — ver o cabecalho do modulo e a P2-4.
+        `technical_failure` grava tambem o intervalo congelado, derivado do
+        fluxo — ver `_frozen_interval`. Ele foi RECUSADO enquanto o campo de
+        payload nao existia; existe desde a P2-4, e a recusa saiu junto.
         """
         if reason not in self._rollback_reasons:
             raise EngineError(

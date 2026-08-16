@@ -19,6 +19,23 @@ ALLOWED = [
     # delecao era enumerar quatro quintos de uma familia (B1c da 11a auditoria).
     rf"^{SAFE_ENV_PREFIX}git\s+(diff|log|show|status|rev-parse|ls-files|cat-file|merge-base|for-each-ref)\b",
     rf"^{SAFE_ENV_PREFIX}(pytest|python\s+-m\s+pytest)\b",
+    # A SUITE DA FASE 2 E `unittest`, E NAO `pytest`.
+    #
+    # A entrada acima existia desde a Fase 0, quando nao havia suite nenhuma. A
+    # Fase 2 criou a primeira suite real do projeto — 154 testes — em `unittest`,
+    # por decisao registrada: `pytest` nao e dependencia do projeto, e
+    # acrescenta-lo seria fecho transitivo novo a pinar por T15. O resultado foi
+    # que o auditor da Fase 2 nao conseguiu executar NENHUM teste da fase e
+    # voltou a avaliar por leitura de codigo — B1 da auditoria de 16/08/2026, e
+    # reincidencia do H3 da segunda auditoria da Fase 1.
+    #
+    # FORMA EXATA, e nao familia. `python -m unittest discover -s tests` e o
+    # comando que o CI roda (`invariants.yml`), com `$` ancorando o fim: um
+    # `python -m unittest <qualquer coisa>` continua bloqueado. Admitir a familia
+    # daria ao auditor a capacidade de carregar modulo arbitrario por nome, que e
+    # execucao arbitraria com outro nome — e `discover -s <dir>` livre alcancaria
+    # qualquer diretorio.
+    rf"^{SAFE_ENV_PREFIX}python\s+-m\s+unittest\s+discover\s+-s\s+tests\s*$",
     rf"^{SAFE_ENV_PREFIX}npm\s+(test|run\s+test|run\s+lint|run\s+typecheck)\b",
     rf"^{SAFE_ENV_PREFIX}(ruff|mypy|black\s+--check|eslint|tsc\s+--noEmit)\b",
     rf"^{SAFE_ENV_PREFIX}range-cli\s+scenario\s+(validate|lint|dryrun)\b",
@@ -58,10 +75,37 @@ ALLOWED = [
     # de contratos, mas quem o usa e o probe, por subprocess de Python — que o
     # hook nao intercepta. O auditor roda as duas formas sem argumento, entao
     # admitir um token arbitrario afrouxaria a ancora `$` sem ganho nenhum.
+    #
+    # A FASE 2 ACRESCENTOU QUATRO VERIFICADORES E UM DEMO, e cada um entra por
+    # nome com o seu motivo:
+    #
+    # `check_store_read_surface` — P2-2, a metade da garantia de `01` §4.1 que
+    #   vive fora do fold: o store nao pode OFERECER filtro. Sem executa-lo, o
+    #   auditor le a lista de metodos e infere.
+    # `check_store_read_surface_probes` — prova que o anterior reprova. Entrada
+    #   sem a prova negativa dela seria admitir um verificador sem saber se ele
+    #   enxerga, que e o que a Fase 0 gastou dezenove rodadas para nao aceitar.
+    # `check_core_contract_imports` — P2-15, a whitelist do que o core importa de
+    #   `contracts/`.
+    # `check_core_contract_imports_probes` — idem, a prova negativa.
+    # `demo_fase2` — o DEMO SCRIPT que `07` exige da fase. Roda em memoria, sem
+    #   banco e sem escrever arquivo; e o unico artefato que exercita a MONTAGEM
+    #   ponta a ponta, e le-lo nao substitui roda-lo.
+    #
+    # `bench_reconstruction` FICA DE FORA, e a ausencia e decisao registrada:
+    # ele exige Postgres, ESCREVE centenas de milhares de linhas e demora
+    # minutos. O item 8 nao pede reproducao — pede a curva com maquina, data e
+    # stack declaradas, e o script as gera POR CODIGO, o que e conferivel por
+    # leitura. Admiti-lo daria ao auditor uma operacao de escrita longa para
+    # confirmar um numero que a forma ja garante. Ver o limite declarado no
+    # registro da Fase 2.
     rf"^{SAFE_ENV_PREFIX}python\s+scripts/"
     rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes"
     rf"|check_spec_examples|check_spec_examples_probes"
-    rf"|check_progress_consistency)"
+    rf"|check_progress_consistency"
+    rf"|check_store_read_surface|check_store_read_surface_probes"
+    rf"|check_core_contract_imports|check_core_contract_imports_probes"
+    rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
     # travessia como .claude/hooks/../../x.py nao casa.
