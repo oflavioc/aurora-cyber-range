@@ -530,7 +530,20 @@ oferece `is_paused` e não agenda nada: quem decide não disparar é quem dispar
 ### 3.8 A medição do item 8
 
 `scripts/bench_reconstruction.py`, contra Postgres em container efêmero.
-Windows 11, Python 3.12.10. **Não roda no CI**: tempo em runner compartilhado
+
+| | |
+|---|---|
+| **Data** | 15/08/2026 |
+| **Máquina** | Windows 11 (10.0.26200), Python 3.12.10 |
+| **Stack** | PostgreSQL 16.4 (`alpine`, digest pinado) · psycopg 3.2.12 · migration `0001_event_store` |
+
+O contexto está junto do número porque o número **vale contra essa stack**.
+Daqui a três fases, "2,874 s em 150 mil" sozinho é a §1.6 esperando acontecer —
+e medição é o tipo de coisa que ninguém repete antes de citar. O bench passou a
+imprimir data, máquina e stack junto do resultado, para que a próxima execução
+não dependa de alguém lembrar de anotar.
+
+**Não roda no CI**: tempo em runner compartilhado
 varia com o vizinho, e gate que falha por vizinho ensina a reexecutar até passar
 — o mesmo argumento que tirou o `sleep` dos testes do clock.
 
@@ -574,11 +587,9 @@ ordem de grandeza diferente das demais — injects são dezenas, ações de
 participante são centenas, e telemetria é a que pode chegar às centenas de
 milhares sozinha.
 
-**Achado lateral, fora do item 8:** `append` abre uma conexão por chamada. A
-medição usou escrita em lote de propósito, para não contar custo de escrita como
-se fosse de reconstrução — mas para carga real o `append` merece revisão
-própria, e isso não é problema desta fase porque a Fase 2 grava a ritmo de
-facilitador.
+**Achado lateral, e ele virou a P2-11:** `append` abre uma conexão por chamada.
+A medição usou escrita em lote de propósito, para não contar custo de escrita
+como se fosse de reconstrução.
 
 ### 3.3 O job `contratos` roda teste de código, e o nome não diz isso
 
@@ -646,6 +657,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
+| P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -838,6 +850,27 @@ o fold recomputa do zero e a máscara é O(n) por rollback: se a medição obrig
 a trocar a estratégia, mexeria numa decisão com seis propriedades e oito
 mutações apoiadas nela. **O fold é 3% do orçamento.** A estratégia de
 recomputação não é o risco, e pode ser construída em cima sem reserva.
+
+#### P2-11 — `append` abre uma conexão por chamada
+
+`PostgresEventStore._persist` faz `psycopg.connect` a cada evento. Custa
+milissegundos por append, e a Fase 2 grava **a ritmo de facilitador** — dezenas
+de eventos por hora —, então não é problema agora.
+
+**Mas "agora" é datado, e a data tem nome.** A Fase 9 traz `telemetry_emitted`,
+que é justamente a fonte que a §3.8 nomeia como quem reabre o item 8 — e
+telemetria **não grava a ritmo de facilitador**. Leitura e escrita reabrem
+juntas, pela mesma causa: volume.
+
+**Por que isto não pode ficar só como observação no bench.** Quem chegar na
+Fase 9 seguindo a §3.8 encontra o problema de **leitura** documentado com número
+e curva, e não encontra o de **escrita** — que estará no mesmo caminho, pela
+mesma razão, e sem aviso.
+
+**Vencimento: Fase 9**, junto da reavaliação do item 8. A saída provável é
+conexão reusada ou pool, mas medir antes de escolher — pela mesma ordem que a
+P2-10 fixou e que se mostrou certa: o risco que se supunha não era o que estava
+lá.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
