@@ -74,6 +74,10 @@ DESCRITIVO: dict[str, str] = {
     "pyproject.toml": "manifesto de dependencia",
     "constraints.txt": "fecho transitivo pinado",
     "docker-compose.yml": "composicao local",
+    "docker-compose.audit.yml": "stack efemera da auditoria (P2-19). Descritivo "
+    "pelo mesmo motivo que a composicao local: nao e mecanismo julgado pelo "
+    "gate, e os digests dele ja tem guarda propria em check_pinned_images.py, "
+    "que cruza os TRES arquivos que declaram imagem",
     ".env.example": "placeholders; o `.env` real nao e versionado",
 }
 

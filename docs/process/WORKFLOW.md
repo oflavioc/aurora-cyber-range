@@ -54,7 +54,15 @@ O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textua
 
 **Bloqueio indevido também é defeito.** Um auditor que não consegue rodar a prova central audita por inferência de leitura de código, e continua emitindo veredito enquanto isso — foi a lição do H4 da primeira auditoria da Fase 0. Por isso o item 4(e) trata falso bloqueio novo como finding, e não como inconveniência.
 
-A integridade do repositório repousa em branch protection com `enforce_admins`, no job `spec_freeze` e nos seis verificadores — nenhum deles alcançável pelo hook do auditor. Qualquer sujeira incidental de teste morre com o worktree temporário.
+A integridade do repositório repousa em branch protection com `enforce_admins`, no job `spec_freeze` e nos seis verificadores — nenhum deles alcançável pelo hook do auditor. Qualquer sujeira incidental de teste **dentro da árvore** morre com o worktree temporário.
+
+> **A exceção, declarada — P2-18.** A frase acima prometia contenção total, e a promessa era meio verdadeira. `tests/mutation_harness.py` e os `*_probes.py` escrevem a fonte mutada em `tempfile.TemporaryDirectory()`, que fica **fora do worktree**: o diretório é autolimpante e o alvo não é escolhido por quem roda, mas ele não morre com o worktree — morre com o processo.
+>
+> Não é escrita deliberada do auditor, e o hook não a intercepta: acontece dentro de um `python -m unittest` já autorizado. **`tempfile` é o mecanismo certo** — plantar mutação dentro da árvore auditada a deixaria suja durante a execução, que é pior —, e o que estava errado era a frase.
+>
+> **Contenção real, então, são duas afirmações e não uma:** nada escrito *na árvore* sobrevive ao worktree, e nada escrito *fora dela* sobrevive ao processo. A segunda é mais fraca, e está dita porque é mais fraca.
+>
+> **A stack efêmera da auditoria é da mesma família.** Desde o fechamento da P2-19, o lançador sobe Postgres e Redis descartáveis e exporta `AURORA_TEST_DATABASE_URL`/`AURORA_TEST_REDIS_URL` — os testes **escrevem** neles. Portas próprias, sem volume, e `docker compose down` ao final: é escrita real, fora do repositório, com tempo de vida da auditoria. Apontar para o compose do projeto truncaria o banco de desenvolvimento.
 
 ## Scenario designer
 

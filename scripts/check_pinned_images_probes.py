@@ -23,6 +23,8 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from check_pinned_images import imagens, main, verifica  # noqa: E402
 
+WORKFLOW = ".github/workflows/invariants.yml"
+
 UM = "a" * 64
 OUTRO = "b" * 64
 
@@ -32,7 +34,7 @@ PROBES = [
         "digest DIFERENTE nos dois arquivos — o defeito que aconteceu",
         {"redis:7.4.1-alpine": UM},
         {"redis:7.4.1-alpine": OUTRO},
-        "digests DIFERENTES nos dois arquivos",
+        "tem digests DIFERENTES",
     ),
     (
         "imagem sem digest no compose",
@@ -53,6 +55,12 @@ PROBES = [
         "nao existe em docker-compose.yml",
     ),
     (
+        "TERCEIRO arquivo divergindo do compose",
+        {"redis:7.4.1-alpine": UM},
+        {"redis:7.4.1-alpine": UM, "postgres:16.4-alpine": OUTRO},
+        "nao existe em docker-compose.yml",
+    ),
+    (
         "os dois arquivos em acordo: nada a acusar",
         {"redis:7.4.1-alpine": UM, "postgres:16.4-alpine": OUTRO},
         {"redis:7.4.1-alpine": UM},
@@ -62,7 +70,7 @@ PROBES = [
 
 
 def roda(rotulo, compose, workflow, esperado) -> bool:
-    problemas = verifica(compose, workflow)
+    problemas = verifica(compose, [(WORKFLOW, workflow)])
 
     if esperado is None:
         if problemas:

@@ -3,13 +3,14 @@
 **Status: EM CURSO.** Aberta em 16/08/2026, com a Fase 2 concluída — nove de nove
 itens e auditoria PASS.
 
-**As cinco peças entregues, e os quatro itens da DoD passam.** A superfície
-declarada e conferida nas duas direções, a projeção materializada com o fold como
-única autoridade de escrita, o JWT com os dois conjuntos de papéis separados por
-guarda, e a degradação por flag declarativa em três endpoints.
+**Status: FECHADA para auditoria.** Cinco peças entregues, **quatro de quatro**
+itens da DoD com prova executável (§5.1), e as três pendências de aparato que
+venciam neste checkpoint fechadas.
 
-Falta o fechamento da fase: inventário de pendências, tabela de DoD com prova por
-item, e a auditoria de checkpoint.
+**211 testes — zero pulos com a stack efêmera no ar**, 27 verificações no CI, 183
+arquivos classificados pelo gate.
+
+Aberta em 16/08/2026; fechada em 17/08/2026.
 
 ---
 
@@ -647,13 +648,39 @@ alguém tentar implementá-lo.
 
 ---
 
+## 5.1 A Definition of Done, item por item, com a prova
+
+`07_IMPLEMENTATION_PHASES.md` Fase 3. **Quatro itens, quatro provas executáveis** —
+nenhuma linha desta tabela é atestação minha.
+
+| | Item | Prova |
+|---|---|---|
+| 1 | `academus.enrollment_offline: true` faz o endpoint de matrícula retornar 503 | `tests/test_api_degradacao.py::ItensDaDoD::test_item_1_matricula_responde_503_com_a_flag_ligada` — 201 antes do inject, 503 depois, com o efeito vindo do **fold** sobre um `inject_fired` real |
+| 2 | `academus.grades_readonly: true` bloqueia POST de nota com mensagem de negócio | `::test_item_2_nota_bloqueada_COM_MENSAGEM_DE_NEGOCIO` — 409 e o texto manda falar com a coordenação. E `::test_a_leitura_de_nota_segue_disponivel_com_a_flag_ligada`, porque o `effect_ui` da flag diz que a leitura segue |
+| 3 | RBAC nega acesso cruzado entre perfis | `tests/test_api_rbac.py::RBAC::test_ACESSO_CRUZADO_e_negado_nas_duas_direcoes` — professor não lê aluno, aluno não lê turma, **e** professor lê a turma dele. O par é o que discrimina: negar tudo passaria em dois terços |
+| 4 | Nenhuma string solta de flag no código-fonte, verificado por lint | `python tools/check_contract_literals.py`, no job `arquitetura`. Exercido nesta fase: o hook **recusou** a primeira versão de `tests/test_api_degradacao.py`, que escrevia os quatro nomes de flag como literal |
+
+**O item 4 não é herdado de fase anterior.** Ele estava mecanizado desde a Fase 1,
+mas a Fase 3 é a primeira que escreve código consumindo flag por nome — e a
+verificação reprovou de verdade, contra código meu, antes de existir commit.
+
+**O que a fase entrega além da DoD**, porque `07` pede nos OUTPUTS: JWT (`06` T2 e
+`05` §8), três entidades, e degradação real em **três** endpoints — a DoD nomeia
+dois, e `07` exige pelo menos três.
+
+**Critérios de aceitação:** só **T2**, "Fases 1–3". Os quatro bullets passam, e os
+três primeiros já passavam desde a Fase 1.
+
+---
+
 ## 6. Pendências
 
 | Id | O que é | Vencimento |
 |---|---|---|
-| P3-1 | O digest de imagem é pinado em dois lugares e nada cruza os dois | ✅ **fechada na peça 4** |
+| P3-1 | ~~O digest de imagem é pinado em dois lugares e nada cruza os dois~~ | ✅ **FECHADA** na peça 4 |
 | P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 4** — redatada, ver abaixo |
-| P3-3 | O RBAC é de papel, e aluno lê aluno: falta a regra de objeto | ✅ **fechada na peça 5** |
+| P3-3 | ~~O RBAC é de papel, e aluno lê aluno: falta a regra de objeto~~ | ✅ **FECHADA** na peça 5 |
+| P3-4 | No worktree de auditoria, `range_core` vem da árvore PRINCIPAL e `domains` do worktree | **Antes do próximo checkpoint** — Fase 4 |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -753,11 +780,168 @@ recurso nenhum, então a regra de objeto **não reabre** a questão de 403 × 40
 | P2-5 | ~~`00` §5.6 enumerava duas das quatro marcas~~ | **FECHADA** — `spec-change` de 16/08 |
 | P2-9 | ~~a frase do mecanismo em `01` §4.4~~ | **FECHADA** — mesmo `spec-change` |
 | P37 | ~~`docs/process/` fora do `CODE`~~ | **FECHADA** — e era maior que a pendência |
+| P2-16 | ~~o auditor lê `main` local, e `main` local envelhece~~ | ✅ **FECHADA** no fechamento desta fase |
+| P2-18 | ~~o harness de mutação escreve fora do worktree~~ | ✅ **FECHADA** — a frase do `WORKFLOW.md` corrigida |
+| P2-19 | ~~o auditor não executa o que depende de serviço~~ | ✅ **FECHADA** — stack efêmera no lançador |
 | P2-6 | ligação declarativa de `participant_action` a flag | **Fase 8** |
-| P2-16, P2-18, P2-19 | aparato de auditoria | antes do próximo checkpoint |
+
+### As três do aparato venciam NESTE checkpoint, e estão fechadas
+
+A pergunta que este parágrafo responde é a que a P2-14 tornou obrigatória:
+**alguma pendência vence nesta fase e está aberta?** Não. As três diziam *"antes
+do próximo checkpoint"*, e o próximo checkpoint é este — então foram feitas
+agora, no PR de fechamento, que é o mesmo PR que as pendências previam
+(*"as duas são do mesmo aparato e cabem no mesmo PR"*).
+
+**P2-16 — a base de comparação.** O lançador faz `git fetch origin main`, resolve
+`origin/main` para um SHA e **passa esse SHA no prompt**, com a instrução de não
+resolver `main` por conta própria. A formulação anterior — *"diff contra main"* —
+era o próprio defeito: delegava a resolução ao auditor, dentro de um worktree
+cujos refs locais podem estar atrás. Saída (a) da pendência, sem desvio.
+
+**P2-18 — a promessa meio verdadeira.** `WORKFLOW.md` dizia que *"qualquer sujeira
+incidental de teste morre com o worktree temporário"*. Não morre: `tempfile` fica
+fora dele. A contenção real são **duas** afirmações — nada escrito na árvore
+sobrevive ao worktree, nada escrito fora dela sobrevive ao processo —, e a
+segunda está dita porque é mais fraca. Saída (b), que era a decidida.
+
+**P2-19 — e ela deixou de ser doze pulos.** Saída (a): `docker-compose.audit.yml`
+efêmero, sem volume, com portas próprias, subido pelo lançador, migration
+aplicada, e as duas variáveis **exportadas** — não passadas na linha de comando,
+porque o `readonly_bash` só admite três prefixos inline de propósito.
+
+Medido, não suposto: com a stack no ar, **211 testes, zero pulos**. Sem ela eram
+199 rodando e 12 pulando, e entre os doze estavam a persistência, o critério de
+reinício de `06` T3 e a detecção de reescrita por cadeia de hash.
+
+**Rodar o lançador achou dois defeitos que ler não acharia:**
+
+| | O que era |
+|---|---|
+| 1 | sem `-p`, o `docker compose` deriva o nome do projeto do **diretório** — o mesmo do compose de desenvolvimento — e reconcilia os dois arquivos como uma stack só. A primeira execução **recriou o `aurora-redis` de desenvolvimento** e o removeu no `down`. Era o pior caso que as portas separadas tentavam evitar, entrando por outra porta |
+| 2 | a porta 56379 caiu numa **faixa de exclusão do Windows**, e o `bind` falhou. As faixas são dinâmicas e vivem perto do intervalo efêmero, então número alto é escolha frágil. 15432 e 16379 |
+
+O volume `aurora_pgdata` sobreviveu aos dois — conferido, não presumido.
+
+#### P3-4 — no worktree de auditoria, o core vem da árvore principal
+
+**Achado ao conferir a allowlist antes deste checkpoint, e medido:**
+
+| Pacote | De onde resolve, com o CWD no worktree |
+|---|---|
+| `domains` | **worktree** |
+| `contracts` | **worktree** |
+| `range_core` | **árvore principal** |
+
+A instalação editável grava caminhos **absolutos** para a árvore principal.
+`domains` e `contracts` são diretórios reais e o CWD vence no `sys.path`;
+`range-core` tem hífen e **não é importável pela árvore** — é justamente o
+argumento que o `pyproject.toml` escreve —, então só resta o caminho instalado.
+
+**A consequência é procedência misturada.** Se a árvore principal estiver num
+commit diferente do worktree auditado, o auditor executa os testes e o adapter do
+commit candidato **contra o núcleo de outro commit** — e o resultado parece
+normal. É a forma exata de uma propriedade parecer verificada sem estar.
+
+**Hoje não morde por construção:** o lançador exige árvore limpa e fixa o worktree
+em `HEAD`, então os dois coincidem no instante do lançamento. **Morde se eu
+commitar na árvore principal enquanto a auditoria roda** — que é exatamente o que
+aconteceria numa rodada de correção paralela.
+
+**Não é nova da Fase 3**, mas ficou pior nela: a peça 4 pôs `domains` no
+`pyproject.toml`, e o adapter passou a importar o núcleo em todo request.
+
+**Destino:** a forma provável é um teste que afirma que os três pacotes resolvem
+sob a raiz da árvore em execução — o que transforma quimera silenciosa em linha
+vermelha. Não o escrevi agora **de propósito**: ele reprovaria toda auditoria
+feita em worktree, e mudar o critério de reprovação do auditor no PR que ele vai
+auditar é decisão do operador, não minha.
+
+**Vencimento: antes do próximo checkpoint — Fase 4.**
+
+### O que confirmei na allowlist, na fonte e não por suposição
+
+Rodei a cópia **instalada** do hook contra 21 comandos, incluindo os oito
+verificadores que esta fase criou:
+
+| | Resultado |
+|---|---|
+| os 4 verificadores da fase + as 4 provas negativas | **liberados** |
+| `python -m unittest discover -s tests` | **liberado** |
+| `python -m unittest tests.test_api_rbac` e afins | **bloqueados**, e é a forma exata declarada na Fase 2: família admitida deixaria passar `python -m unittest <qualquer coisa>` |
+| `AURORA_TEST_REDIS_URL=... python -m unittest ...` | **bloqueado**, e é o desenho: esses testes **escrevem e apagam** a chave, e um hook que aceitasse `VAR=valor` inline deixaria o auditor apontar a suíte para qualquer lugar. É por isso que a P2-19 exporta em vez de passar inline |
+
+**Nada que a Fase 3 criou está fora da allowlist.** Os dois bloqueios são
+deliberados, já documentados, e o segundo é o que torna a solução da P2-19
+possível sem afrouxar o hook.
 
 ---
 
-## 7. Próxima fase
+## 7. O que a fase aprendeu sobre o próprio método
+
+Três, como a Fase 2. As três são sobre **verificação que parece existir**, e é
+por isso que elas valem mais que qualquer item de DoD: um item de DoD que falha
+avisa, e uma verificação vazia não.
+
+### 7.1 Afirmação sem conferência atravessa camadas, porque cada uma confia na anterior
+
+A P2-6 dizia que o serviço consumidor nascia na Fase 3. Não nascia — é a Fase 11.
+Eu escrevi a frase errada num `spec-change` que **foi mergeado**, e a instrução
+seguinte veio construída sobre ela. **Três camadas**, cada uma tratando a
+anterior como fonte.
+
+E aconteceu de novo dentro desta fase, menor e mais rápido: a D3 do meu próprio
+registro afirmava que `05` §8 exigia o segredo de JWT derivado do `RANDOM_SEED`.
+Falso, e não inofensivo — derivar a chave de assinatura de um valor versionado
+seria **publicá-la**. A frase durou de uma peça à outra porque ninguém a confere:
+registro não tem gate.
+
+**O que muda daqui em diante:** afirmação sobre a spec dentro de um registro é
+citação, não paráfrase — e quando ela é premissa de uma decisão que ainda não foi
+implementada, ela é relida no momento de implementar. Foi assim que esta caiu.
+
+### 7.2 Prazo apoiado em proxy vence sem que a condição ocorra
+
+Datei a P3-2 como *"Fase 3, com o FastAPI"*. O FastAPI chegou; a condição que a
+pendência descreve — **duas leituras simultâneas** — não. Não há servidor, e a
+suíte é sequencial.
+
+O risco de um prazo por proxy não é atrasar. É **fechar**: a data passa, o proxy
+está lá, e a pendência é dada por vencida sem nada ter sido resolvido. É a mesma
+forma da P2-6, com o tempo no lugar do fato.
+
+**O que muda:** o vencimento nomeia a **condição**, não o marco que se espera que
+a traga. A P3-2 agora diz *"o primeiro processo que serve requisições
+concorrentes"*.
+
+### 7.3 Checagem só é exercida quando existe consumidor — e até lá ela parece pronta
+
+A peça 2 recusava papel de exercício **na rota** e deixava passar o mesmo papel em
+`papeis_de_dominio`, a lista de onde os papéis vêm. O buraco era invisível porque
+**nada lia aquela lista**: sem consumidor, as duas metades da regra pareciam uma.
+
+A peça 4 pôs `emitir_token` a lê-la em tempo de execução, e o buraco virou
+caminho: um papel de exercício ali seria token de exercício emitido pelo adapter.
+
+Duas repetições do mesmo padrão nesta fase confirmam que não foi acaso: `/openapi.json`
+respondia 200 sem token — a "falha fechada" da peça 4 valia para rota declarada e
+não para rota que o framework declara sozinho —, e `check_fold_authority` chamava
+`main()` sem `sys.argv`, rodando sempre contra a árvore real.
+
+**O que muda:** ao escrever uma checagem antes do consumidor, escrever também o
+probe do **eixo que só existirá depois** — e, quando o consumidor chegar, reler a
+checagem em vez de assumir que ela já cobria. Foi isso que a peça 4 fez com a
+peça 2, e a peça 5 com a peça 4.
+
+### O contraste que vale registrar
+
+As três lições da Fase 2 eram sobre **ler a fonte**. As três desta são sobre
+**verificação vazia** — regra que não é exercida, prazo que não é condição,
+afirmação que não é conferida. A diferença é que a fase anterior construía o
+mecanismo, e esta começou a depender dele.
+
+---
+
+## 8. Próxima fase
 
 `07` Fase 4 — **VERTICAL SLICE ⏸**. ENTRY: Fase 3 completa.
