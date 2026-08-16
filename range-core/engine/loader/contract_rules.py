@@ -42,6 +42,7 @@ nao importa de `tools/`, que e onde vivem os verificadores stdlib do CI.
 from __future__ import annotations
 
 from jsonschema import Draft202012Validator
+from referencing.exceptions import Unresolvable
 
 
 class ContractRuleError(Exception):
@@ -187,10 +188,44 @@ class AuroraChecker:
         return base, ponteiro
 
     def _valida(self, doc_id: str, ponteiro: str, instancia) -> bool:
+        """A instancia satisfaz o ramo apontado? Usado para decidir a descida.
+
+        O QUE E TOLERADO, E SO ISSO — P2-12
+        ------------------------------------
+        `Unresolvable` cobre a familia de falhas de resolucao de `$ref`:
+        documento ausente do registry, ponteiro para lugar nenhum, ancora
+        invalida. Nelas a resposta honesta e "este ramo nao se aplica", e a
+        descida para. O defeito nao passa em silencio: a camada 1 valida a
+        MESMA instancia contra o MESMO `$ref` e levanta alto, porque nao captura
+        nada.
+
+        `jsonschema` embrulha o erro de `referencing` em
+        `_WrappedReferencingError`, que **herda de `Unresolvable`** — conferido
+        na versao pinada, e nao suposto. Se um dia deixar de herdar, o teste
+        `test_contract_rules.RefIrresolvivel` fica vermelho em vez de a
+        tolerancia sumir sem aviso.
+
+        O QUE DEIXOU DE SER TOLERADO, e por que isto e uma pendencia e nao um
+        detalhe
+        --------------------------------------------------------------------
+        Era `except Exception: return False`. Erro de PROGRAMACAO — nome
+        inexistente, assinatura trocada, tipo errado — virava `False`, e `False`
+        aqui significa "o ramo nao se aplica". A regra deixava de ser aplicada e
+        o sintoma aparecia tres camadas adiante, como *"a regra declarada nao
+        disparou"*, apontando para as fixtures em vez de para a causa.
+
+        Nao e hipotese: foi o unico defeito do movimento da §1.4 do checkpoint —
+        o modulo novo nao importava `Draft202012Validator`, o `NameError` foi
+        engolido, e quatro fixtures negativas reprovaram pelo motivo errado.
+
+        Erro de programacao agora SOBE. Um loader que recusa pack por regra que
+        silenciosamente nao correu recusa — ou aceita — o pack errado, e nada
+        acusa.
+        """
+        alvo = {"$ref": f"{doc_id}#{ponteiro}"} if ponteiro else {"$ref": doc_id}
         try:
-            alvo = {"$ref": f"{doc_id}#{ponteiro}"} if ponteiro else {"$ref": doc_id}
             return Draft202012Validator(alvo, registry=self._registry).is_valid(instancia)
-        except Exception:
+        except Unresolvable:
             return False
 
     # -- caminhada -----------------------------------------------------------
