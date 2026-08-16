@@ -464,6 +464,136 @@ metade da lição da §7.3.1 e a única que não depende de atenção.
 
 ---
 
+## 4.1 A peça 0 — o aparato, e o que ele mediu
+
+Duas pendências, e as duas mudam **o que o auditor consegue medir**. Nenhuma
+linha de produto nesta peça.
+
+### A P3-4 reproduzida, e ela era pior do que a pendência dizia
+
+A pendência media três pacotes e apontava um. **Rodando o teste novo dentro do
+worktree de auditoria, com o python do ambiente**, saíram **sete** falhas:
+
+```text
+range_core, range_core.events, range_core.events.envelope, ...
+  -> C:\Projetos\aurora-cyber-range\range-core\...   (ARVORE PRINCIPAL)
+contracts e montado a partir de 2 diretorios:
+  [.../.aurora-worktrees/audit/contracts, .../aurora-cyber-range/contracts]
+```
+
+A segunda linha é o achado que eu não tinha previsto: `contracts` não vinha de
+uma árvore **nem** da outra — vinha **das duas ao mesmo tempo**. Pacote de
+namespace se compõe, e o `sys.path` do worktree mais o caminho da instalação
+editável montam um pacote só com módulos de dois commits. É a "procedência
+misturada" da pendência na forma mais literal possível, e um teste que só
+perguntasse "veio daqui?" responderia *sim* para a metade contida.
+
+Por isso a asserção da quimera é separada, e por isso ela conta **diretórios
+distintos**: medido, o `contracts` de uma árvore sadia aparece **duas vezes** em
+`__path__` — uma pelo `sys.path`, outra resolvida pelo gancho do instalador —,
+e contar entradas acusaria a árvore certa.
+
+### A primeira formulação reprovou na primeira execução, e a correção mudou o objeto
+
+O teste afirmava sobre `__path__`. A instalação editável de PEP 660 injeta ali
+uma entrada **sintética** — `__editable__.aurora_cyber_range-0.1.0.finder.__path_hook__` —
+que não é diretório e nunca estará sob raiz nenhuma. A regra reprovaria toda
+árvore com instalação editável, que são todas.
+
+A saída **não** foi ignorar entrada inexistente: é justamente pelo gancho que a
+outra árvore continua alcançável. Foi trocar o objeto da asserção — **de onde
+veio o código que rodou**, e não onde o importador poderia ter procurado. A
+varredura é sobre `sys.modules`, e num `discover` ela cobre tudo o que a suite
+inteira importou, porque unittest importa todos os módulos de teste antes de
+rodar qualquer um.
+
+**O limite ficou declarado:** módulo que exista **só** na outra árvore continua
+alcançável pelo gancho, e este teste não o veria enquanto ninguém o importasse.
+
+### O venv, medido nos dois sentidos
+
+| | Resultado |
+|---|---|
+| worktree, python do ambiente | **7 falhas** — o núcleo vinha da árvore principal |
+| worktree, python do venv do lançador | **OK**, e a suite inteira roda: **228 testes** a partir do worktree |
+| custo | **20 s**, com o cache do pip quente |
+| árvore auditada suja depois da instalação? | **não** — `git status --short` no worktree, vazio |
+
+**A falha alta foi exercitada, e não só escrita:** com o `WT` apontando para um
+diretório sem `constraints.txt`, o bloco sai com `rc=1`, imprime as últimas
+linhas do `pip.log` e diz por que para. Era condição do operador, e é o caso que
+importa — auditoria que segue contra o núcleo errado porque o `pip` falhou em
+silêncio produz veredito sobre outro commit.
+
+### E o caminho que eu ia entregar estava quebrado — pego rodando
+
+A primeira versão do lançador fazia `pip install -e "$WT[test]"`. O pip **recusa**
+essa forma: *"is not a valid editable requirement"*. Nenhuma leitura pegaria —
+a linha está correta em intenção, em aspas e em variável. Corrigida para
+`(cd "$WT" && pip install -e ".[test]" -c constraints.txt)`, num subshell para
+não mexer no diretório de quem chama.
+
+É a §7.3.1 da Fase 3 aplicada de novo, e desta vez a lição funcionou como
+antídoto em vez de como diagnóstico: **rodar o caminho que se vai entregar não
+depende de atenção.**
+
+### A P3-8, e por que ela não é "isentar `>` citado"
+
+A pendência avisava que isentar citação desfaria a ordem que a oitava auditoria
+da Fase 0 impôs. **A regra implementada não isenta citação: ela implementa a
+semântica de aspas que o bash dá a `>`.** Dentro de aspas — simples ou duplas —
+`>` não redireciona nada, e a regra anterior estava lendo outro shell.
+
+É o mesmo conserto da 16ª auditoria, na direção oposta: lá,
+`_substituicao_ou_subshell` deixou de usar máscara única porque `$(` **executa**
+dentro de aspas duplas. A regra que sai das duas é uma: cada construto é
+decidido com a semântica que o bash lhe dá.
+
+**O que sustenta a segurança não é a máscara.** Para um `>` citado virar
+redirecionamento, algum comando precisa reinterpretar a string como shell —
+`sh -c`, `bash -c`, `eval`, `xargs`, `python -c`. Nenhum está na allowlist, e
+isso é propriedade de whitelist: comando novo nasce bloqueado. Sete probes novos
+afirmam os cinco, mais as duas quedas para o texto cru (aspas escapadas e aspas
+não fechadas).
+
+**O path de URL saiu por DUAS condições que valem juntas**, e nenhuma basta
+sozinha — que é o desenho:
+
+| | |
+|---|---|
+| só inexistência | `pytest --basetemp=/c/outra/arvore` **cria** o diretório |
+| só leitor puro | `cat /c/Projetos/...` lê a árvore principal, e ler fora mede outra árvore |
+
+`tree` e `sort` ficam **fora** da isenção com a forma de escrita nomeada
+(`tree -o`, `sort -o`), e há probe para cada um. `git` também fica fora, e o
+custo disso está declarado como falso bloqueio residual: path de URL em
+argumento de `git log -S` segue bloqueado, e a leitura continua obtenível por
+`grep`.
+
+**E o teste de existência tinha um defeito de plataforma que só a medição
+mostra:** no Git Bash o caminho absoluto é `/c/Projetos/...`, e
+`os.path.exists` do Python de Windows resolve isso contra a raiz da unidade
+corrente — diria *"não existe"* exatamente para o caminho real da árvore
+principal, que é o alvo que a contenção mais precisa negar. As duas grafias são
+testadas, e há probe para cada uma.
+
+### Medido, velho contra novo
+
+| | |
+|---|---|
+| comandos que passaram de `rc=2` para `rc=0` | **7** — as três setas, a ordem `autoriza -> degrada`, e três formas de path de URL |
+| controles que **seguem** em `rc=2` | `git log > out.txt`, `sh -c "echo x > out.txt"`, `ls <fora>` |
+| leituras legítimas liberadas pelo harness | **56**, eram 47 |
+| eixos de bloqueio novos | **15** — 7 de reinterpretação de shell, 6 de alvo existente fora (3 formas × 2 grafias), 2 de comando que escreve com alvo inexistente |
+| falsos bloqueios declarados | **8**, eram 10 — três fechados, um novo declarado |
+| suite | **228 testes**, eram 223 |
+
+A cópia instalada em `~/.claude/hooks/` foi sincronizada, e o harness confere as
+duas — a divergência apareceu como **FAIL** antes da sincronia, que é o
+mecanismo funcionando.
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -489,9 +619,9 @@ a peça que as vence.
 | Id | O que é | Vence em |
 |---|---|---|
 | P3-2 | cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **peça 7** — medir antes de escolher (D11) |
-| P3-4 | no worktree de auditoria, `range_core` vem da árvore principal | **peça 0** (D0) |
+| P3-4 | ~~no worktree de auditoria, `range_core` vem da árvore principal~~ | ✅ **FECHADA** na peça 0 |
 | P3-5 | business state em dicionários de módulo | **peça 5** (D8) |
-| P3-8 | dois falsos bloqueios do hook do auditor | **peça 0** |
+| P3-8 | ~~dois falsos bloqueios do hook do auditor~~ | ✅ **FECHADA** na peça 0 |
 | P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4 | **peça 5** (D9) |
 | P3-11 | flag declarada e ausente do estado vira no-op silencioso | **peça 5** (D10) |
 
@@ -518,8 +648,12 @@ container da peça 7. Ver a **D11** — a ordem é medir, depois escolher.
 corrigida dela previu: com auditoria antes do merge, a árvore principal e o
 worktree ficam em commits diferentes de verdade, e um commit na principal
 *durante* a auditoria trocaria o núcleo sob os testes do auditor sem sinal
-nenhum. Ver a **D0**, que é PROPOSTA justamente porque muda o critério de
-reprovação do auditor no PR que ele vai auditar.
+nenhum.
+
+> **✅ FECHADA na peça 0**, com as duas metades — o teste que fica vermelho e o
+> venv que o faz passar —, e **reproduzida antes de corrigida**: sete falhas
+> dentro do worktree, incluindo um `contracts` montado a partir das **duas**
+> árvores ao mesmo tempo, que a pendência não previa. Ver a §4.1.
 
 #### P3-5 — business state em dicionários de módulo
 
@@ -538,10 +672,14 @@ precisa para **medir**, e `WORKFLOW.md` classifica bloqueio indevido como
 defeito — foi a lição do H4 da primeira auditoria da Fase 0.
 
 **Vencimento declarado na Fase 3: antes do checkpoint desta fase.** É a peça 0.
-A correção troca grafia por decisão sobre o **alvo** — não há caminho gravável em
-`-> degrada`, e `/turmas/{turma_id}/diario` não existe como caminho —, e os eixos
-de `scripts/phase0_negative_tests.py` crescem **nas duas direções**: escrita
-conhecida que continua bloqueada, e estes dois comandos que passam a rodar.
+
+> **✅ FECHADA na peça 0**, e a forma final difere da que a pendência previa em
+> uma das duas metades. A da seta **não** é sobre alvo: é a semântica de aspas
+> que o bash dá a `>`, que é a mesma correção da 16ª auditoria da Fase 0 na
+> direção oposta. A do path de URL é sobre alvo, como previsto, e precisou de
+> **duas** condições — não existir em disco **e** o comando do segmento não ter
+> forma de escrever. Sete comandos passaram de bloqueado a liberado, medidos
+> contra a versão anterior, com quinze eixos de bloqueio novos ao lado. §4.1.
 
 #### P3-10 — `Cota` é estado mutável fora das cinco camadas
 
