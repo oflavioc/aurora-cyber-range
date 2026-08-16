@@ -1,0 +1,134 @@
+# SUPERFICIE DA `academus-api` — declarada ANTES de a rota existir.
+#
+# Autoridade: 07_IMPLEMENTATION_PHASES.md Fase 3; 01_ARCHITECTURE.md secao 5.4;
+# 03_EXERCISE_DESIGN.md secao 7; 05_SECURITY_REQUIREMENTS.md secao 8.
+#
+# Lido por `scripts/check_api_surface.py`, que exige IGUALDADE nas duas direcoes
+# contra as rotas de fato implementadas em `domains/academus/api/`.
+#
+# ---------------------------------------------------------------------------
+# POR QUE ESTE ARQUIVO EXISTE, E POR QUE ELE COMECA QUASE VAZIO
+# ---------------------------------------------------------------------------
+#
+# Lista escrita antes do codigo SUBESTIMA — sempre. Se a garantia fosse "o que
+# esta aqui e o que existe", ela valeria so para o que alguem lembrou de prever,
+# e a rota esquecida seria exatamente a que ninguem declarou.
+#
+# Por isso a checagem nao le esta lista como documentacao: ela cobra as DUAS
+# direcoes.
+#
+#   rota implementada e ausente daqui   -> REPROVA
+#   rota daqui com `status: implementada` e ausente do codigo -> REPROVA
+#   rota daqui com `status: planejada` que JA existe no codigo -> REPROVA
+#
+# A terceira e o que impede `planejada` de virar esconderijo: assim que a rota
+# nasce, a entrada tem de ser promovida no mesmo commit. E a segunda impede a
+# lista de envelhecer afirmando rota que sumiu.
+#
+# O que esta declarado ANTES do codigo, entao, nao e a lista completa — e a
+# OBRIGACAO. Ela nasce cheia de `planejada` porque a DoD da Fase 3 nomeia o que
+# a fase precisa entregar, e vazia de qualquer outra coisa.
+#
+# ---------------------------------------------------------------------------
+# OS CAMPOS
+# ---------------------------------------------------------------------------
+#
+# `papeis`      — papeis de DOMINIO. Nao confundir com os papeis de exercicio de
+#                 `03` secao 7 (facilitador / operador / avaliador): misturar os
+#                 dois poe desenho de exercicio dentro do adapter, que e a
+#                 fronteira do invariante 1 vazando por onde o verificador nao
+#                 olha — ele varre import, nao vocabulario.
+#
+# `flags`       — flags que a rota consulta para degradar. Cada nome e conferido
+#                 contra `domains/<adapter>/flags.yaml`: rota que declara flag
+#                 inexistente reprova, pela mesma regra que o loader aplica ao
+#                 pack e que `scripts/check_spec_flags.py` aplica a spec.
+#
+#                 EM YAML, e nao em Python, pelo mesmo motivo da lista de
+#                 pendentes: nome de flag dentro de `.py` e literal que
+#                 `tools/check_contract_literals.py` recusa, e recusaria com
+#                 razao.
+#
+# `degradacao`  — o que a flag causa nesta rota. Declarativo: a implementacao
+#                 le daqui em vez de espalhar `if flag:` por rota, que e a forma
+#                 que nao sobrevive ao verificador de literais e o oposto do que
+#                 a Fase 2 fez com `effects`.
+#
+# `status`      — `planejada` ou `implementada`. Ver acima por que os dois
+#                 estados sao verificaveis e nenhum deles mente por muito tempo.
+
+papeis_de_dominio:
+  - aluno
+  - professor
+  - secretaria
+  - financeiro
+
+rotas:
+
+  # -------------------------------------------------------------------------
+  # ITEM 1 DA DoD — "academus.enrollment_offline: true faz o endpoint de
+  # matricula retornar 503".
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /matricula
+    papeis: [aluno, secretaria]
+    flags: [academus.enrollment_offline]
+    degradacao: 'HTTP 503 com pagina de manutencao enquanto a flag estiver ligada'
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # ITEM 2 DA DoD — "academus.grades_readonly: true bloqueia POST de nota com
+  # mensagem de negocio".
+  #
+  # MENSAGEM DE NEGOCIO, e nao 403 seco: o item pede que a recusa explique. Quem
+  # recebe e um professor no meio de um lancamento, e "acesso negado" o manda
+  # abrir chamado; "lancamento congelado por apuracao de integridade" o manda
+  # falar com a coordenacao.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /turmas/{turma_id}/notas
+    papeis: [professor, secretaria]
+    flags: [academus.grades_readonly]
+    degradacao: 'HTTP 409 com mensagem de negocio; leitura de nota segue disponivel'
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # A TERCEIRA ROTA DEGRADADA. `07` Fase 3 pede degradacao real em PELO MENOS
+  # TRES endpoints, e a DoD nomeia so duas — esta fecha a conta.
+  #
+  # `lms_session_drop_rate` e `number` de 0 a 1, e nao booleana: a degradacao e
+  # proporcional, e nao liga-desliga. E o unico caso desta fase em que o tipo da
+  # flag muda a forma do efeito.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /turmas/{turma_id}/diario
+    papeis: [professor, secretaria]
+    flags: [academus.lms_degraded, academus.lms_session_drop_rate]
+    degradacao: 'latencia adicional e fracao de sessoes derrubada, proporcional a lms_session_drop_rate'
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # AS TRES ENTIDADES de `07` Fase 3 precisam de leitura, e o RBAC precisa de
+  # rota que NEGUE — o item 3 da DoD e "RBAC nega acesso cruzado entre perfis",
+  # e negacao sem rota que a exerca nao e verificavel.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /alunos/{aluno_id}
+    papeis: [aluno, secretaria]
+    flags: []
+    degradacao: 'nenhuma'
+    status: planejada
+
+  - method: GET
+    path: /turmas/{turma_id}
+    papeis: [professor, secretaria]
+    flags: []
+    degradacao: 'nenhuma'
+    status: planejada
+
+  - method: POST
+    path: /auth/token
+    papeis: []
+    flags: []
+    degradacao: 'nenhuma'
+    status: planejada
