@@ -43,3 +43,4 @@
 # FORMATO: <fase><TAB><sha-completo><TAB><o que era esse commit>
 # Linhas em branco e linhas iniciadas por `#` sao ignoradas.
 3	8c6eca6f8b354c5b2511028341a0ed7a404bbd57	spec-change fechado antes da peca 1 da Fase 3; ultimo commit de `main` no nascimento da branch
+4	6efca2e7d61e713090ba1214f58fc65198c55921	fechamento da Fase 3 (quarta rodada de auditoria) — ultimo commit de `main` no nascimento da branch
