@@ -30,12 +30,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from check_api_surface import (  # noqa: E402
+    ESTADO_DE_SIMULACAO,
+    MOTOR_DA_DEGRADACAO,
     claims_assinadas,
     main,
-    modulos_que_importam_estado,
+    modulos_que_importam,
     rotas_implementadas,
     verifica,
     verifica_degradacao,
+    verifica_escopo,
+    verifica_imports,
     verifica_token,
 )
 
@@ -183,25 +187,175 @@ def roda_token(rotulo, declaradas, no_codigo, esperado) -> bool:
     return True
 
 
-def probe_da_degradacao() -> bool:
-    """A fronteira entre a peca 4 e a peca 5, verificada nos dois sentidos.
+TIPOS = {"fixture.uma_flag": "boolean", "fixture.uma_taxa": "number"}
 
-    O segundo caso e o que impede a regra de virar proibicao permanente: assim
-    que uma rota IMPLEMENTADA declara flag, ler estado passa a ser legitimo e a
-    checagem se cala sozinha.
+BOA = {
+    "flag": "fixture.uma_flag",
+    "condicao": "ligada",
+    "efeito": "recusa",
+    "status": 503,
+    "mensagem": "O servico esta temporariamente fora do ar.",
+}
+
+
+def _degradada(**mudancas):
+    entrada = dict(BOA)
+    entrada.update(mudancas)
+    return [_rota(flags=[entrada["flag"]], degradacao=[entrada])]
+
+
+#: `(rotulo, declaradas, trecho esperado)` — a degradacao declarativa, peca 5.
+PROBES_DE_DEGRADACAO = [
+    (
+        "`degradacao` ainda em prosa",
+        [_rota(flags=[], degradacao="fica lento e cai")],
+        "prosa nao executa",
+    ),
+    (
+        "efeito sobre flag que a rota nao declara",
+        [_rota(flags=[], degradacao=[BOA])],
+        "que nao esta em `flags`",
+    ),
+    (
+        "flag declarada sem dizer o que ela faz",
+        [_rota(flags=["fixture.uma_flag"], degradacao=[])],
+        "nao diz o que ela faz",
+    ),
+    (
+        "condicao fora do vocabulario fechado",
+        _degradada(condicao="as vezes"),
+        "fora de ['ligada', 'proporcional']",
+    ),
+    (
+        "efeito fora do vocabulario fechado",
+        _degradada(efeito="explode"),
+        "fora de ['latencia', 'recusa']",
+    ),
+    (
+        "`ligada` sobre flag `number` — o defeito que ficaria ligado o exercicio inteiro",
+        _degradada(flag="fixture.uma_taxa", condicao="ligada"),
+        "e `number`",
+    ),
+    (
+        "`proporcional` sobre flag booleana",
+        _degradada(flag="fixture.uma_flag", condicao="proporcional"),
+        "exige flag `number`",
+    ),
+    (
+        "recusa sem status HTTP de erro",
+        _degradada(status=200),
+        "nao e codigo de erro HTTP",
+    ),
+    (
+        "recusa sem mensagem de negocio",
+        _degradada(mensagem=""),
+        "sem `mensagem`",
+    ),
+    (
+        "latencia de zero segundos",
+        _degradada(efeito="latencia", status=None, segundos=0),
+        "nao se observa",
+    ),
+    (
+        "A MENSAGEM NOMEIA A FLAG",
+        _degradada(mensagem="Indisponivel: fixture.uma_flag esta ativa."),
+        "nomeia a flag",
+    ),
+    (
+        "a mensagem usa vocabulario de MECANISMO",
+        _degradada(mensagem="Servico derrubado pelo inject desta rodada."),
+        "vocabulario de MECANISMO",
+    ),
+    (
+        "declaracao coerente: nada a acusar",
+        _degradada(),
+        None,
+    ),
+]
+
+
+def roda_degradacao(rotulo, declaradas, esperado) -> bool:
+    problemas = verifica_degradacao(declaradas, TIPOS)
+    if esperado is None:
+        if problemas:
+            print(f"FALHA: probe '{rotulo}' devia passar e acusou: {problemas}")
+            return False
+        print(f"OK: passou como devia - {rotulo}")
+        return True
+    if not any(esperado in p for p in problemas):
+        print(f"FALHA: probe '{rotulo}' nao acusou pelo eixo esperado: {problemas}")
+        return False
+    print(f"OK: reprovou com violacao plantada - {rotulo}")
+    return True
+
+
+def probe_do_escopo() -> bool:
+    """A P3-3 como verificacao: regra fora do vocabulario, e papel que nao existe."""
+    fora = verifica_escopo([_rota(escopo={"aluno": "quase-proprio"})])
+    if not any("fora de ['proprio', 'titular']" in p for p in fora):
+        print(f"FALHA: regra de escopo invalida passou: {fora}")
+        return False
+
+    orfa = verifica_escopo([_rota(papeis=["aluno"], escopo={"professor": "titular"})])
+    if not any("nao esta nos papeis da rota" in p for p in orfa):
+        print(f"FALHA: escopo para papel que a rota nao admite passou: {orfa}")
+        return False
+
+    if verifica_escopo([_rota(papeis=["aluno"], escopo={"aluno": "proprio"})]):
+        print("FALHA: escopo coerente foi acusado")
+        return False
+
+    print("OK: reprovou com violacao plantada - regra de escopo fora do vocabulario")
+    print("OK: reprovou com violacao plantada - escopo para papel que a rota nao admite")
+    return True
+
+
+def probe_dos_imports() -> bool:
+    """O handler nao tem flag ao alcance — a metade forte da D4."""
+    fora_do_motor = verifica_imports({"rotas.py", MOTOR_DA_DEGRADACAO}, set())
+    if not any("rotas.py: importa" in p for p in fora_do_motor):
+        print(f"FALHA: modulo fora do motor lendo estado passou: {fora_do_motor}")
+        return False
+
+    com_constante = verifica_imports({MOTOR_DA_DEGRADACAO}, {"rotas.py"})
+    if not any("constantes de flag geradas" in p for p in com_constante):
+        print(f"FALHA: import de constante de flag passou: {com_constante}")
+        return False
+
+    if verifica_imports({MOTOR_DA_DEGRADACAO}, set()):
+        print("FALHA: so o motor lendo estado foi acusado")
+        return False
+
+    print("OK: reprovou com violacao plantada - estado lido fora do motor")
+    print("OK: reprovou com violacao plantada - constante de flag importada em api/")
+    return True
+
+
+def probe_do_motivo_do_verde() -> bool:
+    """A REGRA ESTA VERDE PELO MOTIVO CERTO, e nao por nao haver o que olhar.
+
+    A peca 4 tinha uma cerca de transicao — *"enquanto nenhuma rota implementada
+    declarar flag, `api/` nao le estado"* — que se calaria sozinha no momento em
+    que a peca 5 declarasse a primeira flag. Uma regra que evapora quando o
+    assunto dela comeca a existir nao e uma regra.
+
+    Ela foi SUBSTITUIDA pela whitelist, e este probe afirma que a substituicao
+    esta viva na arvore real: ha exatamente um modulo lendo estado, e ele e o
+    motor. Se um dia o conjunto ficar vazio, a whitelist passaria a ser verdadeira
+    por vacuidade — e este probe fica vermelho antes disso virar silencio.
     """
-    acusou = verifica_degradacao([_rota()], {"rotas.py"})
-    if not any("nenhuma rota IMPLEMENTADA declara flag" in p for p in acusou):
-        print(f"FALHA: import de estado sem rota com flag passou: {acusou}")
+    api = REPO_ROOT / "domains" / "academus" / "api"
+    com_estado = modulos_que_importam(api, ESTADO_DE_SIMULACAO)
+
+    if com_estado != {MOTOR_DA_DEGRADACAO}:
+        print(
+            f"FALHA: quem le estado em api/ e {sorted(com_estado)}, esperado "
+            f"exatamente {{{MOTOR_DA_DEGRADACAO!r}}}. Conjunto vazio faria a "
+            "whitelist passar por vacuidade."
+        )
         return False
 
-    com_flag = verifica_degradacao([_rota(flags=["fixture.uma_flag"])], {"rotas.py"})
-    if com_flag:
-        print(f"FALHA: a regra nao saiu de cena com rota que declara flag: {com_flag}")
-        return False
-
-    print("OK: reprovou com violacao plantada - estado lido sem flag declarada")
-    print("OK: e a regra se cala quando uma rota implementada declara flag")
+    print(f"OK: exatamente um modulo le estado, e e o motor - {MOTOR_DA_DEGRADACAO}")
     return True
 
 
@@ -243,7 +397,7 @@ def probe_dos_extratores() -> bool:
         api.mkdir()
         (api / "com_estado.py").write_text(modulo_que_le_estado, encoding="utf-8")
         (api / "limpo.py").write_text(modulo_limpo, encoding="utf-8")
-        vistos = modulos_que_importam_estado(api)
+        vistos = modulos_que_importam(api, ESTADO_DE_SIMULACAO)
         if vistos != {"com_estado.py"}:
             print(f"FALHA: modulos_que_importam_estado devolveu {sorted(vistos)}")
             return False
@@ -340,8 +494,11 @@ def main_probes() -> int:
 
     resultados = [roda(*p) for p in PROBES]
     resultados.extend(roda_token(*p) for p in PROBES_DE_TOKEN)
+    resultados.extend(roda_degradacao(*p) for p in PROBES_DE_DEGRADACAO)
     resultados.append(probe_papel_de_exercicio_na_lista_de_origem())
-    resultados.append(probe_da_degradacao())
+    resultados.append(probe_do_escopo())
+    resultados.append(probe_dos_imports())
+    resultados.append(probe_do_motivo_do_verde())
     resultados.append(probe_da_varredura())
     resultados.append(probe_do_limite_declarado())
     resultados.append(probe_dos_extratores())
@@ -350,8 +507,9 @@ def main_probes() -> int:
     if all(resultados):
         print(
             f"check_api_surface.py reprova nos {len(resultados)} eixos, com a "
-            "direcao inversa em primeiro lugar — rota e claim —, mais os tres "
-            "extratores por AST e o limite de rota dinamica confirmado."
+            "direcao inversa em primeiro lugar — rota e claim —, mais a "
+            "degradacao declarativa, o escopo de objeto, os imports e o limite "
+            "de rota dinamica confirmado."
         )
         return 0
     print(f"{resultados.count(False)} de {len(resultados)} probes nao provaram o eixo.")

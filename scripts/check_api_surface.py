@@ -112,9 +112,47 @@ FUNCAO_DO_PAYLOAD = "_payload"
 #: `03` §7 nomeia o participante do exercicio.
 VOCABULARIO_DE_EXERCICIO = PAPEIS_DE_EXERCICIO | {"persona"}
 
-#: O modulo do core que so pode ser importado por `api/` quando alguma rota
-#: implementada declarar flag. Ver o cabecalho: e a D4 guardada.
+#: O modulo do core que so o motor de degradacao pode importar. Ver o cabecalho.
 ESTADO_DE_SIMULACAO = "range_core.state"
+
+#: O UNICO modulo de `api/` autorizado a ler estado de simulacao.
+MOTOR_DA_DEGRADACAO = "degradacao.py"
+
+#: Vocabulario FECHADO da degradacao declarativa — peca 5, D4.
+CONDICOES = frozenset({"ligada", "proporcional"})
+EFEITOS = frozenset({"recusa", "latencia"})
+
+#: `condicao -> tipo de flag que ela exige`, conferido contra `flags.yaml`.
+#:
+#: Sem isto, `ligada` sobre uma flag de 0 a 1 degradaria com `0.0` — que e o
+#: mundo normal —, e o efeito ficaria ligado o exercicio inteiro sem ninguem
+#: entender por que. E o unico ponto desta fase em que o TIPO da flag muda a
+#: forma do efeito, e por isso ele e conferido em vez de lembrado.
+TIPO_EXIGIDO = {"ligada": "boolean", "proporcional": "number"}
+
+#: As duas regras de escopo de objeto — P3-3. Nao ha uma terceira.
+REGRAS_DE_ESCOPO = frozenset({"proprio", "titular"})
+
+#: PALAVRAS QUE A MENSAGEM AO PARTICIPANTE NAO PODE CONTER.
+#:
+#: A sala precisa VER o sistema cair, e nao ler um aviso dizendo que ele foi
+#: derrubado. Uma resposta que se explica transforma exercicio em demonstracao e
+#: destroi a assimetria que `00` §5 chama de desenho.
+#:
+#: A lista e curta e nomeia o mecanismo, nao o assunto: "indisponivel" e
+#: legitimo, "flag" nao e.
+VOCABULARIO_DE_MECANISMO = (
+    "flag",
+    "simulac",
+    "simulaç",
+    "exercicio",
+    "exercício",
+    "inject",
+    "aurora",
+    "range",
+    "cenario",
+    "cenário",
+)
 
 
 def _superficies() -> list[tuple[str, Path, dict]]:
@@ -125,11 +163,20 @@ def _superficies() -> list[tuple[str, Path, dict]]:
     return achadas
 
 
-def _flags_declaradas(adapter: str) -> set[str]:
+def _flags_declaradas(adapter: str) -> dict[str, str]:
+    """`nome -> type` de cada flag do adapter.
+
+    O TIPO passou a importar na peca 5: `condicao: ligada` sobre flag `number` e
+    o defeito que a checagem precisa enxergar, e um `set` de nomes nao teria com
+    que compara-lo.
+    """
     caminho = DOMAINS / adapter / "flags.yaml"
     if not caminho.is_file():
-        return set()
-    return {f["name"] for f in (parse_yaml(caminho) or {}).get("flags") or []}
+        return {}
+    return {
+        f["name"]: str(f.get("type", ""))
+        for f in (parse_yaml(caminho) or {}).get("flags") or []
+    }
 
 
 def rotas_implementadas(raiz_api: Path) -> set[tuple[str, str]]:
@@ -193,13 +240,12 @@ def claims_assinadas(caminho: Path) -> list[str] | None:
     return None
 
 
-def modulos_que_importam_estado(raiz_api: Path) -> set[str]:
-    """Modulos de `api/` que importam `range_core.state`, por AST.
+def modulos_que_importam(raiz_api: Path, prefixo: str) -> set[str]:
+    """Modulos de `api/` que importam `prefixo` ou algo abaixo dele, por AST.
 
-    Cobre `import range_core.state...` e `from range_core.state... import`, que
-    e o alcance honesto: import dinamico por `importlib` nao e visto, e o limite
-    esta declarado aqui pelo mesmo motivo que o limite de rota dinamica esta no
-    cabecalho.
+    Cobre `import a.b...` e `from a.b... import`, que e o alcance honesto:
+    import dinamico por `importlib` nao e visto, e o limite esta declarado aqui
+    pelo mesmo motivo que o limite de rota dinamica esta no cabecalho.
     """
     achados: set[str] = set()
     if not raiz_api.is_dir():
@@ -214,9 +260,7 @@ def modulos_que_importam_estado(raiz_api: Path) -> set[str]:
             elif isinstance(node, ast.ImportFrom):
                 alvos = [node.module or ""]
             for alvo in alvos:
-                if alvo == ESTADO_DE_SIMULACAO or alvo.startswith(
-                    f"{ESTADO_DE_SIMULACAO}."
-                ):
+                if alvo == prefixo or alvo.startswith(f"{prefixo}."):
                     achados.add(arquivo.name)
     return achados
 
@@ -261,28 +305,192 @@ def verifica_token(
 
 def verifica_degradacao(
     declaradas: list[dict],
-    modulos_com_estado: set[str],
+    tipos_de_flag: dict[str, str],
 ) -> list[str]:
-    """Enquanto nenhuma rota implementada declarar flag, `api/` nao le estado.
+    """A degradacao declarativa da peca 5 — D4. Tudo por parametro.
 
-    A regra sai de cena sozinha: basta a peca 5 implementar a primeira rota com
-    flag para ela deixar de acusar. Nao e uma proibicao permanente — e a fronteira
-    entre duas pecas, escrita como verificacao em vez de como intencao.
+    ESTA FUNCAO SUBSTITUIU a regra de transicao da peca 4, que dizia *"enquanto
+    nenhuma rota implementada declarar flag, `api/` nao le estado"*. Aquela era a
+    cerca de uma peca que nao degradava, e ela **se calaria sozinha** no momento
+    em que a peca 5 declarasse a primeira flag — o que e exatamente o problema:
+    uma regra que evapora no dia em que o assunto dela comeca a existir.
+
+    O que ficou no lugar e permanente e mais estreito: `verifica_imports` diz
+    que SO o motor de degradacao le estado, e nenhum modulo de `api/` importa
+    constante de flag. A cerca virou porta.
     """
-    alguma_com_flag = any(
-        (rota.get("flags") or []) and rota.get("status") == "implementada"
-        for rota in declaradas
-    )
-    if alguma_com_flag or not modulos_com_estado:
+    problemas: list[str] = []
+
+    for rota in declaradas:
+        chave = f"{str(rota.get('method', '')).upper()} {rota.get('path')}"
+        entradas = rota.get("degradacao") or []
+
+        if not isinstance(entradas, list):
+            problemas.append(
+                f"{chave}: `degradacao` e prosa, e prosa nao executa.\n"
+                "    Desde a peca 5 e lista de entradas com `flag`, `condicao`, "
+                "`efeito` — a mesma familia dos `effects` do pack."
+            )
+            continue
+
+        declaradas_na_rota = set(rota.get("flags") or [])
+        usadas = {str(e.get("flag")) for e in entradas}
+
+        for flag in sorted(usadas - declaradas_na_rota):
+            problemas.append(
+                f"{chave}: degrada por {flag!r}, que nao esta em `flags`.\n"
+                "    E a porta que a conferencia de nome de flag existe para "
+                "fechar: efeito sobre flag nao declarada nao passa por ela."
+            )
+        for flag in sorted(declaradas_na_rota - usadas):
+            problemas.append(
+                f"{chave}: declara {flag!r} em `flags` e nao diz o que ela faz.\n"
+                "    Flag consumida sem efeito e promessa que ninguem cumpre — e "
+                "a rota apareceria no wallboard como degradada sem degradar."
+            )
+
+        for entrada in entradas:
+            problemas.extend(_verifica_entrada(chave, entrada, tipos_de_flag))
+
+    return problemas
+
+
+def _verifica_entrada(chave: str, entrada: dict, tipos_de_flag: dict[str, str]) -> list[str]:
+    """Uma entrada de `degradacao:` — vocabulario, tipo da flag, e a mensagem."""
+    problemas: list[str] = []
+    flag = str(entrada.get("flag"))
+    condicao = entrada.get("condicao")
+    efeito = entrada.get("efeito")
+
+    if condicao not in CONDICOES:
+        problemas.append(
+            f"{chave}: `condicao: {condicao!r}` fora de {sorted(CONDICOES)}. "
+            "Vocabulario fechado, como o catalogo de `event_type`: valor que "
+            "ninguem implementou vira degradacao que nao acontece."
+        )
+    if efeito not in EFEITOS:
+        problemas.append(
+            f"{chave}: `efeito: {efeito!r}` fora de {sorted(EFEITOS)}."
+        )
+
+    tipo_real = tipos_de_flag.get(flag)
+    exigido = TIPO_EXIGIDO.get(str(condicao))
+    if tipo_real and exigido and tipo_real != exigido:
+        problemas.append(
+            f"{chave}: `{condicao}` exige flag `{exigido}`, e {flag!r} e "
+            f"`{tipo_real}`.\n"
+            "    `ligada` sobre flag de 0 a 1 degradaria com 0.0, que e o mundo "
+            "normal — e o efeito ficaria ligado o exercicio inteiro."
+        )
+
+    if efeito == "recusa":
+        status = entrada.get("status")
+        if not isinstance(status, int) or not 400 <= status <= 599:
+            problemas.append(
+                f"{chave}: `recusa` com `status: {status!r}`, que nao e codigo de "
+                "erro HTTP."
+            )
+        if not str(entrada.get("mensagem") or "").strip():
+            problemas.append(
+                f"{chave}: `recusa` sem `mensagem`.\n"
+                "    O item 2 da DoD pede mensagem de NEGOCIO, e nao 403 seco: "
+                "quem recebe e um professor no meio de um lancamento."
+            )
+    elif efeito == "latencia":
+        if not isinstance(entrada.get("segundos"), (int, float)) or entrada["segundos"] <= 0:
+            problemas.append(
+                f"{chave}: `latencia` com `segundos: {entrada.get('segundos')!r}`. "
+                "Latencia de zero e degradacao que nao se observa."
+            )
+
+    problemas.extend(_verifica_mensagem(chave, entrada, tipos_de_flag))
+    return problemas
+
+
+def _verifica_mensagem(chave: str, entrada: dict, tipos_de_flag: dict[str, str]) -> list[str]:
+    """A mensagem nao pode explicar a si mesma. Ver o cabecalho."""
+    mensagem = str(entrada.get("mensagem") or "")
+    if not mensagem:
         return []
 
-    return [
-        f"{', '.join(sorted(modulos_com_estado))}: importa `{ESTADO_DE_SIMULACAO}` "
-        "e nenhuma rota IMPLEMENTADA declara flag.\n"
-        "    Degradacao por flag e a D4, e ela e declarativa: a rota declara as "
-        "flags que consulta, e a implementacao le a declaracao. Ler estado sem "
-        "declarar e o `if flag:` por rota entrando por outra porta."
-    ]
+    problemas: list[str] = []
+    baixa = mensagem.lower()
+
+    for nome in sorted(tipos_de_flag):
+        if nome.lower() in baixa:
+            problemas.append(
+                f"{chave}: a mensagem nomeia a flag {nome!r}.\n"
+                "    A sala precisa VER o sistema cair, nao ler um aviso dizendo "
+                "que ele foi derrubado."
+            )
+
+    for palavra in VOCABULARIO_DE_MECANISMO:
+        if palavra in baixa:
+            problemas.append(
+                f"{chave}: a mensagem contem {palavra!r}, que e vocabulario de "
+                "MECANISMO.\n"
+                "    Resposta que se explica transforma exercicio em "
+                "demonstracao. `flags.yaml` ja escreve a apresentacao em "
+                "linguagem de negocio, no campo `effect_ui` — e essa a lingua."
+            )
+
+    return problemas
+
+
+def verifica_escopo(declaradas: list[dict]) -> list[str]:
+    """A regra de objeto — P3-3. Papel do mapa tem de ser papel da rota."""
+    problemas: list[str] = []
+    for rota in declaradas:
+        chave = f"{str(rota.get('method', '')).upper()} {rota.get('path')}"
+        papeis = set(rota.get("papeis") or [])
+        for papel, regra in (rota.get("escopo") or {}).items():
+            if regra not in REGRAS_DE_ESCOPO:
+                problemas.append(
+                    f"{chave}: escopo {regra!r} fora de {sorted(REGRAS_DE_ESCOPO)}.\n"
+                    "    Sao duas regras e nao ha uma terceira: `proprio` (o "
+                    "recurso E o sujeito) e `titular` (o recurso PERTENCE a ele)."
+                )
+            if papel not in papeis:
+                problemas.append(
+                    f"{chave}: escopo declarado para {papel!r}, que nao esta nos "
+                    "papeis da rota.\n"
+                    "    Regra que nunca sera avaliada e regra que parece "
+                    "proteger e nao protege."
+                )
+    return problemas
+
+
+def verifica_imports(
+    modulos_com_estado: set[str],
+    modulos_com_flags_geradas: set[str],
+) -> list[str]:
+    """O handler nao tem flag ao alcance. E isso e o que faz a D4 valer.
+
+    Detectar `if flag:` num handler seria a checagem obvia e a fraca — bastaria
+    escrever o `if` de outro jeito. O que esta afirmado aqui e mais forte: o
+    handler **nao tem por onde** obter uma flag. Nao ha estado de simulacao no
+    modulo, e nao ha constante de flag importada.
+    """
+    problemas: list[str] = []
+
+    for modulo in sorted(modulos_com_estado - {MOTOR_DA_DEGRADACAO}):
+        problemas.append(
+            f"{modulo}: importa `{ESTADO_DE_SIMULACAO}`, e so "
+            f"`{MOTOR_DA_DEGRADACAO}` pode.\n"
+            "    Estado ao alcance do handler e `if flag:` esperando para "
+            "acontecer. A degradacao e declarada na rota e aplicada por "
+            "dependencia global."
+        )
+
+    for modulo in sorted(modulos_com_flags_geradas):
+        problemas.append(
+            f"{modulo}: importa as constantes de flag geradas.\n"
+            "    O nome da flag chega como DADO da declaracao, e nao por import "
+            "— a mesma forma que faz o core receber `flag_defaults` em vez de "
+            "conhecer flag de dominio."
+        )
+
+    return problemas
 
 
 def verifica(
@@ -393,19 +601,24 @@ def main(argv: list[str] | None = None) -> int:
         total_rotas += len(declaradas)
         total_implementadas += len(implementadas)
 
+        tipos_de_flag = _flags_declaradas(adapter)
+        raiz_api = DOMAINS / adapter / "api"
+
         achados = verifica(
             declaradas,
             implementadas,
             set(documento.get("papeis_de_dominio") or []),
-            _flags_declaradas(adapter),
+            set(tipos_de_flag),
         )
         achados += verifica_token(
             list((documento.get("token") or {}).get("claims") or []),
             claims_assinadas(REPO_ROOT / MODULO_DO_TOKEN),
         )
-        achados += verifica_degradacao(
-            declaradas,
-            modulos_que_importam_estado(DOMAINS / adapter / "api"),
+        achados += verifica_degradacao(declaradas, tipos_de_flag)
+        achados += verifica_escopo(declaradas)
+        achados += verifica_imports(
+            modulos_que_importam(raiz_api, ESTADO_DE_SIMULACAO),
+            modulos_que_importam(raiz_api, f"domains.{adapter}.generated"),
         )
 
         for problema in achados:

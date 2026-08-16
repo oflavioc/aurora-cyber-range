@@ -49,10 +49,59 @@
 #                 `tools/check_contract_literals.py` recusa, e recusaria com
 #                 razao.
 #
-# `degradacao`  — o que a flag causa nesta rota. Declarativo: a implementacao
-#                 le daqui em vez de espalhar `if flag:` por rota, que e a forma
-#                 que nao sobrevive ao verificador de literais e o oposto do que
-#                 a Fase 2 fez com `effects`.
+# `degradacao`  — LISTA ESTRUTURADA, uma entrada por flag. Ate a peca 4 era
+#                 prosa; a peca 5 e quem a torna executavel, e prosa nao executa.
+#
+#                 A forma e a mesma familia dos `effects` do pack: a Fase 2
+#                 recusou `if` espalhado e pos o efeito na declaracao. Aqui:
+#
+#                   - flag:     o nome, conferido contra `flags.yaml`
+#                     condicao: `ligada` (flag boolean) | `proporcional` (number)
+#                     efeito:   `recusa` | `latencia`
+#                     status:   codigo HTTP, so para `recusa`
+#                     mensagem: o que o PARTICIPANTE le — ver abaixo
+#                     segundos: so para `latencia`
+#
+#                 `condicao` e conferida contra o TIPO da flag em `flags.yaml`:
+#                 `ligada` sobre flag `number` reprova, e `proporcional` sobre
+#                 boolean tambem. Sem isso, uma flag de 0 a 1 tratada como
+#                 booleana degradaria com 0.0 — que e o mundo normal.
+#
+#                 `flags` e `degradacao` sao conferidos como CONJUNTOS IGUAIS:
+#                 flag declarada sem efeito e promessa que ninguem cumpre, e
+#                 efeito sobre flag nao declarada e a porta que a checagem de
+#                 nome de flag existe para fechar.
+#
+# `mensagem`    — O TEXTO QUE O PARTICIPANTE LE, e ele nao pode explicar a si
+#                 mesmo. A sala precisa VER o sistema cair, nao ler um aviso
+#                 dizendo que ele foi derrubado: uma resposta com "flag ativa"
+#                 no corpo transforma exercicio em demonstracao.
+#
+#                 `flags.yaml` ja escrevia isso em `effect_ui` — "Lancamento e
+#                 alteracao de nota recusados; leitura e historico seguem
+#                 disponiveis" — em linguagem de NEGOCIO, e e essa a linguagem
+#                 aqui. A checagem recusa mensagem que contenha nome de flag ou
+#                 vocabulario de mecanismo (`flag`, `simulacao`, `exercicio`,
+#                 `inject`, `aurora`), e um teste varre a resposta inteira.
+#
+# `escopo`      — P3-3. `papel -> regra`, com duas regras e nada mais:
+#
+#                   `proprio` — o recurso E o sujeito (`sub` do token)
+#                   `titular` — o recurso PERTENCE ao sujeito
+#
+#                 Papel ausente do mapa nao tem restricao de objeto: a
+#                 `secretaria` ve qualquer aluno, e isso e do desenho.
+#
+#                 UM CAMPO, E NAO TRES — a pergunta que a P3-3 deixou aberta.
+#                 Com tres entidades da para ver que todos os casos sao "um
+#                 campo do recurso e igual ao `sub`", e o que muda entre eles e
+#                 QUAL campo. Isso e valor, nao dimensao.
+#
+#                 A regra e aplicada DENTRO da busca do recurso, e nao depois
+#                 dela: `repositorio.aluno(id, escopo)` devolve `None` tanto
+#                 para ausente quanto para fora de escopo. Recurso alheio e
+#                 recurso inexistente viram o MESMO caminho de codigo, e a
+#                 indistinguibilidade da peca 4 vale sem ninguem se lembrar dela.
 #
 # `status`      — `planejada` ou `implementada`. Ver acima por que os dois
 #                 estados sao verificaveis e nenhum deles mente por muito tempo.
@@ -109,9 +158,16 @@ rotas:
   - method: POST
     path: /matricula
     papeis: [aluno, secretaria]
+    escopo:
+      aluno: proprio
     flags: [academus.enrollment_offline]
-    degradacao: 'HTTP 503 com pagina de manutencao enquanto a flag estiver ligada'
-    status: planejada
+    degradacao:
+      - flag: academus.enrollment_offline
+        condicao: ligada
+        efeito: recusa
+        status: 503
+        mensagem: 'O sistema de matricula esta temporariamente fora do ar. Tente novamente mais tarde.'
+    status: implementada
 
   # -------------------------------------------------------------------------
   # ITEM 2 DA DoD — "academus.grades_readonly: true bloqueia POST de nota com
@@ -125,9 +181,16 @@ rotas:
   - method: POST
     path: /turmas/{turma_id}/notas
     papeis: [professor, secretaria]
+    escopo:
+      professor: titular
     flags: [academus.grades_readonly]
-    degradacao: 'HTTP 409 com mensagem de negocio; leitura de nota segue disponivel'
-    status: planejada
+    degradacao:
+      - flag: academus.grades_readonly
+        condicao: ligada
+        efeito: recusa
+        status: 409
+        mensagem: 'O lancamento de notas esta suspenso por apuracao de integridade academica. Procure a coordenacao do curso.'
+    status: implementada
 
   # -------------------------------------------------------------------------
   # A TERCEIRA ROTA DEGRADADA. `07` Fase 3 pede degradacao real em PELO MENOS
@@ -140,9 +203,20 @@ rotas:
   - method: GET
     path: /turmas/{turma_id}/diario
     papeis: [professor, secretaria]
+    escopo:
+      professor: titular
     flags: [academus.lms_degraded, academus.lms_session_drop_rate]
-    degradacao: 'latencia adicional e fracao de sessoes derrubada, proporcional a lms_session_drop_rate'
-    status: planejada
+    degradacao:
+      - flag: academus.lms_degraded
+        condicao: ligada
+        efeito: latencia
+        segundos: 2.5
+      - flag: academus.lms_session_drop_rate
+        condicao: proporcional
+        efeito: recusa
+        status: 503
+        mensagem: 'Sua sessao foi encerrada. Faca login novamente para continuar.'
+    status: implementada
 
   # -------------------------------------------------------------------------
   # AS TRES ENTIDADES de `07` Fase 3 precisam de leitura, e o RBAC precisa de
@@ -156,15 +230,19 @@ rotas:
   - method: GET
     path: /alunos/{aluno_id}
     papeis: [aluno, secretaria]
+    escopo:
+      aluno: proprio
     flags: []
-    degradacao: 'nenhuma'
+    degradacao: []
     status: implementada
 
   - method: GET
     path: /turmas/{turma_id}
     papeis: [professor, secretaria]
+    escopo:
+      professor: titular
     flags: []
-    degradacao: 'nenhuma'
+    degradacao: []
     status: implementada
 
   # -------------------------------------------------------------------------
@@ -190,5 +268,5 @@ rotas:
     papeis: []
     publica: true
     flags: []
-    degradacao: 'nenhuma'
+    degradacao: []
     status: planejada
