@@ -658,6 +658,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
+| P2-12 | `AuroraChecker._valida` engole exceção e devolve `False` | **Fase 2**, antes do loader consumir |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -872,6 +873,31 @@ conexão reusada ou pool, mas medir antes de escolher — pela mesma ordem que a
 P2-10 fixou e que se mostrou certa: o risco que se supunha não era o que estava
 lá.
 
+#### P2-12 — `except Exception` que transforma erro de programação em "regra não disparou"
+
+`AuroraChecker._valida` captura `Exception` e devolve `False`. Isso é o que
+transformou o único defeito do movimento da §1.4 em **falha silenciosa**: o
+módulo novo não importava `Draft202012Validator`, o `NameError` foi engolido, e o
+resultado apareceu como *"a regra não disparou"* em quatro fixtures.
+
+**O gate pegou** — as fixtures negativas declaram `rejected_by`, e a regra
+nomeada não ter disparado é reprovação. Mas pegou pelo sintoma, e a mensagem
+apontava para as fixtures em vez de para a causa.
+
+**Por que não foi corrigido junto.** O movimento tinha de dar **um sinal só**.
+Alterar o tratamento de exceção no mesmo commit misturaria "o módulo faz o que
+as linhas faziam" com "o módulo passou a falhar diferente", e um vermelho não
+diria qual dos dois. É a mesma disciplina que separou o movimento do loader.
+
+**O que fazer:** estreitar para as exceções de resolução de `$ref` que o bloco
+de fato pretende tolerar, e deixar erro de programação subir. Com prova
+negativa: plantar um nome inexistente e verificar que **estoura** em vez de
+devolver `False`.
+
+**Vencimento: Fase 2, antes de o loader consumir o módulo.** O loader vai
+depender dessas regras para recusar pack, e regra que falha em silêncio quando o
+código quebra recusa pack errado — ou aceita pack errado — sem que nada acuse.
+
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
 `09` §1.1 traz `exercise_time: "T+01:12:04"` e
@@ -1044,9 +1070,20 @@ chamá-lo.** Hoje elas vivem em `scripts/check_contract_examples.py` —
 `build_registries`, `AuroraChecker`, `_tipo_incompativel`, `_esc`, cerca de 290
 linhas entre as linhas 69 e 360.
 
-**O loader não pode reimplementá-las**: seria o verificador de CI divergindo do
-loader de produção, cada um aceitando um pack que o outro recusa — a classe que a
-D4 da Fase 1 desfez. Então o movimento vem **junto** da peça, não depois dela.
+**FEITO em 15/08/2026**, e **antes** do loader, não junto: tirar 290 linhas de
+dentro de um gate ativo e ligar um consumidor novo são duas mudanças, e feitas
+juntas dariam um sinal só — um vermelho não diria qual delas quebrou. O módulo é
+`range-core/engine/loader/contract_rules.py`, e o gate ficou verde depois do
+movimento, provando que ele faz o que as linhas faziam.
+
+**Duas coisas mudaram na travessia, as duas de propósito.** `build_registries`
+lia `domains/*/flags.yaml` do disco; agora as flags chegam como **dado** — não
+seria violação do invariante 1, que é sobre import, mas seria o acoplamento que
+ele existe para evitar entrando por outra porta. E `ContractError`, de
+`tools/_common`, virou `ContractRuleError` local: o núcleo não importa de
+`tools/`.
+
+**O movimento teve um defeito, e ele foi silencioso — ver a P2-12.**
 
 **Consequência de gate, já prevista na §1.4:** `check_contract_examples.py`
 deixa de ser stdlib pura e passa a importar do núcleo. Ele já roda no job
