@@ -587,9 +587,21 @@ a recomputação do fold. Hidratação primeiro, cadeia depois. Isso desarma a
 P2-10: a estratégia do fold pode ser construída em cima sem reserva.
 
 **O envelope, declarado porque é suposição.** O critério fala de "exercício de
-4 h", não de contagem de eventos, e não existe pack nem engine para produzir um
-exercício real. O que está medido é a curva volume → tempo. O item 8 fecha
-quando o volume de 4 h for conhecido e estiver abaixo de 150 mil.
+4 h", não de contagem de eventos, e não existe pack para produzir um exercício
+real. O que está medido é a curva volume → tempo.
+
+> **Isto virou a realocação do item 8**, decidida pelo operador em 16/08/2026 e
+> submetida em `spec-change/item-8-volume-de-4h`. Aceitar o envelope medido
+> fecharia o item com evidência de outra coisa: a curva prova que o motor aguenta
+> 150 mil eventos, **não** que 4 h cabem abaixo disso — e ninguém sabe o segundo
+> número. Chamar a primeira de prova do segundo é atestação com um passo
+> intermediário, que é o que o E1 recusou.
+>
+> O item da Fase 2 passa a cobrar **a curva**, que é o que esta fase pode provar
+> e que a §3.8 já entrega com data, máquina e stack. O critério original — < 3 s
+> para exercício de 4 h — vai **intacto** para a Fase 7, que é onde nasce o pack
+> de 4 h (`04` §9), e ganha uma segunda metade na Fase 9, que é onde nasce a
+> telemetria. Os detalhes e a varredura estão na §3.12.
 
 **O que reabre:** a **Fase 9**, com `telemetry_emitted`. É a única fonte com
 ordem de grandeza diferente das demais — injects são dezenas, ações de
@@ -802,6 +814,63 @@ o que os testes não provam — a **montagem**: contratos lidos do disco, flags 
 adapter entregues como dado, pack, clock, store e engine ligados na ordem em que
 um chamador real os liga.
 
+### 3.12 A realocação do item 8, e o que a varredura achou
+
+Decidida pelo operador em 16/08/2026: **realocação com destino**, não aceitação
+do envelope. `spec-change/item-8-volume-de-4h`.
+
+#### A varredura, com os critérios
+
+| | Padrão | |
+|---|---|---|
+| **P1** | `< ?3 ?s\|3 segundos\|tres segundos` | o limite pelo número |
+| **P2** | `\b4 ?h\b\|quatro horas\|240` | o volume |
+| **P3** | `reconstru` | a exigência sem nenhum dos dois |
+
+**Três sítios — e eles não diziam a mesma coisa, que é o achado que só a
+varredura dá:**
+
+| Sítio | Volume citado? |
+|---|---|
+| `01` §7 — *"< 3 s **para exercício de 4 h**"* | sim |
+| `06` T3 — *"**para exercício de 4 h** roda em < 3 s"* | sim |
+| `07` Fase 2, item 8 — *"a partir do store roda em < 3 s"* | **não** |
+
+**A redação do item omitia o volume**, e sem ele qualquer medição o satisfaz — o
+que explica, retroativamente, por que a §3.8 precisou declarar o envelope à mão.
+É a forma do **E2**: item cuja letra difere do critério que o julga. Corrigido
+junto, e não apenas movido.
+
+**`01` §7 não foi tocado, e a ausência é decisão:** ele enuncia a norma de
+desempenho, que é permanente e não ligada a fase. O que se realocou foi **quem a
+verifica** — mesma forma da correção do item 7.
+
+#### O destino, conferido na fonte
+
+`04` §9: o pack completo de 4 h é o `ransomware-universidade`, entregável da
+**Fase 7**. O outro pack — `fraude-academica-express` — é de 90 min e é da Fase
+12. A distinção que o operador pediu para conferir — *"onde nasce o pack"* versus
+*"onde nasce um pack de 4 h"* — existia, e as duas respostas coincidem.
+
+#### O insumo é dois, e por isso o item virou dois
+
+`telemetry_emitted` é `event_type` do catálogo e vai para o event store como
+qualquer outro: **entra na leitura total que a reconstrução percorre**. E é a
+única fonte com ordem de grandeza diferente — injects são dezenas, ações de
+participante são centenas, telemetria pode chegar às centenas de milhares
+sozinha. A própria §3.8 já registrava a Fase 9 como quem reabre o item.
+
+Então o exercício de 4 h da Fase 7 **não é** o da Fase 9: lá se mede o volume que
+o **pack** produz, aqui o que o **range** produz. Com item só na Fase 7, o
+critério seria verificado e passaria a ser falso na Fase 9 sem nada ficar
+vermelho.
+
+**É a única parte que foi além da instrução recebida, e está dita como tal.** A
+instrução pedia um destino; a regra que a acompanhava — *"a fase que decide é a
+que tem o insumo"* — aplicada a um insumo que a varredura mostrou ser dois, dá
+dois itens. Mesma divisão que o `spec-change` anterior deu ao `rehearsal`, e
+removível sem tocar no resto.
+
 ### 3.11 A metade de contrato do `exercise_resumed`, e o item 7
 
 Depois do merge do `spec-change`. Duas coisas caminharam juntas porque a segunda
@@ -933,13 +1002,17 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
 | 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ✅ | `$defs/frozen_interval` no contrato, com quatro fixtures negativas. `test_inject_engine.Rollback.test_technical_failure_registra_os_extremos_do_intervalo` prova o registro; `…test_os_outros_motivos_NAO_carregam_intervalo` prova que é só deste motivo; `…test_congelamento_contido_numa_pausa_registra_ZERO` prova o caso que `06` T3 nomeia — e é ele que fica vermelho se alguém trocar o campo por `wall_timestamp` |
-| 8 | Reconstrução completa em < 3 s | ⬜ **medido, não fechado** | Passa com folga até ~150 mil eventos (2,87 s) e estoura em 200 mil (4,30 s). Fecha quando o volume real de 4 h for conhecido — depende do pack e do engine, que não existem. Números e envelope na §3.8 |
+| 8 | ~~Reconstrução completa em < 3 s~~ → **curva volume → tempo medida** | ✅ **assim que o `spec-change` mergear** | A curva está na §3.8, com ponto de quebra (~150 mil), data, máquina e stack. O critério de 4 h foi **realocado** para a Fase 7 e a Fase 9 — `spec-change/item-8-volume-de-4h`, decidido em 16/08/2026. Ver a §3.12 |
 | 9 | Flag não declarada impede boot com mensagem clara | ✅ | `test_pack_loader.FlagNaoDeclarada`, em quatro asserções separadas porque `06` T2 exige **duas** metades: `…test_impede_o_boot` (recusa, com sítio próprio), `…test_a_mensagem_nomeia_a_flag`, `…test_a_mensagem_nomeia_o_arquivo_esperado` e `…test_vale_para_required_flags_do_manifesto`. `…test_objetivo_inexistente_e_violacao_de_regra_e_nao_de_flag` discrimina o sítio — sem ele, `UNDECLARED_FLAG` poderia estar sendo devolvido para qualquer violação |
 
-**Oito de nove fechados**, com cada ✅ nomeando o teste que o prova — atestação
-sem fonte é o que esta fase já registrou como caro. **O único aberto é o item
-8**, e ele depende do volume de um exercício de 4 h, que exige um pack real —
-entregável da Fase 7. Números, formas e envelope na §3.8.
+**Oito de nove fechados, e o nono depende de um merge, não de código.** O item 8
+foi realocado: o que fica na Fase 2 é a curva volume → tempo, que a §3.8 já
+entrega com ponto de quebra, data, máquina e stack. Ele passa a ✅ quando
+`spec-change/item-8-volume-de-4h` mergear — e o critério de 4 h passa a ser
+cobrado da Fase 7, com a metade de telemetria na Fase 9.
+
+Cada ✅ nomeia o teste que o prova: atestação sem fonte é o que esta fase já
+registrou como caro.
 
 Os itens 4, 5 e 6 ganharam uma **segunda** fonte na peça do engine, e não é
 redundância: eles estavam provados no fold, que é onde a propriedade vive, e
