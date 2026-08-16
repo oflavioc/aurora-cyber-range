@@ -3,10 +3,36 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
 SAFE_ENV_PREFIX = r"(?:(?:PYTHONDONTWRITEBYTECODE|PYTHONHASHSEED|NODE_ENV)=[^\s]+\s+)*"
+
+#: COMANDOS ALLOWLISTADOS SEM NENHUMA FORMA DE ESCRITA — usados por UMA coisa
+#: so: a isencao de alvo INEXISTENTE em `_alvo_nao_contido`. Ver o docstring de
+#: la para o argumento; aqui fica o criterio de admissao, que e estreito.
+#:
+#: Entra quem nao escreve por acao, nem por flag, nem por posicional — nao
+#: "quem eu nao lembro de ter visto escrever". Tres exclusoes deliberadas, e
+#: cada uma tem a forma de escrita nomeada, porque exclusao sem motivo vira
+#: inclusao na proxima leitura distraida:
+#:
+#:   `tree`  — `tree -o <arquivo>` grava a arvore. Nao esta no escopo da regra
+#:             de flags de escrita, entao hoje quem o contem e a regra de alvo.
+#:   `sort`  — `sort -o` e `sort --output=`. Estao no escopo da regra de flags,
+#:             e mesmo assim ficam de fora: contencao por duas regras que se
+#:             cobrem e o desenho, e apoiar-se so na outra e apostar que ela nao
+#:             mude.
+#:   `git`   — `git diff|log|show --output=<arquivo>`, ja provado por probe.
+#:
+#: `uniq` nao aparece aqui porque nao esta na allowlist: escreve por posicional
+#: (`uniq entrada saida`), e foi rejeitado na revisao de 2026-08-14.
+LEITORES_SEM_ESCRITA = (
+    "ls", "cat", "head", "tail", "wc", "grep", "rg", "stat", "diff",
+    "cut", "tr", "nl", "rev", "comm", "join", "column", "fold",
+    "basename", "dirname", "pwd", "echo", "printf", "which",
+)
 
 ALLOWED = [
     # cat-file, merge-base e for-each-ref sao leitura pura e nao tem forma que
@@ -192,13 +218,16 @@ ALLOWED = [
     rf"^{SAFE_ENV_PREFIX}(sort|cut|tr|nl|rev|comm|join|column|fold|basename|dirname)\b",
 ]
 
+#: REDIRECIONAMENTO — a unica regra que NAO roda contra o comando cru, e o
+#: motivo esta em `_redirecionamento_para_arquivo`. `/dev/null` e descarte,
+#: nao escrita: nada persiste. `&1`/`&2` sao duplicacao de descritor, tambem sem
+#: arquivo. Sem estas isencoes, tres dos onze falsos bloqueios do P23 vinham
+#: daqui — `2>/dev/null` no verificador, no harness e no git — e cada um
+#: empurrava a auditoria para inferencia. A negacao continua valendo para
+#: QUALQUER outro alvo.
+REDIRECIONAMENTO = r">>?\s*(?!/dev/null\b)(?!&[12]\b)\S"
+
 DENIED_ANYWHERE = [
-    # `/dev/null` e descarte, nao escrita: nada persiste. `&1`/`&2` sao
-    # duplicacao de descritor, tambem sem arquivo. Sem estas isencoes, tres dos
-    # onze falsos bloqueios do P23 vinham daqui — `2>/dev/null` no verificador,
-    # no harness e no git — e cada um empurrava a auditoria para inferencia.
-    # A negacao continua valendo para QUALQUER outro alvo.
-    (r">>?\s*(?!/dev/null\b)(?!&[12]\b)\S", "redirecionamento de saida para arquivo"),
     (r"\|\s*tee\b", "escrita via tee"),
     (r"\b(rm|mv|cp|chmod|chown|mkdir|touch|truncate)\b", "comando de escrita"),
     # (?!-) impede que `merge-base` case como `merge`: o \b depois de "merge"
@@ -373,6 +402,10 @@ def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
     Devolve confiavel=False quando o parse pode divergir do bash — aspas nao
     fechadas ou aspas escapadas com barra invertida. Nesses casos o chamador
     usa o texto cru, que acha MAIS separadores: falha para o lado seguro.
+
+    `>` e `<` entraram no conjunto neutralizado com a P3-8, e servem so a
+    `_redirecionamento_para_arquivo`. Para `_segmentos` sao inertes: nunca
+    foram separadores.
     """
     if re.search(r"\\['\"]", cmd):
         return cmd, False
@@ -388,8 +421,47 @@ def _mascara_de_citacao(cmd: str) -> tuple[str, bool]:
             aspas = None
             saida.append(ch)
         else:
-            saida.append("\x00" if ch in "|&;\n\r()" else ch)
+            saida.append("\x00" if ch in "|&;\n\r()<>" else ch)
     return "".join(saida), aspas is None
+
+
+def _redirecionamento_para_arquivo(cmd: str) -> bool:
+    """Ha redirecionamento, com a semantica de aspas que o BASH da a `>`.
+
+    P3-8, e esta e a metade que precisa do argumento inteiro, porque ela parece
+    o que a oitava auditoria da Fase 0 reprovou e nao e.
+
+    O QUE FOI REPROVADO LA: mascarar o conteudo citado ANTES de procurar
+    substituicao de comando. Aquilo era fail-open **porque o bash expande
+    `$(...)` dentro de aspas duplas** — o texto mascarado nao executava menos
+    do que o cru.
+
+    `>` NAO E ASSIM. Dentro de aspas — simples ou duplas — ele nao redireciona
+    coisa nenhuma: `echo "a > b"` imprime `a > b` e nao cria arquivo. Aplicar a
+    regra ao texto cru nao era rigor, era ler outro shell que nao o bash — e o
+    preco foram tres falsos bloqueios declarados desde a 19a auditoria da Fase 0
+    (`->`, `=>`, e a seta dentro de `--format`), mais o `->` que a segunda
+    auditoria da Fase 3 encontrou empurrando o achado dela para inferencia.
+
+    E O MESMO CONSERTO DA 16a AUDITORIA, na direcao oposta. La,
+    `_substituicao_ou_subshell` deixou de usar uma mascara unica e passou a
+    implementar a semantica de aspas do PROPRIO construto — porque aspas simples
+    e duplas nao fazem a mesma coisa com `$(`. A regra que sai das duas e uma so:
+    **cada construto e decidido com a semantica que o bash lhe da**, e nao com
+    uma mascara que serve para todos.
+
+    O QUE SUSTENTA A SEGURANCA, e nao e a mascara: para um `>` citado virar
+    redirecionamento de verdade, algum comando precisa reinterpretar a string
+    como shell — `sh -c`, `bash -c`, `eval`, `xargs`, `python -c`. **Nenhum
+    deles esta na allowlist**, e isso e propriedade de whitelist, nao
+    enumeracao: comando novo nasce bloqueado. Os probes exercitam os cinco.
+
+    PARSE DUVIDOSO CAI PARA O CRU, como em `_segmentos`: aspas escapadas ou nao
+    fechadas voltam ao texto original, que acha MAIS redirecionamento. Falha
+    fechada.
+    """
+    texto, confiavel = _mascara_de_citacao(cmd)
+    return re.search(REDIRECIONAMENTO, texto if confiavel else cmd) is not None
 
 
 SMOKE_TEST_HOOK = re.compile(r"^(?:~|\$\{?HOME\}?)/\.claude/hooks/[A-Za-z0-9_.-]+\.py$")
@@ -404,7 +476,37 @@ def _normaliza(caminho: str) -> str:
     return p.lower()
 
 
-def _alvo_nao_contido(cmd: str, cwd: str | None) -> str | None:
+def _primeiro_comando(segmento: str) -> str:
+    """A primeira palavra do segmento, sem o prefixo de ambiente seguro."""
+    resto = re.sub(rf"^{SAFE_ENV_PREFIX}", "", segmento.strip())
+    m = re.match(r"[A-Za-z][\w.-]*", resto)
+    return m.group(0) if m else ""
+
+
+def _existe_no_disco(alvo: str) -> bool:
+    """O alvo existe como caminho? Indecidivel conta como EXISTE — falha fechada.
+
+    AS DUAS GRAFIAS SAO TESTADAS, e a segunda e o defeito que este projeto
+    cometeria sem medir: no Git Bash o caminho absoluto e `/c/Projetos/...`, e
+    `os.path.exists` do Python de Windows resolve isso contra a raiz da unidade
+    corrente — `C:\\c\\Projetos\\...`, que nao existe. Um teste de existencia
+    ingenuo diria "nao existe" justamente para o caminho real da arvore
+    principal, que e o alvo que a contencao mais precisa negar.
+    """
+    candidatos = [alvo]
+    m = re.match(r"^/([A-Za-z])(/.*)?$", alvo)
+    if m:
+        candidatos.append(f"{m.group(1)}:{m.group(2) or '/'}")
+    for candidato in candidatos:
+        try:
+            if os.path.exists(candidato):
+                return True
+        except (OSError, ValueError):
+            return True
+    return False
+
+
+def _alvo_nao_contido(cmd: str, cwd: str | None, *, leitor_puro: bool = False) -> str | None:
     """RESOLVE o alvo contra o cwd. Nao casa grafia.
 
     A 17a auditoria me levou a "o invariante e o ALVO, nao a capacidade", e eu
@@ -433,6 +535,33 @@ def _alvo_nao_contido(cmd: str, cwd: str | None) -> str | None:
     Excecoes, as duas por necessidade e delimitadas: `/dev/null`, que e descarte;
     e o smoke test de hook que o PHASE_0_CHECKLIST prescreve, ja allowlistado por
     nome explicito.
+
+    A TERCEIRA EXCECAO E A P3-8, e ela tem DUAS condicoes que valem juntas
+    (`leitor_puro`): o alvo **nao existe como caminho** E o comando do segmento
+    **nao tem forma de escrever**.
+
+    O caso medido: `grep -n "/turmas/{turma_id}/diario" domains/...` — as tres
+    rotas da DoD da Fase 3 comecam com `/`, entao o tokenizador as via como
+    caminho absoluto, resolvia contra o cwd e recusava. Path de URL nao e alvo
+    de arquivo, e a distincao **nao pode ser a citacao**: `cat "/etc/passwd"`
+    tambem esta entre aspas e e alvo de verdade.
+
+    Nenhuma das duas condicoes basta sozinha, e isso e o desenho:
+
+      so inexistencia   — `pytest --basetemp=/c/outra/arvore` CRIA o diretorio;
+      so leitor puro    — `cat /c/Projetos/...` le a arvore principal, e ler
+                          fora do worktree mede outra arvore.
+
+    O CUSTO, declarado: a propriedade "leitura fora do worktree e bloqueada"
+    passa a valer "quando ha o que ler". `cat /nao/existe` deixa de ser
+    recusado — e nao le nada, porque nao ha nada. E a decisao passa a depender
+    do disco, o que e novo neste hook: o mesmo comando pode ser aceito numa
+    maquina e recusado noutra. Fica dito porque e verdade, nao porque incomoda.
+
+    `leitor_puro` chega do chamador, que o calcula POR SEGMENTO — o comando dono
+    do alvo e o do segmento em que ele aparece, e `git log | grep /x` tem dois.
+    Quando o parse de aspas nao e confiavel, o chamador manda `False`: sem saber
+    onde os segmentos comecam, nao se sabe de quem e o alvo.
     """
     raiz = _normaliza(cwd) if cwd else None
 
@@ -452,8 +581,11 @@ def _alvo_nao_contido(cmd: str, cwd: str | None) -> str | None:
             continue
         if raiz is None:
             return f"caminho absoluto sem cwd para resolver ({alvo})"
-        if not _normaliza(alvo).startswith(raiz):
-            return f"caminho absoluto fora do worktree de auditoria ({alvo})"
+        if _normaliza(alvo).startswith(raiz):
+            continue
+        if leitor_puro and not _existe_no_disco(alvo):
+            continue
+        return f"caminho absoluto fora do worktree de auditoria ({alvo})"
 
     return None
 
@@ -559,16 +691,37 @@ def main() -> int:
             )
             return 2
 
-    motivo_alvo = _alvo_nao_contido(cmd, cwd)
-    if motivo_alvo:
+    if _redirecionamento_para_arquivo(cmd):
         print(
-            f"BLOQUEADO: checkpoint-auditor sem escrita deliberada ({motivo_alvo}).\n"
-            f"Comando: {cmd}\n"
-            "O worktree de auditoria E o objeto da auditoria; alvo fora dele mede\n"
-            "outra arvore. Reporte o finding; nao corrija.",
+            "BLOQUEADO: checkpoint-auditor sem escrita deliberada "
+            "(redirecionamento de saida para arquivo).\n"
+            f"Comando: {cmd}\nReporte o finding; nao corrija.",
             file=sys.stderr,
         )
         return 2
+
+    # POR SEGMENTO, e nao sobre o comando inteiro: a isencao da P3-8 depende de
+    # QUAL comando e dono do alvo, e `git log | grep /x` tem dois. A cobertura
+    # nao muda — os segmentos particionam o comando —, muda o que se sabe sobre
+    # cada token. Parse duvidoso derruba a isencao: `_segmentos` ja cai para o
+    # texto cru, e sem saber onde um segmento comeca nao se sabe de quem e o alvo.
+    _, citacao_confiavel = _mascara_de_citacao(cmd)
+    for segmento in _segmentos(cmd):
+        motivo_alvo = _alvo_nao_contido(
+            segmento,
+            cwd,
+            leitor_puro=citacao_confiavel
+            and _primeiro_comando(segmento) in LEITORES_SEM_ESCRITA,
+        )
+        if motivo_alvo:
+            print(
+                f"BLOQUEADO: checkpoint-auditor sem escrita deliberada ({motivo_alvo}).\n"
+                f"Comando: {cmd}\n"
+                "O worktree de auditoria E o objeto da auditoria; alvo fora dele mede\n"
+                "outra arvore. Reporte o finding; nao corrija.",
+                file=sys.stderr,
+            )
+            return 2
 
     if _substituicao_ou_subshell(cmd):
         print(
