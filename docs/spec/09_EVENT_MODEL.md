@@ -171,13 +171,26 @@ Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evi
 | `facilitation` | `branch_selected` | `machine` |
 | `facilitation` | `exercise_started` | `machine` |
 | `facilitation` | `exercise_paused` | `machine` |
+| `facilitation` | `exercise_resumed` | `machine` |
 | `facilitation` | `exercise_reset` | `machine` |
 
-**Trinta e dois tipos.** Vinte e seis são inequívocos; os cinco abaixo são decisão registrada, e o sexto é o `verification_predicate_satisfied` já justificado acima.
+**Trinta e três tipos.** Vinte e sete são inequívocos; os cinco abaixo são decisão registrada, e o sexto é o `verification_predicate_satisfied` já justificado acima.
 
 - **`communication_submitted` e `regulatory_notice_submitted` são `state_effect`.** O *conteúdo* de uma comunicação é afirmação; o *ato* de emiti-la tem efeito externo — o público soube, o regulador foi notificado, o prazo regulatório correu. A classificação segue o ato. O conteúdo continua tratado como afirmação em outro lugar: `04_SCENARIO_SCHEMA.md` §7 compara o número comunicado com o ground truth.
 - **`decision_made` é `declaration`.** A opção escolhida carrega `effects` que mutam flags, mas **quem muta o estado são os `effects`, não o evento**: `decision_made` registra que a equipe *escolheu*, e escolher é afirmação, do mesmo tipo que `containment_declared`. Classificá-lo por `state_effect` abriria `containment: {all: [{event: decision_made}]}`, satisfeito no instante do clique, **antes de qualquer efeito existir** — o mesmo buraco que este campo fecha, com outro nome. Se um cenário precisar que uma decisão conte como contenção verificada, o caminho é o `effect` dela materializar um fato e o predicado referenciar esse fato, preservando a cadeia **decisão → efeito → estado observável**.
 - **`fact_materialized` e `attack_stage_reached` são `state_effect`.** São mudança do mundo, ainda que produzidas pelo motor. Isso permite um predicado dizer *"contido = nenhum estágio novo alcançado"*, que é objetivamente observável — o critério que §3.1 do `03` exige.
+
+> `exercise_resumed` foi acrescentado no `spec-change` `exercise-resumed`, e o que o justifica é uma **assimetria**, não uma necessidade de implementação.
+>
+> `01_ARCHITECTURE.md` §6 dá ao gm-console quatro comandos de execução — PAUSAR / CONTINUAR / ROLLBACK / RESET — e o catálogo tinha evento para três deles. Num sistema cuja premissa é que o registro reconstrói tudo (`00_MASTER_SPEC.md` §5.5, e a leitura total de `01_ARCHITECTURE.md` §4.1), **comando de facilitação sem rastro é exceção não declarada**. A ausência não estava justificada em documento nenhum: tinha a forma de omissão, e não de desenho.
+>
+> **A consequência era um estado não reconstruível, e ele é estreito e concreto.** Sem evento de retomada, `exercise_paused` sem nada depois é o mesmo fluxo para *"ainda pausado"* e para *"retomado, e nada aconteceu desde então"*. A heurística que salvaria o caso — evento posterior implica retomada — **não vale**: `01_ARCHITECTURE.md` §3 bloqueia o disparo **agendado** durante a pausa e §6 mantém o **manual**, então um `inject_fired` posterior é compatível com o exercício ainda parado.
+>
+> Quem cobra é a Fase 4, cujo item de DoD manda o reinício do engine restaurar o exercício **a partir do event store** (`07_IMPLEMENTATION_PHASES.md`): sem este evento, o engine que reinicia acerta ou erra o estado de pausa sem ter como saber qual — e o erro é caro nos dois sentidos, porque subir correndo dispara inject agendado numa sala parada, e subir pausado congela uma sala em curso.
+>
+> **A duração da pausa não vai no payload, e a razão é a mesma que decidiu T3 de `06_ACCEPTANCE_TESTS.md`: extremos, nunca duração.** Com os dois eventos no fluxo, o intervalo é a distância entre os `wall_timestamp` deles, e nenhum campo novo é necessário. Sem o evento, a única saída era derivar por subtração — `Δwall − Δexercise / clock_multiplier` —, e essa conta **quebra** quando o multiplicador muda dentro do intervalo, o que é permitido e não é raro: trocar de 1x para 5x antes de retomar é operação normal de ensaio. Medido: numa pausa real de 660 s com troca de multiplicador no meio, a subtração devolve 420 s pelo multiplicador do extremo esquerdo. O evento não existe para carregar a conta — existe para que não haja conta.
+>
+> **Em `wall_timestamp`, e não em `exercise_timestamp`**, que é o espelho exato da decisão de T3: lá o campo é `exercise_timestamp` porque ele **exclui** a pausa; aqui é `wall_timestamp` porque durante a pausa ele é o único que corre. Os dois eventos carregam o mesmo `exercise_timestamp` por construção, e o intervalo medido nele seria zero.
 
 > `separate_incident_declared` foi acrescentado no `spec-change` `facilitation-e-separate-incident`. Ele já era usado como evidência `auto` do OBJ-03 em `03_EXERCISE_DESIGN.md` §1.1 e na §6 deste documento, sem constar do catálogo — e o catálogo é **registro fechado**, com CI que falha em `event_type` não registrado. Um `objectives.yaml` escrito conforme o exemplo normativo do `03` seria recusado pelo linter.
 >
