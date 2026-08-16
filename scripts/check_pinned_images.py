@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Imagem pinada por digest, e o MESMO digest nos dois lugares que a declaram.
+"""Imagem pinada por digest, e o MESMO digest em todo lugar que a declara.
 
 POR QUE ESTA CHECAGEM EXISTE — P3-1
 ------------------------------------
@@ -19,12 +19,15 @@ O QUE ELA AFIRMA
    alpine` de hoje e de daqui a um mes podem ser bytes diferentes, e o
    `00_MASTER_SPEC.md` §8 exige versao pinada. O proprio `docker-compose.yml`
    ja argumentava isso em comentario desde a Fase 1 — agora e verificado.
-2. **Imagem declarada nos dois arquivos tem digest identico.** E o eixo que
+2. **Imagem declarada em mais de um arquivo tem digest identico.** E o eixo que
    pegaria o defeito de origem.
-3. **Imagem do CI existe no compose.** O compose e a stack; o CI existe para
-   espelha-la. Servico que so o CI conhece e stack que ninguem consegue rodar
-   localmente — e foi assim que o digest inventado entrou, sem par com que ser
-   comparado.
+3. **Imagem de qualquer arquivo existe no compose.** O compose e a stack; os
+   outros existem para espelha-la. Imagem que so um deles conhece e stack que
+   ninguem consegue rodar localmente — e foi assim que o digest inventado
+   entrou, sem par com que ser comparado.
+
+Sao TRES arquivos desde o fechamento da P2-19, e nao dois: o compose do projeto,
+o workflow do CI e o compose efemero da auditoria.
 
 O LIMITE, DECLARADO
 -------------------
@@ -52,14 +55,24 @@ sys.dont_write_bytecode = True
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-RULE = "imagens pinadas por digest, e iguais nos dois lugares"
+RULE = "imagens pinadas por digest, e iguais em todos os lugares que as declaram"
 
 #: `(rotulo, caminho)`. O compose e a FONTE — ver o eixo 3.
 COMPOSE = ("docker-compose.yml", REPO_ROOT / "docker-compose.yml")
-WORKFLOW = (
-    ".github/workflows/invariants.yml",
-    REPO_ROOT / ".github" / "workflows" / "invariants.yml",
-)
+
+#: OS DEMAIS ARQUIVOS QUE DECLARAM IMAGEM, e a lista cresce.
+#:
+#: A primeira versao desta checagem comparava DOIS arquivos, porque dois era
+#: quantos existiam. Ao fechar a P2-19 apareceu o terceiro — o compose efemero
+#: da auditoria —, e comparar dois de tres teria reintroduzido exatamente o
+#: defeito que a P3-1 fechou, com um arquivo a mais em vez de um digest a mais.
+OUTROS = [
+    (
+        ".github/workflows/invariants.yml",
+        REPO_ROOT / ".github" / "workflows" / "invariants.yml",
+    ),
+    ("docker-compose.audit.yml", REPO_ROOT / "docker-compose.audit.yml"),
+]
 
 MARCA = "image:"
 DIGEST = "@sha256:"
@@ -90,12 +103,13 @@ def imagens(caminho: Path) -> dict[str, str]:
 
 def verifica(
     do_compose: dict[str, str],
-    do_workflow: dict[str, str],
+    outros: list[tuple[str, dict[str, str]]],
 ) -> list[str]:
-    """Os tres eixos. Tudo por parametro, para a prova negativa injetar."""
+    """Os tres eixos, sobre N arquivos. Tudo por parametro, para o probe injetar."""
     problemas: list[str] = []
+    todos = [(COMPOSE[0], do_compose), *outros]
 
-    for rotulo, declaradas in ((COMPOSE[0], do_compose), (WORKFLOW[0], do_workflow)):
+    for rotulo, declaradas in todos:
         for nome, digest in sorted(declaradas.items()):
             if not digest:
                 problemas.append(
@@ -104,30 +118,31 @@ def verifica(
                     "diferentes em datas diferentes. `00` §8 exige versao pinada."
                 )
 
-    for nome in sorted(set(do_workflow) - set(do_compose)):
-        problemas.append(
-            f"{WORKFLOW[0]}: `{nome}` nao existe em {COMPOSE[0]}.\n"
-            "    O compose e a stack, e o CI existe para espelha-la. Servico so "
-            "do CI e stack que ninguem roda localmente — e digest sem par com "
-            "que ser comparado."
-        )
-
-    for nome in sorted(set(do_compose) & set(do_workflow)):
-        if do_compose[nome] and do_workflow[nome] and do_compose[nome] != do_workflow[nome]:
+    for rotulo, declaradas in outros:
+        for nome in sorted(set(declaradas) - set(do_compose)):
             problemas.append(
-                f"`{nome}` tem digests DIFERENTES nos dois arquivos:\n"
-                f"    {COMPOSE[0]}: @sha256:{do_compose[nome]}\n"
-                f"    {WORKFLOW[0]}: @sha256:{do_workflow[nome]}\n"
-                "    O CI passaria a testar contra uma imagem que nao e a que "
-                "roda localmente, e a divergencia apareceria como teste instavel."
+                f"{rotulo}: `{nome}` nao existe em {COMPOSE[0]}.\n"
+                "    O compose e a stack, e os outros existem para espelha-la. "
+                "Imagem que so um deles conhece e digest sem par com que ser "
+                "comparado — que foi como o digest inventado da peca 3 entrou."
             )
+
+        for nome in sorted(set(do_compose) & set(declaradas)):
+            if do_compose[nome] and declaradas[nome] and do_compose[nome] != declaradas[nome]:
+                problemas.append(
+                    f"`{nome}` tem digests DIFERENTES:\n"
+                    f"    {COMPOSE[0]}: @sha256:{do_compose[nome]}\n"
+                    f"    {rotulo}: @sha256:{declaradas[nome]}\n"
+                    "    Seriam dois ambientes para o mesmo papel, e quem julga "
+                    "deixaria de julgar o que o desenvolvedor roda."
+                )
 
     return problemas
 
 
 def main(argv: list[str] | None = None) -> int:
     do_compose = imagens(COMPOSE[1])
-    do_workflow = imagens(WORKFLOW[1])
+    outros = [(rotulo, imagens(caminho)) for rotulo, caminho in OUTROS]
 
     # ANTI-VACUIDADE. Sem esta linha, um `MARCA` errado — ou os arquivos mudando
     # de lugar — faria os dois dicionarios virem vazios e a checagem imprimir
@@ -141,16 +156,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    problemas = verifica(do_compose, do_workflow)
+    problemas = verifica(do_compose, outros)
     if problemas:
         print(f"{RULE}\n", file=sys.stderr)
         for problema in problemas:
             print(f"  {problema}\n", file=sys.stderr)
         return 1
 
+    detalhe = ", ".join(f"{rotulo}: {len(d)}" for rotulo, d in outros)
     print(
-        f"{RULE}: {len(do_compose)} imagens no compose e {len(do_workflow)} no "
-        "workflow, todas pinadas por digest e sem divergencia entre os dois."
+        f"{RULE}: {len(do_compose)} imagens em {COMPOSE[0]} ({detalhe}), todas "
+        f"pinadas por digest e sem divergencia entre os {len(outros) + 1} arquivos."
     )
     return 0
 
