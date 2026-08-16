@@ -33,7 +33,7 @@ desfazer, e migration desfeita e historico que mente.
 
 DADOS SINTETICOS
 ----------------
-`05` §7. Nomes inventados, matriculas fora de qualquer padrao real, e nenhum
+`05` §3. Nomes inventados, matriculas fora de qualquer padrao real, e nenhum
 identificador que colida com pessoa existente.
 """
 

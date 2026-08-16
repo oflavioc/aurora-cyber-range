@@ -15,12 +15,17 @@ O QUE ESTA SUITE PROVA QUE NAO E OBVIO
 
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 
 import jwt as pyjwt
 
-from domains.academus.api.auth import Autenticacao, PapelDesconhecido
+from domains.academus.api.auth import (
+    Autenticacao,
+    PapelDesconhecido,
+    autenticacao_do_ambiente,
+)
 from domains.academus.api.surface import carregar
 from range_core.api.tokens import (
     ALGORITMO,
@@ -165,6 +170,55 @@ class VocabularioDePapel(unittest.TestCase):
         """
         token = issue("U-1", "qualquer-coisa", secret=SEGREDO, now=AGORA)
         self.assertEqual(verify(token, secret=SEGREDO, now=AGORA).role, "qualquer-coisa")
+
+
+class BootDoAdapter(unittest.TestCase):
+    """L3 da auditoria da Fase 3 — a funcao existia e ninguem a exercia.
+
+    `autenticacao_do_ambiente` e o ponto onde o adapter monta a autenticacao a
+    partir do ambiente, e a varredura do auditor achou **nenhum chamador e
+    nenhum teste**. A recusa alta estava provada em `jwt_secret`, um nivel
+    abaixo; que o BOOT DO ADAPTER a propaga, nao estava.
+
+    A alternativa era apagar a funcao — ou tem consumidor e ganha prova, ou nao
+    existe. Ela fica porque o consumidor tem data: a Fase 4 e quem monta o
+    processo, e `01` §4 poe a `academus-api` em container ali. O que muda e que
+    ela deixa de ser codigo nao exercido.
+
+    O AMBIENTE E MANIPULADO E RESTAURADO, sem duplo: `jwt_secret` le `os.environ`
+    por padrao, e injetar um dicionario aqui testaria o parametro em vez do
+    caminho de boot — que e exatamente o que ja esta testado acima.
+    """
+
+    def setUp(self) -> None:
+        self.anterior = os.environ.get(JWT_SECRET)
+        self.addCleanup(self._restaura)
+
+    def _restaura(self) -> None:
+        if self.anterior is None:
+            os.environ.pop(JWT_SECRET, None)
+        else:
+            os.environ[JWT_SECRET] = self.anterior
+
+    def test_com_segredo_no_ambiente_o_adapter_monta(self):
+        os.environ[JWT_SECRET] = SEGREDO
+        autenticacao = autenticacao_do_ambiente()
+
+        self.assertEqual(autenticacao.segredo, SEGREDO)
+        self.assertIn("aluno", autenticacao.superficie.papeis_de_dominio)
+
+        token = autenticacao.emitir_token("A-1001", "aluno", now=AGORA)
+        self.assertEqual(verify(token, secret=SEGREDO, now=AGORA).sub, "A-1001")
+
+    def test_SEM_segredo_o_boot_do_adapter_RECUSA(self):
+        """A recusa alta chega ate aqui, e nao para em `jwt_secret`.
+
+        Um adapter que capturasse a excecao e subisse com segredo vazio passaria
+        no teste de `jwt_secret` e falharia neste.
+        """
+        os.environ.pop(JWT_SECRET, None)
+        with self.assertRaises(SecretUnavailable):
+            autenticacao_do_ambiente()
 
 
 class ClaimsDeclaradas(unittest.TestCase):

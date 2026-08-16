@@ -552,6 +552,22 @@ def verifica(
                 f"{chave[0]} {chave[1]}: `publica: true` com papeis declarados. "
                 "Ou a rota e aberta, ou ela exige papel."
             )
+
+        # M2 DA AUDITORIA DA FASE 3 — a metade estrutural.
+        #
+        # A ordem `autoriza` -> `degrada` garante que estado de simulacao nao
+        # chega a quem nao tem token. Rota PUBLICA com degradacao declarada
+        # contorna a garantia sem inverter a ordem: `autoriza` deixa passar por
+        # ser publica, e `degrada` responde 503 ou latencia para qualquer um na
+        # rede. O teste de comportamento cobre a inversao; este eixo cobre a
+        # configuracao, que e o outro caminho para o mesmo lugar.
+        if publica and (rota.get("degradacao") or []):
+            problemas.append(
+                f"{chave[0]} {chave[1]}: `publica: true` com degradacao declarada.\n"
+                "    Rota aberta que degrada entrega o estado da simulacao a quem "
+                "nem token tem — um 503 responde 'a flag esta ligada' para a rede "
+                "inteira. Se a rota precisa mesmo ser publica, ela nao degrada."
+            )
         elif not publica and not papeis:
             problemas.append(
                 f"{chave[0]} {chave[1]}: sem papeis e sem `publica`.\n"

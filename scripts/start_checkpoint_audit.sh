@@ -13,9 +13,18 @@ set -euo pipefail
 
 PHASE=""
 MODE=interactive
+BASE_EXPLICITA=""
+ESPERANDO_BASE=0
 for arg in "$@"; do
+  if [ "$ESPERANDO_BASE" = "1" ]; then
+    BASE_EXPLICITA="$arg"
+    ESPERANDO_BASE=0
+    continue
+  fi
   case "$arg" in
     --headless) MODE=headless ;;
+    --base) ESPERANDO_BASE=1 ;;
+    --base=*) BASE_EXPLICITA="${arg#--base=}" ;;
     *)
       if [ -z "$PHASE" ]; then PHASE="$arg"; else
         echo "ERRO: argumento inesperado: $arg" >&2
@@ -25,11 +34,18 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$ESPERANDO_BASE" = "1" ]; then
+  echo "ERRO: --base exige um ref." >&2
+  exit 2
+fi
+
 if ! [[ "$PHASE" =~ ^[0-9]+$ ]]; then
-  echo "Uso: bash scripts/start_checkpoint_audit.sh <numero-da-fase> [--headless]"
+  echo "Uso: bash scripts/start_checkpoint_audit.sh <numero-da-fase> [--headless] [--base <ref>]"
   echo
   echo "  (padrao)     sessao INTERATIVA: voce acompanha e pode intervir."
   echo "  --headless   sessao nao-interativa (-p), para CI. Nada abre na tela."
+  echo "  --base <ref> base de comparacao explicita. So use para auditar um"
+  echo "               commit JA mergeado — e veja o aviso que o script emite."
   exit 2
 fi
 
@@ -60,8 +76,10 @@ HEAD_SHA=$(git rev-parse HEAD)
 # mesma natureza de decisao que ja o faz fixar o commit candidato — mecanismo
 # que depende de o auditor lembrar de fazer a coisa certa nao e mecanismo.
 # ---------------------------------------------------------------------------
-BASE_REF="origin/main"
-if git remote get-url origin >/dev/null 2>&1; then
+BASE_REF="${BASE_EXPLICITA:-origin/main}"
+if [ -n "$BASE_EXPLICITA" ]; then
+  echo "Base de comparacao EXPLICITA: $BASE_REF"
+elif git remote get-url origin >/dev/null 2>&1; then
   echo "Atualizando refs de origin para fixar a base de comparacao..."
   if ! git fetch --quiet origin main 2>/dev/null; then
     echo "AVISO: 'git fetch origin main' falhou. A base pode estar desatualizada." >&2
@@ -76,6 +94,71 @@ fi
 if ! BASE_SHA=$(git rev-parse --verify --quiet "$BASE_REF^{commit}"); then
   echo "ERRO: nao foi possivel resolver '$BASE_REF'. Sem base, o diff nao tem sentido." >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# H1 DA AUDITORIA DA FASE 3 — A BASE VAZIA, QUE E O CASO DEGENERADO DA P2-16.
+#
+# A P2-16 fechou "o auditor nao escolhe a base" e abriu, no mesmo commit, "o
+# lancador entrega base VAZIA e segue". Auditando `main` depois do merge,
+# BASE_SHA == HEAD_SHA: `git diff <base>..HEAD` e vazio por construcao, o item 6
+# da entrada obrigatoria do auditor vira vacuidade, e o prompt ainda o PROIBE de
+# resolver outra base — entao ele improvisa em silencio. Foi o que aconteceu:
+# o auditor escolheu sozinho o fechamento da Fase 2 como base, e declarou que
+# nao pode julgar o `spec_freeze` do PR.
+#
+# E a consequencia maior nao e o diff: e que o checkpoint DEIXA DE SER PORTA. Um
+# BLOCKER emitido contra um commit que ja esta em `main` ja esta na branch
+# default — a auditoria vira laudo em vez de gate.
+#
+# `docs/process/WORKFLOW.md` fixa a ordem: commit candidato, auditoria, DEPOIS
+# `gh pr create`. Este bloco recusa a inversao em vez de avisar sobre ela,
+# porque aviso num script que abre uma sessao interativa e aviso que rola para
+# fora da tela.
+# ---------------------------------------------------------------------------
+if git merge-base --is-ancestor "$HEAD_SHA" "$BASE_SHA" 2>/dev/null; then
+  if [ -n "$BASE_EXPLICITA" ]; then
+    echo
+    echo "AVISO: o commit candidato JA esta contido na base '$BASE_REF'." >&2
+    echo "       O diff contra ela nao mostra o trabalho da fase. Voce passou" >&2
+    echo "       --base explicitamente, entao a auditoria segue — mas ela e" >&2
+    echo "       LAUDO, e nao porta: BLOCKER encontrado aqui ja esta mergeado." >&2
+    echo
+  else
+    cat >&2 <<FIM
+
+ERRO: a base de comparacao nao mostra o trabalho da fase.
+
+  commit candidato : $HEAD_SHA
+  base ($BASE_REF) : $BASE_SHA
+
+O candidato JA esta contido na base — normalmente porque a branch da fase foi
+mergeada ANTES da auditoria. O diff seria vazio, e o auditor auditaria o nada
+ou escolheria uma base por conta propria, em silencio.
+
+E ha uma consequencia maior que o diff: rodando sobre um commit ja em 'main',
+qualquer BLOCKER encontrado JA ESTA na branch default. O checkpoint deixa de
+ser porta e vira laudo.
+
+A ordem que 'docs/process/WORKFLOW.md' fixa e:
+
+    git commit -m "fase-<n>: checkpoint candidate"     # na branch da fase
+    bash scripts/start_checkpoint_audit.sh <n>          # <- aqui
+    gh pr create                                        # so depois
+
+O QUE FAZER:
+
+  (a) audite ANTES do merge. Va para a branch da fase e rode de la:
+          git checkout fase-<n>-<slug>
+          bash scripts/start_checkpoint_audit.sh $PHASE
+
+  (b) se o merge ja aconteceu e voce quer o laudo assim mesmo, passe a base
+      explicitamente e assuma que isto nao e mais um gate:
+          bash scripts/start_checkpoint_audit.sh $PHASE --base <ref-anterior>
+
+FIM
+    exit 1
+  fi
 fi
 
 mkdir -p .aurora-worktrees

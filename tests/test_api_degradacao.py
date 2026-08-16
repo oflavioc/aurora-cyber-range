@@ -299,6 +299,105 @@ class Proporcional(unittest.TestCase):
         self.assertEqual(set(self._tenta(4)), {503})
 
 
+class AutorizaAntesDeDegradar(unittest.TestCase):
+    """M2 da auditoria da Fase 3 — a ordem que era argumento e nao era teste.
+
+    `app.py` declara `dependencies=[Depends(autoriza), Depends(degrada)]` e o
+    comentario ao lado diz por que: *"degradar antes de autenticar entregaria o
+    estado da simulacao a quem nem token tem"*. A propriedade valia, e repousava
+    **inteiramente** na ordem de resolucao de dependencias do FastAPI — que
+    nenhum teste e nenhum verificador fixava.
+
+    Era a classe que a §7.3 do registro desta fase nomeia: verificacao que
+    parece existir. O argumento estava escrito; a prova, nao.
+
+    UM 503 SEM TOKEN E VAZAMENTO DE ESTADO, e nao apenas ordem trocada: ele
+    responde *"a flag esta ligada"* para qualquer um na rede, e `00` §3 chama
+    assimetria de informacao de desenho.
+    """
+
+    def setUp(self) -> None:
+        self.c = Cenario()
+        self.c.dispara("MATRICULA_FORA")
+        self.c.dispara("NOTAS_CONGELADAS")
+        self.c.dispara("TODAS_AS_SESSOES")
+
+    def _sem_token(self, metodo: str, caminho: str):
+        chamada = getattr(self.c.cliente, metodo)
+        if metodo == "post":
+            return chamada(caminho, json={"aluno_id": "A-1001", "turma_id": "T-2001", "valor": 9.0})
+        return chamada(caminho)
+
+    def test_sem_token_as_tres_rotas_degradadas_respondem_401_e_nao_503(self):
+        """As TRES, com as flags ligadas. Uma so nao discriminaria a ordem."""
+        rotas = [
+            ("post", "/matricula"),
+            ("post", "/turmas/T-2001/notas"),
+            ("get", "/turmas/T-2001/diario"),
+        ]
+        for metodo, caminho in rotas:
+            with self.subTest(rota=f"{metodo.upper()} {caminho}"):
+                resposta = self._sem_token(metodo, caminho)
+                self.assertEqual(
+                    resposta.status_code,
+                    401,
+                    "degradou antes de autenticar: a resposta conta o estado da "
+                    "simulacao a quem nao tem token",
+                )
+                self.assertEqual(resposta.headers.get("WWW-Authenticate"), "Bearer")
+
+    def test_sem_token_nao_paga_a_latencia_declarada(self):
+        """A latencia tambem e observavel, e tambem nao pode chegar sem token.
+
+        Sem esta assercao, um `degrada` que rodasse antes e aplicasse SO a
+        latencia — recusando depois com 401 — passaria no teste acima e ainda
+        entregaria pela cronometragem que a flag do AVA esta ligada.
+        """
+        self.c.dormidas.clear()
+        self._sem_token("get", "/turmas/T-2001/diario")
+        self.assertEqual(self.c.dormidas, [])
+
+    def test_com_token_as_mesmas_rotas_degradam(self):
+        """O par que discrimina: uma API que so devolvesse 401 passaria acima."""
+        secretaria = self.c.cabecalho("secretaria", "S-1")
+        professor = self.c.cabecalho("professor", TITULAR)
+
+        self.assertEqual(
+            self.c.cliente.post(
+                "/matricula",
+                json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+                headers=secretaria,
+            ).status_code,
+            503,
+        )
+        self.assertEqual(
+            self.c.cliente.post(
+                "/turmas/T-2001/notas",
+                json={"aluno_id": "A-1001", "valor": 9.0},
+                headers=professor,
+            ).status_code,
+            409,
+        )
+        self.assertEqual(
+            self.c.cliente.get("/turmas/T-2001/diario", headers=professor).status_code,
+            503,
+        )
+
+    def test_a_ordem_declarada_na_aplicacao_e_autoriza_depois_degrada(self):
+        """E a metade estrutural, sobre o objeto que o FastAPI vai resolver.
+
+        O teste de comportamento acima prova a propriedade hoje; este nomeia a
+        causa, para que uma inversao apareca como "a ordem mudou" em vez de como
+        tres 503 inexplicados.
+        """
+        from domains.academus.api.app import app
+        from domains.academus.api.auth import autoriza
+        from domains.academus.api.degradacao import degrada
+
+        chamadas = [d.dependency for d in app.router.dependencies]
+        self.assertEqual(chamadas, [autoriza, degrada])
+
+
 class NaoSeExplica(unittest.TestCase):
     """A degradacao e observavel SEM ser explicada. Varredura sobre a resposta."""
 
