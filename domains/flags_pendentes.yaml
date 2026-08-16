@@ -1,0 +1,55 @@
+# FLAGS CITADAS NA SPEC PARA SERVICOS QUE AINDA NAO EXISTEM
+#
+# Lido por `scripts/check_spec_flags.py`, que cruza as flags citadas em
+# `docs/spec/` com as declaradas em `domains/<adapter>/flags.yaml`.
+#
+# POR QUE ESTA LISTA EXISTE
+#
+# `02_DOMAIN_ACADEMUS.md` secao 7 descreve o `federated-identity-simulator` e o
+# `mec-gateway` junto dos injects de cada um. Os dois sao entregaveis da
+# **Fase 11** (`07_IMPLEMENTATION_PHASES.md`), e as flags deles nao tem
+# consumidor nenhum ate la.
+#
+# Declara-las em `flags.yaml` agora nao seria inofensivo: elas entrariam nas
+# constantes geradas, virariam painel no wallboard — que `01` secao 5.3 renderiza
+# POR CONVENCAO a partir de `wallboard_group` — e a sala veria indicador de um
+# servico que nao existe. E a mesma disciplina que a Fase 2 aplicou ao
+# `RANDOM_SEED`: nao inventar consumidor para justificar declaracao.
+#
+# POR QUE EM YAML, E NAO NO PROPRIO SCRIPT
+#
+# Escrever `academus.sso_unavailable` dentro de um `.py` e literal de flag nao
+# declarada — a assinatura exata de erro de digitacao que
+# `tools/check_contract_literals.py` existe para recusar, e ele recusaria. O hook
+# de arquitetura barrou a primeira versao desta lista por esse motivo, e estava
+# certo: lista de nomes de flag e DADO sobre flags, nao codigo.
+#
+# A LISTA ENVELHECE NAS DUAS DIRECOES, e a checagem cobra as duas:
+#
+#   entrada que ja foi declarada no adapter  -> reprova, a entrada sobrou
+#   entrada que a spec deixou de citar       -> reprova, a lista mente
+#
+# Sem isso ela vira o que toda lista de excecao vira: permissao permanente que
+# ninguem rele.
+
+pendentes:
+
+  - name: academus.sso_unavailable
+    quem_traz: 'federated-identity-simulator, Fase 11'
+    citada_em: '02_DOMAIN_ACADEMUS.md secao 7'
+
+  - name: academus.token_validation_delay
+    quem_traz: 'federated-identity-simulator, Fase 11'
+    citada_em: '02_DOMAIN_ACADEMUS.md secao 7'
+
+  - name: academus.federation_anomaly
+    quem_traz: 'federated-identity-simulator, Fase 11'
+    citada_em: '02_DOMAIN_ACADEMUS.md secao 7'
+
+  - name: academus.mec_gateway_unavailable
+    quem_traz: 'mec-gateway, Fase 11'
+    citada_em: '02_DOMAIN_ACADEMUS.md secao 7'
+
+  - name: academus.regulatory_inquiry
+    quem_traz: 'mec-gateway, Fase 11'
+    citada_em: '02_DOMAIN_ACADEMUS.md secao 7'

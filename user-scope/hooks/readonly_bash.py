@@ -110,6 +110,10 @@ ALLOWED = [
     # mesmo motivo das outras: verificador cuja prova nao roda e verificador
     # cuja propriedade o auditor aceita da palavra de quem o escreveu.
     rf"|check_gate_coverage|check_gate_coverage_probes"
+    # `check_spec_flags` — Fase 3. Cruza flag citada na spec com flag declarada
+    # no adapter. Sem executa-la, o auditor le duas listas e compara a olho, que
+    # e a forma de auditar que o item existe para nao aceitar.
+    rf"|check_spec_flags|check_spec_flags_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

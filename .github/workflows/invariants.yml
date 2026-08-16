@@ -92,6 +92,17 @@ jobs:
       # Diretorio novo no topo nasce invisivel a ele, e nada avisa. Esta
       # checagem exige que todo arquivo versionado esteja classificado, e a
       # terceira classe — DESCRITIVO — e declaracao explicita, com motivo.
+      # Fase 3, peca 1. `01` secao 5.4 exige que nenhum servico use flag nao
+      # declarada, e o loader recusa boot com flag desconhecida — mas a SPEC nao
+      # passava por nenhuma das duas. O item 2 da DoD da Fase 3 citava uma flag
+      # que o adapter nao tinha: insatisfazivel por construcao, e invisivel
+      # porque `check_spec_examples.py` valida blocos YAML e a DoD e markdown.
+      - name: flags citadas na spec existem no adapter
+        run: python scripts/check_spec_flags.py
+
+      - name: teste negativo das flags citadas na spec
+        run: python scripts/check_spec_flags_probes.py
+
       - name: cobertura do gate spec_freeze
         run: python scripts/check_gate_coverage.py
 

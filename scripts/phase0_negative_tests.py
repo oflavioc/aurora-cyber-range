@@ -161,6 +161,11 @@ LEITURA_LEGITIMA = [
      "python scripts/check_gate_coverage.py"),
     ("teste negativo da cobertura do gate",
      "python scripts/check_gate_coverage_probes.py"),
+    # Fase 3: as duas entram no commit que as cria, que e a regra do B1.
+    ("flags citadas na spec existem no adapter",
+     "python scripts/check_spec_flags.py"),
+    ("teste negativo das flags citadas na spec",
+     "python scripts/check_spec_flags_probes.py"),
     ("executor de exemplos com stderr descartado",
      "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
