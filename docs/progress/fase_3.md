@@ -1,19 +1,47 @@
 # Fase 3 — API mínima
 
-**Status: EM CURSO.** Aberta em 16/08/2026, com a Fase 2 concluída — nove de nove
-itens e auditoria PASS.
-
-**Status: AUDITADA — PASS**, sem BLOCKER (§8). Cinco peças entregues, **quatro de
+**Status: AUDITADA — PASS**, sem BLOCKER, em **duas** rodadas de auditoria: a de
+`a857d76` (§8) e a de `5b219a7` (§8.5). Cinco peças entregues, **quatro de
 quatro** itens da DoD com prova executável (§5.1), e as três pendências de
 aparato que venciam neste checkpoint fechadas.
 
-O HIGH e os três achados corrigíveis foram fechados na rodada de correção; dois
-viraram pendência com destino.
+Da primeira rodada, o HIGH e os três achados corrigíveis foram fechados e dois
+viraram pendência com destino. **Da segunda, os dois HIGH estão fechados** (§8.5):
+o teste vacuoso passou a discriminar, e a guarda de base ganhou o predicado que
+pega a inversão real — formulado antes, aprovado pelo operador, implementado
+depois, com sete eixos de prova negativa. O que sobra dela é a **P3-8**, os dois
+falsos bloqueios do hook.
 
-**211 testes — zero pulos com a stack efêmera no ar**, 27 verificações no CI, 183
-arquivos classificados pelo gate.
+> **Havia dois cabeçalhos de status contraditórios aqui** — *"EM CURSO"* e
+> *"AUDITADA — PASS"*, um sob o outro, com uma data de fechamento no futuro. Era
+> o L2 da segunda auditoria. A §7.1 fixa que afirmação dentro de um registro é
+> citação e não paráfrase; a mesma disciplina alcança o estado que o registro
+> declara de si, e um registro com dois estados não tem estado.
 
-Aberta em 16/08/2026; fechada em 17/08/2026.
+**Medido no commit da rodada de correção do H1/H2**, e cada número com o comando
+que o produziu:
+
+| Medida | Comando |
+|---|---|
+| **217 testes**, zero pulos com a stack efêmera no ar | `python -m unittest discover -s tests` |
+| **188 arquivos** classificados pelo gate — 12 SPEC, 115 CODE, 61 descritivos | `python scripts/check_gate_coverage.py` |
+| **32 passos** de verificação no CI | `grep -c "run: python" .github/workflows/invariants.yml` |
+
+> **Estes números eram 211, 183 e 27, e foi o commit anterior que invalidou os
+> dois primeiros sem atualizar o resumo** — o L1 da segunda auditoria. O terceiro
+> ninguém recontou: eram 31 já em `a857d76`, e "27" atravessou duas rodadas sem
+> ser conferido. Por isso a tabela acima traz o **comando**, e não só o número: um
+> número sem procedimento não é reconferível, e o que não é reconferível envelhece
+> em silêncio.
+>
+> As ocorrências de "211" em §6 e §8 são **históricas** — descrevem a auditoria de
+> `a857d76` — e ficam como estão.
+>
+> `check_progress_consistency.py` não pega isto e nunca poderia: ele cruza
+> tabela-resumo com seções de detalhe, não número escrito com número medido.
+
+Aberta e fechada em **16/08/2026** — todos os commits da fase têm essa data,
+inclusive o candidato. A linha anterior dizia *"fechada em 17/08/2026"*.
 
 ---
 
@@ -686,6 +714,8 @@ três primeiros já passavam desde a Fase 1.
 | P3-4 | No worktree de auditoria, `range_core` vem da árvore PRINCIPAL e `domains` do worktree | **Antes do próximo checkpoint** — Fase 4 |
 | P3-5 | Business state em dicionários de módulo: `01` §4 o põe em Postgres | **Fase 4** — ver o destino corrigido |
 | P3-6 | `POST .../notas` grava nota antes de a trilha de auditoria existir | **Fase 5**, com `06` T7 |
+| P3-7 | ~~A guarda de base do lançador cobre `BASE_SHA == HEAD_SHA`, e a inversão real é merge peça a peça~~ | ✅ **FECHADA** — predicado (ii) ∧ (iii) com sete eixos; furo do squash declarado em `WORKFLOW.md` |
+| P3-8 | Dois falsos bloqueios do hook do auditor: `->` citado lido como redirecionamento, path de URL lido como caminho absoluto | **Antes do checkpoint da Fase 4** — `WORKFLOW.md` §"Bloqueio indevido" |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -866,10 +896,28 @@ auditar é decisão do operador, não minha.
 
 > **A auditoria a reencontrou sozinha**, no item 2 do que não conseguiu
 > verificar: *"os 211 testes que executei não provam que o núcleo executado veio
-> deste checkout"*. Ela coincidia **só por causa do H1** — `main` estava no SHA
-> do candidato. Corrigido o H1, a auditoria volta a rodar sobre a branch da
-> fase, os dois SHAs deixam de coincidir, e **a P3-4 passa de latente a real na
-> próxima execução**. Ela deixou de ser hipótese: é a primeira coisa a fazer.
+> deste checkout"*.
+
+> **A previsão desta nota estava errada, e a errei na causa.** Ela dizia que
+> *"corrigido o H1, a auditoria volta a rodar sobre a branch da fase, os dois
+> SHAs deixam de coincidir, e a P3-4 passa de latente a real na próxima
+> execução"*. **Não passou.** A segunda auditoria verificou o que a primeira não
+> conseguiu: `.git/HEAD` da árvore principal apontava para
+> `refs/heads/fase-3-auditoria-r1` — o próprio commit candidato —, então o
+> núcleo resolvido pela instalação editável coincidiu com o auditado.
+>
+> O erro é de raciocínio e vale nomeado: eu tratei *"os dois SHAs coincidirem"*
+> como consequência de `main` estar no candidato. Não é. O que a P3-4 compara é a
+> **árvore principal** com o **worktree**, e a árvore principal está onde o
+> operador a deixou — que naquela execução era a branch da fase, e não `main`. A
+> P2-16 e o H1 são sobre a base de *comparação*; a P3-4 é sobre a raiz de
+> *resolução de import*. São dois eixos, e eu costurei um no outro.
+>
+> **O risco residual é o que sobra, e é exatamente o segundo parágrafo do "morde
+> se":** um commit na árvore principal *durante* a auditoria trocaria o núcleo
+> sob os testes do auditor, sem sinal nenhum. Nenhum teste afirma a raiz de
+> resolução dos três pacotes — é isso, e só isso, que a pendência ainda deve.
+> **Vencimento inalterado: Fase 4.**
 
 #### P3-5 — business state em dicionários de módulo
 
@@ -920,6 +968,196 @@ chegar na Fase 5 pela via do banco não vai encontrá-los; encontra a rota.
 
 **Vencimento: Fase 5.**
 
+#### P3-7 — a guarda de base fecha o caso degenerado, e a inversão real é outra
+
+**H2 da segunda auditoria, e o segundo predicado que erra o alvo.**
+
+A guarda de `scripts/start_checkpoint_audit.sh:119` pergunta *"o candidato está
+contido na base?"* — `git merge-base --is-ancestor "$HEAD_SHA" "$BASE_SHA"`. Isso
+é `BASE_SHA == HEAD_SHA` e pouco mais: **o caso degenerado.**
+
+**A inversão que de fato aconteceu nas Fases 2 e 3 é merge peça a peça.** No
+instante da segunda auditoria, `origin/main` e `main` estavam em `a857d76`, e
+`git log --graph` mostrava **cinco das seis peças da Fase 3 já em `main`**. Como
+`5b219a7` não é ancestral de `a857d76`, a guarda não disparou: nenhum aviso,
+`rc=0`. O diff entregue ao auditor tinha 9 arquivos e **não continha** `app.py`,
+`auth.py`, `degradacao.py`, `repositorio.py`, `surface.py`, `api_surface.yaml`,
+`tokens.py`, `cache.py` — nem nenhum dos quatro itens da DoD. A consequência que
+o próprio commit enuncia — *"BLOCKER contra commit que já está em `main` já está
+na branch default"* — valia integralmente, e o mecanismo não a impediu.
+
+**O predicado errado é errado por eixo, não por rigor.** Ele pergunta sobre
+**contenção do candidato**; a propriedade é sobre **ausência do trabalho da fase
+na base**. As duas coincidem só quando a fase inteira está na base.
+
+**A formulação que proponho — e ela não está implementada, por decisão do
+operador.**
+
+A auditoria é porta ⟺ *nada* do trabalho da fase já está na branch default.
+Escrever isso exige um **âncora**: onde a fase começou. Há exatamente três
+candidatos a âncora, e eles não são equivalentes.
+
+| Âncora | Predicado | O que pega | O que escapa |
+|---|---|---|---|
+| **(i) Convenção de mensagem** | o commit de `git merge-base BASE HEAD` tem assunto começando em `fase-<n>:` → recusa | degenerado e peça a peça, sem nada novo no repositório | rebase com reescrita de mensagem; squash. É **detector**, não gate: a verdade fica na mensagem, que é texto livre |
+| **(ii) Fork point registrado** | recusa a menos que `git merge-base BASE HEAD` seja **exatamente** o `START` da fase, gravado quando a branch nasce (tag `fase-<n>-start` ou arquivo) | degenerado, peça a peça, e é **exato**: `main` avançar com trabalho de outra fase não move o merge-base, então o caso normal segue passando | squash-merge — a identidade muda, o merge-base fica em `START`, e o conteúdo já está em `main` mesmo assim |
+| **(iii) Cobertura de conteúdo** | os caminhos que a fase toca não podem já estar na base com o blob final — na versão que o operador sugeriu: se os itens da DoD não aparecem no diff contra a base, não é gate | squash, cherry-pick, e qualquer caminho que não passe por identidade de commit | precisa de uma lista do que a fase "deveria conter", e lista paralela do mesmo fato é a classe de defeito que a P3-1 registrou |
+
+**A recomendação é (ii) ∧ (iii), com (i) descartado como gate.** (ii) é a
+propriedade dita de forma exata e barata, e (iii) é o que sobrevive a merge que
+não preserva identidade. Sozinha, (ii) tem exatamente um furo, e ele é nomeável:
+`gh pr merge --squash`. Este projeto ainda não usou squash — o histórico é linear
+—, e por isso (ii) sozinha **fecharia o caso medido**; o que ela não fecha é o
+caso que um clique de UI introduz.
+
+**Sobre (iii) e a lista.** A objeção contra ela é séria e é a da P3-1: uma lista
+de "o que a fase deveria conter" é uma segunda escrita do mesmo fato. Só vale se
+for **derivada** de fonte que já existe — e nunca digitada à parte. Se não houver
+derivação honesta, (iii) fica de fora e o furo do squash fica **declarado** em vez
+de tapado por lista que envelhece.
+
+**A armadilha do terceiro predicado, dita antes de escrevê-lo:** âncora ausente
+não pode degradar para "ok". Sem `START` gravado, o lançador **recusa** — é o
+caso em que não se pode afirmar contenção, e a P2-16 já pagou por resolver isso
+por conta própria em silêncio.
+
+---
+
+### ✅ FECHADA — o predicado implementado, e a derivação de (iii) que não precisou de lista
+
+**Aprovado pelo operador:** (ii) ∧ (iii), com (iii) só se a derivação saísse de
+fonte existente. **Saiu — e melhor do que a formulação previa: sem fonte nenhuma.**
+
+A derivação que eu tinha em mente era parsear os caminhos citados na tabela de DoD
+deste registro. Ela é frágil e eu não a usei: a tabela cita `tools/check_contract_literals.py`
+como evidência do item 4, e esse arquivo é da Fase 1 — não está no diff da Fase 3.
+Uma regra "todo caminho de evidência aparece no diff" produziria **falso bloqueio**,
+que este projeto trata como defeito.
+
+**O que substituiu a lista foi identidade de patch**, que o próprio git calcula:
+
+| | O que a metade faz | Como se deriva |
+|---|---|---|
+| **(iii-a)** | o diff contra a base não pode ser **vazio** | `git diff --quiet BASE HEAD` |
+| **(iii-b)** | nenhum commit de `BASE..HEAD` pode ter patch-id **já presente** na base | `git cherry BASE HEAD`, linhas `-` |
+
+Nenhuma das duas enumera nada. A pergunta *"o trabalho da fase já está lá?"* é
+respondida por **comparação de patch**, e não por lista do que a fase deveria
+conter — que é a razão pela qual a P3-1 não se repete aqui.
+
+**O que ficou implementado:**
+
+| | |
+|---|---|
+| `scripts/check_audit_base.py` | o predicado: âncora, (ii), (iii-a), (iii-b). Roda **antes** do worktree e **antes** do Docker |
+| `scripts/check_audit_base_probes.py` | os sete eixos + a detecção. No CI, no job `arquitetura` |
+| `docs/process/phase_anchors.tsv` | as âncoras. A da Fase 3 é `8c6eca6`, o commit em que a branch nasceu |
+| `docs/process/WORKFLOW.md` | a âncora no ciclo por fase, e **rebase, nunca squash** |
+| `scripts/start_checkpoint_audit.sh` | chama o verificador; o predicado saiu de dentro do lançador **de propósito** — guarda que só o lançador executa é guarda que ninguém testa |
+
+**Os eixos, medidos:**
+
+| | Caso | Esperado | Quem pega |
+|---|---|---|---|
+| a | branch à frente da base, `START` gravado | passa | — |
+| b | `BASE_SHA == HEAD_SHA` | recusa | `ii` + `iii-a` |
+| c | **peça a peça: parte da fase já em `main`** | recusa | **`ii` sozinha** |
+| d | `main` avançou com trabalho de outra fase | passa | — |
+| e | âncora ausente (3 formas: sem linha, sem arquivo, não-ancestral) | recusa | `ancora`, antes de tudo |
+| f1 | squash-merge, árvores idênticas | recusa | **`iii-a` sozinha** |
+| f2 | cherry-pick de uma peça | recusa | **`iii-b` sozinha** |
+| g | `--base <ref>` explícito | avisa e segue (rc=0) onde a base implícita recusa (rc=1) | — |
+
+**Cada probe afirma o CONJUNTO de eixos que dispara, e é aí que está metade do
+valor.** Se (c) fosse pego pelo conteúdo, a âncora seria decoração; se (f1) fosse
+pego pela topologia, a metade de conteúdo seria decoração. As três colunas
+"sozinha" acima são a prova de que as duas metades fazem trabalho diferente — e
+elas foram escritas como asserção, não como observação.
+
+**Mais um probe além dos sete, e ele é da família da §7.3:** a *detecção*. Um
+`avalia` que sempre devolvesse `[]` passaria em (a) e (d); um que sempre
+devolvesse `["ancora"]` passaria nos três (e). O que nenhum dos dois faz é
+**distinguir** — então o probe roda a mesma história duas vezes, com a âncora certa
+e com a âncora trocada, e exige veredito diferente: `[] → ['ii']`.
+
+**Um defeito achado escrevendo o probe (f2), e ele vale registrado:** a primeira
+versão fazia `git cherry-pick p1` direto sobre o pai de `p1`. O commit resultante
+sai **byte a byte idêntico** — mesma árvore, mesmo pai, mesma mensagem, mesmas
+datas — e o SHA é o mesmo. O cenário virava o (c) sem dizer, e o probe ficava
+verde provando outra coisa. Foi pego porque o probe afirma o *conjunto* de eixos:
+ele esperava `iii-b` e obteve `ii`. Um probe que só perguntasse "recusou?" teria
+passado.
+
+**Exercitado contra o repositório real, e o resultado é o achado:**
+
+```text
+$ python scripts/check_audit_base.py --phase 3 --base origin/main --head HEAD
+ERRO: a base de comparacao nao mostra o trabalho da fase 3.
+  [ii] a base ja contem 7 commit(s) POSTERIOR(es) a ancora da fase.
+       ancora     : 8c6eca6f8b35
+       merge-base : a857d7687e4d
+```
+
+**Sete commits.** O predicado anterior via zero. É o eixo (c) contra o caso real
+que o produziu, e é a razão de a terceira rodada de auditoria da Fase 3 ter de
+declarar-se laudo por `--base`: a fase já foi mergeada peça a peça, e **nenhum
+predicado desfaz isso** — ele só impede que aconteça de novo em silêncio.
+
+**O furo que fica, declarado:** squash-merge **seguido de commits novos na
+branch**. O squash reescreve N patches num só — os patch-ids deixam de casar, o
+merge-base fica na âncora porque a identidade mudou, e o diff não é vazio porque a
+branch andou depois. As duas metades passam. Não é condição do repositório: é um
+clique, e por isso a regra está em `WORKFLOW.md` §"Rebase, nunca squash" e não só
+aqui — quem clica é o operador, e a pendência não está aberta na hora do clique.
+
+**Um limite a mais, e ele é do desenho:** a âncora é declaração do operador. Nada
+mecânico impede regravá-la para o merge-base atual e fazer a recusa sumir. O que o
+mecanismo garante é que isso seja **explícito e versionado**, em vez de silencioso
+— que é exatamente a diferença que faltava nos dois predicados anteriores.
+
+#### P3-8 — dois falsos bloqueios do hook do auditor
+
+**Encontrados pela segunda auditoria, no item 4 do que ela não conseguiu
+verificar.** `docs/process/WORKFLOW.md`, §"Por que o auditor formal usa launcher
+de worktree", é explícito: *"Bloqueio indevido também é defeito. Um auditor que
+não consegue rodar a prova central audita por inferência de leitura de código, e
+continua emitindo veredito enquanto isso"*. Por isso isto entra como pendência e
+não como inconveniência — foi a lição do H4 da primeira auditoria da Fase 0, e o
+`PHASE_0_CHECKLIST.md` §DoD item 4(e) trata falso bloqueio novo como finding.
+
+| | O comando que morre | Onde |
+|---|---|---|
+| 1 | qualquer string citada contendo `->` — e a ordem `autoriza -> degrada` é o vocabulário desta fase inteira | `DENIED_ANYWHERE`, `readonly_bash.py:188`: `>>?\s*(?!/dev/null\b)(?!&[12]\b)\S` casa o `>` de `->` seguido de espaço e do próximo caractere. Motivo impresso: *"redirecionamento de saida para arquivo"* |
+| 2 | qualquer *path* de URL — `grep -n "/turmas/{turma_id}/diario" …`, e são as três rotas da DoD | `_alvo_nao_contido`, `readonly_bash.py:437`: o tokenizador `[^\s\"'=]+` varre o comando inteiro e `/turmas/...` começa com `/`, logo é "absoluto", logo é resolvido contra o cwd e cai fora do worktree |
+
+**Nenhum dos dois é regra frouxa mal escrita — os dois são o preço de uma decisão
+deliberada, e é por isso que a correção não é de uma linha.**
+
+- `DENIED_ANYWHERE` roda contra o comando **cru**, e o docstring de
+  `_mascara_de_citacao` diz por quê: *"nada que aconteça aqui pode liberar
+  escrita que a negação pegaria"*. A oitava auditoria da Fase 0 já reprovou uma
+  tentativa de mascarar aspas antes de negar. Isentar `>` citado desfaz
+  exatamente essa ordem.
+- `_alvo_nao_contido` também roda no cru, e pelo mesmo motivo: alvo escondido
+  entre aspas continua sendo alvo.
+
+**A forma provável, e ela precisa de prova negativa nos dois sentidos:** o que
+distingue `->` de redirecionamento não é a citação, é que **não há alvo de
+arquivo** — `-> degrada` não nomeia caminho gravável. E o que distingue
+`/turmas/{turma_id}/diario` de caminho absoluto é que ele **não existe como
+caminho** e não é operando de nenhum comando de arquivo. Ambas as reformulações
+trocam grafia por decisão sobre o alvo, que é a direção que a 18ª auditoria já
+impôs a este hook. Como qualquer mudança aqui afrouxa uma negação, os eixos de
+`scripts/phase0_negative_tests.py` têm de crescer nas duas direções — escrita
+conhecida que continua bloqueada, e estes dois comandos que passam a rodar.
+
+**Enquanto isso, o custo é real e mensurável:** foi por estes dois bloqueios que
+o [H1] da segunda auditoria se apoiou em leitura de quatro sítios em vez de
+execução instrumentada. O achado estava certo mesmo assim — mas "estava certo"
+não é o critério; auditar por inferência quando havia medição disponível é.
+
+**Vencimento: antes do checkpoint da Fase 4.**
+
 ### O que confirmei na allowlist, na fonte e não por suposição
 
 Rodei a cópia **instalada** do hook contra 21 comandos, incluindo os oito
@@ -932,9 +1170,18 @@ verificadores que esta fase criou:
 | `python -m unittest tests.test_api_rbac` e afins | **bloqueados**, e é a forma exata declarada na Fase 2: família admitida deixaria passar `python -m unittest <qualquer coisa>` |
 | `AURORA_TEST_REDIS_URL=... python -m unittest ...` | **bloqueado**, e é o desenho: esses testes **escrevem e apagam** a chave, e um hook que aceitasse `VAR=valor` inline deixaria o auditor apontar a suíte para qualquer lugar. É por isso que a P2-19 exporta em vez de passar inline |
 
-**Nada que a Fase 3 criou está fora da allowlist.** Os dois bloqueios são
-deliberados, já documentados, e o segundo é o que torna a solução da P2-19
-possível sem afrouxar o hook.
+**Nada que a Fase 3 criou está fora da allowlist.** Os dois bloqueios da tabela
+são **deliberados**, já documentados, e o segundo é o que torna a solução da
+P2-19 possível sem afrouxar o hook.
+
+> **E aqui a conferência tinha um ponto cego, que a segunda auditoria achou.** Eu
+> rodei 21 **comandos** contra a cópia instalada e concluí "nada fora da
+> allowlist". A allowlist não era o problema: os dois falsos bloqueios que ela
+> encontrou — `->` dentro de string citada e *path* de URL — morrem **antes** da
+> allowlist, em `DENIED_ANYWHERE` e em `_alvo_nao_contido`. Meus 21 comandos não
+> continham nenhuma das duas formas, e por isso a conferência passou verde sobre
+> um defeito que estava lá. Bloqueio deliberado e bloqueio indevido são coisas
+> diferentes, e a minha frase não distinguia as duas. É a **P3-8**.
 
 ---
 
@@ -994,12 +1241,74 @@ probe do **eixo que só existirá depois** — e, quando o consumidor chegar, re
 checagem em vez de assumir que ela já cobria. Foi isso que a peça 4 fez com a
 peça 2, e a peça 5 com a peça 4.
 
+#### 7.3.1 A lição reincidiu dentro da correção do achado que a nomeou
+
+Isto não é nota de rodapé da §7.3. É a §7.3 acontecendo **uma quarta vez**, no
+único lugar onde ela deveria ser impossível: no commit escrito para fechá-la.
+
+A sequência, em três passos:
+
+1. O **M2** da primeira auditoria era "verificação que parece existir" em forma
+   pura — a ordem `autoriza` → `degrada` era argumento escrito no comentário, sem
+   teste. Eu mesmo escrevi, em §8, que *"o M2 é a §7.3 desta fase acontecendo
+   comigo"*.
+2. A correção teve três camadas, e a segunda —
+   `test_sem_token_nao_paga_a_latencia_declarada` — **nasceu vazia**. O `setUp` da
+   classe não dispara `AVA_LENTO`; `academus.lms_degraded` fica `false`; a entrada
+   de `latencia` do diário não dispara em ordem nenhuma. `dormidas` era `[]` nos
+   quatro casos: com token e sem, com a ordem certa e com a invertida.
+3. E eu **anunciei** a camada como prova, em §8: *"sem esta asserção … entregaria
+   a flag do AVA pela cronometragem"*. A frase descreve o buraco com precisão e
+   afirma que o teste o tapa. Ele não tapava. O achado M2 foi declarado fechado
+   sobre uma prova inexistente.
+
+**A contradição estava no meu próprio texto, e eu não a li.** O mesmo §8 registra
+que inverter a ordem deixava **4** testes vermelhos — três subTests do
+comportamental mais o estrutural. O de latência não estava entre eles. A contagem
+é minha, foi medida, e ela dizia em números o que a frase ao lado negava em
+palavras. Uma verificação vazia não avisa; um número que não fecha, sim — e não
+adianta produzir o número se ninguém o cruza com a afirmação que ele contradiz.
+
+**Por que a forma é essa, e não azar.** As três lições anteriores tratam de
+verificação que nunca chegou a ser exercida. Esta trata do momento em que a
+atenção está mais baixa: logo *depois* de nomear a classe. Nomear dá sensação de
+imunidade, e a correção herda a confiança do diagnóstico em vez de ser conferida
+como código novo. O `readonly_bash.py` já tinha registrado exatamente isto na
+18ª auditoria da Fase 0 — *"quarta reincidência da mesma classe, dentro da
+correção que a nomeou"*, sobre negar `~` por grafia depois de concluir que o
+invariante era o alvo. Dois artefatos diferentes, dois anos de projeto de
+distância, a mesma forma.
+
+**O que muda, e é operacional:**
+
+- **Teste escrito para fechar achado é lido como código novo**, não como parte do
+  diagnóstico. A correção não herda a confiança do achado.
+- **Todo teste de negação declara o par que o torna capaz de falhar.** Afirmar
+  `dormidas == []` sem, no mesmo teste, mostrar quem produz `[2.5]` é afirmar
+  ausência sem estabelecer que a presença era possível. O teste corrigido faz as
+  duas metades na mesma rota, e a asserção de tempo vem **antes** da de status
+  justamente para que o canal de temporização seja a linha que fica vermelha.
+- **Quando o registro der um número, o número é conferido contra a frase
+  vizinha.** Os "4 testes vermelhos" e "a latência está coberta" não podiam ser
+  ambos verdade, e nada além de leitura os cruzava.
+
+**Medido nesta correção, não suposto:** com `dependencies=[Depends(degrada),
+Depends(autoriza)]` plantado em `app.py`, a suíte passa de 217/217 para **5
+vermelhos** — os quatro de antes mais o de latência, que agora falha com
+`[2.5] != []`. Revertido, 217/217. A quinta linha vermelha é a lição inteira.
+
 ### O contraste que vale registrar
 
 As três lições da Fase 2 eram sobre **ler a fonte**. As três desta são sobre
 **verificação vazia** — regra que não é exercida, prazo que não é condição,
 afirmação que não é conferida. A diferença é que a fase anterior construía o
 mecanismo, e esta começou a depender dele.
+
+E a §7.3.1 acrescenta o corolário que só aparece depois: **a fase que nomeia uma
+classe de defeito é a fase com mais chance de cometê-la**, porque a correção sai
+da mesma cabeça que acabou de se convencer de que entendeu o problema. Continuam
+sendo três lições — a quarta ocorrência não é uma lição nova, é a terceira
+reincidindo no pior lugar possível.
 
 ---
 
@@ -1063,10 +1372,24 @@ na Fase 3 a auditoria rodou sobre `main` já mergeada, e o efeito apareceu.
 reprovar nada — o que ela encontrar já está na branch default, e a única saída é
 um PR de correção, que é exatamente o que este é.
 
-**O que muda:** o lançador agora torna a inversão impossível de fazer em
-silêncio. Não é substituto do hábito, mas é o que transforma o hábito em algo que
-falha alto quando escorrega — a mesma escolha que este projeto fez com literal de
-flag e com `event_type`.
+**O que muda:** ~~o lançador agora torna a inversão impossível de fazer em
+silêncio.~~ **Falso, e a auditoria seguinte é a prova.** O lançador torna
+impossível em silêncio **um caso**: `BASE_SHA == HEAD_SHA`. A forma que de fato
+ocorreu nas Fases 2 e 3 é outra — merge **peça a peça** antes do checkpoint —, e
+nela o candidato não está contido na base, a guarda não dispara, e a auditoria
+roda como se fosse porta enquanto cinco das seis peças já estão em `main`. Foi o
+H2 da segunda auditoria, e ele foi medido na própria sessão que o encontrou.
+Virou a **P3-7**.
+
+A intenção continua valendo: transformar o hábito em algo que falha alto quando
+escorrega, como este projeto fez com literal de flag e com `event_type`. O que não
+valia, quando esta seção foi escrita, era a afirmação de que já tinha sido
+transformado.
+
+**Agora foi**, e com o número que mede a diferença: contra o repositório real, o
+predicado anterior via zero e o novo vê **sete** commits da fase já na base. A
+P3-7 está fechada, e o furo que resta — squash — está declarado em `WORKFLOW.md`
+em vez de ser tapado por lista que envelhece.
 
 ### O M2 é a §7.3 desta fase acontecendo comigo
 
@@ -1080,9 +1403,11 @@ Fechado em três camadas, e a terceira é a que o operador pediu:
 1. **Comportamento** — sem token, as **três** rotas degradadas com flag ligada
    respondem 401, e não 503/409. Verificado que inverter a ordem em `app.py`
    deixa **4 testes vermelhos** com 503, 409 e 503 — o vazamento real.
-2. **Latência** — sem token, nenhuma latência é aplicada. Sem esta asserção, um
+2. **Latência** — ~~sem token, nenhuma latência é aplicada. Sem esta asserção, um
    `degrada` que rodasse antes e só dormisse passaria na primeira e entregaria a
-   flag do AVA pela cronometragem.
+   flag do AVA pela cronometragem.~~ **A frase era falsa: a asserção existia e
+   não provava nada, porque a flag do AVA estava desligada.** O canal de
+   temporização ficou sem teste até a rodada de correção do H1 — §8.5.1.
 3. **Configuração** — `publica: true` com degradação declarada **reprova** na
    checagem. É o outro caminho para o mesmo lugar: sem inverter nada, uma rota
    aberta que degrada responde 503 para a rede inteira.
@@ -1091,12 +1416,78 @@ Fechado em três camadas, e a terceira é a que o operador pediu:
 
 | | Item | |
 |---|---|---|
-| 1 | o diff contra `main` | causa do H1, **corrigida** |
-| 2 | procedência do `range_core` executado | **P3-4**, e ela deixa de ser latente na próxima auditoria |
+| 1 | o diff contra `main` | causa do H1, corrigida **só no caso degenerado** — a auditoria seguinte reencontrou o item pela forma geral: **P3-7** |
+| 2 | procedência do `range_core` executado | **P3-4** — ~~ela deixa de ser latente na próxima auditoria~~; não deixou, e a previsão errava a causa: ver a nota corrigida na P3-4 |
 | 3 | CI real e branch protection | limite estrutural: o auditor não tem rede, e isso é propriedade — foi a decisão registrada na P2-19 |
 | 4 | comportamento sob concorrência | **P3-2**, Fase 4 |
 | 5 | montagem de produção da `academus-api` | Fase 4, e é o que ela existe para provar |
 | 6 | afirmações do registro sobre eventos passados | limite real: registro não é verificável por quem chega depois. Ele conferiu o **estado final**, que é o que dá para conferir |
+
+---
+
+## 8.5 A segunda auditoria — a da rodada de correção
+
+**PASS**, commit `5b219a7`, sem BLOCKER. **Dois HIGH**, um MEDIUM, três LOW.
+`docs/progress/audit_20260816T194847Z.md`.
+
+**217 testes, zero pulos**, com a stack efêmera no ar; os seis verificadores de
+`tools/` e os quatro de `scripts/` em rc=0. Os quatro itens da DoD seguem
+provados por teste que o auditor executou.
+
+O que dá o tom desta rodada está na abertura do relatório dele: *"um é teste
+vacuoso introduzido pelo próprio commit candidato, o outro é o mecanismo que este
+commit alega ter fechado e que não fechou — e a prova disso é esta sessão"*.
+**Os dois HIGH corrigem afirmações minhas**, e nenhum dos dois é sobre a fase: são
+sobre o registro e sobre o aparato.
+
+| | Achado | Disposição |
+|---|---|---|
+| **H1** | `test_sem_token_nao_paga_a_latencia_declarada` passa com a flag desligada — asserção vacuosa, anunciada no registro como uma das três camadas que fecham o M2 | **corrigido** — §8.5.1, e virou a §7.3.1 |
+| **H2** | a guarda de base fecha `BASE_SHA == HEAD_SHA`; a inversão real é merge peça a peça, e esta sessão é o caso | **corrigido** — predicado (ii) ∧ (iii) em `check_audit_base.py`, sete eixos, **P3-7 fechada**; a afirmação falsa do registro corrigida em §8 |
+| **M1** | business state em dicionários de módulo | repetido da rodada anterior — **P3-5**, Fase 4 |
+| **L1** | números do cabeçalho invalidados pelo próprio commit | **corrigido** — 217 e 184, medidos |
+| **L2** | dois cabeçalhos de status contraditórios | **corrigido** — um status só |
+| **L3** | nota gravada sem trilha de auditoria | repetido — **P3-6**, Fase 5 |
+
+**Fora da lista de findings, dois itens que o relatório traz e que valem
+disposição própria:**
+
+- **A P3-4 não se realizou, e a minha previsão errava a causa.** A árvore
+  principal estava na branch da fase, não em `main`. Nota corrigida na própria
+  P3-4; o risco residual que ele descreve — commit na árvore principal *durante*
+  a auditoria — é o que sobra.
+- **Dois falsos bloqueios do hook**, encontrados enquanto ele tentava medir o H1.
+  **P3-8**, e `WORKFLOW.md` os classifica como defeito.
+
+### 8.5.1 O H1, e como o teste passou a discriminar
+
+O teste afirmava `dormidas == []` sem token. Verdadeiro, e vazio: o `setUp` da
+classe não dispara `AVA_LENTO`, `academus.lms_degraded` fica `false`
+(`flags.yaml:42-44`), e para `condicao: ligada` o gatilho é `valor is True`
+(`degradacao.py:133-134`). A entrada de `latencia` do diário
+(`api_surface.yaml:210-213`) não disparava **em ordem nenhuma**.
+
+**A propriedade continuava provada** pelos outros dois meios — o comportamental
+nas três rotas e o estrutural. O que era falso era a frase do registro dizendo
+que o canal de temporização estava coberto. Ele não estava.
+
+**O que mudou no teste:** a flag é ligada, e a asserção virou **par** na mesma
+rota — com token, `dormidas == [2.5]` e 503; sem token, `dormidas == []` e 401. A
+primeira metade é o que torna a segunda capaz de ficar vermelha. A asserção de
+tempo vem **antes** da de status de propósito: com a ordem invertida o status
+também sai errado, e o comportamental já o cobre nas três rotas — deixar o status
+primeiro faria o canal de temporização nunca ser a linha vermelha.
+
+**Medido, e é a diferença que o achado pedia:**
+
+| | Testes vermelhos com `dependencies=[Depends(degrada), Depends(autoriza)]` |
+|---|---|
+| antes | **4** — três subTests do comportamental e o estrutural. O de latência passava |
+| depois | **5** — os quatro, mais `test_sem_token_nao_paga_a_latencia_declarada` falhando em `Lists differ: [2.5] != []` |
+
+Revertida a inversão, 217/217. **A quinta linha vermelha é o achado inteiro**, e
+o que ela ensina está na §7.3.1 — não aqui, porque não é episódio: é a terceira
+lição desta fase reincidindo dentro da correção do achado que a nomeou.
 
 ---
 
