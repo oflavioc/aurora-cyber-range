@@ -285,6 +285,21 @@ jobs:
       - name: testes do range-core
         run: python -m unittest discover -s tests
 
+      # O DEMO da Fase 2, rodado como passo de CI.
+      #
+      # `07_IMPLEMENTATION_PHASES.md` da a cada fase um DEMO SCRIPT, e ate aqui
+      # "o demo roda" era atestacao — alguem rodava uma vez e o registro dizia
+      # que rodou. Roteiro de demonstracao que ninguem executa apodrece igual a
+      # comentario que ninguem le, e a Fase 1 ja pagou por um DEMO que era
+      # inexecutavel havia tempo sem que nada acusasse.
+      #
+      # Nao usa banco: `InMemoryEventStore` basta para a sequencia. O que ele
+      # prova alem dos testes e a MONTAGEM — contratos lidos do disco, flags do
+      # adapter entregues como dado, pack do fixture, clock, store e engine
+      # ligados na ordem em que um chamador real os liga.
+      - name: DEMO da fase executavel
+        run: python scripts/demo_fase2.py
+
       # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
       # sem instalacao — verificado com `python -S`. Sem este passo, a entrada
       # `contracts` de `package-dir` ficaria SEM PROVA, e ela existe justamente
@@ -294,6 +309,14 @@ jobs:
       # resolver pela arvore, entao o import dele na suite ja prova a instalacao.
       # A assimetria e o ponto: cobrir os dois com o mesmo passo seria supor que
       # eles falham do mesmo jeito.
+      # A leitura dos contratos entrou aqui na Fase 2, e nao e a mesma prova que
+      # o import: o loader passou a ler os `.yaml` de `contracts/` em tempo de
+      # execucao, e `read_contracts` resolve o diretorio pelo `__path__` do
+      # pacote justamente porque caminho relativo ao arquivo quebraria fora da
+      # arvore. Sem este passo, a entrada `package-data` do `pyproject.toml`
+      # ficaria sem prova — e o sintoma so apareceria no container.
       - name: pacotes importaveis fora da raiz do repositorio
         working-directory: /tmp
-        run: python -c "import range_core.state.simulation_state, contracts.generated.events"
+        run: |
+          python -c "import range_core.state.simulation_state, contracts.generated.events"
+          python -c "from range_core.engine.loader import contract_source; assert len(contract_source.read_contracts()) == 6"

@@ -1,0 +1,45 @@
+# OBJETIVOS — forma de `03_EXERCISE_DESIGN.md` secao 1.1, a mesma que
+# `09_EVENT_MODEL.md` secao 6 consome.
+#
+# POR QUE ESTE ARQUIVO EXISTE NUM PACK "MINIMO"
+#
+# O loader da Fase 2 NAO valida objetivos: `objectives.schema.yaml` e contrato
+# proprio e a Fase 6 e a dona dele. O que a Fase 2 faz com este arquivo e LER as
+# chaves, para que `x-aurora-ref: pack_objectives` tenha contra o que resolver.
+#
+# Sem ele, `objectives: [OBJ-01]` nos injects resolveria contra conjunto vazio e
+# o pack seria recusado — corretamente, porque o objetivo citado de fato nao
+# existiria. A alternativa seria um pack de tres injects todos `noise: true`, que
+# carrega menos: nao exercitaria referencia entre arquivos, que e exatamente o
+# que a camada `x-aurora-*` existe para verificar.
+#
+# O conteudo pedagogico e minimo de proposito. Rubricas, escore e binding de
+# metrica sao das Fases 6 e 7.
+
+objectives:
+
+  OBJ-01:
+    title: "Reconhecer indisponibilidade como possível incidente de segurança"
+    competency: incident_triage
+    rubric: incident_triage.v2
+    expected_behavior:
+      - 'tratar a queda do portal como hipótese aberta, não como falha de infraestrutura'
+    evidence:
+      auto:
+        - incident_declared
+      observed:
+        - id: articulou_hipotese_de_seguranca
+          prompt_to_evaluator: 'A equipe levantou a hipótese de incidente antes da nota de resgate?'
+
+  OBJ-02:
+    title: "Decidir sobre continuidade do serviço com o custo declarado"
+    competency: cross_functional_coordination
+    rubric: cross_functional_coordination.v1
+    expected_behavior:
+      - 'nomear o custo da opção escolhida no momento da decisão'
+    evidence:
+      auto:
+        - decision_made
+      observed:
+        - id: nomeou_o_custo_da_escolha
+          prompt_to_evaluator: 'A equipe enunciou o que perdia ao escolher, e não apenas o que ganhava?'

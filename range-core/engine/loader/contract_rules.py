@@ -63,21 +63,30 @@ def _walk_defs(schema: dict, prefix: str) -> list:
     return sorted(k for k in defs if k.startswith(prefix))
 
 
-def build_registries(contracts: dict, adapter_flags: dict) -> dict:
-    """Monta os registros contra os quais `x-aurora-ref` resolve.
+def _injects_and_options(documento: dict) -> tuple[set, set]:
+    """`(ids de inject, ids de opcao)` de um documento no formato `injects.yaml`.
 
-    `adapter_flags` chega como DADO — `nome -> spec` —, e nao por leitura de
-    `domains/*/flags.yaml`. O nucleo nao vai buscar arquivo de dominio: quem
-    carrega o adapter o entrega, do mesmo jeito que `Declarations` recebe os
-    defaults. Nao seria violacao do invariante 1, que e sobre IMPORT, mas seria
-    o acoplamento que ele existe para evitar, entrando por outra porta.
+    Serve aos DOIS chamadores — o executor de fixtures, que passa a instancia de
+    um exemplo, e o loader, que passa o `injects.yaml` do pack. Sao a mesma forma
+    de documento, e le-la duas vezes seria a D4 dentro do modulo que existe para
+    desfazer a D4.
+    """
+    injects, opcoes = set(), set()
+    for inject in (documento or {}).get("injects") or []:
+        injects.add(inject["id"])
+        ponto = inject.get("decision_point") or {}
+        for opcao in ponto.get("options") or []:
+            opcoes.add(opcao["id"])
+    return injects, opcoes
 
-    `event_catalog` vem da fonte canonica real. Os
-    registros `pack_*` vem dos EXEMPLOS POSITIVOS dos proprios contratos: os
-    exemplos formam um mini-pacote sintetico, e e contra ele que as referencias
-    cruzadas de fixture resolvem. Nenhum pacote de cenario existe antes da
-    Fase 7, e inventar um so para o teste seria dado nao versionado guiando
-    verificacao.
+
+def _base_registries(contracts: dict, adapter_flags: dict) -> dict:
+    """A metade que NAO depende de pacote: catalogo de eventos e flags do adapter.
+
+    Existe porque os dois chamadores divergem so na outra metade. O executor de
+    fixtures resolve `pack_*` contra os exemplos dos contratos; o loader, contra
+    o pack de verdade. O catalogo e as flags sao os mesmos nos dois, e escreve-los
+    duas vezes seria a divergencia que a §1.4 do checkpoint fechou.
     """
     eventos = contracts["events"]
     catalogo = set()
@@ -108,6 +117,39 @@ def build_registries(contracts: dict, adapter_flags: dict) -> dict:
 
     flags = dict(adapter_flags)
 
+    return {
+        "event_catalog": catalogo,
+        "event_catalog_state_effect": state_effect,
+        "adapter_flags": set(flags),
+        "_flag_specs": flags,
+    }
+
+
+def build_registries(contracts: dict, adapter_flags: dict) -> dict:
+    """Monta os registros contra os quais `x-aurora-ref` resolve, PARA AS FIXTURES.
+
+    `adapter_flags` chega como DADO — `nome -> spec` —, e nao por leitura de
+    `domains/*/flags.yaml`. O nucleo nao vai buscar arquivo de dominio: quem
+    carrega o adapter o entrega, do mesmo jeito que `Declarations` recebe os
+    defaults. Nao seria violacao do invariante 1, que e sobre IMPORT, mas seria
+    o acoplamento que ele existe para evitar, entrando por outra porta.
+
+    `event_catalog` vem da fonte canonica real. Os
+    registros `pack_*` vem dos EXEMPLOS POSITIVOS dos proprios contratos: os
+    exemplos formam um mini-pacote sintetico, e e contra ele que as referencias
+    cruzadas de fixture resolvem.
+
+    A frase seguinte era *"nenhum pacote de cenario existe antes da Fase 7, e
+    inventar um so para o teste seria dado nao versionado guiando verificacao"*.
+    Ela envelheceu no commit em que o loader nasceu: existe pack — o fixture
+    minimo da Fase 2 —, e o loader resolve contra ELE, por
+    `build_pack_registries`. O argumento continua valendo para as FIXTURES DOS
+    CONTRATOS, que sao o que esta funcao serve: elas nao podem depender de um
+    pacote que vive fora de `contracts/`, senao o gate do CI passaria a julgar
+    contrato contra dado de outra arvore.
+    """
+    registros = _base_registries(contracts, adapter_flags)
+
     fatos = set()
     for exemplo in contracts["ground_truth"].get("examples") or []:
         for fato in exemplo.get("facts") or []:
@@ -117,25 +159,62 @@ def build_registries(contracts: dict, adapter_flags: dict) -> dict:
     for exemplo in contracts["objectives"].get("examples") or []:
         objetivos.update((exemplo.get("objectives") or {}).keys())
 
-    injects = set()
-    opcoes = set()
+    injects, opcoes = set(), set()
     for doc in contracts["scenario"].get("x-aurora-document-examples") or []:
-        for inject in (doc.get("instance") or {}).get("injects") or []:
-            injects.add(inject["id"])
-            ponto = inject.get("decision_point") or {}
-            for opcao in ponto.get("options") or []:
-                opcoes.add(opcao["id"])
+        do_exemplo, opcoes_do_exemplo = _injects_and_options(doc.get("instance") or {})
+        injects |= do_exemplo
+        opcoes |= opcoes_do_exemplo
 
-    return {
-        "event_catalog": catalogo,
-        "event_catalog_state_effect": state_effect,
-        "adapter_flags": set(flags),
-        "pack_facts": fatos,
-        "pack_objectives": objetivos,
-        "pack_injects": injects,
-        "pack_decision_options": opcoes,
-        "_flag_specs": flags,
-    }
+    registros.update(
+        {
+            "pack_facts": fatos,
+            "pack_objectives": objetivos,
+            "pack_injects": injects,
+            "pack_decision_options": opcoes,
+        }
+    )
+    return registros
+
+
+def build_pack_registries(
+    contracts: dict,
+    adapter_flags: dict,
+    *,
+    injects_document: dict | None = None,
+    objectives_document: dict | None = None,
+    ground_truth_document: dict | None = None,
+) -> dict:
+    """Os mesmos registros, resolvendo `pack_*` contra UM PACK de verdade.
+
+    E a diferenca inteira entre o executor de fixtures e o loader: as regras sao
+    as mesmas, os documentos e que sao outros. Uma implementacao, dois
+    chamadores — §1.4 do checkpoint —, e aqui isso fica visivel: o que diverge
+    esta nos argumentos, nao no codigo da regra.
+
+    DOCUMENTO AUSENTE VIRA REGISTRO VAZIO, e isso e recusa e nao permissao.
+    Pack sem `objectives.yaml` resolve `pack_objectives` contra conjunto vazio,
+    entao um inject que cite objetivo e RECUSADO — que e o comportamento certo:
+    o objetivo citado de fato nao existe. A alternativa, pular a regra quando o
+    arquivo falta, deixaria passar exatamente o erro de digitacao que a
+    `04_SCENARIO_SCHEMA.md` §6.2 chama de falha mais cara possivel.
+    """
+    registros = _base_registries(contracts, adapter_flags)
+
+    injects, opcoes = _injects_and_options(injects_document or {})
+
+    fatos = set()
+    for fato in (ground_truth_document or {}).get("facts") or []:
+        fatos.add(fato["fact_id"])
+
+    registros.update(
+        {
+            "pack_facts": fatos,
+            "pack_objectives": set(((objectives_document or {}).get("objectives") or {}).keys()),
+            "pack_injects": injects,
+            "pack_decision_options": opcoes,
+        }
+    )
+    return registros
 
 
 # ---------------------------------------------------------------------------

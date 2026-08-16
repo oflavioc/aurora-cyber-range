@@ -135,3 +135,18 @@ packages = [
 
 [tool.setuptools.package-dir]
 range_core = "range-core"
+
+# OS CONTRATOS SAO DADO DE EXECUCAO, e nao so fonte de geracao.
+#
+# A Fase 1 os tratava como entrada de `tools/` e de `scripts/`, que rodam na
+# arvore. A Fase 2 mudou isso: o loader de pack VALIDA contra
+# `contracts/scenario.schema.v2.yaml` e le a taxonomia de motivo de rollback de
+# `contracts/events.schema.yaml` — em tempo de execucao, no boot do engine.
+#
+# Sem esta entrada, a instalacao levaria `contracts/generated/*.py` e deixaria
+# os `.yaml` para tras. Na arvore e na instalacao editavel nada quebraria, e o
+# container da Fase 4 subiria sem os contratos — a mesma assimetria que
+# `package-dir` ja pagou uma vez, e que a secao 3.2 do registro da Fase 2
+# mediu.
+[tool.setuptools.package-data]
+contracts = ["*.yaml"]
