@@ -154,6 +154,13 @@ LEITURA_LEGITIMA = [
     ("teste negativo dos imports do core",
      "python scripts/check_core_contract_imports_probes.py"),
     ("DEMO SCRIPT da Fase 2", "python scripts/demo_fase2.py"),
+    # P37: a cobertura do gate e a prova negativa dela. Entram no commit que as
+    # cria — a regra que o B1 da auditoria da Fase 2 cobrou, e que esta escrita
+    # em `readonly_bash.py`.
+    ("cobertura do gate spec_freeze (P37)",
+     "python scripts/check_gate_coverage.py"),
+    ("teste negativo da cobertura do gate",
+     "python scripts/check_gate_coverage_probes.py"),
     ("executor de exemplos com stderr descartado",
      "python scripts/check_contract_examples.py 2>/dev/null"),
     ("git cat-file", "git cat-file -p HEAD"),
