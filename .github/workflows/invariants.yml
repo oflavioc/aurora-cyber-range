@@ -88,6 +88,16 @@ jobs:
       - name: teste negativo dos imports do core
         run: python scripts/check_core_contract_imports_probes.py
 
+      # P37 — o gate `spec_freeze` so enxerga o que esta em SPEC ou em CODE.
+      # Diretorio novo no topo nasce invisivel a ele, e nada avisa. Esta
+      # checagem exige que todo arquivo versionado esteja classificado, e a
+      # terceira classe — DESCRITIVO — e declaracao explicita, com motivo.
+      - name: cobertura do gate spec_freeze
+        run: python scripts/check_gate_coverage.py
+
+      - name: teste negativo da cobertura do gate
+        run: python scripts/check_gate_coverage_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 
@@ -104,7 +114,17 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          SPEC=$(git diff --name-only "$BASE_SHA" HEAD -- docs/spec/ | wc -l)
+          # SPEC inclui `docs/process/PHASE_0_CHECKLIST.md`, e a razao e a
+          # NATUREZA do arquivo, nao a pasta em que ele mora: ele e uma
+          # DEFINITION OF DONE, do mesmo tipo que as de
+          # 07_IMPLEMENTATION_PHASES.md. Auditorias o citam como "requisito
+          # violado", e docs/process/WORKFLOW.md se apoia nele.
+          #
+          # Fora daqui ele estava em conjunto NENHUM — nem SPEC nem CODE —, e
+          # podia ser alterado no mesmo PR que altera o mecanismo que ele julga.
+          # Era a P37, e a pendencia so via metade dela.
+          SPEC=$(git diff --name-only "$BASE_SHA" HEAD -- \
+            docs/spec/ docs/process/PHASE_0_CHECKLIST.md | wc -l)
 
           # O conjunto CODE segue o texto normativo, que diz "codigo" sem
           # restringir a diretorio: CLAUDE.md secao "A especificacao e imutavel
@@ -160,9 +180,22 @@ jobs:
           #
           # ':(glob)*.sh' ancora na raiz — bootstrap.sh e finalize_phase0.sh.
           # Sem o magic glob, '*.sh' casaria em qualquer profundidade.
+          #
+          # `docs/process/` ENTRA, menos o checklist que subiu para SPEC. Ele
+          # descreve o fluxo de auditoria, o guarda de branch e os quatro
+          # contexts obrigatorios — governanca de mecanismo, mesmo criterio que
+          # ja pos `.claude/` e `user-scope/` aqui. Sem ele, um PR de
+          # spec-change podia enfraquecer o processo que julga spec-change.
+          #
+          # O comentario anterior justificava a exclusao dizendo que "o proprio
+          # PR de spec-change costuma precisar toca-la". MEDIDO: dos treze
+          # spec-change do repositorio, UM tocou `docs/process/` — e o que ele
+          # tocou foi o `PHASE_0_CHECKLIST.md`, que agora e SPEC. A
+          # justificativa descrevia exatamente o caso que esta linha separa.
           CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
             range-core/ domains/ contracts/ \
             tools/ scripts/ .claude/ .github/ user-scope/ \
+            docs/process/ ':(exclude)docs/process/PHASE_0_CHECKLIST.md' \
             CLAUDE.md .gitignore ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then

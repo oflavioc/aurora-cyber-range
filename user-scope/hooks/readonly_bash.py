@@ -105,6 +105,11 @@ ALLOWED = [
     rf"|check_progress_consistency"
     rf"|check_store_read_surface|check_store_read_surface_probes"
     rf"|check_core_contract_imports|check_core_contract_imports_probes"
+    # `check_gate_coverage` — P37. Sem executa-la, o auditor le a tabela de
+    # classificacao e infere; com ela, mede. A prova negativa entra junto pelo
+    # mesmo motivo das outras: verificador cuja prova nao roda e verificador
+    # cuja propriedade o auditor aceita da palavra de quem o escreveu.
+    rf"|check_gate_coverage|check_gate_coverage_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
