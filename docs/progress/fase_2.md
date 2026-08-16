@@ -914,7 +914,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
 | P2-12 | ~~`AuroraChecker._valida` engole exceção e devolve `False`~~ | **FECHADA** — `tests/test_contract_rules.py` |
-| P2-13 | O store não responde "o exercício está pausado agora?" | **`spec-change`, e a decisão é do operador** — vence antes da Fase 4 |
+| P2-13 | O store não responde "o exercício está pausado agora?" | **Decidida (a)** — `spec-change/exercise-resumed` aberto; a metade de contrato vence no PR desta fase |
 | P2-14 | O engine não tem prova negativa por mutação, como o fold tem | **Fase 2**, no PR da fase |
 | P2-15 | ~~Nada guarda o que o core importa de `contracts/`~~ | **FECHADA** — `scripts/check_core_contract_imports.py` |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
@@ -1248,6 +1248,90 @@ fase**, e o argumento está acima em vez de a consequência aparecer depois. O
 primeiro (`a3aded5`) corrigiu itens insatisfazíveis por construção; este tem a
 mesma forma — um item de DoD da Fase 4 que o catálogo atual não permite
 satisfazer —, mas descoberto **duas fases antes** de a fase que o cobra existir.
+
+##### Decidida em 16/08/2026: saída (a)
+
+Branch `spec-change/exercise-resumed`, a partir de `origin/main`. **Cinco sítios
+em `docs/spec/`**, e a varredura que os achou está na §5.1 abaixo.
+
+**O que o evento carrega ficou decidido no próprio `spec-change`, e não depois:
+nada além do envelope.** A duração da pausa é a distância entre os
+`wall_timestamp` dos dois eventos — extremos, nunca duração, que é a forma que
+`06` T3 já fixou. Em `wall_timestamp` e não em `exercise_timestamp` porque as
+duas marcas de exercício congelam na pausa e mediriam zero: espelho exato de T3,
+que escolheu `exercise_timestamp` justamente por ele **excluir** a pausa.
+
+**Isso desarma a preocupação que abriu a decisão.** Trocar o multiplicador
+durante a pausa **é permitido** — conferido no clock — e quebra a derivação por
+subtração: numa pausa de 660 s com troca no meio, `Δwall − Δexercise/mult`
+devolve 420 s pelo multiplicador do extremo esquerdo. Com o evento, a conta
+some. O evento não existe para carregar a duração; existe para que não haja
+conta — e é por isso que a norma **não depende de campo que o contrato ainda não
+tem**, que era o risco de repetir a P2-4.
+
+**O que falta, e é do PR de código desta fase:** o enum de
+`event_type_facilitation` em `contracts/events.schema.yaml`, a entrada em
+`x-aurora-registry.effect_class`, as constantes geradas, a emissão em
+`InjectEngine.resume` e o teste. `contracts/` está no conjunto `CODE` do
+`spec_freeze`, e spec e código não vão no mesmo PR — a mesma separação que a
+P2-4 já obedece.
+
+**Enquanto os dois PRs não fecham, o catálogo do contrato tem 32 tipos e o da
+spec tem 33.** Divergência conhecida, com prazo, e **o CI não a cruza** porque a
+tabela de `09` §4.1 é markdown e nenhum verificador a lê. Fica dito aqui porque
+divergência conhecida e não escrita vira divergência esquecida.
+
+##### 5.1 A varredura, com os critérios
+
+Quatro padrões, porque escalar contra um documento sem varrer onde mais a
+exigência vive é meia correção — a lição do E1, que custou nove alterações:
+
+| | Padrão | O que ele pega que os outros não pegam |
+|---|---|---|
+| **P1** | `pausar\|continuar\|retomar\|retomad` | o comando pelo nome, em prosa |
+| **P2** | `exercise_*\|inject_fired\|rollback_performed` | o `event_type`, sem a palavra |
+| **P3** | `rein[íi]cio\|reiniciar\|restaura` | a exigência sem nenhum dos dois nomes |
+| **P4** | `start/pause\|disparo de inject\|máquina de exerc` | **enumerações dos atos** |
+
+**O P4 foi o que pagou.** Ele achou `00` §3.1 — no MASTER —, que enumera
+*"disparo de inject, rollback, seleção de branch, start/pause/reset"*. Nenhum dos
+outros três a encontraria: ela não usa PAUSAR, não cita `event_type` e não fala
+de reinício. Era a enumeração que ficaria obsoleta em silêncio, no documento de
+maior autoridade.
+
+**Dois sítios conferidos e deliberadamente não alterados**, porque não alterar
+também é decisão:
+
+- `01` §4, tabela de camadas — *"Facilitation Audit: disparos, rollbacks, motivo,
+  papel"* é ilustrativo e já não citava `exercise_paused`. Não fica obsoleto por
+  esta mudança.
+- `03` §7, última linha — *"todo disparo e rollback registram autor, papel,
+  motivo e epoch"*. Estender para pausa e retomada criaria norma sobre campo de
+  payload que o contrato não tem: a P2-4 outra vez, com outro nome.
+
+##### O erro de leitura que quase entrou no commit, e como ele foi pego
+
+A primeira mensagem do commit afirmava que `main` local carregava um commit
+**não empurrado** que tocaria `bootstrap.sh`, `scripts/` e `user-scope/`, e que a
+branch saía de `origin/main` por isso.
+
+**Era falso.** `main` local está **dois commits atrás** de `origin/main`, e nada
+só nele. A afirmação nasceu de ler a saída de dois comandos como se fosse de um:
+`git log origin/main..main` não imprimiu nada, e a linha seguinte — cabeçalho do
+`git show` que veio depois — foi lida como resultado dele.
+
+Pego pelo `git reflog show origin/main`, que mostrou `origin/main` já em
+`a3aded5` nas duas leituras: **não houve corrida com o operador**, houve leitura
+errada. A mensagem foi corrigida antes do push.
+
+**A decisão de sair de `origin/main` continua certa, por outro motivo e mais
+forte:** `main` local não tem o `a3aded5`, que é o `spec-change` anterior. Sair
+dele teria produzido as edições contra o texto antigo, e o diff do PR reverteria
+aquele PR junto.
+
+**A classe é a mesma da §6.1** — número lembrado de outro conjunto —, aqui como
+**linha atribuída ao comando errado**. Regra que ela ensina: comando cuja saída
+decide alguma coisa roda sozinho, ou com separador entre as saídas.
 
 **Vencimento: antes da Fase 4.** Não bloqueia a Fase 2: nenhum item desta fase
 depende dele, e o engine já não emite nada em `resume`.
