@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Prova que `check_audit_base.py` RECUSA nos sete eixos — e que passa nos dois legitimos.
 
+O OITAVO EIXO, (h), NAO ESTAVA NA FORMULACAO: ele foi achado RODANDO o comando
+antes de entrega-lo ao operador. Com `--base` apontando para a propria ancora, a
+primeira versao imprimia "a auditoria e PORTA" com sete commits da fase ja em
+`main` — o terceiro predicado degradando para "ok" no unico caminho em que o
+operador ja declarou que nao sabe. O (g) nao o pegava: la o rc tambem e 0, e o
+que distingue e o TEXTO.
+
 O EIXO (c) E O DEFEITO REAL, e nao um caso hipotetico: e o que aconteceu nas
 Fases 2 e 3. O predicado anterior perguntava "o candidato esta contido na base?",
 e com cinco das seis pecas da Fase 3 ja em `main` a resposta era NAO — ele deixava
@@ -19,16 +26,18 @@ CONJUNTO de eixos que dispara, entao redundancia silenciosa fica visivel:
     (e) ancora         -> ancora, sozinha, e antes de qualquer outra coisa
 
 E os dois que TEM de passar existem pelo motivo da §7.3 do registro da Fase 3:
-uma guarda que recusasse sempre passaria em cinco destes sete eixos sem provar
+uma guarda que recusasse sempre passaria em cinco destes eixos sem provar
 nada. O (a) e o (d) sao a metade que impede a outra de virar supersticao — e o
 (d) e o exato caso que o predicado anterior nao sabia distinguir.
 """
 
 from __future__ import annotations
 
+import io
 import subprocess
 import sys
 import tempfile
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -212,19 +221,59 @@ def roda(rotulo, cenario, esperados: set[str]) -> bool:
     return False
 
 
+def _roda_cli(argv: list[str]) -> tuple[int, str, str]:
+    saida, erro = io.StringIO(), io.StringIO()
+    with redirect_stdout(saida), redirect_stderr(erro):
+        rc = main(argv)
+    return rc, saida.getvalue(), erro.getvalue()
+
+
 def probe_g() -> bool:
     """(g) `--base` explicito: avisa e SEGUE, sobre o cenario que recusaria."""
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-        base, head = cenario_c(tmp)
-        recusa = main(["--phase", str(FASE), "--base", base, "--head", head, "--repo", tmp])
-        aviso = main(
-            ["--phase", str(FASE), "--base", base, "--head", head, "--repo", tmp, "--explicit"]
-        )
+        default, head = cenario_c(tmp)
+        comum = ["--phase", str(FASE), "--default", default, "--head", head, "--repo", tmp]
+        recusa, _, _ = _roda_cli(comum)
+        aviso, _, _ = _roda_cli([*comum, "--base", default])
 
     if recusa == 1 and aviso == 0:
         print("  ok    (g) --base explicito avisa (rc=0) onde a base implicita recusa (rc=1)")
         return True
     print(f"  FALHA (g): implicita rc={recusa} (esperado 1), explicita rc={aviso} (esperado 0)")
+    return False
+
+
+def probe_h() -> bool:
+    """(h) `--base` NAO pode virar o veredito. O oitavo eixo, achado RODANDO.
+
+    A primeira versao avaliava contra `--base`. Passando a propria ancora como
+    base, o merge-base contra ela E a ancora por construcao — e a guarda imprimia
+    "a auditoria e PORTA" com a fase mergeada. Trocar a base muda o que o auditor
+    VE; nao muda o que ja esta mergeado.
+
+    O eixo (g) sozinho nao pegava isto: la o rc tambem era 0. O que distingue e o
+    TEXTO — laudo declarado ou porta declarada — e por isso este probe le a saida.
+    """
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        _git(tmp, "init", "-q")
+        _git(tmp, "symbolic-ref", "HEAD", "refs/heads/main")
+        c0 = _commit(tmp, "base.txt", "0\n", "base: antes da fase")
+        _git(tmp, "checkout", "-q", "-b", "fase")
+        p1 = _commit(tmp, "peca1.txt", "1\n", "fase-4: peca 1")
+        p2 = _commit(tmp, "peca2.txt", "2\n", "fase-4: peca 2")
+        _git(tmp, "branch", "-f", "main", p1)  # peca a peca, como o cenario (c)
+        _ancora(tmp, c0)
+        rc, saida, erro = _roda_cli(
+            ["--phase", str(FASE), "--default", "main", "--base", c0, "--head", p2, "--repo", tmp]
+        )
+
+    if rc == 0 and "PORTA" not in saida and "JA ESTA em" in erro:
+        print("  ok    (h) --base na propria ancora nao declara PORTA: sai LAUDO")
+        return True
+    print(
+        f"  FALHA (h): rc={rc}, saida={saida.strip()[:60]!r} — a base explicita "
+        "mudou o veredito em vez de mudar so o diff"
+    )
     return False
 
 
@@ -251,9 +300,10 @@ def probe_da_deteccao() -> bool:
 
 
 def main_probes() -> int:
-    print("check_audit_base.py — sete eixos, mais a deteccao\n")
+    print("check_audit_base.py — sete eixos, o oitavo achado rodando, e a deteccao\n")
     resultados = [roda(*p) for p in PROBES]
     resultados.append(probe_g())
+    resultados.append(probe_h())
     resultados.append(probe_da_deteccao())
 
     print()
