@@ -3,8 +3,11 @@
 **Status: EM CURSO.** Aberta em 16/08/2026, com a Fase 2 concluída — nove de nove
 itens e auditoria PASS.
 
-**Peça 1 entregue:** a checagem que cruza flag citada na spec com flag declarada
-no adapter, e a flag que ela encontrou faltando.
+**Quatro peças entregues de cinco.** A superfície da API declarada e conferida nas
+duas direções, a projeção materializada com o fold como única autoridade de
+escrita, e o JWT com os dois conjuntos de papéis separados por guarda. Falta a
+peça 5 — as três entidades e a degradação declarativa, que são os itens 1 e 2 da
+DoD.
 
 ---
 
@@ -109,9 +112,22 @@ vocabulário. O papel de exercício não entra no token do domínio.
 ### D3 — o que o JWT carrega
 
 Decorre da D2: `sub`, papel **de domínio**, expiração. `persona` de exercício
-**não entra**. `AURORA_JWT_SECRET` já existe no `.env.example`, e `05` §8 exige
-que segredo e senha de seed venham do `RANDOM_SEED` — que a Fase 2 já lê por
-código do núcleo.
+**não entra**. `AURORA_JWT_SECRET` já existe no `.env.example`.
+
+> **Correção, feita na peça 4.** A redação anterior dizia que *"`05` §8 exige que
+> segredo e senha de seed venham do `RANDOM_SEED`"*. É falso, e é a §1.5 outra
+> vez: eu lembrei a seção em vez de lê-la. `05` §8 fala de **senha de seed** —
+> credencial de persona sintética dentro do exercício —, e não do segredo de
+> assinatura.
+>
+> A diferença não é de redação. `RANDOM_SEED` é **reproduzível por desenho**:
+> está versionado em `.env.example` e `06` T8 exige que duas execuções com o
+> mesmo valor produzam dataset idêntico. Uma chave HS256 derivada dele seria
+> conhecida por qualquer um com acesso ao repositório — e a frase estava escrita
+> como premissa de uma decisão que ainda não tinha sido implementada.
+>
+> O que a peça 4 aplica é a **disciplina** do `RANDOM_SEED`, e não o valor:
+> ambiente primeiro, sem default, recusa alta, lido por código do núcleo.
 
 ### D4 — degradação declarativa, não `if` por rota
 
@@ -345,6 +361,131 @@ Para o Redis, a forma é a do Postgres, que a auditoria já aprovou:
 
 ---
 
+## 4.3 A peça 4 — JWT, RBAC, e onde a negação mora
+
+### A separação dos dois conjuntos de papéis virou guarda, e é a mesma da peça 2
+
+A peça 2 já recusava papel de exercício **na rota**. O JWT é a outra porta, e
+nenhum verificador de import enxerga um claim: um token com `persona:
+facilitador` não importa nada de lugar nenhum.
+
+**Estendida, e não uma segunda checagem.** Duas listas sobre a mesma fronteira
+divergem, e a que diverge em silêncio é sempre a que ninguém está olhando — é a
+D4 do catálogo de classes.
+
+O que a extensão acrescentou:
+
+| Eixo | Reprova quando |
+|---|---|
+| papel de exercício **dentro de `papeis_de_dominio`** | era o buraco da peça 2: o papel na rota reprovava, e a lista de origem passava |
+| `token.claims` × as chaves que o código assina | nas duas direções, por AST sobre `_payload` |
+| a função que monta o payload sumiu | renomear devolvia *"as claims batem"* — **verdadeiro por vacuidade** |
+| claim com vocabulário de exercício | `persona`, e os três papéis de `03` §7 |
+
+**O que fecha o mecanismo é `emitir_token` ler `papeis_de_dominio` em tempo de
+execução.** Junto com a checagem que recusa papel de exercício naquela lista,
+`emitir_token(sub, "facilitador")` deixa de ser proibido e passa a ser
+**inexprimível**: para o token existir, o papel precisaria estar na lista; para
+estar na lista, precisaria passar pelo gate que o recusa por nome.
+
+E é whitelist, não blocklist: `reitor` também cai. Recusar só os três seria
+proteger contra o erro que já tem nome.
+
+### 403 × 404 — a pergunta estava no lugar errado, e a spec já tinha opinião
+
+`06` T6 fixa **403** para acesso a endpoint fora do papel. É o único lugar da
+spec com opinião sobre isso, e é sobre papéis de exercício.
+
+Mas o canal de inferência que preocupa num exercício sobre assimetria **não está
+no número**: está em a resposta **variar com a existência do recurso**. 403
+confirma que o recurso existe *se e somente se* a negação o consultou — e um 404
+emitido depois de procurar vaza pelo tempo, com o número "certo".
+
+Então a propriedade é **indistinguibilidade**, e ela é estrutural: `autoriza` é
+dependência global e recebe `Request` e mais nada — **não há repositório ao
+alcance dela**. A negação não tem como depender do que ela não pode ler.
+
+`test_a_negacao_NAO_distingue_recurso_existente_de_inexistente` compara as duas
+respostas, status e corpo. Fechada essa porta, o código de status fica livre para
+seguir T6, e escolher 404 aqui criaria **duas políticas de negação no mesmo
+produto** — cuja diferença seria, ela própria, informação inferível.
+
+| | Quando |
+|---|---|
+| **401** | sem token, ou token que não verifica. Com `WWW-Authenticate` |
+| **403** | token válido, papel que a rota não admite |
+| **404** | só para quem **tem** direito de saber que o recurso não existe |
+
+### O segredo: a disciplina do `RANDOM_SEED`, e um placeholder que virou vazio
+
+Ambiente primeiro, `.env` como fonte local, sem default, recusa alta, lido por
+código do núcleo. Mínimo de 32 caracteres — chave curta é quebrada offline a
+partir de **um** token capturado, sem tocar no serviço.
+
+**O placeholder de `.env.example` passou a ser vazio**, e é o único daquele
+arquivo que é. A diferença com `POSTGRES_PASSWORD` é de comportamento: senha de
+banco copiada do exemplo falha no `connect`, alto e na hora; **segredo de JWT
+copiado do exemplo funciona** — o serviço sobe assinando com uma chave versionada
+neste repositório. Um segredo errado que se anuncia é menos perigoso que um que
+se comporta.
+
+Vazio, *"copiei o exemplo"* e *"não configurei"* viram o mesmo caso, e a recusa
+que já existe cobre os dois. **O teste lê o `.env.example`** e afirma que o valor
+de lá é recusado: repor um texto naquela linha deixa a suíte vermelha.
+
+Varri o arquivo antes de escalar. Os outros dois valores sensíveis —
+`POSTGRES_PASSWORD` e o `DATABASE_URL` que o embute — continuam com texto, e a
+assimetria acima é o motivo, escrito onde ele será lido.
+
+### A degradação não entrou aqui, e isso é verificado
+
+As duas rotas implementadas são as que a peça 2 declarou com `flags: []`, e o
+comentário que as declarou já dizia por quê: *"o RBAC precisa de rota que
+NEGUE"*.
+
+A garantia não é disciplina: **enquanto nenhuma rota implementada declarar flag,
+nenhum módulo de `api/` pode importar `range_core.state`**. A regra sai de cena
+sozinha no dia em que a peça 5 implementar a primeira rota com flag — é a
+fronteira entre duas peças escrita como verificação, não como intenção.
+
+### `POST /auth/token` continua `planejada`, por decisão
+
+Emitir token exige **autenticar um usuário**, e usuário não é entidade da Fase 3:
+`07` nomeia Aluno, Turma e Nota e põe "seed em escala" nos NON-GOALS. Um endpoint
+que assinasse o papel pedido no corpo seria **vulnerabilidade intencional**, que
+`CLAUDE.md` proíbe sem exceção.
+
+O JWT da fase existe e é exercitado: `emitir_token` assina, e a suíte bate nas
+rotas com token de verdade sobre o stack ASGI de verdade. O que falta é a porta
+de entrada, e a terceira direção da checagem cobra a promoção no dia em que a
+rota nascer.
+
+### Sem duplo, de novo — e uma depreciação vista rodando
+
+`TestClient` fala ASGI com a aplicação real. Um cliente escrito à mão seria o
+duplo que testa a si mesmo, e a Fase 2 fechou com zero mocks por decisão
+registrada.
+
+`httpx2`, e não `httpx`: o `starlette` 1.6 emite `StarletteDeprecationWarning`
+pedindo o primeiro — **observado ao rodar a suíte, não lido em changelog**. Pinar
+o caminho já depreciado seria escolher, sabendo, o que quebra na próxima subida.
+Ele fica em `[project.optional-dependencies].test`, fora de `dependencies`:
+declarar dependência de teste como de execução é afirmar que ela é necessária
+para rodar.
+
+### A P3-1 fechada — o meu digest inventado, agora pego por mecanismo
+
+`scripts/check_pinned_images.py`, sete eixos de prova negativa, com o defeito
+real em primeiro lugar. Três asserções: toda imagem pinada por digest; digest
+idêntico nos dois arquivos; imagem do CI existe no compose — porque o compose é a
+stack e o CI existe para espelhá-la, e serviço só do CI é digest **sem par com
+que ser comparado**, que foi como o meu entrou.
+
+O sétimo eixo é o que a peça 3 ensinou duas vezes: compose ausente sai com `rc=2`
+em vez de imprimir *"0 imagens, todas pinadas"*.
+
+---
+
 ## 5. Ordem das peças
 
 | | Peça | Estado |
@@ -352,7 +493,7 @@ Para o Redis, a forma é a do Postgres, que a auditoria já aprovou:
 | 1 | checagem de flags citadas na spec + `grades_readonly` no adapter | ✅ |
 | 2 | superfície da API declarada + a checagem que a fixa (D5) | ✅ |
 | 3 | leitura de flag pela API (D1) — a porta e a autoridade do fold, antes do FastAPI | ✅ |
-| 4 | JWT + RBAC (D2, D3), com os dois conjuntos de papéis separados | |
+| 4 | JWT + RBAC (D2, D3), com os dois conjuntos de papéis separados | ✅ |
 | 5 | as três entidades e a degradação declarativa (D4) — itens 1 e 2 da DoD | |
 
 **A peça 1 é a única que paga antes de existir código dependendo dela**, e foi por
@@ -365,8 +506,9 @@ alguém tentar implementá-lo.
 
 | Id | O que é | Vencimento |
 |---|---|---|
-| P3-1 | O digest de imagem é pinado em dois lugares e nada cruza os dois | **Fase 3**, no PR da fase |
+| P3-1 | O digest de imagem é pinado em dois lugares e nada cruza os dois | ✅ **fechada na peça 4** |
 | P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 3**, com o FastAPI |
+| P3-3 | O RBAC é de papel, e aluno lê aluno: falta a regra de objeto | **Fase 3**, peça 5 |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -387,6 +529,12 @@ fato, sem ninguém cruzando.
 dos dois arquivos e exige igualdade por nome de imagem, com prova negativa.
 Vencimento dentro desta fase.
 
+> **Fechada na peça 4** por `scripts/check_pinned_images.py` — §4.3. Três
+> asserções e sete eixos de prova negativa, com o digest divergente em primeiro
+> lugar. A terceira asserção não estava prevista aqui e é a que fecha a origem:
+> imagem que só o CI conhece reprova, porque digest sem par no compose é
+> exatamente o que o meu era.
+
 #### P3-2 — cache frio sem single-flight
 
 Duas leituras concorrentes num cache frio reconstroem **duas vezes**, e cada
@@ -403,6 +551,30 @@ single-flight na borda que a API introduzir, e **medir antes de escolher** — p
 ordem que a P2-10 fixou e que se mostrou certa.
 
 **Vencimento: Fase 3, junto do FastAPI.**
+
+> **A peça 4 trouxe o FastAPI e não trouxe o single-flight**, e isso é
+> deliberado: as duas rotas desta peça não leem a projeção — a checagem da
+> degradação garante que nenhuma leia. A concorrência que a pendência espera
+> nasce na **peça 5**, que é quando uma rota consulta flag pela primeira vez.
+
+#### P3-3 — o RBAC é de papel, e a regra de objeto ainda não existe
+
+`GET /alunos/{aluno_id}` admite `aluno`, e **qualquer aluno lê qualquer aluno**.
+
+**Não é buraco de escopo:** o item 3 da DoD é *"RBAC nega acesso cruzado entre
+**perfis**"*, que é papel contra papel, e é o que a peça 4 entrega e prova. A
+regra de objeto — o aluno vê a si mesmo — é uma **segunda regra**, sobre o `sub`
+do token e não sobre o `role`.
+
+**Por que não agora.** A forma declarativa dela precisa de vocabulário novo no
+`api_surface.yaml` — algo como um escopo por rota —, e inventá-lo antes de haver
+mais de um caso é a classe D6. A peça 5 traz a terceira entidade e as três rotas
+degradadas, e é lá que se vê se o escopo é um campo ou três.
+
+**O que já está pago:** comparar `sub` com o parâmetro do caminho não consulta
+recurso nenhum, então a regra de objeto **não reabre** a questão de 403 × 404.
+
+**Vencimento: Fase 3, peça 5.**
 
 ---
 

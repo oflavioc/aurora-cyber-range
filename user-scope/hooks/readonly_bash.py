@@ -122,6 +122,11 @@ ALLOWED = [
     # estado", que e a garantia de `01` secao 4.1 depois de a projecao ser
     # materializada. Sem executa-la, o auditor le a porta e confia no formato.
     rf"|check_fold_authority|check_fold_authority_probes"
+    # `check_pinned_images` — Fase 3, peca 4, fechando a P3-1. Cruza o digest
+    # das imagens entre o compose e o workflow. Sem executa-la, o auditor
+    # compara dois sha256 de 64 caracteres a olho — que e exatamente como o
+    # digest inventado da peca 3 passou pela minha propria revisao.
+    rf"|check_pinned_images|check_pinned_images_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

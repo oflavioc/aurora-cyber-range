@@ -18,6 +18,18 @@
 #
 # Gerado do fecho real instalado em 2026-08-14, Python 3.12.
 #
+# ATUALIZADO em 16/08/2026 pela Fase 3, peca 4: `fastapi` (a stack que `02` §7
+# fixa para a `academus-api`), `pyjwt` (assinatura, com o argumento contra
+# HS256 a mao no cabecalho de `range-core/api/tokens.py`) e `httpx2`, que e
+# dependencia de TESTE — `TestClient` fala ASGI de verdade com a aplicacao, e a
+# alternativa era eu escrever um cliente de brinquedo.
+#
+# `annotated-doc`, `annotated-types`, `anyio`, `idna`, `pydantic`,
+# `pydantic-core`, `starlette` e `typing-inspection` sao fecho de `fastapi`;
+# `h11`, `httpcore2` e `truststore` sao fecho de `httpx2`. `typing_extensions` ja
+# estava pinado e a versao BATE — conferido, e nao suposto. `pyjwt` nao tem
+# fecho. Tudo conferido por `pip download` em 3.12.
+#
 # ATUALIZADO em 16/08/2026 pela Fase 3: `redis` entra como cliente da projecao
 # materializada. Fecho transitivo VAZIO em 3.12 — `async-timeout` so e exigido
 # abaixo de 3.11.3 —, conferido por `pip download`, entao e uma linha so.
@@ -28,18 +40,32 @@
 # diretas, entao aparecem aqui e nao no pyproject.
 
 alembic==1.19.1
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
 attrs==26.1.0
+fastapi==0.141.1
 greenlet==3.5.5
-jsonschema==4.26.0
+h11==0.16.0
+httpcore2==2.10.0
+httpx2==2.10.0
+idna==3.18
 jsonschema-specifications==2025.9.1
+jsonschema==4.26.0
 Mako==1.4.1
 MarkupSafe==3.0.3
-psycopg==3.2.12
 psycopg-binary==3.2.12
+psycopg==3.2.12
+pydantic==2.13.4
+pydantic_core==2.46.4
+PyJWT==2.13.0
 PyYAML==6.0.3
 redis==8.1.0
 referencing==0.37.0
 rpds-py==2026.6.3
 SQLAlchemy==2.0.52
+starlette==1.6.0
 typing_extensions==4.16.0
+typing_inspection==0.4.4
+truststore==0.10.4
 tzdata==2026.3

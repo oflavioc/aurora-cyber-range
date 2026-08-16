@@ -56,6 +56,43 @@
 #
 # `status`      — `planejada` ou `implementada`. Ver acima por que os dois
 #                 estados sao verificaveis e nenhum deles mente por muito tempo.
+#
+# `publica`     — ausente vale `false`. **`papeis: []` NAO significa "todo
+#                 mundo"**: significa ninguem, e a rota aberta e declarada por
+#                 este campo. A checagem recusa as duas incoerencias — `publica`
+#                 junto de papeis, e lista vazia sem `publica`.
+#
+#                 O sentido inverso seria pior exatamente no caso perigoso: uma
+#                 rota que PERDESSE seus papeis numa edicao descuidada ficaria
+#                 aberta, e o defeito nasceria silencioso.
+#
+# ---------------------------------------------------------------------------
+# O TOKEN TAMBEM E SUPERFICIE — peca 4
+# ---------------------------------------------------------------------------
+#
+# A peca 2 recusava papel de exercicio NA ROTA. O JWT e a outra porta pela qual
+# desenho de exercicio entra no adapter, e nenhum verificador de import enxerga
+# um claim: um token com `persona: facilitador` nao importa nada de `domains/`
+# nem de lugar nenhum.
+#
+# A guarda e ESTA, estendida — e nao uma segunda. Duas listas sobre a mesma
+# fronteira divergem, e a que diverge em silencio e sempre a que ninguem olha.
+#
+# `token.claims` e conferido por AST contra o dicionario que `range-core/api/
+# tokens.py::_payload` devolve, nas DUAS DIRECOES: claim que o codigo escreve e
+# nao esta aqui reprova, e essa e a direcao que importa.
+#
+# `papeis_de_dominio` passou a ser lido em TEMPO DE EXECUCAO — `emitir_token` so
+# assina papel que esteja nesta lista. Como a checagem recusa papel de exercicio
+# aqui dentro, um token de `facilitador` deixa de ser proibido e passa a ser
+# INEXPRIMIVEL: para existir, o papel precisaria estar na lista; para estar na
+# lista, precisaria passar pelo gate que o recusa por nome.
+
+token:
+  claims:
+    - sub
+    - role
+    - exp
 
 papeis_de_dominio:
   - aluno
@@ -111,24 +148,47 @@ rotas:
   # AS TRES ENTIDADES de `07` Fase 3 precisam de leitura, e o RBAC precisa de
   # rota que NEGUE — o item 3 da DoD e "RBAC nega acesso cruzado entre perfis",
   # e negacao sem rota que a exerca nao e verificavel.
+  #
+  # AS DUAS IMPLEMENTADAS NA PECA 4, e sao estas duas por um motivo: `flags: []`.
+  # A peca 4 e JWT e RBAC, e a degradacao por flag e a D4, que e da peca 5 —
+  # tocar `if flag` aqui seria decidir a D4 de passagem, no lugar errado.
   # -------------------------------------------------------------------------
   - method: GET
     path: /alunos/{aluno_id}
     papeis: [aluno, secretaria]
     flags: []
     degradacao: 'nenhuma'
-    status: planejada
+    status: implementada
 
   - method: GET
     path: /turmas/{turma_id}
     papeis: [professor, secretaria]
     flags: []
     degradacao: 'nenhuma'
-    status: planejada
+    status: implementada
 
+  # -------------------------------------------------------------------------
+  # CONTINUA `planejada` NA PECA 4, POR DECISAO — e o motivo cabe aqui porque e
+  # aqui que alguem vai perguntar por que a fase do JWT nao tem login.
+  #
+  # Emitir token exige AUTENTICAR UM USUARIO, e usuario nao e entidade da Fase 3:
+  # `07` nomeia Aluno, Turma e Nota, e poe "seed em escala" nos NON-GOALS. Um
+  # endpoint que assinasse o papel pedido no corpo da requisicao seria
+  # vulnerabilidade intencional — proibida por `CLAUDE.md`, sem excecao.
+  #
+  # O JWT da fase existe e e exercitado: `Autenticacao.emitir_token` assina, a
+  # suite bate nas rotas com token de verdade sobre o stack ASGI de verdade. O
+  # que falta e a PORTA DE ENTRADA, e ela chega na Fase 5 com as personas do
+  # seed. Ate la, a terceira direcao da checagem cobra a promocao no dia em que
+  # a rota nascer.
+  #
+  # `publica: true` porque login autenticado por login nao existe. `papeis: []`
+  # aqui significa ninguem, e e o `publica` que abre.
+  # -------------------------------------------------------------------------
   - method: POST
     path: /auth/token
     papeis: []
+    publica: true
     flags: []
     degradacao: 'nenhuma'
     status: planejada

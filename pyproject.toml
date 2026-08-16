@@ -84,7 +84,41 @@ dependencies = [
     # regra nossa. Aplica-lo a spec seria exigir que o documento normativo se
     # dobrasse a limitacao da ferramenta.
     "pyyaml==6.0.3",
+
+    # A `academus-api` — `02` secao 7 fixa FastAPI como a stack do adapter, e
+    # `scripts/check_api_surface.py` varre a forma decorada dela desde a peca 2.
+    #
+    # `starlette`, `pydantic` e `anyio` sao FECHO, e estao em constraints.txt.
+    "fastapi==0.141.1",
+
+    # Assinatura e verificacao de JWT. O argumento contra escrever HS256 a mao
+    # esta no cabecalho de `range-core/api/tokens.py`, e nao e sobre esforco:
+    # um verificador proprio que lesse o `alg` do token e confiasse nele
+    # aceitaria `alg: none`. `CLAUDE.md` permite criptografia legitima da
+    # aplicacao explicitamente.
+    #
+    # FECHO TRANSITIVO VAZIO, conferido por `pip download`.
+    "pyjwt==2.13.0",
 ]
+
+# DEPENDENCIA DE TESTE, e separada por isso mesmo.
+#
+# `starlette.testclient.TestClient` fala o protocolo ASGI com a aplicacao de
+# verdade, e exige um cliente HTTP. A alternativa seria eu escrever um cliente
+# ASGI de brinquedo, que e exatamente o duplo que testa a si mesmo, e a Fase 2
+# fechou com zero mocks por decisao registrada.
+#
+# `httpx2`, E NAO `httpx`: starlette 1.6 emite
+# `StarletteDeprecationWarning: Using httpx with starlette.testclient is
+# deprecated; install httpx2 instead` — observado ao rodar a suite, nao lido em
+# changelog. Pinar o caminho ja depreciado seria escolher, sabendo, o que quebra
+# na proxima subida de versao.
+#
+# Fora de `dependencies` porque o container da Fase 4 nao precisa dele: declarar
+# uma dependencia de teste como de execucao e afirmar que ela e necessaria para
+# rodar, o que nao e verdade.
+[project.optional-dependencies]
+test = ["httpx2==2.10.0"]
 
 [build-system]
 # VERSAO EXATA, pelo mesmo argumento que vale para as dependencias acima. A
@@ -141,6 +175,22 @@ packages = [
   # chegando como dado em `Declarations`, nunca por import.
   "contracts",
   "contracts.generated",
+  # O ADAPTER PASSA A SER PRODUTO NA FASE 3, e nao so arvore de repositorio: a
+  # `academus-api` e um objeto ASGI que a Fase 4 sobe em container. Sem estas
+  # entradas, `domains.academus.api` resolveria pela arvore com o CWD na raiz e
+  # sumiria na instalacao — a MESMA assimetria que `package-dir` e
+  # `package-data` ja pagaram duas vezes neste arquivo.
+  #
+  # Nao e violacao do invariante 1, que proibe o CORE de importar `domains/`. A
+  # direcao aqui e a inversa e e a esperada: o adapter importa o core.
+  "domains",
+  "domains.academus",
+  "domains.academus.api",
+  "domains.academus.evidence_generators",
+  "domains.academus.generated",
+  "domains.academus.models",
+  "domains.academus.panels",
+  "domains.academus.seed",
 ]
 
 [tool.setuptools.package-dir]
@@ -160,3 +210,12 @@ range_core = "range-core"
 # mediu.
 [tool.setuptools.package-data]
 contracts = ["*.yaml"]
+
+# `api_surface.yaml` E DADO DE EXECUCAO desde a peca 4, e nao so declaracao lida
+# pelo gate: `domains/academus/api/surface.py` o le no boot para saber quais
+# papeis cada rota admite. E a decisao que impede a declaracao de divergir do
+# codigo — nao ha dois lugares dizendo quem pode ler o que.
+#
+# `flags.yaml` vem junto pelo mesmo motivo que os contratos vieram na Fase 2: e
+# a fonte da qual o adapter entrega `flag_defaults` como dado.
+"domains.academus" = ["*.yaml"]
