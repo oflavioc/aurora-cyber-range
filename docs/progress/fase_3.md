@@ -3,9 +3,12 @@
 **Status: EM CURSO.** Aberta em 16/08/2026, com a Fase 2 concluída — nove de nove
 itens e auditoria PASS.
 
-**Status: FECHADA para auditoria.** Cinco peças entregues, **quatro de quatro**
-itens da DoD com prova executável (§5.1), e as três pendências de aparato que
-venciam neste checkpoint fechadas.
+**Status: AUDITADA — PASS**, sem BLOCKER (§8). Cinco peças entregues, **quatro de
+quatro** itens da DoD com prova executável (§5.1), e as três pendências de
+aparato que venciam neste checkpoint fechadas.
+
+O HIGH e os três achados corrigíveis foram fechados na rodada de correção; dois
+viraram pendência com destino.
 
 **211 testes — zero pulos com a stack efêmera no ar**, 27 verificações no CI, 183
 arquivos classificados pelo gate.
@@ -681,6 +684,8 @@ três primeiros já passavam desde a Fase 1.
 | P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 4** — redatada, ver abaixo |
 | P3-3 | ~~O RBAC é de papel, e aluno lê aluno: falta a regra de objeto~~ | ✅ **FECHADA** na peça 5 |
 | P3-4 | No worktree de auditoria, `range_core` vem da árvore PRINCIPAL e `domains` do worktree | **Antes do próximo checkpoint** — Fase 4 |
+| P3-5 | Business state em dicionários de módulo: `01` §4 o põe em Postgres | **Fase 4** — ver o destino corrigido |
+| P3-6 | `POST .../notas` grava nota antes de a trilha de auditoria existir | **Fase 5**, com `06` T7 |
 
 #### P3-1 — o digest de imagem é pinado em dois lugares
 
@@ -859,6 +864,62 @@ auditar é decisão do operador, não minha.
 
 **Vencimento: antes do próximo checkpoint — Fase 4.**
 
+> **A auditoria a reencontrou sozinha**, no item 2 do que não conseguiu
+> verificar: *"os 211 testes que executei não provam que o núcleo executado veio
+> deste checkout"*. Ela coincidia **só por causa do H1** — `main` estava no SHA
+> do candidato. Corrigido o H1, a auditoria volta a rodar sobre a branch da
+> fase, os dois SHAs deixam de coincidir, e **a P3-4 passa de latente a real na
+> próxima execução**. Ela deixou de ser hipótese: é a primeira coisa a fazer.
+
+#### P3-5 — business state em dicionários de módulo
+
+**M1 da auditoria.** As três entidades e `Matricula` são `dataclass` em memória, e
+`POST /matricula` e `POST .../notas` acrescentam a listas globais do processo.
+`02` §7 diz *"academus-api — FastAPI + **SQLAlchemy**"*, e `01` §4 põe Business
+State em **Postgres**.
+
+**O corte está declarado e datado**, e por isso não é BLOCKER — o auditor
+concorda. O que mudou é o **destino**.
+
+**O auditor datou pela Fase 4 e o argumento dele não procede**, e conferi na
+fonte: o item é *"Reinício do container do engine restaura **o exercício** a
+partir do event store"*, e `06` T5 repete *"a partir do event store"*. O
+exercício é Simulation State, Participant Actions e Facilitation Audit — as três
+event-sourced. Business state **não** é restaurado do event store; `01` §4 lhe dá
+uma linha própria, com Postgres.
+
+**Mas o destino é a Fase 4 assim mesmo, por outro motivo — e é mais forte.** A
+linha de `01` §4 diz que business state é *"não reversível por rollback; só por
+reset total"*. Com dicionários de módulo isso é **falso a partir do momento em
+que existe um container que reinicia**, e esse momento é a Fase 4: um reinício
+não é reset total, e reverteria notas e matrículas.
+
+Hoje a linha ainda não é falsa — não há processo. A Fase 4 é a primeira fase em
+que ela passa a ser, e fase que torna uma linha normativa falsa é onde a linha se
+conserta.
+
+**Escopo lá:** as três tabelas e a migration, sem seed. A Fase 5 continua dona do
+dataset — criar a tabela e povoá-la são trabalhos diferentes, então isto não é
+modelar duas vezes.
+
+#### P3-6 — a nota é gravada antes de a trilha existir
+
+**L1 da auditoria, e o próprio auditor diz que não é defeito desta fase:** `07`
+Fase 3 põe *"auditoria com hash"* nos NON-GOALS, e a Fase 5 a cobra por DoD e por
+`06` T7.
+
+Registrado pelo motivo que ele deu, que é o útil: **a Fase 5 vai encontrar um
+endpoint que já escreve nota** — `POST /turmas/{turma_id}/notas` —, e `02` §4.1
+lista o que o registro de alteração de nota precisa carregar: nota anterior, nova
+nota, usuário, IP, user-agent, timestamp duplo, semestre, disciplina,
+`within_window`, `authorization_id`.
+
+Nenhum desses campos existe hoje, e três deles — usuário, `within_window`,
+`authorization_id` — só podem ser preenchidos **no ponto da requisição**. Quem
+chegar na Fase 5 pela via do banco não vai encontrá-los; encontra a rota.
+
+**Vencimento: Fase 5.**
+
 ### O que confirmei na allowlist, na fonte e não por suposição
 
 Rodei a cópia **instalada** do hook contra 21 comandos, incluindo os oito
@@ -942,6 +1003,103 @@ mecanismo, e esta começou a depender dele.
 
 ---
 
-## 8. Próxima fase
+## 8. A auditoria de checkpoint, e o que ela achou
+
+**PASS**, commit `a857d76`, sem BLOCKER. Um HIGH, dois MEDIUM, três LOW.
+
+**Os 211 testes rodaram com zero pulos** — a stack efêmera da P2-19 funcionou na
+primeira auditoria em que existiu, e o auditor registrou explicitamente que
+nenhum `skip` apareceu.
+
+| | Achado | Disposição |
+|---|---|---|
+| **H1** | a base entregue ao auditor era o próprio commit candidato | **corrigido** — o lançador recusa |
+| **M2** | a ordem `autoriza` → `degrada` não tinha teste | **corrigido** — comportamento, estrutura e um eixo de checagem |
+| **M1** | business state em memória | **P3-5**, e o destino do auditor estava errado |
+| **L1** | nota gravada antes de haver trilha | **P3-6**, Fase 5 |
+| **L2** | citação de spec errada em comentário | **corrigido** — `05` §7 → §3 |
+| **L3** | `autenticacao_do_ambiente` sem chamador e sem teste | **corrigido** — ganhou prova |
+
+### O H1 é meu, e nasceu dentro da correção da P2-16
+
+A P2-16 fechou *"o auditor não escolhe a base"* e abriu, **no mesmo commit**,
+*"o lançador entrega base vazia e segue"*. Com `BASE_SHA == HEAD_SHA` o diff é
+vazio por construção, e o prompt ainda **proíbe** o auditor de resolver outra
+base — então ele improvisou em silêncio, escolhendo o fechamento da Fase 2. Ele
+declarou a improvisação, o que é o comportamento certo dele, e por isso o achado
+existe.
+
+**E a consequência maior não é o diff.** Rodando sobre um commit já em `main`,
+qualquer BLOCKER encontrado **já está na branch default**: o checkpoint deixa de
+ser porta e vira laudo.
+
+O lançador agora **recusa** quando o candidato já está contido na base, com a
+ordem correta impressa e duas saídas: auditar antes do merge, ou `--base <ref>`
+explícito — e nesse caso ele avisa que aquilo é laudo, não porta.
+
+**Exercitado, não lido:** num repositório de sandbox com `origin/main == HEAD`, o
+lançador sai com `rc=1`, **sem criar worktree e sem tocar no Docker** — a guarda
+está antes dos dois. E o mesmo predicado não dispara quando a branch está à
+frente da base, que é o caso normal.
+
+### A ordem do processo estava invertida, nas duas fases
+
+Isto é do processo e não do código, e é o que a correção do lançador sozinha não
+consertaria.
+
+`docs/process/WORKFLOW.md` fixa:
+
+```text
+git commit -m "fase-<n>: checkpoint candidate"     # na branch da fase
+bash scripts/start_checkpoint_audit.sh <n>          # a auditoria
+gh pr create                                        # só depois
+```
+
+**Nas Fases 2 e 3 o merge veio antes do checkpoint.** Na Fase 2 o efeito ficou
+escondido porque a branch da fase ainda existia e o auditor tinha o que comparar;
+na Fase 3 a auditoria rodou sobre `main` já mergeada, e o efeito apareceu.
+
+**Por que a ordem importa, em uma frase:** auditoria depois do merge não pode
+reprovar nada — o que ela encontrar já está na branch default, e a única saída é
+um PR de correção, que é exatamente o que este é.
+
+**O que muda:** o lançador agora torna a inversão impossível de fazer em
+silêncio. Não é substituto do hábito, mas é o que transforma o hábito em algo que
+falha alto quando escorrega — a mesma escolha que este projeto fez com literal de
+flag e com `event_type`.
+
+### O M2 é a §7.3 desta fase acontecendo comigo
+
+*"Checagem só é exercida quando existe consumidor"* — e o M2 é a versão sem
+checagem nenhuma: a ordem `autoriza` → `degrada` era **argumento escrito no
+comentário** e repousava inteiramente na ordem de resolução de dependências do
+FastAPI.
+
+Fechado em três camadas, e a terceira é a que o operador pediu:
+
+1. **Comportamento** — sem token, as **três** rotas degradadas com flag ligada
+   respondem 401, e não 503/409. Verificado que inverter a ordem em `app.py`
+   deixa **4 testes vermelhos** com 503, 409 e 503 — o vazamento real.
+2. **Latência** — sem token, nenhuma latência é aplicada. Sem esta asserção, um
+   `degrada` que rodasse antes e só dormisse passaria na primeira e entregaria a
+   flag do AVA pela cronometragem.
+3. **Configuração** — `publica: true` com degradação declarada **reprova** na
+   checagem. É o outro caminho para o mesmo lugar: sem inverter nada, uma rota
+   aberta que degrada responde 503 para a rede inteira.
+
+### O que o auditor não conseguiu verificar, e o que fiz com cada item
+
+| | Item | |
+|---|---|---|
+| 1 | o diff contra `main` | causa do H1, **corrigida** |
+| 2 | procedência do `range_core` executado | **P3-4**, e ela deixa de ser latente na próxima auditoria |
+| 3 | CI real e branch protection | limite estrutural: o auditor não tem rede, e isso é propriedade — foi a decisão registrada na P2-19 |
+| 4 | comportamento sob concorrência | **P3-2**, Fase 4 |
+| 5 | montagem de produção da `academus-api` | Fase 4, e é o que ela existe para provar |
+| 6 | afirmações do registro sobre eventos passados | limite real: registro não é verificável por quem chega depois. Ele conferiu o **estado final**, que é o que dá para conferir |
+
+---
+
+## 9. Próxima fase
 
 `07` Fase 4 — **VERTICAL SLICE ⏸**. ENTRY: Fase 3 completa.

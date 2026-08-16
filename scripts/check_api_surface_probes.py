@@ -112,6 +112,14 @@ PROBES = [
         "Ou a rota e aberta, ou ela exige papel",
     ),
     (
+        "rota PUBLICA que degrada — M2 da auditoria, pelo lado da configuracao",
+        [_rota(papeis=[], publica=True, flags=["fixture.uma_flag"], degradacao=[
+            {"flag": "fixture.uma_flag", "condicao": "ligada", "efeito": "recusa",
+             "status": 503, "mensagem": "Fora do ar."}])],
+        {("GET", "/x")},
+        "`publica: true` com degradacao declarada",
+    ),
+    (
         "rota sem papeis e sem `publica` — vazio significa NINGUEM",
         [_rota(papeis=[])],
         {("GET", "/x")},
