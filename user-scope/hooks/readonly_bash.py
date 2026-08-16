@@ -118,6 +118,10 @@ ALLOWED = [
     # que ela diz que e". Sem executa-la, o auditor compara YAML com codigo a
     # olho, sobre uma arvore que so cresce.
     rf"|check_api_surface|check_api_surface_probes"
+    # `check_fold_authority` — Fase 3, peca 3. Responde "so o fold escreve
+    # estado", que e a garantia de `01` secao 4.1 depois de a projecao ser
+    # materializada. Sem executa-la, o auditor le a porta e confia no formato.
+    rf"|check_fold_authority|check_fold_authority_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

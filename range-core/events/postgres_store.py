@@ -46,7 +46,7 @@ from range_core.events.integrity import (
     row_hash,
     verify_chain,
 )
-from range_core.events.store import EventStore
+from range_core.events.store import EventStore, StreamHead
 
 TABLE = "event_store"
 
@@ -112,6 +112,31 @@ class PostgresEventStore(EventStore):
                     row_hash(event, anterior),
                 ),
             )
+
+    def _head(self) -> StreamHead:
+        """`ORDER BY sequence DESC LIMIT 1` — indice, e nao varredura.
+
+        `sequence` e chave primaria e contigua por construcao (§3.5 do registro
+        da Fase 2), entao o maior valor E a contagem. Nao ha `COUNT(*)`, que
+        `01` §7 proibe em rota de tempo real e que aqui seria varredura da tabela
+        inteira para responder o que o indice ja sabe.
+
+        A CADEIA NAO E VERIFICADA AQUI, e a assimetria com `_stored` e
+        deliberada: verificar exigiria ler tudo, que e o custo que este metodo
+        existe para nao pagar. Quem verifica e `_stored`, no caminho que de fato
+        reconstroi — entao um store adulterado e pego na reconstrucao, nao na
+        conferencia de validade do cache.
+        """
+        with psycopg.connect(self._dsn) as conexao:
+            with conexao.cursor() as cur:
+                cur.execute(
+                    f"SELECT sequence, event_id FROM {TABLE} "
+                    "ORDER BY sequence DESC LIMIT 1"
+                )
+                linha = cur.fetchone()
+        if linha is None:
+            return StreamHead(count=0, last_event_id=None)
+        return StreamHead(count=int(linha[0]), last_event_id=str(linha[1]))
 
     def _stored(self) -> Sequence[Event]:
         """Tudo, na ordem da sequencia, COM A CADEIA VERIFICADA.

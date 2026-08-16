@@ -72,6 +72,25 @@ from range_core.events.ids import new_event_id
 
 
 @dataclass(frozen=True, slots=True)
+class StreamHead:
+    """Quantos eventos ha, e qual e o ultimo. A identidade do fim do fluxo.
+
+    DOIS CAMPOS, e nao um. So a contagem confundiria fluxos de mesmo tamanho —
+    e um deles e o caso real: reconstrucao de um store restaurado de backup com
+    o mesmo numero de linhas e conteudo diferente. So o ultimo `event_id`
+    confundiria o fluxo que perdeu eventos no meio e manteve a cauda, que e o
+    truncamento que `test_truncar_a_cauda_NAO_e_detectado` declara como limite.
+
+    Os dois juntos nao fecham o buraco do truncamento — nada aqui fecha, e o
+    limite continua declarado la —, mas fecham o de tamanho igual, que e o caso
+    que o cache encontra em operacao normal.
+    """
+
+    count: int
+    last_event_id: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class EventDraft:
     """O que um PRODUTOR submete. Nao e o envelope.
 
@@ -178,6 +197,43 @@ class EventStore(ABC):
         """
         return self._stored()
 
+    def head(self) -> StreamHead:
+        """A IDENTIDADE DO FIM DO FLUXO, em O(1). Nao devolve evento nenhum.
+
+        POR QUE ISTO NAO ABRE A PORTA QUE `read_all` FECHA
+        --------------------------------------------------
+        `01` §4.1 proibe caminho de leitura compartilhado que FILTRE por epoch,
+        abandono ou ponto de corte. Este metodo nao devolve eventos — devolve
+        quantos ha e qual e o ultimo. Nao ha o que filtrar num par de valores, e
+        nao ha parametro por onde um filtro entre: a garantia da §4.1 continua
+        estrutural, e nao passa a depender de disciplina.
+
+        POR QUE ELE EXISTE
+        ------------------
+        A projecao materializada (`01` §4: *"Simulation State — Redis (projecao)
+        + event store"*) precisa saber SE ainda vale. Comparar o estado inteiro
+        seria refazer o fold, que e o que o cache existe para evitar — 2,874 s em
+        150 mil eventos, medido na §3.8 do registro da Fase 2.
+        
+        Comparar a CABECA e outra coisa: e a identidade da ENTRADA do fold, e
+        custa uma consulta de indice. O que o cache poupa e o fold, nao a
+        consulta.
+
+        `read_all` continua sem parametro, e esta continua sendo a superficie
+        inteira — agora com tres metodos, declarados em
+        `scripts/check_store_read_surface.py`.
+        """
+        return self._head()
+
+    @abstractmethod
+    def _head(self) -> StreamHead:
+        """A cabeca, em O(1). Backend-especifico — e o `O(1)` e o requisito.
+
+        A implementacao ingenua seria `len(self._stored())`, que em Postgres
+        carrega o fluxo inteiro e verifica a cadeia: exatamente o custo que o
+        cache existe para evitar, pago para descobrir se o cache serve.
+        """
+
     @abstractmethod
     def _persist(self, event: Event) -> None:
         """Grava um evento ja carimbado. Backend-especifico."""
@@ -211,3 +267,9 @@ class InMemoryEventStore(EventStore):
         # acidente, e append-only que o chamador consegue alterar nao e
         # append-only.
         return tuple(self._events)
+
+    def _head(self) -> StreamHead:
+        return StreamHead(
+            count=len(self._events),
+            last_event_id=self._events[-1].event_id if self._events else None,
+        )
