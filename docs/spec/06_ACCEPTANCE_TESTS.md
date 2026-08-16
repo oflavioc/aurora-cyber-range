@@ -21,10 +21,18 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - Aplicar o mesmo inject duas vezes produz projeção idêntica.
 - `rollback_performed` incrementa `simulation_epoch` e **não remove** nenhum evento.
 - Evento de `participant_action` gravado na epoch 0 continua legível após rollback, marcado com sua epoch.
-- Reconstrução da projeção do zero para exercício de 4 h roda em < 3 s.
+- Curva **volume de eventos → tempo de reconstrução** medida, com o ponto de quebra do orçamento de 3 s e a máquina, a data e a stack declaradas junto do número.
 - Reinício do processo restaura a projeção corrente sem intervenção.
 - Rollback com `reason: technical_failure` **registra no evento** o intervalo a descontar do cálculo de métricas, pelos seus **extremos** e marcados em **`exercise_timestamp`**.
 
+> **O critério da reconstrução de 4 h saiu daqui no `spec-change` `item-8-volume-de-4h`, e não por arrumação.** Ele dizia *"reconstrução da projeção do zero para exercício de 4 h roda em < 3 s"*, nesta seção, que é a da Fase 2 — e a Fase 2 **não produz exercício de 4 h**: o pack de 4 h é entregável da Fase 7 (`04_SCENARIO_SCHEMA.md` §9). Repetia a forma do defeito que este documento já consertou duas vezes: cobrar de uma fase a verificação de artefato que ela não produz.
+>
+> **O requisito não foi enfraquecido, foi movido inteiro** — < 3 s, para exercício de 4 h — para T12, e a metade de telemetria para T13. `01_ARCHITECTURE.md` §7 continua enunciando a norma de desempenho sem alteração: o que se realocou foi quem a verifica.
+>
+> **O que ficou é o que a Fase 2 pode de fato provar:** a curva volume → tempo, com o ponto de quebra. Ela não prova o critério de 4 h — mostra que o motor aguenta N eventos, e não que 4 h cabem abaixo de N. Chamar uma de prova da outra seria atestação com um passo intermediário.
+>
+> **A máquina, a data e a stack entram no critério, e isso é exigência de forma.** Número de desempenho sem o contexto em que foi obtido envelhece sem que ninguém perceba, e medição é justamente o tipo de coisa que se cita sem repetir.
+>
 > Este critério dizia *"desconta o intervalo do cálculo de métricas"*, e esta seção é a da **Fase 2**, cujo NON-GOAL declarado é "métricas". Corrigido no `spec-change` `fase-2-escalacoes-e-exclusao`, junto com o item 7 da DoD daquela fase, que trazia a mesma exigência com as mesmas palavras. **O requisito não foi removido, foi realocado:** quem desconta é a Fase 6, por item próprio de DoD em `07_IMPLEMENTATION_PHASES.md` e por critério em T10. Corrigir só um dos dois lugares deixaria `06` e `07` se contradizendo sobre o escopo da mesma fase — dois documentos não-master em conflito, que é o que `CLAUDE.md` manda escalar.
 >
 > **A segunda metade saiu daqui pelo mesmo motivo, e não por arrumação.** Ela dizia *"com `reason: rehearsal`, a epoch não entra no AAR"*: critério sobre AAR etiquetado Fase 2, e o AAR é entregável da Fase 10. Repetia exatamente a forma do defeito que este `spec-change` conserta — cobrar de uma fase a verificação de artefato que ela não produz. E, ao sair, mostrou que era **duas** exigências e não uma: `09_EVENT_MODEL.md` §3.1 dá a `rehearsal` dois efeitos — "Nenhum evento da epoch entra em cálculo" e "Epoch descartada do AAR". Cada um foi para a fase que o entrega: o cálculo em T10, o descarte do AAR em T14. Nenhum dos dois ficou em duas fases.
@@ -123,6 +131,11 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - Inject sem `objectives` e sem `noise: true` é recusado.
 - **Opção com `capability_gap` referenciando objetivo inexistente é recusada pelo linter**, com a posição no arquivo.
 - `dryrun` percorre todos os caminhos sem erro.
+- **Reconstrução da projeção do zero para o exercício de 4 h do `ransomware-universidade` roda em < 3 s**, com máquina, data e stack declaradas.
+
+> O último critério veio de T3 no `spec-change` `item-8-volume-de-4h`, com a exigência intacta. Ele chega aqui porque esta é a fase que produz o insumo: o pack de 4 h é o `ransomware-universidade` (`04_SCENARIO_SCHEMA.md` §9), e sem ele não existe "exercício de 4 h" a medir.
+>
+> A Fase 2 entrega a curva volume → tempo com o ponto de quebra, e é contra ela que este número se lê. **Passar do envelope medido lá é sinal; o veredito é este critério.**
 
 ## T13 — Projeção de evidência (Fase 9)
 
@@ -131,6 +144,11 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - `precursor_events.jsonl` é reproduzível a partir do ground truth; edição manual é detectada por hash no `MANIFEST.json`.
 - Nenhum arquivo contém anexo, binário, hash de malware real, IOC real ou domínio roteável.
 - Banner de ambiente simulado na primeira linha de cada arquivo.
+- **A reconstrução da projeção continua em < 3 s** com `telemetry_emitted` no volume de um exercício de 4 h.
+
+> O último critério é a **segunda metade** da realocação do item 8 da Fase 2, no mesmo `spec-change`. `telemetry_emitted` é `event_type` do catálogo e vai para o event store como qualquer outro — entra na leitura total que a reconstrução percorre —, e é a única fonte com ordem de grandeza diferente das demais: injects são dezenas, ações de participante são centenas, telemetria pode chegar às centenas de milhares sozinha.
+>
+> Por isso o exercício de 4 h de T12 **não é o de 4 h daqui**: lá se mede o volume que o pack produz, aqui o que o range produz. Sem este critério, T12 verificaria o requisito e ele passaria a ser falso nesta fase sem nada ficar vermelho.
 
 ## T14 — Assimetria e AAR (Fase 10)
 
