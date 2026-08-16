@@ -101,8 +101,8 @@ class Declarations:
 
     POR QUE OS EFFECTS SAO RESOLVIDOS, E NAO GRAVADOS
     -------------------------------------------------
-    O catalogo de `09` §4.1 e registro FECHADO de 32 tipos, e nenhum deles
-    carrega efeito de flag. O fold resolve os effects contra o pack: o fluxo diz
+    O catalogo de `09` §4.1 e registro FECHADO — **33 tipos**, contados na
+    fonte ao escrever esta linha —, e nenhum deles carrega efeito de flag. O fold resolve os effects contra o pack: o fluxo diz
     QUAL inject disparou e QUAL opcao foi escolhida, e o pack diz o que cada um
     declara.
 

@@ -891,6 +891,75 @@ na forma de `test_truncar_a_cauda_NAO_e_detectado`. Se alguém der persistência
 store em memória, o teste fica vermelho e a dependência dos itens 5 e 6 em relação
 ao CI passa a ser revisada — em vez de envelhecer escrita em prosa.
 
+### 3.14 A segunda auditoria — PASS, e o que ela cobrou depois
+
+**PASS em 16/08/2026**, contra `8c293e5`. Zero BLOCKER, zero HIGH, zero MEDIUM,
+três LOW. Relatório em `docs/progress/audit_20260816T075242Z.md`.
+
+**A diferença entre as duas rodadas é o que o B1 fechou:** desta vez o auditor
+executou. `Ran 155 tests ... OK (skipped=9)`, mais os seis verificadores, os
+quatro `*_probes.py`, o harness negativo e o DEMO. A primeira rodada julgou por
+leitura sete dos nove itens; esta julgou por execução tudo o que não depende de
+Postgres.
+
+**O achado mais forte não é um finding.** A seção *"testes que não provam o
+requisito"* voltou vazia, com o que ele procurou declarado: mock (zero na
+árvore), `skip` sem justificativa, teste que passa pelo motivo errado, limite
+herdado como crença, recusa sem discriminante. Os dois testes que passavam por
+acidente esta fase achou sozinha e transformou em mutação permanente — e é isso
+que a seção registra.
+
+#### Os três LOW, e o que cada um virou
+
+| | O que era | Disposição |
+|---|---|---|
+| **L1** | `simulation_state.py` dizia *"registro FECHADO de 32 tipos"*; o catálogo tem 33 | **corrigido** — e é o §1.6 pela terceira vez no mesmo tipo de lugar: número de catálogo em prosa dentro de código. A própria fase acrescentou o `exercise_resumed` e não voltou aqui |
+| **L2** | a whitelist da superfície do store só enxergava subclasse **direta** | **corrigido**, com eixo novo no probe |
+| **L3** | o `start` do intervalo congelado vem da âncora, não do inject falho | **P2-17** — não é defeito a corrigir aqui |
+
+#### L2 — o buraco tinha a forma do buraco anterior
+
+`_subclasses_fora_da_linha` casava `bases` por nome contra `EventStore`. Uma
+classe `class X(InMemoryEventStore)` não casava e podia acrescentar `read_since`
+público sem reprovar.
+
+**E o eixo de subclasse já tinha sido acrescentado depois, por ter sido buraco uma
+vez** — antes dele, só a classe base era conferida. Fechar **um nível de cada
+vez** é o que faz o buraco voltar com outro nome. A checagem passou a usar **fecho
+transitivo**, que não tem "próximo nível".
+
+O probe herda em **dois saltos** e monta uma árvore de core em diretório
+temporário — dois arquivos, porque a violação só existe na relação entre eles, e
+nada é escrito em `range-core/`. Para isso a raiz do core passou a acompanhar o
+alvo do CLI, o que antes tornava o eixo inexercitável sem sujar a árvore.
+**Conferido que discrimina:** revertido o fecho para filho direto, o probe novo
+reprova; restaurado, passa. Cinco eixos.
+
+#### Três pendências do aparato, e nenhuma é da fase
+
+O relatório levantou duas coisas que **não são findings** e que o registro
+absorve como pendência de mecanismo, junto da **P2-16**: o harness de mutação
+escreve em `tempfile` fora do worktree, contra a suposição de contenção do hook
+(**P2-18**), e o auditor não tem como confirmar que o CI está verde no commit que
+audita (**P2-19**) — o que deixa metade de dois itens da DoD verificada por
+leitura e configuração, não por execução.
+
+**As três são do aparato de auditoria**, e é por isso que estão registradas como
+tal: nenhuma delas se conserta mexendo no código da fase, e todas se repetem no
+próximo checkpoint se ninguém as fechar.
+
+#### O que o auditor declarou sobre auditar sob as regras desta fase
+
+Ele registrou, no item 4, que `8c293e5` altera o hook que restringe o Bash dele —
+e examinou a mudança linha a linha antes de operar sob ela: estritamente aditiva,
+forma exata ancorada, cinco scripts por nome explícito, nenhuma negação
+afrouxada.
+
+**Registrar isso é a conduta certa e vale nomear**, porque a alternativa — não
+mencionar — é indistinguível de não ter notado. É a mesma razão de esta fase ter
+declarado, no commit que estendeu a allowlist, que estava ampliando o próprio
+julgador.
+
 ### 3.12 A realocação do item 8, e o que a varredura achou
 
 Decidida pelo operador em 16/08/2026: **realocação com destino**, não aceitação
@@ -1179,6 +1248,9 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-14 | ~~O engine não tem prova negativa por mutação, como o fold tem~~ | **FECHADA** — `tests/mutation_harness.py` + dois `*_probes.py` |
 | P2-15 | ~~Nada guarda o que o core importa de `contracts/`~~ | **FECHADA** — `scripts/check_core_contract_imports.py` |
 | P2-16 | O worktree de auditoria resolve `main` para o ref LOCAL, que pode estar atrás | **Antes do próximo checkpoint** — Fase 3 |
+| P2-17 | O `start` do intervalo congelado vem da âncora, não do inject falho | **Fase 6**, com o cálculo do desconto |
+| P2-18 | O harness de mutação escreve fora do worktree de auditoria | **Antes do próximo checkpoint** — Fase 3 |
+| P2-19 | O auditor não confirma que o CI está verde no commit que audita | **Fase 3**, junto da P2-16 |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -1813,6 +1885,89 @@ mesma natureza de decisão.
 
 **Vencimento: antes do próximo checkpoint** — vale dizer, antes da Fase 3
 fechar, porque é lá que ele volta a ser exercido.
+
+#### P2-17 — o `start` do intervalo congelado vem da âncora, não do inject falho
+
+**L3 da auditoria de PASS, e não é defeito a corrigir aqui** — é decisão real sem
+fase obrigada a reconciliá-la, que é a forma da P2-8.
+
+| | |
+|---|---|
+| **O que a norma pede** | `09` §3.1: *"relógio de métricas congelado **entre o inject falho e a retomada**"*; `06` T3 repete *"o intervalo vai do inject falho até a retomada"* |
+| **O que o código entrega** | `_frozen_interval` devolve `start = ancora.exercise_timestamp` — a âncora é o **último evento que sobrevive** ao corte, e o inject falho é o primeiro **descartado** depois dela |
+| **Por que a diferença existe** | a spec **não oferece campo** que identifique o inject falho no fluxo. Derivar da âncora é a única leitura disponível do envelope, e recebê-lo por parâmetro seria extremo que o chamador pode errar — errando sem falhar, que é o que `06` T3 descreve sobre as três formas erradas |
+
+**Quando a diferença aparece:** quando o facilitador rebobina para um ponto
+**anterior** ao inject falho — permitido, e não recusado por nada. Aí o intervalo
+gravado é mais largo que o da norma, e a Fase 6 descontará tempo de exercício que
+correu normalmente.
+
+**A divergência é conservadora** — desconta a mais, nunca a menos —, e por isso
+não é BLOCKER nem HIGH. Mas *"conservadora"* é uma propriedade da métrica, não
+uma licença: um TTCV inflado por desconto excessivo é um número errado com sinal
+conhecido.
+
+**O que a Fase 6 tem de decidir**, que é o destino desta pendência: aceitar a
+âncora como aproximação declarada, ou passar a exigir que o `rollback_performed`
+de `technical_failure` nomeie o inject falho — o que é campo novo de payload e
+portanto `spec-change` mais contrato. **Quem tem o insumo é a Fase 6**: é ela que
+calcula o desconto e é ela que descobre se a largura a mais importa.
+
+**Vencimento: Fase 6**, junto do item de DoD do desconto por união.
+
+#### P2-18 — o harness de mutação escreve fora do worktree de auditoria
+
+Levantado pelo próprio auditor, no item 5 do que ele não conseguiu verificar —
+**não é finding e não é da fase**: é do aparato.
+
+`tests/mutation_harness.py` usa `tempfile.TemporaryDirectory()` para escrever a
+fonte mutada. O diretório é autolimpante e o alvo não é controlável por quem roda
+— mas fica **fora do worktree de auditoria**, e o desenho do hook assume que
+sujeira incidental de teste *"morre com o worktree temporário"*
+(`WORKFLOW.md`).
+
+**Não é escrita deliberada do auditor**, e o hook não a intercepta: ela acontece
+dentro de um `python -m unittest` já autorizado. A suposição de contenção é que
+fica meio verdadeira.
+
+**Destino:** ou o harness passa a escrever dentro da árvore que está sendo
+auditada — o que a torna suja durante a execução, e é pior —, ou o `WORKFLOW.md`
+passa a declarar a exceção, que é o que a honestidade do registro pede. **A
+segunda**, e por argumento: `tempfile` é o mecanismo certo, e o que está errado é
+a frase que promete contenção total.
+
+**Vencimento: antes do próximo checkpoint**, junto da P2-16 — as duas são do
+mesmo aparato e cabem no mesmo PR.
+
+#### P2-19 — o auditor não confirma que o CI está verde no commit que audita
+
+Também do item 1 do relatório, e é o limite mais estrutural dos três.
+
+Nove testes de Postgres **pulam** no worktree do auditor, e com eles: a
+persistência, o critério de reinício de `06` T3, os três casos de detecção de
+reescrita por cadeia de hash, a contiguidade de `sequence` e o caso de dois
+escritores concorrentes. O CI cobre tudo isso — sobe Postgres 16.4 pinado por
+digest, aplica `alembic upgrade head` e define `AURORA_TEST_DATABASE_URL` —, e o
+auditor **leu o workflow e não pôde executá-lo**.
+
+**A consequência é precisa:** metade de dois itens da DoD é verificada por
+*leitura e configuração*, não por execução. O repositório declara essa
+dependência em `test_event_store.LimiteDoStoreEmMemoria`, o que é o melhor que
+esta fase podia fazer — mas o auditor continua emitindo veredito sem ver o gate
+que sustenta a parte que ele não roda.
+
+**Destino, e as duas saídas não são equivalentes:**
+
+| | Saída | Custo |
+|---|---|---|
+| **(a)** | o launcher passa ao auditor a URL de um Postgres efêmero (o mesmo `docker compose` que o projeto já traz) | o auditor passa a executar os nove; exige Docker na máquina de quem audita |
+| **(b)** | o auditor consulta o estado do CI para o commit auditado, por `gh run list --commit` | precisa de rede e de `gh` na allowlist — que é ampliar o julgador de novo, e por um caminho que fala com fora |
+
+**Inclinação: (a)**, porque mantém o auditor sem rede — propriedade que ele tem
+hoje e que vale mais que a conveniência. Mas é decisão do operador, e ela muda o
+que o checkpoint exige da máquina.
+
+**Vencimento: Fase 3**, junto da P2-16.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 

@@ -54,6 +54,52 @@ CASOS: dict[str, tuple[str, str]] = {
 }
 
 
+#: SUBCLASSE INDIRETA — o eixo que faltava, e o argumento de ele existir.
+#:
+#: A checagem casava `bases` por nome contra `EventStore` e parava ai: uma classe
+#: `class X(InMemoryEventStore)` nao casava e podia acrescentar `read_since`
+#: publico sem reprovar. Era o L2 da auditoria de 16/08/2026.
+#:
+#: E o MESMO buraco que o eixo de subclasse ja tinha fechado um nivel acima —
+#: antes dele, so a classe base era conferida. Fechar um nivel de cada vez e o
+#: que faz o buraco voltar com outro nome; por isso a checagem passou a usar
+#: fecho TRANSITIVO, e por isso este probe herda em DOIS saltos.
+DESCENDENTE_INDIRETO = (
+    "from range_core.events.store import InMemoryEventStore\n"
+    "\n"
+    "\n"
+    "class StoreEspiao(InMemoryEventStore):\n"
+    '    """Dois saltos de heranca: EventStore -> InMemoryEventStore -> aqui."""\n'
+    "\n"
+    "    def read_since(self, cursor: str):\n"
+    '        """Leitura parcial — exatamente o que a 01 secao 4.1 proibe."""\n'
+    "        raise NotImplementedError\n"
+)
+
+
+def probe_de_subclasse_indireta() -> list[str]:
+    """Monta uma ARVORE de core em diretorio temporario, e nao um arquivo so.
+
+    Os demais probes plantam num arquivo e passam o caminho dele. Este precisa de
+    DOIS arquivos — o store e o descendente —, porque a violacao so existe na
+    relacao entre eles. Nada e escrito em `range-core/`.
+    """
+    falhas: list[str] = []
+    with tempfile.TemporaryDirectory() as temporario:
+        raiz = Path(temporario) / "range-core-plantado"
+        (raiz / "events").mkdir(parents=True)
+        (raiz / "events" / "store.py").write_text(
+            STORE_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        (raiz / "events" / "espiao.py").write_text(DESCENDENTE_INDIRETO, encoding="utf-8")
+
+        if main([str(raiz / "events" / "store.py")]) == 0:
+            falhas.append("subclasse INDIRETA com metodo de leitura nao declarado: PASSOU")
+        else:
+            print("  reprovou como devia: subclasse indireta (dois saltos de heranca)")
+    return falhas
+
+
 def main_probes() -> int:
     original = STORE_PATH.read_text(encoding="utf-8")
     falhas: list[str] = []
@@ -76,6 +122,8 @@ def main_probes() -> int:
             else:
                 print(f"  reprovou como devia: {nome}")
 
+    falhas.extend(probe_de_subclasse_indireta())
+
     if main([]) != 0:
         falhas.append("a arvore limpa reprova — a checagem esta quebrada, nao a arvore")
 
@@ -84,7 +132,8 @@ def main_probes() -> int:
             print(f"PROVA NEGATIVA FALHOU: {falha}", file=sys.stderr)
         return 1
 
-    print(f"{len(CASOS)} violacoes plantadas, {len(CASOS)} reprovadas; arvore limpa passa.")
+    print(f"{len(CASOS) + 1} violacoes plantadas, {len(CASOS) + 1} reprovadas; "
+          "arvore limpa passa. O eixo a mais e a subclasse indireta.")
     return 0
 
 
