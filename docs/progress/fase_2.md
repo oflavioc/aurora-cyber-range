@@ -4,8 +4,10 @@
 spec-change que ele exigia está em `main` no commit `a3aded5` (PR #21).
 
 **Código escrito até aqui:** a projeção `simulation_state`, o envelope, o
-cálculo compartilhado de epoch, o `event_id`, a porta do relógio e o event store
-com implementação em memória. Nenhum item da DoD fechado — ver a §4.
+cálculo compartilhado de epoch, o `event_id`, a porta do relógio, o event store
+com as implementações em memória e em Postgres, o `exercise-clock`, as regras
+`x-aurora-*` como módulo do núcleo, o loader de pack e o inject-engine.
+**Seis dos nove itens da DoD fechados** — ver a §4.
 
 ---
 
@@ -616,6 +618,183 @@ o de `contracts` **não prova nada** — justamente a entrada que existe para o 
 que não é a raiz. O segundo passo importa os dois de fora da raiz, e é o que
 fecha isso.
 
+**Ganhou uma terceira asserção na peça do loader**, e por motivo próprio: o
+loader passou a **ler os `.yaml` de `contracts/` em tempo de execução**, e isso
+não é o mesmo que importar o módulo gerado. Sem `package-data` no `pyproject`, a
+instalação levaria `contracts/generated/*.py` e deixaria os contratos para trás —
+árvore e instalação editável continuariam verdes, e o container da Fase 4 subiria
+sem os contratos. É a mesma assimetria que o `package-dir` já pagou uma vez.
+
+### 3.9 O loader e o inject-engine
+
+A peça que a §6.2 previu, com as decisões que ela deixou em aberto agora
+tomadas. Fecha o **item 9**, a **metade restante do item 3** e o **DEMO** da
+fase.
+
+**Onde mora o pack mínimo: decidido pelo operador — `tests/fixtures/pack_minimo/`.**
+A §6.2 registrou inclinação e não decisão, e a decisão veio de fora. A forma de
+`04` §1 é respeitada dentro do fixture: `manifest.yaml`, `injects.yaml` e
+`objectives.yaml` com os mesmos nomes e a mesma estrutura do pacote real. O que
+muda é o endereço, não o formato — um fixture com forma própria exercitaria um
+loader que nenhum pack usa.
+
+**Três injects, e os três existem por um caminho de mecanismo:** A01 tem
+`effects` e nenhuma decisão; A02 tem `decision_point`, que é o único caminho por
+onde `option_effects` chega à projeção; R01 é `noise: true`, que é o ramo `else`
+do `if/else` do contrato — e é ele que faz a caminhada das regras descer por um
+`if`, que é exatamente o código que a P2-12 estreitou.
+
+**`objectives.yaml` num pack "mínimo" não é excesso.** Sem ele,
+`x-aurora-ref: pack_objectives` resolveria contra conjunto vazio e o pack seria
+recusado — corretamente. A alternativa era três injects todos de ruído, que não
+exercitaria referência entre arquivos, que é a única coisa que a camada
+`x-aurora-*` existe para verificar. O loader **lê** o arquivo para o registro e
+**não o valida**: o contrato dele é da Fase 6, e ler para registro não é validar.
+
+#### O escopo da canonicalização é derivado do contrato, e não da versão do loader
+
+**A formulação anterior envelheceu, e o critério dela foi preservado.** A regra
+v1 nasceu em docstring de `simulation_state.py` como *"escopo são os arquivos que
+o LOADER PARSEIA"*, com o critério *"se o loader lê, pode mudar a resolução; se
+não lê, não pode"*.
+
+O critério está certo. A formulação deixou de estar no dia em que existiu um
+segundo loader: o da Fase 2 não lê `branches.yaml` — branching é entregável da
+Fase 7 —, e o da Fase 7 vai ler. **Escopo definido pela versão do loader faria o
+mesmo pack ter hash diferente em duas fases**, e todo exercício desta fase
+deixaria de reconstruir na próxima sem que ninguém tivesse tocado no pack.
+
+O escopo v1 passa a ser: as entradas de `x-aurora-registry.package_files`
+terminadas em `.yaml`, e apenas as presentes. `branches.yaml` entra desde já
+porque **pode** mudar resolução. `GM_NOTES.md`, `evidence/` e `media/` ficam de
+fora pelos motivos que já estavam escritos.
+
+É a §1.6 outra vez, e desta vez pega antes de custar: a afirmação era verdadeira
+quando foi escrita, e a decisão que a derrubou foi tomada no mesmo ciclo.
+
+**Limite declarado:** arquivo `.yaml` presente no pack e ausente de
+`package_files` não entra no hash. Pela regra isso é correto — documento que
+loader nenhum lê não muda resolução —, mas significa que o escopo depende de o
+contrato listar o que existe.
+
+#### PyYAML no núcleo, e os dois parsers que agora leem os mesmos seis contratos
+
+O loader lê com `yaml.safe_load`, e não com `tools/_common.py::parse_yaml`. Duas
+razões, e a segunda decidiria sozinha: o núcleo não importa de `tools/`, que é
+onde vivem os seis verificadores stdlib; e `parse_yaml` é deliberadamente
+estrito, lê o **subconjunto** em que nossos contratos são escritos por regra
+nossa, e pack é escrito por humano. A spec já aceitou esse argumento uma vez,
+quando `check_spec_examples.py` trouxe PyYAML para ler `docs/spec/`.
+
+**Passam a existir dois parsers sobre os mesmos seis arquivos, e isso é risco
+real.** `tests/test_pack_loader.py::DoisParsers` afirma que os dois produzem a
+mesma árvore para os seis. E isso **fecha, por consequência, um limite que
+`fase_1.md` §7.4 declarou sem verificar**: `parse_yaml` nunca tinha sido
+comparado com parser conforme.
+
+#### `t_relative` é `HH:MM`, e a interpretação vive no engine porque o contrato a recusa
+
+O contrato deixa o campo como string de forma livre, de propósito: fechar
+formato em schema seria a classe D6. Mas **agendar exige interpretar**. A forma
+foi lida na fonte, não escolhida: `04` §5 traz `"00:47"` num exercício de 240
+min, `04` §6 traz `before: "01:30"` e `03` §7 traz `"T+01:10"` — são minutos, não
+segundos.
+
+O loader converte no boot e **recusa alto** o que não casa. Recusar é o oposto de
+inventar: um `t_relative` em outro formato derruba o boot em vez de virar
+agendamento silenciosamente errado, que é a falha que não aparece até o
+exercício ao vivo.
+
+#### A janela de agendamento não é memória, e o corte é o que a torna correta
+
+`due_injects` é **consulta**. Um inject está em atraso quando
+
+```text
+corte < t_relative <= posição corrente
+```
+
+e não há `inject_fired` dele na epoch corrente.
+
+**A posição é o rótulo `T+`**, que rebobina até o ponto de corte no rollback
+(`01` §3). É isso que faz o agendamento voltar a valer depois de um rollback sem
+o engine guardar nada: a posição está no relógio, e o que já disparou está no
+store. Memória do que foi aplicado seria estado fora do fold — a mesma coisa que
+a D3 recusou para a idempotência, com outro nome.
+
+**O corte é a posição da âncora do último `rollback_performed`**, ou `-1` se não
+houve nenhum. Sem ele, o rollback faria os injects **anteriores** ao corte
+dispararem de novo, e `09` §3 é explícito ao desenhar só `A03 (novamente)` na
+epoch 1.
+
+**Limite declarado:** inject com `t_relative` anterior ao corte é tratado como
+resolvido, tenha disparado ou não. É a leitura conservadora — o corte declara que
+tudo até ali está assentado —, e a alternativa faria o engine ressuscitar inject
+que o facilitador pulou de propósito.
+
+#### O rollback: a ordem é gravar antes de rebobinar, e a origem é uma subtração
+
+O `rollback_performed` é gravado **antes** de o clock rebobinar. Gravado depois,
+ele carregaria o `exercise_time` do ponto de corte e pareceria ter acontecido lá
+— e `09` §3 o desenha no fim da epoch abandonada, que é quando ele foi ordenado.
+
+**A rebobinagem levou uma correção de leitura no caminho, e ela vale registro.**
+A primeira formulação calculou a origem da nova epoch a partir de
+`exercise_timestamp`, raciocinando que ele é absoluto. Está errado para rollbacks
+**encadeados**: `exercise_timestamp` é decorrido desde T0 e nunca rebobina, então
+a partir da segunda epoch ele deixa de ser a posição de cenário. Quem carrega a
+posição é o **rótulo `T+`**, justamente por rebobinar.
+
+A conta certa é `decorrido agora − posição da âncora`, e ela compõe sozinha:
+como a posição da âncora já está no referencial rebobinado, a origem nova
+acumula tudo o que foi descartado. O que sobra entre `exercise_timestamp` e o
+rótulo passa a ser exatamente **quanto o rollback descartou**, que é o que
+`01` §3 exige — e `test_encadeados_compoem_e_o_rotulo_rebobina_de_novo` prova o
+caso que derrubou a primeira versão.
+
+#### `technical_failure` é recusado, e a recusa é o que impede o item 7 de passar por fechado
+
+O engine aceita os quatro motivos que a taxonomia declara — lida de
+`contracts/events.schema.yaml`, nunca repetida no código — e **recusa**
+`technical_failure`. `09` §3.1 dá a esse motivo, e só a ele, o efeito *"relógio
+de métricas congelado"*, e `06` T3 exige que os extremos do intervalo sejam
+gravados **no evento**. O campo de payload é a **P2-4** e não existe.
+
+Emitir sem ele gravaria um rollback que a Fase 6 lê como se não houvesse
+congelamento nenhum: o registro existiria e o requisito sumiria, que é a forma
+exata do E1. A recusa deixa o item 7 **visível**.
+
+**E a guarda não pode ficar órfã.** A constante do motivo é conferida contra a
+taxonomia na construção do engine: se um `spec-change` renomear o valor, o engine
+recusa subir, em vez de a guarda passar a apontar para um nome que ninguém usa.
+
+#### Duas coisas que o engine não pôde fazer, e nenhuma delas é omissão
+
+**`resume` não emite evento.** O catálogo de `09` §4.1 é registro fechado e não
+tem `exercise_resumed`. O store guarda o início da pausa e não guarda o fim.
+Inventar `event_type` violaria o invariante 3 e reaproveitar `exercise_paused`
+gravaria dois eventos idênticos com significados opostos. Virou a **P2-13**.
+
+**`SUPPORTED_SCHEMA_VERSIONS` é `[2]`, e `04` §4 pede `[N, N-1]`.** Não existe
+contrato v1 neste repositório: suportar N-1 exige a migração em memória, que é
+item de DoD da Fase 7. Declarar suporte que não há seria pior que declarar o
+suporte real, e o pack em v1 é recusado com a instrução em vez de com uma
+mensagem sobre `const: 2`.
+
+#### O DEMO virou passo de CI
+
+`scripts/demo_fase2.py` roda a sequência do `07`: carregar pack, disparar A01,
+ler projeção, rollback, ler projeção restaurada — mais o PAUSAR atravessando o
+`t_relative` de um inject sem disparar nada.
+
+**Não é `range-cli`**, que é entregável da Fase 7. É a mesma saída que o `07`
+já registrou para o DEMO da Fase 1: roteiro que exige peça de fase futura não é
+roteiro desta fase.
+
+**Roda no CI**, e isso é o ponto: até aqui "o demo roda" era atestação. Ele prova
+o que os testes não provam — a **montagem**: contratos lidos do disco, flags do
+adapter entregues como dado, pack, clock, store e engine ligados na ordem em que
+um chamador real os liga.
+
 ---
 
 ## 4. Itens da Definition of Done
@@ -628,17 +807,24 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 |---|---|---|---|
 | 1 | As quatro marcas em todo evento | ✅ | `test_event_store.Carimbo.test_append_carimba_as_quatro_marcas_do_clock` — as quatro vêm de **uma** leitura. `…test_o_produtor_nao_tem_onde_escrever_tempo` — `EventDraft` não tem os seis campos que o store atribui |
 | 2 | `RANDOM_SEED` lido por código do `range-core` | ⬜ | Nada escrito. Decidido que **não** é aqui que ele é consumido — `event_id` usa `secrets` |
-| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ⬜ **metade** | **Congela**: fechada — `test_exercise_clock.Pausar.test_durante_a_pausa_o_exercicio_congela_e_a_parede_avanca` e `…test_as_duas_marcas_de_exercicio_congelam_JUNTAS`, que é a norma que o `a3aded5` acrescentou ao `01` §3. **Bloqueia disparo agendado**: aberta, e é do inject-engine — o clock oferece `is_paused` e não agenda nada |
+| 3 | PAUSAR congela o clock e bloqueia disparo agendado | ✅ | **Congela**: `test_exercise_clock.Pausar.test_durante_a_pausa_o_exercicio_congela_e_a_parede_avanca` e `…test_as_duas_marcas_de_exercicio_congelam_JUNTAS`, que é a norma que o `a3aded5` acrescentou ao `01` §3. **Bloqueia disparo agendado**: `test_inject_engine.PausaBloqueiaAgendado`, e a **construção** é a prova — o tempo passa do `t_relative` ANTES da pausa, `…test_o_atraso_existe_antes_da_pausa` afirma que o inject está em atraso naquele instante, e `…test_a_posicao_nao_muda_ao_pausar` fecha a outra causa possível. Sobra `is_paused` como única diferença |
 | 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_simulation_state.Propriedades.test_p3_reaplicar_o_mesmo_inject_nao_muda_o_estado`, com 2, 3 e 7 repetições. Prova negativa: a mutação *"defaults removidos"* e a *"limite do intervalo movido"* o derrubam, em `test_simulation_state_probes` |
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
 | 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ⬜ | Forma normatizada em `06` T3; o campo é a **P2-4** |
 | 8 | Reconstrução completa em < 3 s | ⬜ **medido, não fechado** | Passa com folga até ~150 mil eventos (2,87 s) e estoura em 200 mil (4,30 s). Fecha quando o volume real de 4 h for conhecido — depende do pack e do engine, que não existem. Números e envelope na §3.8 |
-| 9 | Flag não declarada impede boot com mensagem clara | ⬜ | Não há boot. O fold recusa inject e opção fora do pack, que é outra coisa |
+| 9 | Flag não declarada impede boot com mensagem clara | ✅ | `test_pack_loader.FlagNaoDeclarada`, em quatro asserções separadas porque `06` T2 exige **duas** metades: `…test_impede_o_boot` (recusa, com sítio próprio), `…test_a_mensagem_nomeia_a_flag`, `…test_a_mensagem_nomeia_o_arquivo_esperado` e `…test_vale_para_required_flags_do_manifesto`. `…test_objetivo_inexistente_e_violacao_de_regra_e_nao_de_flag` discrimina o sítio — sem ele, `UNDECLARED_FLAG` poderia estar sendo devolvido para qualquer violação |
 
-**Quatro de nove fechados, e o item 3 pela metade**, com cada ✅ nomeando o teste que o prova — atestação sem fonte é
-o que esta fase já registrou como caro. O que falta é clock, seed, loader com
-validação de flags, o campo de payload do intervalo, e a medição do item 8.
+**Seis de nove fechados**, com cada ✅ nomeando o teste que o prova — atestação
+sem fonte é o que esta fase já registrou como caro. O que falta é o `RANDOM_SEED`
+(item 2), o campo de payload do intervalo (item 7, e é a P2-4) e o envelope de
+volume do item 8.
+
+Os itens 4, 5 e 6 ganharam uma **segunda** fonte na peça do engine, e não é
+redundância: eles estavam provados no fold, que é onde a propriedade vive, e
+passam a estar provados **pela porta por onde um facilitador de fato os
+executa** — `test_inject_engine.Idempotencia`, `…Rollback.test_grava_incrementa_epoch_e_nao_apaga`
+e `…Rollback.test_a_decisao_da_epoch_abandonada_continua_legivel_e_marcada`.
 
 O item 7 é o único cujo cumprimento depende de contrato que ainda não existe: o
 campo de payload que carrega os extremos é a **P2-4**.
@@ -658,7 +844,10 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
-| P2-12 | `AuroraChecker._valida` engole exceção e devolve `False` | **Fase 2**, antes do loader consumir |
+| P2-12 | ~~`AuroraChecker._valida` engole exceção e devolve `False`~~ | **FECHADA** — `tests/test_contract_rules.py` |
+| P2-13 | O catálogo não tem `exercise_resumed`: a pausa não tem fim no store | `spec-change`, antes da Fase 10 |
+| P2-14 | O engine não tem prova negativa por mutação, como o fold tem | **Fase 2**, no PR da fase |
+| P2-15 | Nada guarda o que o core importa de `contracts/` | **Fase 3**, junto da P37 |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -873,30 +1062,100 @@ conexão reusada ou pool, mas medir antes de escolher — pela mesma ordem que a
 P2-10 fixou e que se mostrou certa: o risco que se supunha não era o que estava
 lá.
 
-#### P2-12 — `except Exception` que transforma erro de programação em "regra não disparou"
+#### P2-12 — `except Exception` que transformava erro de programação em "regra não disparou" — **FECHADA**
 
-`AuroraChecker._valida` captura `Exception` e devolve `False`. Isso é o que
-transformou o único defeito do movimento da §1.4 em **falha silenciosa**: o
-módulo novo não importava `Draft202012Validator`, o `NameError` foi engolido, e o
-resultado apareceu como *"a regra não disparou"* em quatro fixtures.
+Fechada **antes** de o loader consumir o módulo, que era a ordem que a pendência
+fixava. `AuroraChecker._valida` capturava `Exception` e devolvia `False`, e
+`False` ali significa *"este ramo não se aplica"* — então todo erro de
+programação saía como regra que não disparou, três camadas adiante, apontando
+para as fixtures em vez de para a causa.
 
-**O gate pegou** — as fixtures negativas declaram `rejected_by`, e a regra
-nomeada não ter disparado é reprovação. Mas pegou pelo sintoma, e a mensagem
-apontava para as fixtures em vez de para a causa.
+Estreitado para `referencing.exceptions.Unresolvable`, que é a família que o
+bloco de fato pretende tolerar. `jsonschema` embrulha a falha de resolução em
+`_WrappedReferencingError`, que **herda** de `Unresolvable` — conferido na versão
+pinada, não suposto, e afirmado em teste para a herança não mudar em silêncio.
 
-**Por que não foi corrigido junto.** O movimento tinha de dar **um sinal só**.
-Alterar o tratamento de exceção no mesmo commit misturaria "o módulo faz o que
-as linhas faziam" com "o módulo passou a falhar diferente", e um vermelho não
-diria qual dos dois. É a mesma disciplina que separou o movimento do loader.
+**A prova negativa é versionada e tem duas metades**, em
+`tests/test_contract_rules.py`:
 
-**O que fazer:** estreitar para as exceções de resolução de `$ref` que o bloco
-de fato pretende tolerar, e deixar erro de programação subir. Com prova
-negativa: plantar um nome inexistente e verificar que **estoura** em vez de
-devolver `False`.
+| Classe | O que afirma |
+|---|---|
+| `ErroDeProgramacaoSobe` | o defeito histórico — o nome que o módulo não importava — **estoura**. Conferido contra o código antigo: com `except Exception` os dois casos ficam vermelhos. São dois porque só `NameError` deixaria passar uma captura estreitada para `except NameError`, que resolve o caso conhecido e nenhum outro |
+| `RefIrresolvivel` | a tolerância que sobrou é **percorrida**, e a caminhada continua. Captura que nunca capturou é prosa com sintaxe de código, que é o mesmo defeito do outro lado |
+| `Sintoma` | liga a causa ao sintoma: com `_valida` devolvendo `False`, a instância que o baseline reprova não produz violação nenhuma |
 
-**Vencimento: Fase 2, antes de o loader consumir o módulo.** O loader vai
-depender dessas regras para recusar pack, e regra que falha em silêncio quando o
-código quebra recusa pack errado — ou aceita pack errado — sem que nada acuse.
+Sem a terceira, as duas primeiras provariam que o código faz o que faz, e não que
+o que ele fazia antes era defeito.
+
+**Tolerar ali não esconde nada**, e isso também está afirmado: a camada 1 valida
+a mesma instância contra o mesmo `$ref` e levanta alto, porque não captura nada.
+
+#### P2-13 — o catálogo não tem `exercise_resumed`
+
+`09` §4.1 é registro **fechado** e traz `exercise_started`, `exercise_paused` e
+`exercise_reset`. Não há evento de retomada.
+
+**A consequência:** o store guarda o início de uma pausa e não guarda o fim. A
+duração de uma pausa não é reconstruível a partir do fluxo, e a timeline do AAR
+(Fase 10) mostra uma pausa que nunca termina. O `exercise_paused` de `09` §4.1 é
+`machine`, e a assimetria não está justificada em documento nenhum — parece
+omissão, e não desenho.
+
+**Não foi contornado**, e as duas saídas fáceis são piores que a pendência:
+inventar `event_type` fora do catálogo viola o invariante 3, e reaproveitar
+`exercise_paused` para os dois sentidos gravaria dois eventos idênticos com
+significados opostos — a falha que `09` §4 chama de mais cara possível, com outro
+nome.
+
+**Vencimento: `spec-change`, antes da Fase 10**, que é quando o AAR renderiza a
+timeline. Pode ir antes, junto de outro `spec-change` de catálogo.
+
+#### P2-14 — o engine não tem prova negativa por mutação
+
+O fold tem `tests/test_simulation_state_probes.py`: cada mutação cirúrgica
+declara o conjunto exato de testes que deve ficar vermelho. O engine e o loader
+não têm equivalente.
+
+**O que segura até lá.** As recusas afirmam **sítio**, e não mensagem, então um
+teste que planta um defeito e recebe outra recusa reprova. E a prova do item 3 é
+**por construção**: o inject está em atraso no instante da pausa
+(`test_o_atraso_existe_antes_da_pausa`) e a pausa não muda a posição
+(`test_a_posicao_nao_muda_ao_pausar`), então não sobra outra causa para o
+resultado vazio além da consulta a `is_paused`.
+
+**Por que ainda assim é pendência.** Prova por construção depende de a construção
+continuar valendo, e nada a verifica. A doutrina desta linhagem é que mecanismo
+que nunca ficou vermelho prova que roda, não que detecta.
+
+**Custo declarado:** a forma certa não é copiar o harness — seriam ~120 linhas
+duplicadas, que é a classe D4 —, e sim extrair o carregador de fonte mutada para
+um módulo compartilhado e fazer os dois probes o usarem. Isso toca um arquivo já
+auditado, e misturá-lo com a peça nova daria um sinal só.
+
+**Vencimento: Fase 2, no PR da fase.**
+
+#### P2-15 — nada guarda o que o core importa de `contracts/`
+
+**A §2.1 declarou o limite e nomeou o gatilho:** *"vira pendência no dia em que o
+core importar de `contracts/` algo que não seja constante gerada"*. Esse dia é
+hoje.
+
+`range-core/engine/loader/contract_source.py` importa o **pacote** `contracts`
+para resolver o diretório e lê os seis `.yaml` em tempo de execução.
+`tools/check_core_boundary.py` detecta por AST apenas o que aponta para
+`domains`; sobre `contracts` ele não tem opinião nenhuma.
+
+**O que está em jogo não é este import**, que é legítimo — o catálogo e os
+contratos são agnósticos de domínio, e o loader precisa deles para validar pack.
+É o **próximo**: a superfície deixou de ser um artefato gerado e passou a ser um
+diretório inteiro, e a ausência de opinião passa a valer mais que a permissão.
+
+**A forma provável** é a mesma da P2-2: afirmar a superfície inteira em vez de
+proibir palavras — o conjunto de módulos do core que importam de `contracts/`
+precisa ser exatamente o declarado. Whitelist, não blocklist.
+
+**Vencimento: Fase 3**, junto da P37, que é o outro item de mecanismo com prazo
+declarado para antes dela.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
@@ -988,8 +1247,15 @@ verificador; `codegen.py` conta porque `--check` é verificação que não escre
 | 5 | `tools/check_security_constraints.py` | `seguranca` |
 | 6 | `tools/check_synthetic_data.py` | `seguranca` |
 
-**`scripts/` não são verificadores no sentido do `01` §2**, e o CI executa seis
-deles — dois checks, um cruzamento de registro e três testes negativos:
+**`scripts/` não são verificadores no sentido do `01` §2**, e o CI executa **nove**
+deles — três checagens, um cruzamento de registro, quatro testes negativos e o
+DEMO da fase:
+
+> A frase dizia *"seis deles — dois checks, um cruzamento de registro e três
+> testes negativos"* enquanto a tabela abaixo já listava **oito**. É a §6.1
+> acontecendo dentro da seção que a §6.1 escreveu: o número foi lembrado de
+> quando foi escrito, e a tabela cresceu ao lado dele. Corrigido aqui, e contado
+> na fonte — a lista de passos de `.github/workflows/invariants.yml`.
 
 | | Script | Job | O que é |
 |---|---|---|---|
@@ -1001,6 +1267,7 @@ deles — dois checks, um cruzamento de registro e três testes negativos:
 | 12 | `scripts/check_spec_examples_probes.py` | `contratos` | prova que o 11 reprova |
 | 13 | `scripts/check_store_read_surface.py` | `arquitetura` | P2-2: a leitura do store não aceita filtro |
 | 14 | `scripts/check_store_read_surface_probes.py` | `arquitetura` | prova que o 13 reprova |
+| 15 | `scripts/demo_fase2.py` | `contratos` | o DEMO da fase, executado para não apodrecer |
 
 Fora do CI: `scripts/audit_report.py` e `scripts/start_checkpoint_audit.sh` são
 ferramenta de auditoria, não gate.
@@ -1026,7 +1293,7 @@ exatamente o que não teria funcionado.
 |---|---|---|
 | **9** | itens da Definition of Done da Fase 2 | `07_IMPLEMENTATION_PHASES.md`, seção Fase 2 |
 | **6** | verificadores normativos, todos em `tools/` | `01_ARCHITECTURE.md` §2, e a tabela da §6 acima |
-| **14** | invocações Python que o CI executa | os 6 acima mais 8 de `scripts/` |
+| **15** | invocações de `tools/` e `scripts/` que o CI executa | os 6 acima mais 9 de `scripts/` |
 | **11** | sítios de recusa do fold | `Site`, em `range-core/state/simulation_state.py` |
 | **4** | required status checks | `arquitetura`, `spec_freeze`, `seguranca`, `contratos` |
 
@@ -1038,9 +1305,11 @@ existia em documento nenhum.
 
 - *"Quantos verificadores a spec normatiza?"* — **seis**, e é o que o `01` §2 e o
   README dizem.
-- *"Quantas invocações Python o CI roda?"* — **catorze**, mais `pip install` e
-  `alembic --help` no job `contratos`. Eram doze até a checagem da P2-2 e a
-  prova negativa dela entrarem.
+- *"Quantas invocações de `tools/` e `scripts/` o CI roda?"* — **quinze**, e o
+  recorte precisa vir junto: fora dele o job `contratos` ainda roda
+  `pip install`, `alembic --help`, `alembic upgrade head`, a suíte de
+  `unittest` e dois `python -c`. Eram doze até a checagem da P2-2 e a prova
+  negativa dela entrarem, e catorze até o DEMO virar passo.
 - *"Quantas eu rodei localmente durante o spec-change?"* — **dez**. Não era
   nenhum dos dois conjuntos: faltavam os dois `*_probes.py`. Rodados depois, os
   dois passam, mas o registro fica: eu chamei de "verificadores" um recorte que
@@ -1049,11 +1318,16 @@ existia em documento nenhum.
 O `spec_freeze` não aparece nas tabelas porque não roda script: é `git diff`
 contra o conjunto `CODE` mais o prefixo do título, dentro do próprio workflow.
 
-## 6.2 A próxima peça — inject-engine com o loader
+## 6.2 A peça do inject-engine com o loader — **ENTREGUE**
 
 Escrito **antes** de a peça começar, e não depois: a sessão que a produziu se
 esgotou aqui, e o que se sabe sobre ela não pode viver só na conversa. É a §0
 deste registro outra vez.
+
+> **Entregue em 15/08/2026.** O texto abaixo fica como estava — é o registro do
+> que se sabia antes —, com duas marcas: a decisão que estava aberta foi tomada
+> pelo operador, e o que a peça de fato produziu está na **§3.9**, que é onde as
+> decisões novas moram.
 
 ### O que a peça fecha
 
@@ -1120,6 +1394,11 @@ território do `scenario-designer`. A Fase 2 precisa de um pack de 3 injects.
 
 **Inclinação registrada, não decidida:** a segunda, com a forma de `04` §1
 respeitada dentro do fixture. A decisão é do operador.
+
+> **Decidida pelo operador em 15/08/2026: `tests/fixtures/pack_minimo/`**, com a
+> forma de `04` §1 respeitada dentro do fixture. O que a decisão custa — o
+> caminho de diretório real não é exercitado — está pago em parte pelo DEMO, que
+> monta o pack contra o adapter real e roda no CI. Ver a §3.9.
 
 ### O que já está pronto para a peça
 

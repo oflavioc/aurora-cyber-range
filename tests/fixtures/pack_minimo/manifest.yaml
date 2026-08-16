@@ -1,0 +1,42 @@
+# PACK MINIMO DA FASE 2 — fixture, nao cenario.
+#
+# Onde ele mora foi decisao do operador, registrada na secao 6.2 do registro da
+# fase: `tests/fixtures/` e nao `scenarios/`. `scenarios/` e territorio do
+# `scenario-designer` e casa do pack de verdade, entregavel da Fase 7 — um
+# fixture ali seria confundido com cenario e herdaria as obrigacoes de
+# `ground_truth.yaml` e `GM_NOTES.md` que o `CLAUDE.md` impoe a scenario pack.
+#
+# A FORMA DE `04_SCENARIO_SCHEMA.md` secao 1 E RESPEITADA DENTRO DO FIXTURE:
+# manifesto, injects e objetivos com os mesmos nomes de arquivo e a mesma
+# estrutura do pacote real. O que muda e o endereco, nao o formato — senao o
+# loader seria exercitado contra uma forma que nenhum pack tem.
+#
+# TRES INJECTS, que e o que `07_IMPLEMENTATION_PHASES.md` Fase 2 pede: "carregar
+# pack com 3 injects e aplicar effects".
+#
+# `domain: academus` e as flags sao as REAIS do adapter. Um fixture com flags
+# inventadas provaria que o loader casa nomes consigo mesmo; com as reais, ele
+# prova o que o item 9 da DoD cobra — que pack e adapter sao conferidos um
+# contra o outro no boot.
+
+schema_version: 2
+pack_id: pack-minimo-fase-2
+title: "Pack mínimo — carga, disparo, decisão e rollback"
+domain: academus
+min_engine_version: "1.0"
+duration_minutes: 60
+audience: mista
+lines: [A, ruido]
+personas: [ti, reitoria]
+
+# Todas declaradas em `domains/academus/flags.yaml`. Flag inexistente aqui
+# derruba o boot pela regra `x-aurora-ref: adapter_flags` — item 9 da DoD.
+required_flags:
+  - academus.enrollment_offline
+  - academus.lms_session_drop_rate
+  - academus.portal_defaced
+
+# Rubrica com versao, como `04` secao 2 exige. A conferencia de que ela EXISTE
+# na biblioteca e da Fase 6 (T9): aqui o manifesto so a declara.
+required_rubrics:
+  - incident_triage.v2

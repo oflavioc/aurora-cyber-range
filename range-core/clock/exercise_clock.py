@@ -44,6 +44,7 @@ decide nao disparar e quem dispara.
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -192,3 +193,34 @@ def _label(seconds: float) -> str:
     horas, resto = divmod(total, 3600)
     minutos, segundos = divmod(resto, 60)
     return f"T+{horas:02d}:{minutos:02d}:{segundos:02d}"
+
+
+#: O inverso de `_label`. Mora AQUI, ao lado dele, porque o formato tem um dono
+#: so: escrever a leitura em outro modulo faria as duas metades divergirem no
+#: dia em que o formato mudasse — que e a classe D4.
+_LABEL = re.compile(r"^T\+(?P<horas>\d+):(?P<minutos>[0-5]\d):(?P<segundos>[0-5]\d)$")
+
+
+def label_seconds(label: str) -> int:
+    """`T+HH:MM:SS` -> segundos. Quem le e o engine, e o motivo importa.
+
+    O rotulo `T+` de um evento e a POSICAO DELE NA LINHA DO EXERCICIO, porque
+    ele rebobina ate o ponto de corte no rollback (`01` §3). E o que permite ao
+    engine ancorar um rollback e reagendar os injects sem guardar memoria de
+    nada: a posicao esta no envelope.
+
+    Recusa alto o que nao casa. Um rotulo em outro formato lido por adivinhacao
+    produziria corte na posicao errada — e corte na posicao errada nao falha,
+    reconstroi outro mundo.
+    """
+    casado = _LABEL.match(str(label))
+    if casado is None:
+        raise ClockError(
+            f"rotulo de exercise_time {label!r} fora do formato `T+HH:MM:SS` de "
+            "`01` §3 e `09` §1"
+        )
+    return (
+        int(casado.group("horas")) * 3600
+        + int(casado.group("minutos")) * 60
+        + int(casado.group("segundos"))
+    )

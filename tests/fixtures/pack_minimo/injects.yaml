@@ -1,0 +1,88 @@
+# INJECTS — forma de `04_SCENARIO_SCHEMA.md` secao 5, validada contra
+# `contracts/scenario.schema.v2.yaml#/$defs/injects_document`.
+#
+# Tres injects, e os tres existem por um motivo de mecanismo:
+#
+#   A01  effects sem decisao   — o caminho do item 4 da DoD (aplicar duas vezes
+#                                produz projecao identica) e o alvo do DEMO
+#   A02  decision_point        — o caminho de `option_effects`, que nao vive em
+#                                inject e sem o qual o efeito de uma decisao nao
+#                                chegaria a projecao nenhuma
+#   A03  noise: true           — o ramo `else` do `if/else` do contrato, que e
+#                                onde `objectives` deixa de ser obrigatorio.
+#                                Exercita a descida por `if` da caminhada das
+#                                regras `x-aurora-*`, que e justamente o codigo
+#                                que a P2-12 estreitou
+#
+# `t_relative` e `HH:MM` — `04` secao 5 traz `"00:47"` num exercicio de 240 min.
+# Sao valores de MINUTOS, e o loader recusa alto o que nao casar com o formato.
+
+injects:
+
+  - id: A01
+    linha: A
+    t_relative: "00:05"
+    titulo: "Portal de matrícula fora do ar"
+    titulo_operacional: "Inject 01"
+    descricao_facilitador: >-
+      O portal de matrícula deixa de responder. A equipe ainda não tem
+      elemento algum que ligue a queda a incidente de segurança.
+    texto_para_plateia: >-
+      O portal de matrícula está indisponível. A fila presencial na secretaria
+      começa a se formar.
+    objectives: [OBJ-01]
+    effects:
+      academus.enrollment_offline: true
+      academus.lms_session_drop_rate: 0.4
+
+  - id: A02
+    linha: A
+    t_relative: "00:20"
+    titulo: "Nota de resgate na página inicial"
+    titulo_operacional: "Inject 02"
+    descricao_facilitador: >-
+      A página pública é substituída. A partir daqui a hipótese de incidente
+      deixa de ser opcional.
+    texto_para_plateia: >-
+      A página inicial da universidade exibe uma nota atribuída a um grupo
+      criminoso.
+    objectives: [OBJ-01, OBJ-02]
+    effects:
+      academus.portal_defaced: true
+    decision_point:
+      id: DP-A01
+      question: "Suspender a matrícula online enquanto durar a apuração?"
+      objectives: [OBJ-02]
+      timer_minutes: 15
+      options:
+        - id: suspender
+          label: "Suspender imediatamente"
+          effects:
+            academus.enrollment_offline: true
+          tradeoff: >-
+            Contém a exposição; interrompe o período de matrícula e transfere a
+            fila para o atendimento presencial.
+        - id: monitorar
+          label: "Manter no ar sob monitoramento"
+          effects:
+            academus.enrollment_offline: false
+            academus.lms_session_drop_rate: 0.6
+          tradeoff: >-
+            Preserva o calendário acadêmico; amplia a janela de exposição e
+            degrada as sessões de prova em andamento.
+
+  # Ruido deliberado: `noise: true` explicito, sem `objectives`. `00` secao 4 —
+  # inject sem objetivo e ruido deliberado OU erro de autoria, e o contrato
+  # recusa a ambiguidade entre os dois.
+  - id: R01
+    linha: ruido
+    t_relative: "00:35"
+    titulo: "Queda de energia no campus norte"
+    titulo_operacional: "Inject 03"
+    descricao_facilitador: >-
+      Sem relação com o incidente. Existe para consumir atenção e testar
+      triagem.
+    texto_para_plateia: >-
+      Queda de energia de curta duração no campus norte, já normalizada pela
+      concessionária.
+    noise: true
