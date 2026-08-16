@@ -85,12 +85,18 @@ DEFINITION OF DONE checklist binária
 - [ ] Rollback grava `rollback_performed`, incrementa `simulation_epoch` e reconstrói a projeção sem apagar eventos
 - [ ] Evento de `participant_action` da epoch anterior permanece legível e marcado
 - [ ] `reason: technical_failure` **registra no evento** o intervalo a descontar do cálculo de métricas, pelos seus extremos e marcados em `exercise_timestamp`
-- [ ] Reconstrução completa da projeção a partir do store roda em < 3 s
+- [ ] Curva **volume de eventos → tempo de reconstrução** medida, com o ponto de quebra do orçamento de 3 s e a máquina, a data e a stack declaradas junto do número
 - [ ] Flag não declarada impede boot do engine com mensagem clara
 
 > Dois itens desta checklist foram corrigidos no `spec-change` `fase-2-escalacoes-e-exclusao`, no checkpoint ⏸ desta fase e antes de qualquer código dela.
 >
 > **O item 1 dizia `wall_time`.** O envelope não tem esse campo. `09_EVENT_MODEL.md` §1.1, o `required` de `contracts/events.schema.yaml`, `00_MASTER_SPEC.md` §5.6 e `01_ARCHITECTURE.md` §3 dizem `wall_timestamp`, e nenhum dos quatro conhece `wall_time`. Lido ao pé da letra, o item era insatisfazível por construção: cumpri-lo exigiria emitir um campo que o contrato recusa, e a implementação correta o deixaria por marcar. Mesma forma da checagem impossível que já custou uma rodada nesta linhagem.
+>
+> **O item 8 exigia uma medição cujo insumo esta fase não produz**, e foi realocado no `spec-change` `item-8-volume-de-4h`. O critério que o julga — `06_ACCEPTANCE_TESTS.md` T3, e `01_ARCHITECTURE.md` §7 — diz *"para exercício de 4 h"*; **a redação do item omitia o volume**, e sem ele qualquer medição o satisfaz. Um exercício de 4 h exige um pack de 4 h, que é entregável da Fase 7 (`04_SCENARIO_SCHEMA.md` §9).
+>
+> **O que ficou aqui é verificável aqui, e não é consolo:** a curva volume → tempo, com o ponto de quebra. É ela que permite à fase seguinte saber se passou do envelope — sem ela, a Fase 7 mediria um número sem ter contra o que compará-lo. O que **não** se pode fazer é chamar a curva de prova do critério: ela mostra que o motor aguenta N eventos, não que 4 h cabem abaixo de N, e ninguém sabe o segundo número enquanto não houver pack.
+>
+> **A norma não mudou, e por isso `01_ARCHITECTURE.md` §7 não foi tocado:** o requisito de desempenho continua sendo "< 3 s para exercício de 4 h", permanente e não ligado a fase. O que se realocou foi **quem o verifica**. Mesma forma da correção do item 7: o requisito não foi removido, foi movido para a fase que tem o insumo.
 >
 > **O item 7 exigia cálculo de métrica de uma fase cujo NON-GOAL é "métricas".** Os dois não podiam valer ao mesmo tempo, e a contradição estava dentro da mesma seção. Resolvida do lado do NON-GOAL: esta fase **registra** o intervalo congelado no `rollback_performed`; quem **calcula** é a Fase 6, que é onde as métricas pareadas nascem. A semântica do motivo não muda — `09_EVENT_MODEL.md` §3.1 e `01_ARCHITECTURE.md` §3 continuam valendo sem alteração —, muda a fase que a executa. Antecipar o cálculo para cá duplicaria motor de métrica em duas fases, e a duplicação de mecanismo é a classe de defeito que a Fase 1 já pagou para desfazer.
 
@@ -200,6 +206,11 @@ estado restaurado; evento de rollback registrado
 - [ ] `dryrun` percorre todos os caminhos
 - [ ] Pack em schema v1 migra automaticamente; v0 é recusado com instrução
 - [ ] Fato citado no `GM_NOTES.md` e ausente do `ground_truth.yaml` é recusado
+- [ ] Reconstrução completa da projeção para o exercício de 4 h do `ransomware-universidade` roda em **< 3 s**
+
+> O último item veio da Fase 2 no `spec-change` `item-8-volume-de-4h`, com o critério intacto — **< 3 s, para exercício de 4 h**, como `01_ARCHITECTURE.md` §7 e `06_ACCEPTANCE_TESTS.md` T3 sempre exigiram. Ele chega aqui porque **esta é a fase que produz o insumo**: o pack de 4 h é o `ransomware-universidade` (`04_SCENARIO_SCHEMA.md` §9), e sem ele o volume de eventos de um exercício de 4 h é desconhecido.
+>
+> A Fase 2 entrega a curva volume → tempo com o ponto de quebra; aqui ela deixa de ser curva e vira o número que o critério cobra. **Passou do envelope medido lá é sinal, não veredito**: o veredito é este item.
 
 ---
 
@@ -222,6 +233,15 @@ estado restaurado; evento de rollback registrado
 - [ ] Telemetria CEF é projeção, não emissão independente
 - [ ] Nenhum arquivo contém anexo, binário, IOC real ou domínio roteável
 - [ ] Replay respeita o clock de exercício
+- [ ] A reconstrução da projeção **continua em < 3 s** com `telemetry_emitted` no volume de um exercício de 4 h
+
+> O último item entrou no `spec-change` `item-8-volume-de-4h`, e ele é a **segunda metade** da realocação do item 8 da Fase 2 — não um item novo.
+>
+> `telemetry_emitted` é `event_type` do catálogo (`09_EVENT_MODEL.md` §4.1) e vai para o event store como qualquer outro: ele entra na leitura total que a reconstrução percorre. E é a **única fonte com ordem de grandeza diferente das demais** — injects são dezenas, ações de participante são centenas, telemetria pode chegar às centenas de milhares sozinha.
+>
+> Então o exercício de 4 h medido na Fase 7 **não é o exercício de 4 h desta fase**: aquele mede o volume que o pack produz, este mede o volume que o range produz. Sem este item, o critério seria verificado na Fase 7 e passaria a ser falso aqui, sem nada ficar vermelho — que é como um requisito morre.
+>
+> É a mesma forma da divisão que o `spec-change` `fase-2-escalacoes-e-exclusao` deu a `rehearsal`: exigência com dois insumos que chegam em fases diferentes vira dois itens, cada um na fase que tem o seu.
 
 ---
 
