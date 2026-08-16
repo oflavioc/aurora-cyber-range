@@ -114,6 +114,10 @@ ALLOWED = [
     # no adapter. Sem executa-la, o auditor le duas listas e compara a olho, que
     # e a forma de auditar que o item existe para nao aceitar.
     rf"|check_spec_flags|check_spec_flags_probes"
+    # `check_api_surface` — Fase 3, peca 2. E a checagem que responde "a API e o
+    # que ela diz que e". Sem executa-la, o auditor compara YAML com codigo a
+    # olho, sobre uma arvore que so cresce.
+    rf"|check_api_surface|check_api_surface_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

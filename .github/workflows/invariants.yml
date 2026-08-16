@@ -103,6 +103,16 @@ jobs:
       - name: teste negativo das flags citadas na spec
         run: python scripts/check_spec_flags_probes.py
 
+      # Fase 3, peca 2. A superficie da API e declarada ANTES de a rota
+      # existir, e a checagem cobra IGUALDADE nas duas direcoes — em especial
+      # rota implementada e nao declarada, que e a direcao sem a qual a lista
+      # vira documentacao com sintaxe de verificador.
+      - name: superficie da api x rotas implementadas
+        run: python scripts/check_api_surface.py
+
+      - name: teste negativo da superficie da api
+        run: python scripts/check_api_surface_probes.py
+
       - name: cobertura do gate spec_freeze
         run: python scripts/check_gate_coverage.py
 

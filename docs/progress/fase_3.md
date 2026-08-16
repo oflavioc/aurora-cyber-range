@@ -51,8 +51,8 @@ Fase 8**, que é a primeira com item de DoD que obriga a ligação — *"as sete
 de continuidade aplicam efeito mecânico e custo"*, e `continuity_action_taken` é
 um dos cinco.
 
-A frase errada que eu havia escrito em `01` §4.4 foi corrigida em `spec-change`
-próprio. O registro da causa está na P2-6 do `fase_2.md`: **três camadas, cada
+A frase errada que eu havia escrito em `01` §4.4 está corrigida em `spec-change`
+próprio — **submetido e ainda aberto** quando esta linha foi escrita. O registro da causa está na P2-6 do `fase_2.md`: **três camadas, cada
 uma confiando na anterior.**
 
 ---
@@ -196,12 +196,68 @@ duas direções.
 
 ---
 
+## 4.1 A peça 2 — a superfície declarada antes de existir rota
+
+`domains/academus/api_surface.yaml` e `scripts/check_api_surface.py`. **Seis rotas
+declaradas, zero implementadas**, e a checagem já roda.
+
+### O que foi declarado antes do código não é a lista — é a obrigação
+
+**Lista escrita antes do código subestima, sempre.** Se a garantia fosse *"o que
+está declarado é o que existe"*, ela valeria só para o que alguém lembrou de
+prever, e a rota esquecida seria justamente a que ninguém declarou.
+
+Por isso a checagem cobra **igualdade nas duas direções**, e a que importa é a
+inversa:
+
+| Eixo | Reprova quando |
+|---|---|
+| **rota implementada e ausente da declaração** | é a direção sem a qual a lista vira documentação com sintaxe de verificador |
+| rota `implementada` ausente do código | a declaração envelheceu |
+| rota `planejada` que **já existe** no código | impede `planejada` de virar esconderijo permanente |
+
+O terceiro eixo é o que fecha o buraco óbvio dos dois estados: sem ele, bastaria
+declarar tudo como planejado para a checagem nunca cobrar nada.
+
+### Três coisas a mais que a superfície carrega
+
+- **Papel de exercício é recusado por nome.** `facilitador`, `operador` e
+  `avaliador` são de `03` §7 e não podem aparecer na superfície de domínio — se
+  aparecerem, o adapter passou a conhecer desenho de exercício, que é a fronteira
+  do invariante 1 vazando por onde o verificador **não olha**: ele varre import,
+  não vocabulário.
+- **Flag de rota é conferida contra o adapter.** É a terceira porta pela qual um
+  nome de flag entra no sistema — depois do pack (loader, Fase 2) e da spec
+  (peça 1) —, e agora as três têm a mesma guarda.
+- **Em YAML, e não em Python**, pelo mesmo motivo da lista de pendentes: nome de
+  flag dentro de `.py` é literal que `check_contract_literals` recusa.
+
+### O limite, verificado em vez de declarado
+
+A varredura é por **AST**, e rota registrada em tempo de execução —
+`add_api_route` com caminho calculado — **não é vista**. A alternativa seria
+importar a aplicação dentro do verificador, e um gate que importa o que julga
+deixa de ser gate.
+
+`probe_do_limite_declarado` afirma o limite: planta uma rota dinâmica e exige que
+a varredura **não** a encontre. Fica vermelho no dia em que deixar de valer —
+mesma forma de `test_truncar_a_cauda_NAO_e_detectado`.
+
+### Dez eixos de prova negativa
+
+Os três de estado, os dois de papel, o de flag, um caso verde de controle, **a
+varredura sobre módulo plantado** — sem ele, `rotas_implementadas` poderia
+devolver conjunto vazio sempre e todos os outros continuariam verdes, porque
+nenhum deles a chama — e o limite acima.
+
+---
+
 ## 5. Ordem das peças
 
 | | Peça | Estado |
 |---|---|---|
 | 1 | checagem de flags citadas na spec + `grades_readonly` no adapter | ✅ |
-| 2 | superfície da API declarada + a checagem que a fixa (D5) | |
+| 2 | superfície da API declarada + a checagem que a fixa (D5) | ✅ |
 | 3 | leitura de flag pela API (D1) — a porta, com o duplo, antes do FastAPI | |
 | 4 | JWT + RBAC (D2, D3), com os dois conjuntos de papéis separados | |
 | 5 | as três entidades e a degradação declarativa (D4) — itens 1 e 2 da DoD | |

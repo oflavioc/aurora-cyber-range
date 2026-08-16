@@ -1462,8 +1462,8 @@ original era falsa**.
 > `continuity_action_taken` é um dos cinco. A Fase 11 é o caso concreto que
 > `01` §4.4 usa, e chega três fases depois do primeiro consumidor.
 >
-> A frase errada em `01` §4.4 foi corrigida em `spec-change`
-> `quem-traz-o-consumidor-da-ligacao`.
+> A frase errada em `01` §4.4 vai corrigida em `spec-change`
+> `quem-traz-o-consumidor-da-ligacao`, submetido em 16/08/2026.
 
 #### P2-9 — a frase do mecanismo na `01` §4.4 envelheceu
 
