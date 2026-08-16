@@ -1239,7 +1239,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-3 | ~~Spec-change com os itens do checkpoint~~ | **FECHADA** em 15/08/2026, `a3aded5` |
 | P2-4 | ~~Campo de payload dos extremos do intervalo congelado~~ | **FECHADA** — `$defs/frozen_interval` |
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
-| P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
+| P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 8** — movida em 16/08/2026, premissa original falsa |
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
@@ -1441,7 +1441,29 @@ na classe `declaration`, com `decision_made` — a flag reverte e o evento
 permanece no fluxo. Falta a classe `state_effect`, e o teste diz isso na própria
 docstring.
 
-**Vencimento: Fase 3.**
+**Vencimento: Fase 8** — movido em 16/08/2026, e o motivo é que **a premissa
+original era falsa**.
+
+> Esta pendência dizia: *"`vpn_access_revoked` é produzido por serviço que nasce
+> na **Fase 3**: o valor de esperar é o consumidor nascer junto do contrato"*.
+> Conferido em `07`: o `federated-identity-simulator` é da **Fase 11**, e
+> **nenhum** dos cinco `state_effect` de `participant_action` é entregável da
+> Fase 3 — que emite `audit_query_performed`, de classe `observation`.
+>
+> **A afirmação atravessou três camadas sem ninguém conferir na fonte:** nasceu
+> aqui, foi repetida em `01` §4.4 pelo `spec-change` da P2-9, e foi repetida na
+> instrução que abriu a Fase 3. Cada camada confiou na anterior — a §1.5 na forma
+> que não parece §1.5 em nenhum ponto isolado, porque em cada um havia uma fonte
+> aparente.
+>
+> **O destino certo é a Fase 8**, pela mesma regra que realocou o item 8: a fase
+> que decide é a que tem o insumo. O item de DoD dela — *"as sete ações de
+> continuidade aplicam efeito mecânico e custo"* — **obriga** a ligação, porque
+> `continuity_action_taken` é um dos cinco. A Fase 11 é o caso concreto que
+> `01` §4.4 usa, e chega três fases depois do primeiro consumidor.
+>
+> A frase errada em `01` §4.4 foi corrigida em `spec-change`
+> `quem-traz-o-consumidor-da-ligacao`.
 
 #### P2-9 — a frase do mecanismo na `01` §4.4 envelheceu
 
@@ -2321,7 +2343,7 @@ Separadas por destinatário:
 | Id | O que é |
 |---|---|
 | **P2-5** | `00` §5.6 enumera duas das quatro marcas — cosmético, `spec-change` |
-| **P2-6** | sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela |
+| **P2-6** | ~~sem forma declarativa de ligar `participant_action` a flag~~ — **movida para a Fase 8** |
 | **P2-9** | a frase do mecanismo em `01` §4.4 envelheceu — `spec-change` |
 | **P37** | `docs/process/` fora do `CODE` do `spec_freeze` — herdada da Fase 1 |
 
