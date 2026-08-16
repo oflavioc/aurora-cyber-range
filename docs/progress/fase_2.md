@@ -1023,6 +1023,73 @@ existia em documento nenhum.
 O `spec_freeze` não aparece nas tabelas porque não roda script: é `git diff`
 contra o conjunto `CODE` mais o prefixo do título, dentro do próprio workflow.
 
+## 6.2 A próxima peça — inject-engine com o loader
+
+Escrito **antes** de a peça começar, e não depois: a sessão que a produziu se
+esgotou aqui, e o que se sabe sobre ela não pode viver só na conversa. É a §0
+deste registro outra vez.
+
+### O que a peça fecha
+
+| | |
+|---|---|
+| Item 9 da DoD | flag não declarada impede boot com mensagem clara |
+| Metade restante do item 3 | "bloqueia disparo agendado" — é do engine, não do clock, que só oferece `is_paused` |
+| DEMO da fase | carregar pack, disparar A01, ler projeção, rollback, ler projeção restaurada |
+
+### A restrição que ordena o trabalho — §1.4 do checkpoint
+
+**As regras `x-aurora-*` viram módulo do `range-core`, e o script de CI passa a
+chamá-lo.** Hoje elas vivem em `scripts/check_contract_examples.py` —
+`build_registries`, `AuroraChecker`, `_tipo_incompativel`, `_esc`, cerca de 290
+linhas entre as linhas 69 e 360.
+
+**O loader não pode reimplementá-las**: seria o verificador de CI divergindo do
+loader de produção, cada um aceitando um pack que o outro recusa — a classe que a
+D4 da Fase 1 desfez. Então o movimento vem **junto** da peça, não depois dela.
+
+**Consequência de gate, já prevista na §1.4:** `check_contract_examples.py`
+deixa de ser stdlib pura e passa a importar do núcleo. Ele já roda no job
+`contratos`, que tem dependência de aplicação desde a P1-6 — os outros
+verificadores seguem stdlib. Depois do movimento, `check_contract_examples.py` e
+`check_contract_examples_probes.py` precisam continuar verdes: são eles que
+provam que o gate ainda enxerga.
+
+### O que o loader valida, conferido no contrato
+
+`x-aurora-documents` de `contracts/scenario.schema.v2.yaml` mapeia **três**
+arquivos, e só três:
+
+| Arquivo | Ponteiro |
+|---|---|
+| `manifest.yaml` | `#` |
+| `injects.yaml` | `#/$defs/injects_document` |
+| `branches.yaml` | `#/$defs/branches_document` |
+
+`objectives.yaml`, `ground_truth.yaml` e os demais têm contratos próprios e são
+das Fases 6, 7 e 9. **O loader da Fase 2 valida o que consome** — manifesto e
+injects —, e `branches.yaml` é opcional aqui porque branching é NON-GOAL desta
+fase e entregável da Fase 7.
+
+### A decisão aberta: onde mora o pack mínimo
+
+`scenarios/` **não existe** — o pack é entregável da Fase 7, e o diretório é
+território do `scenario-designer`. A Fase 2 precisa de um pack de 3 injects.
+
+| | A favor | Contra |
+|---|---|---|
+| `scenarios/academus/<pack>/` | é onde pack de verdade mora, e exercita o caminho real | um fixture da Fase 2 ali é confundido com cenário, e herda as obrigações de `ground_truth.yaml` e `GM_NOTES.md` que `CLAUDE.md` impõe a scenario pack |
+| `tests/fixtures/pack_minimo/` | é fixture e se chama assim | não exercita o caminho de diretório real |
+
+**Inclinação registrada, não decidida:** a segunda, com a forma de `04` §1
+respeitada dentro do fixture. A decisão é do operador.
+
+### O que já está pronto para a peça
+
+O store grava e lê; o clock dá as marcas e o `is_paused`; o fold projeta e
+recusa o que não fecha. O engine é quem chama os três — e é o primeiro
+consumidor das regras `x-aurora-*` sobre pack real, que é o que a §1.4 antecipou.
+
 ## 7. Próxima fase
 
 `07` Fase 3 — API mínima. ENTRY: Fase 2 completa.
