@@ -116,6 +116,86 @@ class StoreEmPostgres(_BaseComBanco):
 
 
 @unittest.skipIf(_URL is None, RAZAO)
+class CabecaDoFluxoEmPostgres(_BaseComBanco):
+    """`head()` contra o backend de PRODUCAO — M1 da quarta auditoria da Fase 3.
+
+    Era o unico componente do nucleo sem nenhuma prova, e nao por ser periferico:
+    `head()` e a UNICA coisa que decide se a projecao materializada ainda vale
+    (`range-core/state/cache.py`, `current`). Se ele errar aqui, `current` serve
+    projecao velha e a degradacao declarada simplesmente nao acontece durante o
+    exercicio — falha silenciosa, do tipo que so aparece longe da causa.
+
+    `InMemoryEventStore.head()` era exercitado em `test_projection_cache.py`; o
+    backend de Postgres, nao. E a stack efemera do lancador ja estava no ar: o
+    teste era executavel e nao existia.
+
+    A IMPLEMENTACAO REPOUSA SOBRE UMA AFIRMACAO — *"`sequence` e contigua, entao
+    o maior valor E a contagem"*, que e o que autoriza `ORDER BY ... LIMIT 1` em
+    vez de `COUNT(*)`. `test_sequencia_e_contigua_e_comeca_em_um` prova a
+    premissa; estes provam a conclusao.
+    """
+
+    def test_fluxo_vazio_tem_cabeca_zerada(self):
+        cabeca = self.store.head()
+        self.assertEqual(cabeca.count, 0)
+        self.assertIsNone(cabeca.last_event_id)
+
+    def test_a_cabeca_acompanha_o_append_e_o_ultimo_id_e_o_ultimo(self):
+        primeiro = self.store.append(started_draft())
+        self.assertEqual(self.store.head().count, 1)
+        self.assertEqual(self.store.head().last_event_id, primeiro.event_id)
+
+        ultimo = None
+        for i in range(3):
+            ultimo = self.store.append(draft(INJECT_FIRED, inject_id=f"A0{i}"))
+
+        cabeca = self.store.head()
+        self.assertEqual(cabeca.count, 4)
+        self.assertEqual(cabeca.last_event_id, ultimo.event_id)
+
+    def test_a_cabeca_concorda_com_read_all_e_com_uma_INSTANCIA_NOVA(self):
+        """As duas metades que fazem `head()` valer como identidade do fim.
+
+        A primeira — concordar com `read_all()` — e o que impede a cabeca de
+        descrever outro fluxo que nao o que sera reconstruido. A segunda e o
+        caso real do cache: quem pergunta a cabeca e um PROCESSO NOVO, que nao
+        tem memoria do append.
+        """
+        for i in range(5):
+            self.store.append(draft(INJECT_FIRED, inject_id=f"B0{i}"))
+
+        eventos = list(self.store.read_all())
+        cabeca = self.store.head()
+        self.assertEqual(cabeca.count, len(eventos))
+        self.assertEqual(cabeca.last_event_id, eventos[-1].event_id)
+
+        outra = PostgresEventStore(RelogioFixo(), _URL)
+        self.assertEqual(outra.head(), cabeca)
+
+    def test_a_cabeca_NAO_le_a_tabela_inteira(self):
+        """`01` §7 proibe varredura em rota de tempo real, e este e o caminho.
+
+        A assercao e sobre o PLANO do banco, e nao sobre tempo de relogio: tempo
+        oscila com a maquina, e um teste de tempo nesta suite seria intermitente.
+        `EXPLAIN` responde a pergunta certa — o indice foi usado, ou a tabela foi
+        varrida?
+        """
+        import psycopg
+
+        for i in range(20):
+            self.store.append(draft(INJECT_FIRED, inject_id=f"C{i:02d}"))
+
+        with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+            cur.execute(
+                f"EXPLAIN SELECT sequence, event_id FROM {TABLE} "
+                "ORDER BY sequence DESC LIMIT 1"
+            )
+            plano = " ".join(linha[0] for linha in cur.fetchall())
+
+        self.assertNotIn("Seq Scan", plano, f"a cabeca varre a tabela inteira: {plano}")
+
+
+@unittest.skipIf(_URL is None, RAZAO)
 class CadeiaAcusaReescrita(_BaseComBanco):
     """A garantia que a Fase 2 entrega no lugar do mecanismo da Fase 5.
 

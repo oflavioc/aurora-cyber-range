@@ -66,7 +66,20 @@ AUTHORIZED_FILES = frozenset({"tools/codegen.py"})
 CONTRACTS_ROOT = "contracts"
 DOMAINS_ROOT = "domains"
 
-SCANNED_DIRS = ("range-core", "domains")
+#: `tests` ENTROU na quarta auditoria da Fase 3 (M4), e entrou tarde. O item 4 da
+#: DoD da Fase 3 diz *"nenhuma string solta de flag no codigo-fonte, verificado
+#: por lint"*, e `06` T2 nao restringe diretorio — mas a varredura excluia
+#: justamente `tests/`, que e onde esta fase escreveu nome de flag. O que barrou a
+#: primeira versao de `tests/test_api_degradacao.py` foi o hook
+#: `check_architecture.py`, que se declara NAO-GATE no proprio cabecalho: o item
+#: estava provado por um mecanismo cujo escopo excluia o unico diretorio em que a
+#: fase correu o risco. Classe "verificacao que parece existir", 7.3 do registro.
+#:
+#: `scripts` FICA DE FORA, e e decisao declarada, nao esquecimento: os
+#: `*_probes.py` plantam literal de flag DE PROPOSITO — a violacao plantada e o
+#: que prova que o verificador reprova. Varre-los seria reprovar a propria prova
+#: negativa. O dia em que `scripts/` tiver codigo de producao, esta linha muda.
+SCANNED_DIRS = ("range-core", "domains", "tests")
 PYTHON_SUFFIXES = (".py",)
 
 RULE_DECLARED = "INVARIANTE 2 - literal de contrato no codigo"

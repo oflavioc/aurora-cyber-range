@@ -249,6 +249,57 @@ class EscopoDeObjeto(unittest.TestCase):
         )
         self.assertEqual(minha.status_code, 201)
 
+    def test_o_professor_nao_LANCA_NOTA_em_turma_alheia(self):
+        """A escrita mais sensivel do dominio, e ela estava sem assercao.
+
+        A classe prometia *"a escrita tambem passa pelo escopo"* e exercitava a
+        matricula — a nota, nao. `POST /turmas/{turma_id}/notas` declara
+        `escopo: professor: titular` em `api_surface.yaml`, e ate aqui todas as
+        chamadas de nota da suite usavam o TITULAR: o caminho negado nunca era
+        percorrido. Foi o L2 da quarta auditoria da Fase 3, e a P3-3 estava
+        declarada FECHADA sobre ele.
+
+        NOTA E O VETOR DA LINHA B, e por isso o buraco importava mais aqui que na
+        matricula: o cenario inteiro trata alteracao de nota como a acao que o
+        exercicio investiga.
+
+        O 404 e a mesma politica do resto da classe — "nao e sua" e "nao existe"
+        pelo mesmo caminho de codigo, sem que o handler aprenda a diferenca.
+        """
+        alheia = self.cliente.post(
+            f"/turmas/{TURMA_QUE_EXISTE}/notas",
+            json={"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0},
+            headers=self._cabecalho("professor", OUTRO_PROFESSOR),
+        )
+        self.assertEqual(alheia.status_code, 404)
+
+        # E O PAR QUE DISCRIMINA: sem ele, uma rota que recusasse SEMPRE passaria
+        # na assercao acima. E a mesma forma do teste de latencia depois do H1.
+        minha = self.cliente.post(
+            f"/turmas/{TURMA_QUE_EXISTE}/notas",
+            json={"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0},
+            headers=self._cabecalho("professor", TITULAR),
+        )
+        self.assertEqual(minha.status_code, 201)
+
+    def test_nota_em_turma_alheia_e_em_turma_INEXISTENTE_sao_a_mesma_resposta(self):
+        """A indistinguibilidade tambem na escrita, e nao so na leitura.
+
+        Sem isto, um professor enumeraria turmas pelo codigo de erro do
+        lancamento de nota — o mesmo vazamento que `:200-212` fecha na consulta,
+        pela porta dos fundos.
+        """
+        cabecalho = self._cabecalho("professor", OUTRO_PROFESSOR)
+        corpo = {"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0}
+
+        alheia = self.cliente.post(
+            f"/turmas/{TURMA_QUE_EXISTE}/notas", json=corpo, headers=cabecalho
+        )
+        inexistente = self.cliente.post("/turmas/T-9999/notas", json=corpo, headers=cabecalho)
+
+        self.assertEqual(alheia.status_code, inexistente.status_code)
+        self.assertEqual(alheia.content, inexistente.content)
+
 
 class FalhaFechada(unittest.TestCase):
     """Rota que a superficie nao declara e negada em EXECUCAO, e nao so no CI.
