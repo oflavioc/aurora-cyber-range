@@ -94,6 +94,15 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     alvo = Path(argv[0]) if argv else STORE_PATH
 
+    # A RAIZ DO CORE ACOMPANHA O ALVO. Sem argumento, e o core de verdade. Com
+    # um caminho — que so a prova negativa usa —, e a arvore ONDE ELE ESTA: e o
+    # que permite ao probe montar uma arvore inteira com uma subclasse indireta
+    # plantada, sem escrever nada em `range-core/`.
+    #
+    # Antes desta linha o fecho de subclasses varria sempre o core real, entao o
+    # eixo de heranca indireta nao tinha como ser exercitado sem sujar a arvore.
+    raiz_core = alvo.resolve().parent if argv else CORE_ROOT
+
     if not alvo.is_file():
         return _fail(f"{alvo} nao existe")
 
@@ -160,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{RULE}: {problema}", file=sys.stderr)
         return 1
 
-    problemas.extend(_subclasses_fora_da_linha(alvo))
+    problemas.extend(_subclasses_fora_da_linha(alvo, raiz_core))
 
     if problemas:
         for problema in problemas:
@@ -172,41 +181,101 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _subclasses_fora_da_linha(ja_conferido: Path) -> list[str]:
-    """Toda subclasse de `EventStore` no core obedece a mesma superficie.
+def _rotulo(caminho: Path) -> str:
+    """Caminho legivel: relativo ao repositorio quando dentro dele, absoluto fora.
+
+    Fora do repositorio acontece na prova negativa, que monta arvore em
+    diretorio temporario. `relative_to` levantaria `ValueError` ali, e a checagem
+    morreria por erro de ferramenta em vez de reportar a violacao.
+    """
+    try:
+        return caminho.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return caminho.as_posix()
+
+
+def _descendentes_de(store_class: str, classes: dict) -> set[str]:
+    """Fecho TRANSITIVO das classes que descendem de `EventStore`.
+
+    POR QUE TRANSITIVO, E NAO SO FILHO DIRETO
+    ------------------------------------------
+    A primeira versao casava `bases` por nome contra `EventStore` e parava ai.
+    Uma classe declarada `class X(InMemoryEventStore)` tem `bases ==
+    {"InMemoryEventStore"}`, nao casava, e podia acrescentar `read_since(cursor)`
+    publico sem reprovar — L2 da auditoria de 16/08/2026.
+
+    E o MESMO buraco que o eixo de subclasse ja tinha fechado um nivel acima: a
+    versao anterior a essa olhava so a classe da base e uma subclasse em outro
+    arquivo passava. Fechar por um nivel de cada vez e o que faz o buraco voltar
+    com outro nome; o fecho transitivo nao tem "proximo nivel".
+    """
+    alcancados = {store_class}
+    mudou = True
+    while mudou:
+        mudou = False
+        for nome, dados in classes.items():
+            if nome in alcancados:
+                continue
+            if dados["bases"] & alcancados:
+                alcancados.add(nome)
+                mudou = True
+    return alcancados - {store_class}
+
+
+def _subclasses_fora_da_linha(ja_conferido: Path, raiz_core: Path) -> list[str]:
+    """Toda DESCENDENTE de `EventStore` no core obedece a mesma superficie.
 
     Sem isto a garantia valeria so para a base, e a primeira implementacao
     concreta que quisesse um atalho o teria de graca — em outro arquivo, longe
     de onde a regra esta escrita.
+
+    O arquivo da base tambem e varrido: `InMemoryEventStore` mora nele, e uma
+    excecao por caminho deixaria de fora justamente a implementacao mais
+    proxima da regra.
     """
-    if not CORE_ROOT.is_dir():
+    if not raiz_core.is_dir():
         return []
 
-    problemas: list[str] = []
-    for caminho in sorted(CORE_ROOT.rglob("*.py")):
-        if caminho.resolve() == ja_conferido.resolve():
-            continue
+    # Passo 1: catalogar TODAS as classes do core, com bases e metodos publicos.
+    # O fecho transitivo exige o mapa inteiro antes de decidir quem descende de
+    # quem — nao da para julgar arquivo a arquivo.
+    classes: dict[str, dict] = {}
+    for caminho in sorted(raiz_core.rglob("*.py")):
         arvore = ast.parse(caminho.read_text(encoding="utf-8"), str(caminho))
         for node in ast.walk(arvore):
             if not isinstance(node, ast.ClassDef):
                 continue
             bases = {b.id for b in node.bases if isinstance(b, ast.Name)}
             bases |= {b.attr for b in node.bases if isinstance(b, ast.Attribute)}
-            if STORE_CLASS not in bases:
-                continue
+            classes[node.name] = {
+                "bases": bases,
+                "arquivo": caminho,
+                "publicos": [
+                    filho.name
+                    for filho in node.body
+                    if isinstance(filho, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and not filho.name.startswith("_")
+                ],
+            }
 
-            relativo = caminho.relative_to(REPO_ROOT).as_posix()
-            for filho in node.body:
-                if not isinstance(filho, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    continue
-                if filho.name.startswith("_"):
-                    continue
-                if filho.name not in DECLARED_SURFACE:
-                    problemas.append(
-                        f"{relativo}: {node.name}.{filho.name} e publico e nao esta "
-                        "em DECLARED_SURFACE. Subclasse nao amplia a superficie do "
-                        "store — a garantia de 01 secao 4.1 vale para todas."
-                    )
+    # Passo 2: so entao, os descendentes.
+    problemas: list[str] = []
+    for nome in sorted(_descendentes_de(STORE_CLASS, classes)):
+        dados = classes[nome]
+        caminho = dados["arquivo"]
+        # A superficie da propria base ja foi conferida pelo caminho principal,
+        # com uma verificacao mais forte (ausencia de parametro nos metodos de
+        # leitura). Aqui interessa quem HERDA dela.
+        if caminho.resolve() == ja_conferido.resolve() and nome == STORE_CLASS:
+            continue
+        relativo = _rotulo(caminho)
+        for metodo in dados["publicos"]:
+            if metodo not in DECLARED_SURFACE:
+                problemas.append(
+                    f"{relativo}: {nome}.{metodo} e publico e nao esta "
+                    "em DECLARED_SURFACE. Descendente nao amplia a superficie do "
+                    "store — a garantia de 01 secao 4.1 vale para todas."
+                )
     return problemas
 
 
