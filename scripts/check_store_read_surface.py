@@ -64,13 +64,30 @@ STORE_CLASS = "EventStore"
 
 #: A SUPERFICIE PUBLICA DECLARADA. Acrescentar metodo publico ao store sem
 #: acrescentar aqui reprova, e e o comportamento desejado.
-DECLARED_SURFACE = frozenset({"append", "read_all"})
+DECLARED_SURFACE = frozenset({"append", "read_all", "head"})
+
+#: `head` ENTROU NA FASE 3, e a checagem forcou a conversa — que e o que ela
+#: existe para fazer. O argumento, para que a proxima adicao seja julgada pelo
+#: mesmo criterio:
+#:
+#: A garantia de `01` §4.1 e sobre CAMINHO DE LEITURA DE EVENTO. `head` nao
+#: devolve evento: devolve quantos ha e qual e o ultimo — a identidade da
+#: ENTRADA do fold, nao um recorte dela. Nao ha o que filtrar num par de
+#: valores, e `READ_METHODS` continua exigindo que ele nao aceite parametro.
+#:
+#: Ele existe porque a projecao materializada precisa saber SE ainda vale, e
+#: comparar o estado inteiro seria refazer o fold — 2,874 s em 150 mil eventos,
+#: medido. O cache poupa o FOLD, nao a consulta.
+#:
+#: A tentacao que isto NAO abre: `head` nao aceita cursor, e `read_all` continua
+#: sem parametro. Um `read_since(head)` continuaria reprovando aqui, e e por isso
+#: que a superficie e whitelist.
 
 #: Metodos de leitura: nao aceitam NADA alem de `self`.
 #:
 #: `append` fica de fora desta regra porque recebe o `EventDraft` — escrita tem
 #: entrada por natureza. A garantia da §4.1 e sobre LEITURA.
-READ_METHODS = frozenset({"read_all"})
+READ_METHODS = frozenset({"read_all", "head"})
 
 RULE = "P2-2 - superficie de leitura do event store"
 

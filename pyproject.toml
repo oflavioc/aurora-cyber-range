@@ -65,6 +65,16 @@ dependencies = [
     # o fecho dele esta pinado em constraints.txt.
     "psycopg[binary]==3.2.12",
 
+    # Cliente do Redis, decidido na secao 1.3 do checkpoint da Fase 2 junto do
+    # `psycopg`. A Fase 3 e quem o consome: `01` secao 4 poe a projecao de
+    # `simulation_state` em Redis, e reconstruir do zero custa 2,874 s em 150 mil
+    # eventos — medido, nao estimado.
+    #
+    # FECHO TRANSITIVO VAZIO em Python 3.12: `async-timeout` so entra abaixo de
+    # 3.11.3, e nada mais. Conferido por `pip download`, e por isso
+    # `constraints.txt` ganha uma linha so.
+    "redis==8.1.0",
+
     # USADO POR UM SCRIPT SO: scripts/check_spec_examples.py, que valida os
     # blocos de exemplo de `docs/spec/` contra os contratos.
     #

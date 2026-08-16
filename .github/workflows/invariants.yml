@@ -107,6 +107,15 @@ jobs:
       # existir, e a checagem cobra IGUALDADE nas duas direcoes — em especial
       # rota implementada e nao declarada, que e a direcao sem a qual a lista
       # vira documentacao com sintaxe de verificador.
+      # Fase 3, peca 3. A projecao materializada cria a tentacao de um caminho
+      # de escrita de estado que nao passa pelo fold — e `01` secao 4.1 diz que
+      # o que nao vem do fold nao sobrevive a reconstrucao.
+      - name: o fold e a unica autoridade de estado
+        run: python scripts/check_fold_authority.py
+
+      - name: teste negativo da autoridade do fold
+        run: python scripts/check_fold_authority_probes.py
+
       - name: superficie da api x rotas implementadas
         run: python scripts/check_api_surface.py
 
@@ -272,6 +281,28 @@ jobs:
     # Imagem pinada por digest, igual ao docker-compose.yml: tag e rotulo
     # mutavel, e "pinado" em 00 secao 8 quer dizer conteudo imutavel.
     services:
+      # Redis de servico, com O MESMO DIGEST do `docker-compose.yml`. Tag e
+      # rotulo mutavel, e "pinado" em `00` secao 8 quer dizer conteudo imutavel —
+      # mas dois digests DIFERENTES para o mesmo papel seriam dois ambientes,
+      # e o CI deixaria de julgar o que o desenvolvedor roda.
+      #
+      # A primeira versao desta linha trazia um digest INVENTADO. Nao e detalhe:
+      # digest inventado ou nao existe, e o job quebra com erro de imagem, ou
+      # existe e aponta para outra coisa. O compose ja tinha o valor, e era so
+      # ler — a secao 1.5 da Fase 1 outra vez, com o custo baixo desta vez.
+      #
+      # Sem este servico os testes da projecao materializada PULAM, e pulo
+      # silencioso lido como verde e o que a P2-19 ataca.
+      redis:
+        image: redis:7.4.1-alpine@sha256:c1e88455c85225310bbea54816e9c3f4b5295815e6dbf80c34d40afc6df28275
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
       postgres:
         image: postgres:16.4-alpine@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c
         env:
@@ -294,6 +325,10 @@ jobs:
       # apagar o banco de desenvolvimento de quem tivesse o `.env` carregado.
       DATABASE_URL: postgresql+psycopg://aurora_test:efemero-do-job-de-ci@127.0.0.1:5432/aurora_test
       AURORA_TEST_DATABASE_URL: postgresql+psycopg://aurora_test:efemero-do-job-de-ci@127.0.0.1:5432/aurora_test
+      # Variavel PROPRIA, pelo mesmo motivo da de Postgres: estes testes ESCREVEM
+      # e APAGAM a chave da projecao. Apontar para `REDIS_URL` faria um
+      # `unittest` distraido limpar a projecao de quem tivesse o `.env` carregado.
+      AURORA_TEST_REDIS_URL: redis://127.0.0.1:6379/1
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4

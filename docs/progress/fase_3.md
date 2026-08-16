@@ -252,13 +252,106 @@ nenhum deles a chama — e o limite acima.
 
 ---
 
+## 4.2 A peça 3 — a projeção materializada, e quem tem direito de escrevê-la
+
+`range-core/state/cache.py`, `StreamHead` no store, e
+`scripts/check_fold_authority.py`.
+
+### Cache frio — a API nunca responde a partir de defaults
+
+**Defaults não são fallback.** São o resultado correto de foldar um fluxo
+**vazio**, e só isso. Com `exercise_started` no store, responder defaults
+inverteria uma flag de default `true` — o caso que motivou o estado **total** do
+fold na Fase 2.
+
+Então cache frio não tem resposta rápida: tem **reconstrução**. O custo é de
+partida, pago uma vez, e o que o cache elimina depois é o **fold**, não a
+consulta de cabeça.
+
+As duas metades estão em teste, e a segunda impede a primeira de virar
+superstição: `test_cache_frio_NAO_responde_com_defaults` e
+`test_defaults_NAO_sao_fallback_mas_sao_a_resposta_do_fluxo_vazio`.
+
+### Divergência — quem detecta, e quando
+
+**A cada leitura, e pela `StreamHead`** — quantos eventos há e qual é o último.
+É comparação da **identidade da entrada**, não do estado: uma consulta de índice,
+não um fold.
+
+O argumento contra as duas alternativas é o mesmo número: comparar o estado a
+cada request seria refazer os 2,874 s que o cache existe para evitar; não
+comparar nada faria de *"o store é autoridade"* uma frase. **O cache poupa o
+fold, não a consulta.**
+
+`StreamHead` tem **dois** campos, e não um: só a contagem confundiria fluxos de
+mesmo tamanho — o store restaurado de backup —, e só o último `event_id`
+confundiria o fluxo truncado, que é o limite que
+`test_truncar_a_cauda_NAO_e_detectado` declara e que **continua declarado**.
+
+**A ordem em `current` é parte da garantia:** a cabeça é lida **antes** da
+projeção. Lida depois, uma escrita que caísse no meio compararia a projeção nova
+com a cabeça velha e concluiria que vale. Há teste que observa a ordem.
+
+### `head()` reprovou na checagem da P2-2, e isso foi o mecanismo funcionando
+
+Método público novo no store → `check_store_read_surface` recusou até ser
+declarado. **Era exatamente o desenho:** *"o custo é uma conversa, e a conversa é
+o ponto"*.
+
+O argumento que o admitiu: a garantia de `01` §4.1 é sobre **caminho de leitura
+de evento**, e `head` não devolve evento — devolve a identidade da entrada. Não
+há o que filtrar num par de valores, e ele continua sem parâmetro. Um
+`read_since(head)` continuaria reprovando.
+
+### A porta não aceita estado — e é por isso que a autoridade é propriedade
+
+`SimulationStateCache.refresh` recebe **o fluxo e as declarações**, e folda
+dentro. Não há método que aceite um `SimulationState` pronto.
+
+A alternativa óbvia — `write(state)` com verificação de procedência — **não
+funciona**: `SimulationState` é um dataclass, e qualquer um constrói um. A
+procedência não está no valor; está em **quem calcula**. Então a porta calcula.
+
+`check_fold_authority.py` fecha a outra metade, com igualdade nas duas direções:
+`SimulationState` é construído em **dois sítios declarados** — o fold, que
+calcula, e a desserialização do Redis, que **não** calcula (sem `Declarations`,
+sem fluxo, sem regra: `json.loads` e dois campos) — e nenhum método público da
+porta aceita estado pronto.
+
+### Os probes acharam três defeitos, e um deles era da própria checagem
+
+| | O que era |
+|---|---|
+| 1 | `main()` chamado sem argumento — a checagem rodava **sempre contra o core real**, inclusive quando o probe passava árvore plantada. Os quatro probes reprovaram na primeira execução |
+| 2 | renomear a classe da porta fazia a checagem devolver *"nenhum método aceita estado"* — **verdadeiro por vacuidade**. Mesma classe do eixo de varredura da peça 2 |
+| 3 | eu inventei um digest de imagem Redis para o CI. O compose já tinha o valor pinado, e era só ler |
+
+O terceiro não foi achado por probe, e sim por `grep` — e é o mais barato de
+cometer: digest inventado ou não existe, e o job quebra, ou existe e aponta para
+outra coisa. Virou a **P3-1**.
+
+### Sem duplo, por decisão
+
+A Fase 2 fechou com **zero mocks**, e a auditoria PASS registrou isso. Um duplo
+de Redis seria a primeira dublagem da árvore, e testaria a si mesmo.
+
+`InMemoryProjectionCache` **não é duplo**: é o segundo backend da mesma porta,
+como `InMemoryEventStore` é do store — serve ao processo único e é exercitado
+como implementação de verdade.
+
+Para o Redis, a forma é a do Postgres, que a auditoria já aprovou:
+`AURORA_TEST_REDIS_URL` própria — os testes **escrevem e apagam** a chave —,
+`skip` que imprime o comando, e **serviço no CI**, com o mesmo digest do compose.
+
+---
+
 ## 5. Ordem das peças
 
 | | Peça | Estado |
 |---|---|---|
 | 1 | checagem de flags citadas na spec + `grades_readonly` no adapter | ✅ |
 | 2 | superfície da API declarada + a checagem que a fixa (D5) | ✅ |
-| 3 | leitura de flag pela API (D1) — a porta, com o duplo, antes do FastAPI | |
+| 3 | leitura de flag pela API (D1) — a porta e a autoridade do fold, antes do FastAPI | ✅ |
 | 4 | JWT + RBAC (D2, D3), com os dois conjuntos de papéis separados | |
 | 5 | as três entidades e a degradação declarativa (D4) — itens 1 e 2 da DoD | |
 
@@ -268,11 +361,52 @@ alguém tentar implementá-lo.
 
 ---
 
-## 6. Pendências herdadas
+## 6. Pendências
 
-Esta fase **ainda não abriu pendência própria**. Quando abrir, esta seção passa a
-se chamar `## Pendências`, com tabela — que é o que `check_progress_consistency.py`
-cruza contra as seções de detalhe.
+| Id | O que é | Vencimento |
+|---|---|---|
+| P3-1 | O digest de imagem é pinado em dois lugares e nada cruza os dois | **Fase 3**, no PR da fase |
+| P3-2 | Cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **Fase 3**, com o FastAPI |
+
+#### P3-1 — o digest de imagem é pinado em dois lugares
+
+`docker-compose.yml` e `.github/workflows/invariants.yml` pinam as mesmas duas
+imagens por digest, e **nada cruza os dois**.
+
+**Não é hipótese:** ao acrescentar o serviço de Redis ao CI eu escrevi um digest
+**inventado**, diferente do que o compose já tinha. Peguei por `grep`, não por
+mecanismo — e digest inventado ou não existe, e o job quebra com erro de imagem,
+ou existe e aponta para outra coisa.
+
+**O que está em jogo é mais que o erro de digitação:** dois digests diferentes
+para o mesmo papel são **dois ambientes**, e o CI deixa de julgar o que o
+desenvolvedor roda. É a mesma classe do `check_spec_flags` — duas listas do mesmo
+fato, sem ninguém cruzando.
+
+**A forma é conhecida e barata:** uma checagem que extrai `image: <nome>@sha256:`
+dos dois arquivos e exige igualdade por nome de imagem, com prova negativa.
+Vencimento dentro desta fase.
+
+#### P3-2 — cache frio sem single-flight
+
+Duas leituras concorrentes num cache frio reconstroem **duas vezes**, e cada
+reconstrução custa o que a §3.8 da Fase 2 mediu.
+
+**Hoje não é problema, e a data em que passa a ser tem nome:** o engine é
+síncrono e de processo único, e a Fase 3 é a primeira a trazer concorrência de
+verdade — a API. Enquanto não houver duas leituras simultâneas, não há o que
+proteger.
+
+**Por que não construir agora.** Um lock sem concorrência é mecanismo sem
+consumidor, e a Fase 2 registrou o custo disso duas vezes. A saída provável é
+single-flight na borda que a API introduzir, e **medir antes de escolher** — pela
+ordem que a P2-10 fixou e que se mostrou certa.
+
+**Vencimento: Fase 3, junto do FastAPI.**
+
+---
+
+## 6.1 Pendências herdadas
 
 | Id | O que é | Vencimento |
 |---|---|---|
