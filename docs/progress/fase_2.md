@@ -838,8 +838,39 @@ varredura dá:**
 
 **A redação do item omitia o volume**, e sem ele qualquer medição o satisfaz — o
 que explica, retroativamente, por que a §3.8 precisou declarar o envelope à mão.
-É a forma do **E2**: item cuja letra difere do critério que o julga. Corrigido
-junto, e não apenas movido.
+
+#### A classe: o item que a própria letra já dava por cumprido
+
+Isto é a forma do **E2**, e vale como classe e não como detalhe desta realocação.
+
+O E2 foi *"o item 1 dizia `wall_time`, e o envelope não tem esse campo"* —
+insatisfazível por construção. Este é o mesmo defeito **na direção oposta**:
+
+| | O item diz | O critério que o julga diz | Efeito |
+|---|---|---|---|
+| **E2** | `wall_time` | `wall_timestamp` | impossível de cumprir; a implementação certa o deixa por marcar |
+| **item 8** | "< 3 s" | "< 3 s **para exercício de 4 h**" | **cumprido por qualquer medição** |
+
+**A direção oposta é a pior das duas.** O item insatisfazível trava e alguém
+investiga; o item cumprido pela própria letra passa, e passa **verde**. O item 8
+esteve tecnicamente cumprido desde a primeira medição — 0,846 s em 50 mil eventos
+satisfaz *"reconstrução completa da projeção a partir do store roda em < 3 s"*
+ao pé da letra.
+
+**O que segurou não foi mecanismo, foi desconfiança** — a §3.8 declarou o
+envelope à mão porque quem mediu percebeu que o número não respondia à pergunta.
+Isso não é propriedade: é sorte com disciplina. Se a §3.8 tivesse sido escrita
+por quem só lesse o `07`, o item teria fechado.
+
+**A regra que ela ensina:** item de DoD e critério de aceitação são **duas
+redações da mesma exigência**, e divergência entre elas não é redundância inútil
+— é o único lugar onde este defeito aparece antes de custar. Ler os dois lado a
+lado, e não um deles, é o que a varredura fez.
+
+**Onde ela morde de novo:** qualquer item que declare um limite sem declarar
+**sobre o quê**. `< 1 s` do wallboard na Fase 4, `< 5 min` do seed na Fase 5 —
+ambos com o mesmo formato, e nenhum dos dois foi conferido contra o critério que
+o julga. Não é escopo desta fase; fica dito.
 
 **`01` §7 não foi tocado, e a ausência é decisão:** ele enuncia a norma de
 desempenho, que é permanente e não ligada a fase. O que se realocou foi **quem a
@@ -851,6 +882,23 @@ verifica** — mesma forma da correção do item 7.
 **Fase 7**. O outro pack — `fraude-academica-express` — é de 90 min e é da Fase
 12. A distinção que o operador pediu para conferir — *"onde nasce o pack"* versus
 *"onde nasce um pack de 4 h"* — existia, e as duas respostas coincidem.
+
+#### Os dois destinos, criados e não prometidos
+
+Mergeado em 16/08/2026. O critério original — **< 3 s, para exercício de 4 h** —
+existe agora em quatro lugares, dois de DoD e dois de aceitação:
+
+| Fase | Item de DoD (`07`) | Critério (`06`) | O que ela mede |
+|---|---|---|---|
+| **7** | reconstrução do exercício de 4 h do `ransomware-universidade` em < 3 s | **T12** | o volume que o **pack** produz |
+| **9** | a reconstrução continua em < 3 s com `telemetry_emitted` no volume de 4 h | **T13** | o volume que o **range** produz |
+
+**Nenhum dos dois é promessa em prosa**: os quatro são checklist binária ou
+critério de aceitação, que é a diferença que o E1 estabeleceu — requisito
+realocado sem fase obrigada a cumpri-lo não é mover, é apagar com passo
+intermediário.
+
+`01` §7 continua enunciando a norma, sem alteração.
 
 #### O insumo é dois, e por isso o item virou dois
 
@@ -1002,17 +1050,17 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
 | 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ✅ | `$defs/frozen_interval` no contrato, com quatro fixtures negativas. `test_inject_engine.Rollback.test_technical_failure_registra_os_extremos_do_intervalo` prova o registro; `…test_os_outros_motivos_NAO_carregam_intervalo` prova que é só deste motivo; `…test_congelamento_contido_numa_pausa_registra_ZERO` prova o caso que `06` T3 nomeia — e é ele que fica vermelho se alguém trocar o campo por `wall_timestamp` |
-| 8 | ~~Reconstrução completa em < 3 s~~ → **curva volume → tempo medida** | ✅ **assim que o `spec-change` mergear** | A curva está na §3.8, com ponto de quebra (~150 mil), data, máquina e stack. O critério de 4 h foi **realocado** para a Fase 7 e a Fase 9 — `spec-change/item-8-volume-de-4h`, decidido em 16/08/2026. Ver a §3.12 |
+| 8 | Curva **volume → tempo** medida, com ponto de quebra e máquina, data e stack declaradas | ✅ | §3.8: 50 mil a 200 mil eventos, nas formas realista e patológica, com o ponto de quebra em ~150 mil (2,874 s) e o estouro em 200 mil (4,304 s). Data, máquina e stack impressos pelo próprio `scripts/bench_reconstruction.py`, e não anotados à mão. **A forma do item é a do `spec-change` `item-8-volume-de-4h`**, mergeado em 16/08/2026; o critério de 4 h passou a ser cobrado da Fase 7 (T12) e da Fase 9 (T13) |
 | 9 | Flag não declarada impede boot com mensagem clara | ✅ | `test_pack_loader.FlagNaoDeclarada`, em quatro asserções separadas porque `06` T2 exige **duas** metades: `…test_impede_o_boot` (recusa, com sítio próprio), `…test_a_mensagem_nomeia_a_flag`, `…test_a_mensagem_nomeia_o_arquivo_esperado` e `…test_vale_para_required_flags_do_manifesto`. `…test_objetivo_inexistente_e_violacao_de_regra_e_nao_de_flag` discrimina o sítio — sem ele, `UNDECLARED_FLAG` poderia estar sendo devolvido para qualquer violação |
 
-**Oito de nove fechados, e o nono depende de um merge, não de código.** O item 8
-foi realocado: o que fica na Fase 2 é a curva volume → tempo, que a §3.8 já
-entrega com ponto de quebra, data, máquina e stack. Ele passa a ✅ quando
-`spec-change/item-8-volume-de-4h` mergear — e o critério de 4 h passa a ser
-cobrado da Fase 7, com a metade de telemetria na Fase 9.
+**Nove de nove.** Cada ✅ nomeia a fonte que o prova — atestação sem fonte é o
+que esta fase já registrou como caro, e é o que o checkpoint vai conferir linha a
+linha.
 
-Cada ✅ nomeia o teste que o prova: atestação sem fonte é o que esta fase já
-registrou como caro.
+**O item 8 fecha na forma nova, e a distinção importa:** o que a Fase 2 prova é a
+curva, não o critério de 4 h. O critério não foi enfraquecido — foi para as fases
+que têm o insumo, com item de DoD e critério de aceitação próprios em cada uma.
+Ver a §3.12.
 
 Os itens 4, 5 e 6 ganharam uma **segunda** fonte na peça do engine, e não é
 redundância: eles estavam provados no fold, que é onde a propriedade vive, e
