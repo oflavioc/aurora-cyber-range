@@ -1,56 +1,36 @@
 """Prova negativa do fold: os testes ficam vermelhos contra violacao plantada.
 
-POR QUE ESTE ARQUIVO EXISTE
+O MECANISMO SAIU DAQUI, E O QUE ELE PROVA NAO MUDOU
+----------------------------------------------------
+O harness — carregar fonte mutada, rodar a suite, colher quem acusou — vivia
+neste arquivo e foi extraido para `tests/mutation_harness.py` ao fechar a
+**P2-14**: o engine e o loader precisavam do mesmo mecanismo, e copiar as ~120
+linhas seria a classe D4 com outro nome.
+
+**A extracao foi conferida pelo que ela mede.** As oito mutacoes abaixo foram
+rodadas antes e depois, e os conjuntos vermelhos comparados um a um: os oito
+identicos. Suite verde depois de uma extracao nao prova nada sobre uma prova
+negativa — o que prova e o conjunto que cada mutacao derruba continuar sendo o
+mesmo.
+
+O QUE FICOU AQUI, e por que
 ---------------------------
-Verificador que nunca falhou contra violacao plantada nao e verificador — e a
-doutrina que a Fase 0 fixou em `scripts/phase0_negative_tests.py` e que os
-executores de exemplo repetem em `*_probes.py`. Vale para o fold: uma suite que
-nunca ficou vermelha prova que roda, nao que detecta.
+A TABELA DE MUTACOES. Ela e conhecimento sobre ESTE modulo — quais linhas do
+fold, quando alteradas, devem derrubar quais testes —, e nao mecanismo. Mecanismo
+se compartilha; a tabela nao tem o que compartilhar.
 
-MUTACAO POR SITIO, E NAO POR AMPUTACAO
---------------------------------------
-A primeira tentativa desta prova substituia FUNCOES INTEIRAS — trocar
-`_surviving_writes_mask` por "tudo sobrevive" derrubava, junto, quatro testes de
-recusa, porque a validacao de ancora mora dentro dela. Aquilo mede reacao a
-amputacao, nao deteccao da violacao, e versionar assim versionaria a confusao.
-
-Aqui cada mutacao e cirurgica: mover um limite de intervalo, remover um `raise`,
-trocar um discriminante, zerar um retorno. E cada uma declara o CONJUNTO EXATO
-de testes que deve ficar vermelho — nem mais, nem menos. Mutacao que derruba
-mais do que devia e mutacao grossa; que derruba menos denuncia teste que nao
-prova o que diz.
-
-POR QUE `importlib` E NAO EXECUCAO DINAMICA
--------------------------------------------
-`05_SECURITY_REQUIREMENTS.md` §1 proibe execucao dinamica de codigo, e
-`tools/check_security_constraints.py` recusa os tres builtins que a fazem —
-avaliacao de expressao, execucao de codigo montado e compilacao em tempo de
-execucao. A primeira versao desta prova usava dois deles sobre a fonte mutada e
-foi barrada pelo hook. Corretamente, e a regra nao se contorna.
-
-A fonte mutada e escrita em arquivo temporario e carregada por
-`importlib.util.spec_from_file_location`, que e como qualquer ferramenta de
-teste carrega modulo por caminho. Nao ha codigo montado em tempo de execucao: ha
-um ARQUIVO, com o mesmo estatuto de qualquer outro modulo importado.
-
-A mutacao e por texto sobre a fonte, e nao por monkeypatch, porque patch
-substitui simbolo enquanto o defeito que se quer plantar e o que um humano
-cometeria editando a linha. Cada substituicao exige casar EXATAMENTE UMA VEZ: se
-a linha alvo mudar de forma, a prova quebra alto em vez de plantar outra coisa
-em silencio.
+Ver `tests/mutation_harness.py` para a doutrina, o motivo de a mutacao ser por
+sitio e nao por amputacao, e por que o carregamento usa `importlib` em vez de
+execucao dinamica.
 """
 
 from __future__ import annotations
 
-import importlib.util
-import io
-import sys
-import tempfile
-import types
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from mutation_harness import REPO_ROOT, Substituicao, caso_de_prova_negativa
+
 TESTS_PATH = Path(__file__).resolve().parent / "test_simulation_state.py"
 
 #: OS MODULOS MUTAVEIS, em ordem de dependencia.
@@ -60,87 +40,20 @@ TESTS_PATH = Path(__file__).resolve().parent / "test_simulation_state.py"
 #: primeira versao desta prova mutava um arquivo so, e quebrou alto no dia em
 #: que o calculo mudou de casa: a guarda de "casar exatamente uma vez" acusou em
 #: vez de plantar nada em silencio, que e o comportamento desejado.
-MUTAVEIS: tuple[tuple[str, str, Path], ...] = (
+MUTAVEIS = (
     ("epoch", "range_core.events.epoch", REPO_ROOT / "range-core" / "events" / "epoch.py"),
-    ("fold", "range_core.state.simulation_state", REPO_ROOT / "range-core" / "state" / "simulation_state.py"),
+    (
+        "fold",
+        "range_core.state.simulation_state",
+        REPO_ROOT / "range-core" / "state" / "simulation_state.py",
+    ),
 )
-
-
-def _carrega(nome: str, caminho: Path) -> types.ModuleType:
-    spec = importlib.util.spec_from_file_location(nome, caminho)
-    if spec is None or spec.loader is None:  # pragma: no cover - caminho fixo
-        raise AssertionError(f"nao foi possivel carregar {caminho}")
-    modulo = importlib.util.module_from_spec(spec)
-    # REGISTRAR ANTES DE EXECUTAR nao e cerimonia: `dataclass` resolve
-    # anotacoes por `sys.modules[cls.__module__]` enquanto processa a classe, e
-    # sem a entrada o modulo mutado quebra em `AttributeError` na primeira
-    # dataclass — falha do instrumento, que a prova leria como deteccao.
-    sys.modules[nome] = modulo
-    try:
-        spec.loader.exec_module(modulo)
-    except BaseException:
-        del sys.modules[nome]
-        raise
-    return modulo
-
-
-def _fonte_mutada(caminho: Path, chave: str, substituicoes) -> str:
-    source = caminho.read_text(encoding="utf-8")
-    for onde, alvo, troca in substituicoes:
-        if onde != chave:
-            continue
-        ocorrencias = source.count(alvo)
-        if ocorrencias != 1:
-            raise AssertionError(
-                f"a mutacao precisa casar exatamente uma vez, casou {ocorrencias}: "
-                f"{alvo!r}. A linha alvo mudou de forma, e a prova negativa "
-                "deixou de plantar o que diz plantar."
-            )
-        source = source.replace(alvo, troca)
-    return source
-
-
-def _vermelhos(substituicoes: list[tuple[str, str]]) -> set[str]:
-    """Nomes de METODO que falham contra o fold mutado.
-
-    O parametro de `subTest` e descartado: o que se afirma e QUAL teste acusa,
-    e nao quantos subcasos dele.
-    """
-    anteriores: dict[str, types.ModuleType | None] = {}
-    with tempfile.TemporaryDirectory() as temporario:
-        # Os mutaveis sao carregados EM ORDEM DE DEPENDENCIA e injetados em
-        # `sys.modules` sob o nome real, para que o import de um resolva para a
-        # versao mutada do outro. Sem isso, o fold mutado importaria a epoch
-        # original e a mutacao ficaria pela metade.
-        for chave, modulo, caminho in MUTAVEIS:
-            destino = Path(temporario) / f"{chave}_mutado.py"
-            destino.write_text(_fonte_mutada(caminho, chave, substituicoes), encoding="utf-8")
-            anteriores[modulo] = sys.modules.get(modulo)
-            sys.modules[modulo] = _carrega(f"{chave}_mutado", destino)
-
-        try:
-            suite_modulo = _carrega("testes_contra_fold_mutado", TESTS_PATH)
-            suite = unittest.defaultTestLoader.loadTestsFromModule(suite_modulo)
-            resultado = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
-        finally:
-            # Restaurar e obrigatorio: recarregar o que o runner esta executando
-            # deixaria a suite em curso apontando para modulos mutados.
-            for modulo, anterior in anteriores.items():
-                if anterior is not None:
-                    sys.modules[modulo] = anterior
-                else:  # pragma: no cover - ambos estao importados aqui
-                    sys.modules.pop(modulo, None)
-
-    nomes = set()
-    for caso, _ in list(resultado.failures) + list(resultado.errors):
-        nomes.add(caso.id().split(" ")[0].rsplit(".", 1)[-1])
-    return nomes
 
 
 # ---------------------------------------------------------------------------
 # AS MUTACOES. Cada uma: o que se planta, e QUEM exatamente deve acusar.
 # ---------------------------------------------------------------------------
-MUTACOES: dict[str, tuple[list[tuple[str, str, str]], set[str]]] = {
+MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
     "limite do intervalo abandonado movido em um": (
         [("fold", "for j in range(anchor + 1, index):", "for j in range(anchor + 2, index):")],
         {
@@ -212,29 +125,7 @@ MUTACOES: dict[str, tuple[list[tuple[str, str, str]], set[str]]] = {
 }
 
 
-class ProvaNegativa(unittest.TestCase):
-    def test_a_suite_esta_verde_sem_mutacao(self):
-        """Ancora da prova: sem violacao plantada, nada acusa.
-
-        Sem esta ancora, uma suite quebrada por outro motivo faria TODAS as
-        mutacoes "detectarem", e a prova negativa passaria afirmando o contrario
-        do que ha.
-        """
-        self.assertEqual(_vermelhos([]), set())
-
-    def test_cada_mutacao_e_detectada_pelos_testes_certos(self):
-        for descricao, (substituicoes, esperados) in MUTACOES.items():
-            with self.subTest(mutacao=descricao):
-                obtidos = _vermelhos(substituicoes)
-                self.assertNotEqual(
-                    obtidos, set(), "mutacao plantada e nenhum teste acusou"
-                )
-                self.assertEqual(
-                    obtidos,
-                    esperados,
-                    "o conjunto que acusou nao e o declarado: mutacao grossa "
-                    "demais, ou teste que nao prova o que diz",
-                )
+ProvaNegativa = caso_de_prova_negativa(MUTAVEIS, TESTS_PATH, MUTACOES)
 
 
 if __name__ == "__main__":

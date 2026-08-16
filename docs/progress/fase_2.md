@@ -1099,7 +1099,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
 | P2-12 | ~~`AuroraChecker._valida` engole exceção e devolve `False`~~ | **FECHADA** — `tests/test_contract_rules.py` |
 | P2-13 | ~~O store não responde "o exercício está pausado agora?"~~ | **FECHADA** — `exercise_resumed`, nas duas metades |
-| P2-14 | O engine não tem prova negativa por mutação, como o fold tem | **Fase 2**, no PR da fase |
+| P2-14 | ~~O engine não tem prova negativa por mutação, como o fold tem~~ | **FECHADA** — `tests/mutation_harness.py` + dois `*_probes.py` |
 | P2-15 | ~~Nada guarda o que o core importa de `contracts/`~~ | **FECHADA** — `scripts/check_core_contract_imports.py` |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
@@ -1560,9 +1560,73 @@ decide alguma coisa roda sozinho, ou com separador entre as saídas.
 **Vencimento: antes da Fase 4.** Não bloqueia a Fase 2: nenhum item desta fase
 depende dele, e o engine já não emite nada em `resume`.
 
-#### P2-14 — o engine não tem prova negativa por mutação
+#### P2-14 — prova negativa por mutação do engine e do loader — **FECHADA**
 
-O fold tem `tests/test_simulation_state_probes.py`: cada mutação cirúrgica
+`tests/mutation_harness.py` extraído, com `test_inject_engine_probes.py` (nove
+mutações) e `test_pack_loader_probes.py` (sete). **Dezesseis mutações novas, mais
+as oito do fold.**
+
+**A extração foi conferida pelo que ela mede, e não por a suíte continuar
+verde.** As oito mutações do fold foram rodadas antes e depois, com os conjuntos
+vermelhos capturados e comparados um a um: **9 de 9 idênticos**, contando a
+âncora sem mutação. Suíte verde depois de uma extração não prova nada sobre uma
+prova negativa — o que prova é o conjunto que cada mutação derruba continuar
+sendo o mesmo.
+
+##### As mutações miram o comportamento POSITIVO, e o motivo
+
+As recusas já discriminavam por **sítio**. O que a construção não garantia era o
+outro lado: que o engine **faça** o que deve. Afirmação positiva passa por
+acidente com muito mais facilidade que recusa — só um caminho precisa dar certo,
+e há vários jeitos de ele dar certo pelo motivo errado.
+
+**Três testes meus passavam por acidente, e as mutações acharam os três.**
+
+| O que o teste dizia | Por que passava errado |
+|---|---|
+| *"o bloqueio de agendado sobrevive ao reinício"* | o clock reiniciado nasce em `T+00:00:00`, então **nada** vence nele, com bloqueio ou sem |
+| *"a opção escolhida move a flag"* | afirmava só que o estado **mudou** — a opção errada também muda |
+| *"o prefixo de caminho na forma canônica"* | trocava **dois** documentos de lugar, e isso muda o hash mesmo sem prefixo |
+
+##### E duas propriedades não tinham teste nenhum
+
+As mutações não derrubaram nada, que é o achado mais valioso que uma prova
+negativa produz:
+
+- **`inject_effects` mapeando todos os injects para o primeiro** passava pela
+  suíte inteira. Ninguém afirmava o que um inject faz ao estado, só que o estado
+  mudou — e reaplicar os effects de A01 não muda nada, então **a idempotência da
+  D3 escondia o defeito em vez de expô-lo**. Virou
+  `test_o_disparo_aplica_os_effects_DAQUELE_inject`, com o valor esperado vindo
+  do pack.
+- **`sort_keys=True` na forma canônica** não tinha prova: o teste existente
+  comparava dois hashes vindos do **mesmo texto YAML**, onde a ordem de inserção
+  já era igual e `sort_keys` não tinha o que fazer.
+
+##### Uma mutação foi descartada, e a razão fica registrada
+
+*"A janela nunca deixa nada vencer"* derruba **vinte e dois** testes: quase todo
+`setUp` dispara para chegar ao estado que vai examinar. É mutação grossa pela
+definição do próprio harness — mede reação a amputação, não detecção — e o
+conjunto declarado precisaria ser refeito a cada teste novo.
+
+**A propriedade não fica descoberta** (um engine que não dispara é visto por
+vinte e dois testes de uma vez); o que ela não tem, e não pode ter dada a
+estrutura da suíte, é um **discriminante**. Dito em vez de fingido, e no lugar
+dela entrou uma cirúrgica sobre a mesma função: a **ordem** de disparo.
+
+##### O custo previsto se confirmou
+
+A pendência dizia: *"a forma certa não é copiar o harness — seriam ~120 linhas
+duplicadas, que é a classe D4 —, e sim extrair para um módulo compartilhado. Isso
+toca um arquivo já auditado, e misturá-lo com a peça nova daria um sinal só."* Foi
+o que se fez, e o commit da extração não tem outro conteúdo.
+
+---
+
+O texto abaixo é o registro de quando a pendência estava aberta.
+
+O fold tinha `tests/test_simulation_state_probes.py`: cada mutação cirúrgica
 declara o conjunto exato de testes que deve ficar vermelho. O engine e o loader
 não têm equivalente.
 
