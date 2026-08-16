@@ -1,0 +1,45 @@
+# AS ANCORAS DE FASE — onde cada fase comecou.
+#
+# POR QUE ESTE ARQUIVO EXISTE
+# ---------------------------
+# `scripts/check_audit_base.py` responde "a auditoria desta fase ainda e porta?",
+# e a propriedade e: NADA do trabalho da fase pode ja estar na branch default.
+# Escrever isso exige saber ONDE A FASE COMECOU, e nao ha como derivar esse ponto
+# do proprio grafo: `git merge-base` e exatamente o valor que se corrompe quando
+# parte da fase ja foi mergeada. A ancora e a unica entrada que o predicado nao
+# consegue inferir.
+#
+# Foi o H2 da segunda auditoria da Fase 3: o predicado anterior perguntava "o
+# candidato esta contido na base?", que so pega `BASE_SHA == HEAD_SHA`. A inversao
+# real — merge PECA A PECA antes do checkpoint — passava em silencio, com cinco
+# das seis pecas da fase ja em `main`.
+#
+# QUANDO ESCREVER A LINHA
+# -----------------------
+# No PRIMEIRO commit da branch da fase. O SHA e o commit em que a branch nasceu —
+# `git rev-parse HEAD` ANTES do primeiro commit da fase, ou `git rev-parse <primeiro-commit>^`
+# depois dele.
+#
+#     git checkout -b fase-<n>-<slug>
+#     git rev-parse HEAD          # <- este SHA vai para a linha abaixo
+#
+# ANCORA AUSENTE RECUSA A AUDITORIA. Nao ha degradacao para "ok": nao saber onde a
+# fase comecou e exatamente o caso em que nao se pode afirmar que ela nao foi
+# mergeada. Os dois predicados anteriores degradaram para "ok" quando nao sabiam,
+# cada um a sua maneira, e e por isso que este nao pode.
+#
+# REBASE MOVE A ANCORA. Se a branch da fase for rebaseada sobre uma `main` que
+# avancou, o ponto de bifurcacao muda de verdade, e a linha aqui passa a estar
+# desatualizada — o verificador recusa com essa leitura impressa. Atualize o SHA
+# no mesmo commit do rebase. `docs/process/WORKFLOW.md` fixa REBASE E NUNCA SQUASH
+# no merge de branch de fase, e o motivo esta la: squash e o unico caminho que
+# nem a ancora nem a identidade de patch alcancam.
+#
+# FASES 0 A 2 NAO TEM LINHA, e isto e declarado e nao esquecido: elas fecharam
+# antes deste mecanismo existir, e inventar o ponto de bifurcacao delas agora
+# seria escrever historia por inferencia. Auditoria de fase sem linha recusa, o
+# que e o comportamento certo — e nenhuma dessas fases sera reauditada.
+#
+# FORMATO: <fase><TAB><sha-completo><TAB><o que era esse commit>
+# Linhas em branco e linhas iniciadas por `#` sao ignoradas.
+3	8c6eca6f8b354c5b2511028341a0ed7a404bbd57	spec-change fechado antes da peca 1 da Fase 3; ultimo commit de `main` no nascimento da branch

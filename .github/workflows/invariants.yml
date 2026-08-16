@@ -139,6 +139,15 @@ jobs:
       - name: teste negativo da cobertura do gate
         run: python scripts/check_gate_coverage_probes.py
 
+      # Sete eixos da guarda de base do lancador (P3-7). So os PROBES rodam no
+      # CI: `check_audit_base.py` julga a topologia entre a branch da fase e
+      # `main`, que e uma pergunta do LANCADOR e nao do PR — roda-lo aqui
+      # reprovaria todo PR de fase ja mergeada, que e o caso normal de um push
+      # para `main`. O que o CI tem de garantir e que o predicado continua
+      # sabendo recusar, e isso e o que os probes provam.
+      - name: teste negativo da guarda de base da auditoria
+        run: python scripts/check_audit_base_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 

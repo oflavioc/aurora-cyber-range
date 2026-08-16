@@ -97,68 +97,38 @@ if ! BASE_SHA=$(git rev-parse --verify --quiet "$BASE_REF^{commit}"); then
 fi
 
 # ---------------------------------------------------------------------------
-# H1 DA AUDITORIA DA FASE 3 — A BASE VAZIA, QUE E O CASO DEGENERADO DA P2-16.
+# A BASE MOSTRA O TRABALHO DA FASE? — O TERCEIRO PREDICADO, e o segundo esta
+# aqui embaixo como historia porque ele errou de um jeito util.
 #
-# A P2-16 fechou "o auditor nao escolhe a base" e abriu, no mesmo commit, "o
-# lancador entrega base VAZIA e segue". Auditando `main` depois do merge,
-# BASE_SHA == HEAD_SHA: `git diff <base>..HEAD` e vazio por construcao, o item 6
-# da entrada obrigatoria do auditor vira vacuidade, e o prompt ainda o PROIBE de
-# resolver outra base — entao ele improvisa em silencio. Foi o que aconteceu:
-# o auditor escolheu sozinho o fechamento da Fase 2 como base, e declarou que
-# nao pode julgar o `spec_freeze` do PR.
+# O primeiro nao existia: a base vinha vazia e o auditor improvisava em
+# silencio (H1 da primeira auditoria da Fase 3). O segundo perguntava
+# `git merge-base --is-ancestor HEAD BASE` — "o candidato esta contido na
+# base?" —, que e `BASE == HEAD` e pouco mais. A inversao que de fato acontece
+# e merge PECA A PECA: com cinco das seis pecas da Fase 3 em `main`, o
+# candidato NAO estava contido na base, a guarda nao disparou, e o diff
+# entregue ao auditor nao continha nenhum dos quatro itens da DoD. Foi o H2 da
+# segunda auditoria, medido na propria sessao que o encontrou.
 #
-# E a consequencia maior nao e o diff: e que o checkpoint DEIXA DE SER PORTA. Um
-# BLOCKER emitido contra um commit que ja esta em `main` ja esta na branch
-# default — a auditoria vira laudo em vez de gate.
+# Os dois erraram do mesmo jeito: DEGRADARAM PARA "OK" QUANDO NAO SABIAM. O
+# terceiro recusa quando nao sabe — ancora ausente, ancora que nao resolve,
+# ancora que nao e ancestral do candidato, todas recusam.
 #
-# `docs/process/WORKFLOW.md` fixa a ordem: commit candidato, auditoria, DEPOIS
-# `gh pr create`. Este bloco recusa a inversao em vez de avisar sobre ela,
-# porque aviso num script que abre uma sessao interativa e aviso que rola para
-# fora da tela.
+# O predicado inteiro vive em `scripts/check_audit_base.py`, com os sete eixos
+# de prova negativa em `scripts/check_audit_base_probes.py`. Nao mora aqui de
+# proposito: guarda que so o lancador executa e guarda que ninguem testa, e
+# esta precisa de repositorios sinteticos para ser exercida.
+#
+# Continua ANTES do worktree e ANTES do Docker: recusar depois de subir
+# Postgres e Redis seria recusar caro.
 # ---------------------------------------------------------------------------
-if git merge-base --is-ancestor "$HEAD_SHA" "$BASE_SHA" 2>/dev/null; then
-  if [ -n "$BASE_EXPLICITA" ]; then
-    echo
-    echo "AVISO: o commit candidato JA esta contido na base '$BASE_REF'." >&2
-    echo "       O diff contra ela nao mostra o trabalho da fase. Voce passou" >&2
-    echo "       --base explicitamente, entao a auditoria segue — mas ela e" >&2
-    echo "       LAUDO, e nao porta: BLOCKER encontrado aqui ja esta mergeado." >&2
-    echo
-  else
-    cat >&2 <<FIM
-
-ERRO: a base de comparacao nao mostra o trabalho da fase.
-
-  commit candidato : $HEAD_SHA
-  base ($BASE_REF) : $BASE_SHA
-
-O candidato JA esta contido na base — normalmente porque a branch da fase foi
-mergeada ANTES da auditoria. O diff seria vazio, e o auditor auditaria o nada
-ou escolheria uma base por conta propria, em silencio.
-
-E ha uma consequencia maior que o diff: rodando sobre um commit ja em 'main',
-qualquer BLOCKER encontrado JA ESTA na branch default. O checkpoint deixa de
-ser porta e vira laudo.
-
-A ordem que 'docs/process/WORKFLOW.md' fixa e:
-
-    git commit -m "fase-<n>: checkpoint candidate"     # na branch da fase
-    bash scripts/start_checkpoint_audit.sh <n>          # <- aqui
-    gh pr create                                        # so depois
-
-O QUE FAZER:
-
-  (a) audite ANTES do merge. Va para a branch da fase e rode de la:
-          git checkout fase-<n>-<slug>
-          bash scripts/start_checkpoint_audit.sh $PHASE
-
-  (b) se o merge ja aconteceu e voce quer o laudo assim mesmo, passe a base
-      explicitamente e assuma que isto nao e mais um gate:
-          bash scripts/start_checkpoint_audit.sh $PHASE --base <ref-anterior>
-
-FIM
-    exit 1
-  fi
+echo "Conferindo se a auditoria da Fase $PHASE ainda e porta (base: $BASE_REF)..."
+GUARDA=(python "$ROOT/scripts/check_audit_base.py"
+        --phase "$PHASE" --base "$BASE_SHA" --head "$HEAD_SHA" --repo "$ROOT")
+if [ -n "$BASE_EXPLICITA" ]; then
+  GUARDA+=(--explicit)
+fi
+if ! "${GUARDA[@]}"; then
+  exit 1
 fi
 
 mkdir -p .aurora-worktrees

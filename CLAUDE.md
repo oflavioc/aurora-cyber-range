@@ -65,6 +65,7 @@ Uma fase = um branch = um PR.
 
 ```text
 git checkout -b fase-<n>-<slug>
+# gravar a âncora em docs/process/phase_anchors.tsv — sem ela a auditoria recusa
 # implementar
 # rodar testes de aceitação
 # criar commit candidato
@@ -72,9 +73,16 @@ bash scripts/start_checkpoint_audit.sh <n>
 # corrigir BLOCKERs e HIGHs
 # novo commit candidato e nova auditoria
 gh pr create
+gh pr merge --rebase        # REBASE. `--squash` é proibido — WORKFLOW.md
 ```
 
 A auditoria formal usa contexto fresco e um worktree fixado no commit candidato.
+
+A âncora é o commit em que a branch da fase nasceu, e ela existe porque o
+predicado que decide se a auditoria ainda é **porta** — e não laudo — não
+consegue derivar esse ponto do grafo. Âncora ausente **recusa**; `--squash`
+escapa do predicado e por isso é proibido. Os dois estão em
+`docs/process/WORKFLOW.md`.
 
 O `checkpoint-auditor` vive em `~/.claude/agents/`, **fora deste repositório**. Isso é deliberado: hooks de frontmatter de subagente de projeto só rodam depois do diálogo de confiança da pasta — o que falharia no worktree de auditoria — e um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 

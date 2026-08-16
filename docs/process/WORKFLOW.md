@@ -28,6 +28,8 @@ A partir de `spec-v1.0`, a especificação é imutável durante a implementaçã
 
 ```text
 git checkout -b fase-<n>-<slug>
+git rev-parse HEAD                      # a ÂNCORA: onde a fase começa
+# escrever a linha `<n><TAB><sha><TAB><descrição>` em docs/process/phase_anchors.tsv
 claude --permission-mode default
 # implementar e testar
 git add -A
@@ -35,9 +37,48 @@ git commit -m "fase-<n>: checkpoint candidate"
 bash scripts/start_checkpoint_audit.sh <n>
 # corrigir BLOCKER/HIGH, criar novo commit e reauditar
 gh pr create --title "fase-<n>: <descrição>"
+gh pr merge --rebase                    # REBASE. Nunca --squash. Ver abaixo
 ```
 
 O auditor não corrige. Ele reporta e emite PASS/FAIL. Qualquer BLOCKER é FAIL.
+
+### A âncora, e por que sem ela a auditoria recusa
+
+`scripts/check_audit_base.py` responde *"a auditoria desta fase ainda é porta?"*, e
+a propriedade é: **nada do trabalho da fase pode já estar na branch default**. Isso
+exige saber onde a fase começou, e esse ponto **não é derivável do grafo** —
+`git merge-base` é exatamente o valor que se corrompe quando parte da fase já foi
+mergeada. A âncora é a única entrada que o predicado não infere.
+
+**Âncora ausente recusa a auditoria.** Não há degradação para "ok": não saber onde
+a fase começou é o caso em que não se pode afirmar que ela não foi mergeada. Os
+dois predicados anteriores degradaram para "ok" quando não sabiam — o primeiro
+entregando base vazia, o segundo perguntando só se o candidato estava contido na
+base — e cada um custou uma auditoria que parecia gate e não era.
+
+**Rebase move a âncora**, e isso é verdade e não inconveniência: o ponto de
+bifurcação muda mesmo. Regrave a linha no mesmo commit do rebase; o verificador
+recusa com essa leitura impressa entre as duas possíveis.
+
+### Rebase, nunca squash, no merge de branch de fase
+
+**Regra:** o merge de uma branch de fase é `--rebase` (ou fast-forward). **`--squash`
+é proibido.**
+
+O motivo é mecânico, e não estético. O predicado da base tem duas metades:
+topologia contra a âncora, e conteúdo por identidade de patch. O squash é o único
+caminho que escapa das duas ao mesmo tempo — ele reescreve N patches num só, então
+os patch-ids individuais deixam de casar; a âncora continua sendo o merge-base
+porque a identidade mudou; e se a branch andar depois do squash, o diff não é
+vazio. As duas metades passam, e o conteúdo da fase está em `main`.
+
+Isto está declarado em `scripts/check_audit_base.py` como furo conhecido — **furo
+declarado vale mais que gate que mente**. E a regra mora aqui, e não só na
+pendência que a descobriu, porque **quem clica é o operador, e a pendência não
+está aberta na hora do clique**.
+
+Rebase e fast-forward preservam identidade de patch: com eles, o mesmo predicado
+que deixa o squash passar pega tudo o mais.
 
 ## Por que o auditor formal usa launcher de worktree
 

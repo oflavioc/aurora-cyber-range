@@ -352,10 +352,45 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
         Sem esta assercao, um `degrada` que rodasse antes e aplicasse SO a
         latencia — recusando depois com 401 — passaria no teste acima e ainda
         entregaria pela cronometragem que a flag do AVA esta ligada.
+
+        A FLAG PRECISA ESTAR LIGADA, E A PRIMEIRA VERSAO DESTE TESTE NAO LIGAVA.
+        O `setUp` da classe dispara `MATRICULA_FORA`, `NOTAS_CONGELADAS` e
+        `TODAS_AS_SESSOES`; o unico inject que liga `academus.lms_degraded` e
+        `AVA_LENTO`, e ele nao estava aqui. Com a flag em `false`, a entrada de
+        `latencia` do diario nao dispara em ordem NENHUMA — `dormidas` era `[]`
+        com `autoriza` antes ou depois, com token ou sem token, e a assercao nao
+        discriminava nada. Foi o H1 da auditoria de `5b219a7`.
+
+        POR ISSO O PAR, e nao a metade: a MESMA rota, com a MESMA flag ligada,
+        paga 2,5 s com token e zero sem token. A primeira metade e o que torna a
+        segunda capaz de ficar vermelha.
         """
+        self.c.dispara("AVA_LENTO")
+
+        com_token = self.c.cliente.get(
+            "/turmas/T-2001/diario", headers=self.c.cabecalho("professor", TITULAR)
+        )
+        self.assertEqual(com_token.status_code, 503)
+        self.assertEqual(
+            self.c.dormidas,
+            [2.5],
+            "a latencia declarada nao chegou nem COM token: o teste voltou a nao "
+            "discriminar ordem nenhuma",
+        )
+
         self.c.dormidas.clear()
-        self._sem_token("get", "/turmas/T-2001/diario")
-        self.assertEqual(self.c.dormidas, [])
+        resposta = self._sem_token("get", "/turmas/T-2001/diario")
+        # A ESPERA ANTES DO STATUS, de proposito: e a assercao que so este teste
+        # faz. Com a ordem invertida o status tambem sai errado, e o teste acima
+        # ja o cobre nas tres rotas — deixar o status primeiro faria o canal de
+        # temporizacao nunca ser a linha que fica vermelha.
+        self.assertEqual(
+            self.c.dormidas,
+            [],
+            "degradou antes de autenticar: a espera entrega pela cronometragem "
+            "que a flag do AVA esta ligada, a quem nao tem token",
+        )
+        self.assertEqual(resposta.status_code, 401)
 
     def test_com_token_as_mesmas_rotas_degradam(self):
         """O par que discrimina: uma API que so devolvesse 401 passaria acima."""
