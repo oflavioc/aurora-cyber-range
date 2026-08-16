@@ -170,6 +170,44 @@ class Leitura(unittest.TestCase):
         self.assertEqual(len(store.read_all()), 1)
 
 
+class LimiteDoStoreEmMemoria(unittest.TestCase):
+    """O LIMITE, verificado em vez de herdado como crenca.
+
+    `InMemoryEventStore` **nao sobrevive ao processo**, e a classe o declara na
+    propria docstring: `06` T3 exige que "reinicio do processo restaura a projecao
+    corrente sem intervencao", e isto perde tudo ao morrer.
+
+    A CONSEQUENCIA E DE AUDITORIA, e foi apontada na de 16/08/2026: a metade
+    *"sobrevive ao reinicio"* dos itens 5 e 6 da DoD apoia-se EXCLUSIVAMENTE em
+    `test_event_store_postgres.py`, que pula sem `AURORA_TEST_DATABASE_URL`. Num
+    ambiente sem banco a suite fica verde com essa metade nao exercitada, e quem
+    a garante e o CI — que sobe Postgres de servico e roda `alembic upgrade head`
+    antes da suite.
+
+    **Isso e declaravel, e nao corrigivel sem inventar um segundo backend
+    persistente** so para o teste — que seria uma terceira implementacao do
+    store, divergindo das outras duas.
+
+    Este teste e a forma que `test_truncar_a_cauda_NAO_e_detectado` estabeleceu
+    no store de Postgres: afirmar o limite, para que ele fique VERMELHO no dia em
+    que deixar de valer. Se alguem der persistencia ao store em memoria, a
+    dependencia dos itens 5 e 6 em relacao ao CI muda — e o aviso vem daqui, e
+    nao de uma auditoria tres fases adiante.
+    """
+
+    def test_o_store_em_memoria_NAO_sobrevive_ao_reinicio(self):
+        clock = RelogioFixo()
+        store = InMemoryEventStore(clock)
+        store.append(started_draft())
+        self.assertEqual(len(store.read_all()), 1)
+
+        # "Reinicio": instancia nova sobre a mesma fonte de tempo. O equivalente
+        # em Postgres — `test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao`
+        # — devolve os eventos; este devolve vazio, e e por isso que os itens 5 e
+        # 6 dependem daquele.
+        self.assertEqual(len(InMemoryEventStore(clock).read_all()), 0)
+
+
 class StoreMaisFold(unittest.TestCase):
     """As duas pecas juntas: o que o store produz, o fold consome."""
 

@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
-"""P2-10 — mede o item 8 da DoD: reconstrucao completa em menos de 3 s.
+"""P2-10 — mede a CURVA volume de eventos -> tempo de reconstrucao.
 
 POR QUE ISTO EXISTE, E POR QUE NAO E GATE
 ------------------------------------------
-`07` Fase 2, item 8, e `01` §7: "reconstrucao de projecao a partir do event store
-deve completar em < 3 s para exercicio de 4 h". A P2-10 fixou que a medicao vem
+`07` Fase 2, item 8, na forma que o `spec-change` `item-8-volume-de-4h` lhe deu:
+**a curva, com o ponto de quebra do orcamento de 3 s e a maquina, a data e a
+stack declaradas junto do numero**.
+
+A REDACAO ANTERIOR DESTE CABECALHO CITAVA A FORMA REVOGADA — "reconstrucao
+completa em menos de 3 s ... para exercicio de 4 h". Esse criterio foi realocado
+para a Fase 7 (T12) e a Fase 9 (T13), porque exige um pack de 4 h que a Fase 2
+nao produz. `06` T3 e explicito: a curva **nao** prova o criterio de 4 h —
+"chamar uma de prova da outra seria atestacao com um passo intermediario". Era L2
+da auditoria de 16/08/2026.
+
+`01` §7 continua enunciando a norma de desempenho, que e permanente e nao ligada
+a fase. A P2-10 fixou que a medicao vem
 ANTES de construir em cima do fold — se ela obrigar a trocar a estrategia de
 recomputacao, a troca mexe numa decisao que ja tem seis propriedades e oito
 mutacoes calibradas sobre ela.

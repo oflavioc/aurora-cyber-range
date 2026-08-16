@@ -814,6 +814,83 @@ o que os testes não provam — a **montagem**: contratos lidos do disco, flags 
 adapter entregues como dado, pack, clock, store e engine ligados na ordem em que
 um chamador real os liga.
 
+### 3.13 A primeira auditoria da fase, e o que ela cobrou
+
+**FAIL em 16/08/2026**, contra `b304c19`. Um BLOCKER, um HIGH, dois LOW.
+Relatório em `docs/progress/audit_20260816T071854Z.md`.
+
+#### B1 — a fase criou a primeira suíte real e não estendeu o julgador
+
+A allowlist do auditor admitia `pytest`; a suíte da Fase 2 é **`unittest`**, por
+decisão registrada. O auditor não executou **nenhum** teste da fase — nem os
+quatro verificadores novos, nem o DEMO, nem o harness de mutação — e voltou a
+avaliar por leitura de código. **Sete dos nove itens da DoD ficaram NÃO
+VERIFICADO.**
+
+**A regra violada está escrita dentro do arquivo que ela governa:** *"script novo
+que precise ser executado pelo auditor entra aqui por nome, no commit que o
+cria"*. `git diff origin/main...HEAD -- user-scope/` devolvia **zero arquivos**.
+
+**É reincidência nomeada**: o H3 da segunda auditoria da Fase 1 é o mesmo defeito,
+e o próprio hook o cita ao justificar as entradas de então. E o agravante é de
+autoria: esta fase passou três voltas argumentando que prova por construção não
+basta, e entregou uma suíte que o julgador não conseguia rodar.
+
+**Fechado com seis entradas, cada uma com motivo escrito e prova nas duas
+direções** — `phase0_negative_tests.py` passou de 30 para **36** leituras
+legítimas e de 36 para **40** escritas bloqueadas:
+
+| Entrada | Por quê |
+|---|---|
+| `python -m unittest discover -s tests` | a suíte, na **forma exata** do CI |
+| `check_store_read_surface` + probes | P2-2 — sem executar, o auditor lê a lista de métodos e infere |
+| `check_core_contract_imports` + probes | P2-15, idem |
+| `demo_fase2` | o DEMO SCRIPT que `07` exige; roda em memória, sem banco |
+
+**Forma exata, e não família** — três probes provam que `python -m unittest
+<módulo>`, `discover -s .` e argumento extra continuam **bloqueados**. Módulo
+arbitrário por nome é execução arbitrária com outro nome, e `discover -s <dir>`
+livre alcança qualquer diretório.
+
+**`bench_reconstruction.py` ficou de fora, e a ausência é decisão.** Ele exige
+Postgres, **escreve** centenas de milhares de linhas e demora minutos. O item 8,
+na forma nova, não pede reprodução: pede a curva com máquina, data e stack
+declaradas — que o script gera **por código**, o que é conferível por leitura. O
+relatório marcou o item 8 PASS pela forma e declarou não ter reproduzido a
+medição, o que é a leitura certa. Admiti-lo daria ao auditor uma operação de
+escrita longa para confirmar o que a forma já garante. Há probe fixando a
+ausência: readmiti-lo passa a exigir decisão explícita.
+
+#### H1 — falso positivo, e virou a P2-16
+
+Ver a **P2-16**. O cálculo do próprio gate desmonta o achado, e a condição que o
+produziu — o worktree resolvendo `main` para o ref local — vira pendência de
+mecanismo com destino.
+
+#### L1 e L2 — os dois procedem, e o L1 é o mais instrutivo
+
+**L1:** a docstring de `rollback` dizia `technical_failure` **é RECUSADO**, quatro
+linhas acima do código que o aceita. E o cabeçalho do mesmo módulo estava correto,
+no pretérito — **corrigi a afirmação geral e deixei a específica, no mesmo arquivo
+e na mesma edição.** A §1.6 não avisa que já foi aplicada uma vez ali.
+
+**L2:** o cabeçalho de `bench_reconstruction.py` citava a forma **revogada** do
+item 8. A tabela de DoD e a §3.12 fazem a distinção; só o script ficou para trás.
+
+#### Os itens 5 e 6, e o limite que virou teste
+
+A observação do relatório é justa e mais estreita do que ficou: *"grava"* e
+*"incrementa"* têm cobertura em memória, e a tabela já as cita. O que depende
+**exclusivamente** de Postgres é *"sobrevive ao reinício"* — e num ambiente sem
+`AURORA_TEST_DATABASE_URL` a suíte fica verde com essa metade não exercitada.
+
+Não é corrigível sem inventar um segundo backend persistente só para o teste, que
+seria uma terceira implementação do store. **É declarável — e agora é verificado**:
+`test_event_store.LimiteDoStoreEmMemoria.test_o_store_em_memoria_NAO_sobrevive_ao_reinicio`,
+na forma de `test_truncar_a_cauda_NAO_e_detectado`. Se alguém der persistência ao
+store em memória, o teste fica vermelho e a dependência dos itens 5 e 6 em relação
+ao CI passa a ser revisada — em vez de envelhecer escrita em prosa.
+
 ### 3.12 A realocação do item 8, e o que a varredura achou
 
 Decidida pelo operador em 16/08/2026: **realocação com destino**, não aceitação
@@ -1101,6 +1178,7 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-13 | ~~O store não responde "o exercício está pausado agora?"~~ | **FECHADA** — `exercise_resumed`, nas duas metades |
 | P2-14 | ~~O engine não tem prova negativa por mutação, como o fold tem~~ | **FECHADA** — `tests/mutation_harness.py` + dois `*_probes.py` |
 | P2-15 | ~~Nada guarda o que o core importa de `contracts/`~~ | **FECHADA** — `scripts/check_core_contract_imports.py` |
+| P2-16 | O worktree de auditoria resolve `main` para o ref LOCAL, que pode estar atrás | **Antes do próximo checkpoint** — Fase 3 |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
 | P2-8 | Retenção do pack por conteúdo, para reconstruir exercício passado | **Fase 10**, com item de DoD próprio |
 
@@ -1690,6 +1768,51 @@ módulo do core que abrisse `contracts/events.schema.yaml` por caminho literal
 passaria. Hoje isso não existe — `contract_source` resolve pelo `__path__`, que é
 um import —, e a forma de manter assim é esta lista continuar sendo o único
 caminho de entrada.
+
+#### P2-16 — o auditor lê `main` local, e `main` local envelhece
+
+**Aberta pela auditoria de 16/08/2026**, como consequência de um achado que era
+falso positivo — e o falso positivo é o defeito, não o achado.
+
+**O H1 dizia** que a branch da fase altera `docs/spec/` e código no mesmo diff
+contra `main`, e que o PR seria imergível pelo próprio gate. **Não procede**, e o
+cálculo do próprio `spec_freeze` é a prova:
+
+| Base | SPEC | CODE | Resultado |
+|---|---|---|---|
+| `origin/main` — **a base real do PR** | 0 | 26 | passa |
+| `main` local | 6 | 27 | reprova |
+
+`origin/main` contém os três `spec-change` (conferido por `merge-base
+--is-ancestor`); o `main` local está três commits atrás. O job roda contra
+`github.event.pull_request.base.sha`, que é o primeiro.
+
+**O auditor declarou o próprio limite** — *"estado real de `main`: refs remotos
+não consultados; concluí a partir de `git log main..HEAD`"* —, e a allowlist dele
+já permite `rev-parse` e `for-each-ref`. A informação estava alcançável e não foi
+buscada.
+
+**Por que isso vira pendência do mecanismo, e não nota de rodapé.** `WORKFLOW.md`
+diz que *bloqueio indevido também é defeito*, e o item 4(e) da P23 trata falso
+bloqueio novo como finding. Aqui o custo é maior que um bloqueio: um HIGH
+inventado consome a rodada seguinte, e **todo checkpoint futuro cuja branch tenha
+mergeado um `spec-change` reproduz o mesmo H1** — porque a branch sempre estará à
+frente de um `main` local que ninguém atualizou.
+
+**Destino, e são duas saídas possíveis:**
+
+| | Onde | O que muda |
+|---|---|---|
+| **(a)** | `scripts/start_checkpoint_audit.sh` | o launcher faz `git fetch origin` e passa `origin/main` como base de comparação ao worktree |
+| **(b)** | `user-scope/agents/checkpoint-auditor.md` | o auditor compara contra `origin/main`, e só cai para `main` se não houver remoto |
+
+**(a) é a preferível**, e o argumento é o mesmo que tirou o auditor do
+repositório: mecanismo que depende de o auditor lembrar de fazer a coisa certa
+não é mecanismo. O launcher já fixa o commit candidato; fixar também a base é a
+mesma natureza de decisão.
+
+**Vencimento: antes do próximo checkpoint** — vale dizer, antes da Fase 3
+fechar, porque é lá que ele volta a ser exercido.
 
 #### P2-7 — o exemplo de `09` §1.1 e a aritmética de epoch única
 
