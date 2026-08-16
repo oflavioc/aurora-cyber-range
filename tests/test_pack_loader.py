@@ -39,7 +39,7 @@ from pathlib import Path
 import yaml
 
 from range_core.engine.loader import contract_source
-from range_core.engine.loader.canonical import CANONICALIZATION_V1
+from range_core.engine.loader.canonical import CANONICALIZATION_V1, content_hash_v1
 from range_core.engine.loader.pack_loader import (
     AdapterFlags,
     PackError,
@@ -201,6 +201,38 @@ class ContentHash(_ComCopia):
         destino = self.copia()
         (destino / "branches.yaml").write_text("branches: []\n", encoding="utf-8")
         self.assertNotEqual(carrega(destino).content_hash, carrega().content_hash)
+
+    def test_o_MESMO_documento_sob_outro_nome_muda_o_hash(self):
+        """O caminho e prefixo de cada entrada, e este teste e a razao disso.
+
+        `canonical.py` afirma que sem o prefixo "mover conteudo de um arquivo
+        para outro produziria o mesmo hash". A afirmacao vivia so na docstring, e
+        a prova negativa mostrou: remover o prefixo nao derrubava nada.
+
+        **A primeira versao deste teste tambem nao derrubava.** Ela trocava DOIS
+        documentos de lugar entre `a.yaml` e `b.yaml` — e isso muda o hash mesmo
+        sem prefixo, porque a ordem de concatenacao e por caminho e os corpos
+        trocam de posicao. O caso que isola o prefixo e UM documento so, sob dois
+        nomes: sem prefixo, as duas entradas sao byte a byte iguais.
+        """
+        documento = {"chave": 1}
+        self.assertNotEqual(
+            content_hash_v1({"a.yaml": documento}),
+            content_hash_v1({"b.yaml": documento}),
+        )
+
+    def test_a_ORDEM_das_chaves_no_arquivo_nao_muda_o_hash(self):
+        """`sort_keys=True` — reserializar em vez de hashear bytes.
+
+        Recusar um pack porque alguem reordenou duas chaves do manifesto seria
+        recusa sem divergencia real. O teste que existia — mesmo conteudo, mesmo
+        hash — nao provava isto: os dois lados vinham do MESMO texto YAML, entao
+        a ordem de insercao ja era igual e `sort_keys` nao tinha o que fazer.
+        """
+        self.assertEqual(
+            content_hash_v1({"a.yaml": {"x": 1, "y": 2}}),
+            content_hash_v1({"a.yaml": {"y": 2, "x": 1}}),
+        )
 
     def test_GM_NOTES_fica_fora_do_hash(self):
         """Narrativa para o facilitador nao alcanca resolucao — `04` §1."""

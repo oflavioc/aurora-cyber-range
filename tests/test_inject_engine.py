@@ -358,6 +358,43 @@ class JanelaDeAgendamento(_ComEngine):
         self.minutos(4)
         self.assertEqual(self.engine.due_injects(), ())
 
+    def test_o_disparo_aplica_os_effects_DAQUELE_inject(self):
+        """Cada inject escreve o que ELE declara — e o valor vem do pack.
+
+        ESTE TESTE NASCEU DE UMA MUTACAO QUE NAO DERRUBAVA NADA. Mapear todos os
+        injects para os effects do primeiro passava pela suite inteira: ninguem
+        afirmava o que um inject faz ao estado, so que o estado mudou. E aplicar
+        os effects de A01 de novo nao muda nada — a idempotencia da D3, que aqui
+        escondia o defeito em vez de expo-lo.
+
+        Um inject resolvendo os effects de outro e a falha que so aparece no
+        exercicio ao vivo, com o mundo mudando de um jeito que o facilitador nao
+        pediu.
+        """
+        for inject in PACK_CARREGADO.injects:
+            if not inject.effects:
+                continue
+            with self.subTest(inject=inject.id):
+                self.engine.fire(inject.id)
+                estado = self.flags()
+                for flag, valor in inject.effects.items():
+                    self.assertEqual(
+                        estado[flag], valor, f"{inject.id} nao escreveu {flag}"
+                    )
+
+    def test_o_inject_de_ruido_nao_escreve_flag_nenhuma(self):
+        """O outro lado do mesmo: effects VAZIO tem de continuar vazio.
+
+        Sem esta metade, mapear o ruido para os effects de um inject qualquer
+        passaria — e o ruido existe justamente para consumir atencao sem mexer no
+        mundo.
+        """
+        ruido = [i for i in PACK_CARREGADO.injects if i.noise][0]
+        self.assertEqual(dict(PACK_CARREGADO.declarations.inject_effects[ruido.id]), {})
+        antes = self.flags()
+        self.engine.fire(ruido.id)
+        self.assertEqual(self.flags(), antes)
+
     def test_vence_na_ordem_do_t_relative(self):
         self.minutos(40)
         self.assertEqual(self.engine.due_injects(), (A01, A02, RUIDO))
@@ -417,9 +454,29 @@ class Decisao(_ComEngine):
         self.engine.fire_due()
 
     def test_a_opcao_escolhida_move_a_flag_pela_projecao(self):
-        antes = self.flags()
+        """A flag fica com o valor DA OPCAO ESCOLHIDA, e nao apenas diferente.
+
+        A primeira versao afirmava `flags != antes`, e isso nao prova a
+        resolucao: trocar a opcao escolhida pela primeira do `decision_point`
+        tambem muda o estado, e o teste passaria. Foi o que a prova negativa
+        mostrou ao plantar exatamente essa troca no loader.
+
+        Aqui o valor esperado vem do PACK, e nao escrito a mao: o teste pergunta
+        ao pack o que a opcao declara e exige que a projecao concorde. Assim ele
+        continua valendo se o fixture mudar de valores, e continua falhando se a
+        resolucao pegar a opcao errada.
+        """
+        escolhida = {
+            opcao.id: opcao.effects
+            for opcao in PACK_CARREGADO.injects[1].decision_point.options
+        }[OPCAO]
+        self.assertTrue(escolhida, "a opcao do fixture precisa declarar effects")
+
         self.engine.decide(A02, OPCAO, actor_id="user-01", persona="ti")
-        self.assertNotEqual(self.flags(), antes)
+
+        estado = self.flags()
+        for flag, valor in escolhida.items():
+            self.assertEqual(estado[flag], valor, f"{flag} nao recebeu o valor da opcao")
 
     def test_e_participant_action_com_ator_e_persona(self):
         evento = self.engine.decide(A02, OPCAO, actor_id="user-01", persona="ti")
