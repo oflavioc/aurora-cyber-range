@@ -219,8 +219,12 @@ if ! python -m venv "$VENV" >/dev/null 2>&1; then
 fi
 VENV_BIN="$VENV/bin"
 [ -x "$VENV/Scripts/python.exe" ] && VENV_BIN="$VENV/Scripts"
-if ! "$VENV_BIN/python" -m pip install --disable-pip-version-check \
-     -e "$WT[test]" -c "$WT/constraints.txt" >"$VENV/pip.log" 2>&1; then
+# CAMINHO RELATIVO NUM SUBSHELL, e nao `-e "$WT[test]"`: medido, o pip recusa a
+# forma com caminho absoluto e extra — *"is not a valid editable requirement"* —,
+# e a recusa so aparece rodando. O `cd` fica dentro do subshell para nao mexer no
+# diretorio de quem chama.
+if ! ( cd "$WT" && "$VENV_BIN/python" -m pip install --disable-pip-version-check \
+       -e ".[test]" -c constraints.txt ) >"$VENV/pip.log" 2>&1; then
   echo "ERRO: a instalacao editavel do checkout auditado FALHOU." >&2
   echo "      Ultimas linhas de $VENV/pip.log:" >&2
   tail -n 15 "$VENV/pip.log" >&2
