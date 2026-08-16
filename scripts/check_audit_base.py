@@ -67,6 +67,30 @@ aberta na hora do clique.
 
 Furo declarado vale mais que gate que mente.
 
+A PERGUNTA E SEMPRE SOBRE A BRANCH DEFAULT, E NUNCA SOBRE `--base`
+-------------------------------------------------------------------
+`--base <ref>` muda O QUE O AUDITOR VE no diff. Ele NAO muda o que ja esta
+mergeado, e por isso nao pode mudar o veredito.
+
+A primeira versao deste verificador confundia os dois, e o furo foi achado
+rodando-o antes de entregar a linha de comando ao operador: com
+`--base <a propria ancora>`, o merge-base contra essa base E a ancora por
+construcao, o diff nao e vazio, nenhum patch-id repete — e ele imprimia
+*"a auditoria e PORTA"* com sete commits da fase em `main`.
+
+Seria o terceiro predicado degradando para "ok" quando nao sabe, no unico caminho
+em que o operador declarou que ja nao sabe. **A quarta reincidencia da mesma
+classe, dentro da correcao que a nomeia** — a §7.3.1 do registro da Fase 3, outra
+vez, e desta vez pega por execucao e nao por leitura.
+
+Entao sao duas entradas, e elas nao se substituem:
+
+    --default <ref>   a branch default. E CONTRA ELA que o veredito e calculado.
+    --base <ref>      opcional; a base que sera diffada. Presente => LAUDO: as
+                      falhas viram AVISO e o lancador segue, porque foi decisao
+                      explicita do operador. O que nao acontece e o veredito
+                      mudar de leitura.
+
 ANCORA AUSENTE RECUSA
 ---------------------
 Sem `START` nao ha como afirmar contencao, e "nao da para afirmar" e exatamente o
@@ -134,17 +158,21 @@ def ancora(repo: str, fase: int) -> tuple[str | None, str]:
     return None, f"nao ha linha para a fase {fase} em {ANCORAS.as_posix()}"
 
 
-def avalia(repo: str, fase: int, base: str, head: str) -> list[Falha]:
+def avalia(repo: str, fase: int, default: str, head: str) -> list[Falha]:
     """As quatro condicoes, na ordem em que a mensagem fica mais util.
+
+    `default` e a BRANCH DEFAULT, e nao a base que o auditor vai diffar. Quem
+    passa outra coisa aqui esta perguntando outra pergunta — foi o furo do
+    caminho `--base` explicito.
 
     Devolve a lista de falhas. Vazia = a auditoria e porta.
     """
     falhas: list[Falha] = []
 
-    base_sha = _sha(repo, base)
+    base_sha = _sha(repo, default)
     head_sha = _sha(repo, head)
     if base_sha is None or head_sha is None:
-        qual = base if base_sha is None else head
+        qual = default if base_sha is None else head
         return [Falha("ref", f"'{qual}' nao resolve para um commit neste repositorio.")]
 
     declarada, motivo = ancora(repo, fase)
@@ -272,20 +300,25 @@ def avalia(repo: str, fase: int, base: str, head: str) -> list[Falha]:
     return falhas
 
 
-def relata(falhas: list[Falha], fase: int, base_ref: str, explicito: bool) -> int:
+def relata(falhas: list[Falha], fase: int, default_ref: str, base_ref: str | None) -> int:
     if not falhas:
-        print(f"{REGRA}: fase {fase}, base '{base_ref}' — a auditoria e PORTA.")
+        onde = f"'{default_ref}'"
+        extra = f", diff contra '{base_ref}'" if base_ref else ""
+        print(f"{REGRA}: fase {fase}, branch default {onde}{extra} — a auditoria e PORTA.")
         return 0
 
     corpo = "\n".join(f"  [{f.eixo}] {f.texto}" for f in falhas)
 
-    if explicito:
+    if base_ref is not None:
         print(
-            "\nAVISO: a base explicita NAO mostra todo o trabalho da fase.\n"
+            f"\nAVISO: parte do trabalho da fase {fase} JA ESTA em '{default_ref}'.\n"
             f"{corpo}\n\n"
-            "       Voce passou --base explicitamente, entao a auditoria segue —\n"
-            "       mas ela e LAUDO, e nao porta: BLOCKER encontrado aqui pode ja\n"
-            "       estar mergeado.\n",
+            f"       Voce passou --base '{base_ref}' explicitamente, entao a auditoria\n"
+            "       segue — mas ela e LAUDO, e nao porta: BLOCKER encontrado sobre o\n"
+            "       que ja foi mergeado ja esta na branch default.\n\n"
+            "       O veredito acima foi calculado contra a branch DEFAULT, e nao\n"
+            "       contra a base que voce passou. Trocar a base muda o que o auditor\n"
+            "       VE; nao muda o que ja esta mergeado.\n",
             file=sys.stderr,
         )
         return 0
@@ -310,14 +343,18 @@ def relata(falhas: list[Falha], fase: int, base_ref: str, explicito: bool) -> in
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="A auditoria da fase ainda e porta?")
     p.add_argument("--phase", type=int, required=True)
-    p.add_argument("--base", required=True, help="ref ou sha da base de comparacao")
+    p.add_argument(
+        "--default",
+        required=True,
+        help="a branch default. O veredito e SEMPRE calculado contra ela",
+    )
+    p.add_argument(
+        "--base",
+        help="base que sera diffada, quando o operador a escolheu. Presente => "
+        "as falhas viram AVISO e a auditoria segue como LAUDO",
+    )
     p.add_argument("--head", default="HEAD", help="o commit candidato")
     p.add_argument("--repo", default=".", help="raiz do repositorio a inspecionar")
-    p.add_argument(
-        "--explicit",
-        action="store_true",
-        help="o operador passou --base: avisa em vez de recusar",
-    )
     a = p.parse_args(argv)
 
     raiz = _git(a.repo, "rev-parse", "--show-toplevel")
@@ -326,10 +363,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     return relata(
-        avalia(raiz.stdout.strip(), a.phase, a.base, a.head),
+        # A avaliacao recebe `--default`, e nunca `--base`. E a linha que fecha o
+        # furo do caminho explicito: o veredito nao muda de leitura porque o
+        # operador escolheu outra base para o diff.
+        avalia(raiz.stdout.strip(), a.phase, a.default, a.head),
         a.phase,
+        a.default,
         a.base,
-        a.explicit,
     )
 
 

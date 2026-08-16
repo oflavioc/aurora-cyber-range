@@ -76,10 +76,13 @@ HEAD_SHA=$(git rev-parse HEAD)
 # mesma natureza de decisao que ja o faz fixar o commit candidato — mecanismo
 # que depende de o auditor lembrar de fazer a coisa certa nao e mecanismo.
 # ---------------------------------------------------------------------------
-BASE_REF="${BASE_EXPLICITA:-origin/main}"
-if [ -n "$BASE_EXPLICITA" ]; then
-  echo "Base de comparacao EXPLICITA: $BASE_REF"
-elif git remote get-url origin >/dev/null 2>&1; then
+# A BRANCH DEFAULT E RESOLVIDA SEMPRE, mesmo com `--base` explicito. Sao duas
+# perguntas diferentes e elas nao se substituem: `--base` decide O QUE O AUDITOR
+# VE; a branch default decide SE A AUDITORIA AINDA E PORTA. Confundir as duas
+# fazia a guarda declarar "porta" com a fase mergeada, bastando passar a propria
+# ancora como base — achado rodando o comando antes de entrega-lo.
+DEFAULT_REF="origin/main"
+if git remote get-url origin >/dev/null 2>&1; then
   echo "Atualizando refs de origin para fixar a base de comparacao..."
   if ! git fetch --quiet origin main 2>/dev/null; then
     echo "AVISO: 'git fetch origin main' falhou. A base pode estar desatualizada." >&2
@@ -87,8 +90,19 @@ elif git remote get-url origin >/dev/null 2>&1; then
 else
   # Sem remoto, `main` local e a unica base que existe. Declarado em vez de
   # silencioso: o auditor precisa saber contra o que esta comparando.
-  BASE_REF="main"
-  echo "AVISO: nao ha remoto 'origin'. Base de comparacao: 'main' LOCAL." >&2
+  DEFAULT_REF="main"
+  echo "AVISO: nao ha remoto 'origin'. Branch default: 'main' LOCAL." >&2
+fi
+
+if ! DEFAULT_SHA=$(git rev-parse --verify --quiet "$DEFAULT_REF^{commit}"); then
+  echo "ERRO: nao foi possivel resolver '$DEFAULT_REF'. Sem branch default nao da" >&2
+  echo "      para dizer se a auditoria e porta ou laudo." >&2
+  exit 1
+fi
+
+BASE_REF="${BASE_EXPLICITA:-$DEFAULT_REF}"
+if [ -n "$BASE_EXPLICITA" ]; then
+  echo "Base de comparacao EXPLICITA: $BASE_REF (branch default: $DEFAULT_REF)"
 fi
 
 if ! BASE_SHA=$(git rev-parse --verify --quiet "$BASE_REF^{commit}"); then
@@ -121,11 +135,14 @@ fi
 # Continua ANTES do worktree e ANTES do Docker: recusar depois de subir
 # Postgres e Redis seria recusar caro.
 # ---------------------------------------------------------------------------
-echo "Conferindo se a auditoria da Fase $PHASE ainda e porta (base: $BASE_REF)..."
+echo "Conferindo se a auditoria da Fase $PHASE ainda e porta (default: $DEFAULT_REF)..."
 GUARDA=(python "$ROOT/scripts/check_audit_base.py"
-        --phase "$PHASE" --base "$BASE_SHA" --head "$HEAD_SHA" --repo "$ROOT")
+        --phase "$PHASE" --default "$DEFAULT_SHA" --head "$HEAD_SHA" --repo "$ROOT")
 if [ -n "$BASE_EXPLICITA" ]; then
-  GUARDA+=(--explicit)
+  # `--base` NAO entra na avaliacao: ele so declara que o operador escolheu
+  # outra base, o que troca recusa por aviso. O veredito segue sendo contra a
+  # branch default.
+  GUARDA+=(--base "$BASE_SHA")
 fi
 if ! "${GUARDA[@]}"; then
   exit 1

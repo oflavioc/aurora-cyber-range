@@ -1067,6 +1067,7 @@ conter — que é a razão pela qual a P3-1 não se repete aqui.
 | f1 | squash-merge, árvores idênticas | recusa | **`iii-a` sozinha** |
 | f2 | cherry-pick de uma peça | recusa | **`iii-b` sozinha** |
 | g | `--base <ref>` explícito | avisa e segue (rc=0) onde a base implícita recusa (rc=1) | — |
+| **h** | `--base` apontando para a **própria âncora** | rc=0, e o texto tem de dizer **LAUDO** — nunca "PORTA" | leitura da saída, não do rc |
 
 **Cada probe afirma o CONJUNTO de eixos que dispara, e é aí que está metade do
 valor.** Se (c) fosse pego pelo conteúdo, a âncora seria decoração; se (f1) fosse
@@ -1079,6 +1080,42 @@ elas foram escritas como asserção, não como observação.
 devolvesse `["ancora"]` passaria nos três (e). O que nenhum dos dois faz é
 **distinguir** — então o probe roda a mesma história duas vezes, com a âncora certa
 e com a âncora trocada, e exige veredito diferente: `[] → ['ii']`.
+
+### O oitavo eixo não estava na formulação — ele apareceu ao rodar o comando
+
+Com os sete eixos verdes e o commit feito, o passo seguinte era entregar ao
+operador a linha da terceira rodada. Rodei-a antes de entregar:
+
+```text
+$ python scripts/check_audit_base.py --phase 3 --base 8c6eca6 --head HEAD --explicit
+P3-7 ...: fase 3, base '8c6eca6' — a auditoria e PORTA.
+```
+
+**"A auditoria é PORTA", com sete commits da fase em `main`.** O predicado
+avaliava contra `--base`; passando a própria âncora como base, o merge-base contra
+ela **é** a âncora por construção, o diff não é vazio, nenhum patch-id repete — e
+as três condições passam por tautologia.
+
+**É o terceiro predicado degradando para "ok" quando não sabe, no único caminho em
+que o operador já declarou que não sabe.** A quinta ocorrência da classe da §7.3.1,
+dentro da correção que a nomeia — e desta vez pega por **execução**, não por
+leitura, que é a única razão de ela não ter sobrevivido ao commit.
+
+**A confusão era entre duas perguntas que não se substituem:**
+
+| Entrada | O que decide |
+|---|---|
+| `--base <ref>` | **o que o auditor vê** no diff |
+| `--default <ref>` | **se a auditoria ainda é porta** — e o veredito sai sempre daqui |
+
+Trocar a base muda o que o auditor vê; **não muda o que já está mergeado**. O
+lançador passou a resolver a branch default *sempre*, inclusive quando o operador
+passa `--base`, e `--base` deixou de entrar na avaliação: ele só troca recusa por
+aviso de laudo.
+
+**O eixo (g) não pegava isto**, e a razão é útil: lá o `rc` também é 0. O que
+distingue porta de laudo no caminho explícito é o **texto**, não o código de
+saída — então o probe (h) lê a saída, e reprova se a palavra "PORTA" aparecer.
 
 **Um defeito achado escrevendo o probe (f2), e ele vale registrado:** a primeira
 versão fazia `git cherry-pick p1` direto sobre o pai de `p1`. O commit resultante
@@ -1296,6 +1333,35 @@ distância, a mesma forma.
 Depends(autoriza)]` plantado em `app.py`, a suíte passa de 217/217 para **5
 vermelhos** — os quatro de antes mais o de latência, que agora falha com
 `[2.5] != []`. Revertido, 217/217. A quinta linha vermelha é a lição inteira.
+
+#### E aconteceu uma quinta vez, na mesma sessão, com a regra já escrita acima
+
+A §7.3.1 foi escrita, o predicado do H2 foi implementado com sete eixos de prova
+negativa, os sete ficaram verdes, e o commit foi feito. **Aí o caminho `--base`
+explícito declarou "a auditoria é PORTA" com sete commits da fase em `main`** —
+porque ele avaliava contra a base que o operador escolhe, e não contra a branch
+default. A regra "teste escrito para fechar achado é lido como código novo" estava
+escrita **naquele mesmo commit**, e mesmo assim o caminho explícito passou sem ser
+lido como código novo.
+
+**O que quebrou o ciclo desta vez não foi disciplina, foi execução.** Os sete eixos
+não olhavam para esse caminho, e ler o código de novo não o teria mostrado — o que
+mostrou foi rodar o comando antes de entregá-lo. Está na seção da P3-7 como eixo
+(h), e é o oitavo justamente porque nasceu fora da formulação.
+
+**Então a lição operacional ganha uma segunda metade, e ela é mais barata que a
+primeira:**
+
+- **A primeira** — reler a correção como código novo — depende de atenção, e a
+  atenção é exatamente o recurso que está baixo logo depois de nomear a classe.
+- **A segunda** — *rodar o caminho que se vai entregar, antes de entregar* — não
+  depende de atenção nenhuma. Foi o que pegou a quinta ocorrência, e teria pegado
+  a quarta: um `python -m unittest` com a ordem invertida, na hora de escrever o
+  teste, teria mostrado quatro vermelhos onde o registro anunciava cobertura.
+
+**Cinco ocorrências, quatro nesta fase, uma no `readonly_bash.py` da Fase 0. Isso
+é padrão, não acaso, e a Fase 4 começa sabendo:** correção de achado é o lugar de
+maior risco do projeto, e o antídoto que funciona é execução, não vigilância.
 
 ### O contraste que vale registrar
 
