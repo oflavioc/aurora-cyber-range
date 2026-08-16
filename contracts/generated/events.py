@@ -19,6 +19,7 @@ EVIDENCE_SOURCE_OPENED: Final[str] = "evidence_source_opened"
 EVIDENCE_SOURCE_RELEASED: Final[str] = "evidence_source_released"
 EXERCISE_PAUSED: Final[str] = "exercise_paused"
 EXERCISE_RESET: Final[str] = "exercise_reset"
+EXERCISE_RESUMED: Final[str] = "exercise_resumed"
 EXERCISE_STARTED: Final[str] = "exercise_started"
 FACT_MATERIALIZED: Final[str] = "fact_materialized"
 IDENTITY_SCOPE_DISABLED: Final[str] = "identity_scope_disabled"
@@ -53,6 +54,7 @@ ALL_EVENT_TYPES: Final[tuple[str, ...]] = (
     EVIDENCE_SOURCE_RELEASED,
     EXERCISE_PAUSED,
     EXERCISE_RESET,
+    EXERCISE_RESUMED,
     EXERCISE_STARTED,
     FACT_MATERIALIZED,
     IDENTITY_SCOPE_DISABLED,

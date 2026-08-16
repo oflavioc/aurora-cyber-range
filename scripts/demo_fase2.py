@@ -14,13 +14,18 @@ fase de fato entrega.
 
 O QUE ELE DEMONSTRA ALEM DO ROTEIRO
 ------------------------------------
-Duas coisas que sao itens de DoD e nao apareceriam so com o roteiro:
+Quatro coisas que sao itens de DoD ou criterio de aceitacao e nao apareceriam
+so com o roteiro:
 
 - **PAUSAR bloqueia disparo agendado** (item 3): o relogio atravessa o
   `t_relative` de um inject com o exercicio pausado, e nada dispara. Retomado,
   o mesmo inject aparece em atraso.
 - **Rollback nao apaga** (item 5): a contagem de eventos no store SOBE depois do
   rollback, enquanto a projecao volta.
+- **O intervalo congelado** (item 7): `reason: technical_failure` grava os
+  extremos em `exercise_timestamp`, derivados do fluxo.
+- **O reinicio le o estado de pausa do store** (`06` T5): clock novo, engine
+  novo, o mesmo fluxo — e o exercicio volta pausado.
 
 O TEMPO DE PAREDE E CONTROLADO, e isso nao e trapaca
 -----------------------------------------------------
@@ -46,6 +51,8 @@ import yaml  # noqa: E402
 
 from range_core.clock.exercise_clock import ExerciseClock  # noqa: E402
 from range_core.engine.inject_engine import (  # noqa: E402
+    FROZEN_INTERVAL,
+    REASON_TECHNICAL_FAILURE,
     Facilitator,
     InjectEngine,
 )
@@ -202,6 +209,39 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  em atraso: {engine.due_injects()}  <- A02 volta a vencer, na epoch nova")
     print("  A01 nao volta: o `t_relative` dele e anterior ao corte, e o disparo dele")
     print("  sobreviveu ao rollback.")
+
+    titulo("8. FALHA TECNICA - o intervalo congelado vai no evento (item 7)")
+    tecnica = engine.rollback(
+        to_event_id=a01.event_id, reason=REASON_TECHNICAL_FAILURE
+    )
+    intervalo = tecnica.payload[FROZEN_INTERVAL]
+    print(f"  {tecnica.event_type} reason={tecnica.payload['reason']}")
+    print(f"    intervalo congelado, pelos extremos, em exercise_timestamp:")
+    print(f"      start = {intervalo['start']}   (o exercise_timestamp da ancora)")
+    print(f"      end   = {intervalo['end']}   (a retomada)")
+    print("    os dois derivados do fluxo: extremo passado por parametro e")
+    print("    extremo que o chamador pode errar, e errar aqui nao falha.")
+
+    titulo("9. REINICIO - o estado de pausa vem do store (06 T5)")
+    engine.pause()
+    print(f"  exercicio PAUSADO. relogio novo, engine novo, o mesmo fluxo.")
+    # O store faz as vezes da persistencia: aqui ele sobrevive por ser o mesmo
+    # objeto; em producao quem sobrevive ao processo e o `PostgresEventStore`.
+    # O caminho de leitura e o mesmo — `read_all`.
+    clock_novo = ExerciseClock(T_ZERO, now=RelogioDeParede())
+    engine_novo = InjectEngine(
+        pack=pack,
+        clock=clock_novo,
+        store=store,
+        facilitator=Facilitator(user="facilitador-demo", role="control"),
+        rollback_reasons=contract_source.rollback_reasons(contratos),
+    )
+    print(f"  o clock novo nasce correndo ... is_paused={clock_novo.is_paused}")
+    print(f"  restore_pause_state() ....... {engine_novo.restore_pause_state()}")
+    print(f"  depois de restaurar ......... is_paused={clock_novo.is_paused}")
+    print("\n  antes do `exercise_resumed` existir, este era o estado que o store")
+    print("  nao respondia: `exercise_paused` sem nada depois era o mesmo fluxo")
+    print("  para 'ainda pausado' e para 'retomado, e nada aconteceu'.")
 
     print("\nDEMO concluida.\n")
     return 0

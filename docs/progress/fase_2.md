@@ -802,6 +802,58 @@ o que os testes não provam — a **montagem**: contratos lidos do disco, flags 
 adapter entregues como dado, pack, clock, store e engine ligados na ordem em que
 um chamador real os liga.
 
+### 3.11 A metade de contrato do `exercise_resumed`, e o item 7
+
+Depois do merge do `spec-change`. Duas coisas caminharam juntas porque a segunda
+dependia do mesmo arquivo: `contracts/events.schema.yaml`.
+
+**O `exercise_resumed`, nas quatro camadas:** enum de
+`event_type_facilitation`, entrada em `x-aurora-registry.effect_class` (`machine`),
+constantes geradas em Python e TypeScript, e emissão em `InjectEngine.resume`.
+
+**`paused_in(events)` é função pura sobre o fluxo**, na mesma forma do fold —
+quem restaura confere sem montar engine. `exercise_started` e `exercise_reset`
+também devolvem o estado a *correndo*: `01` §4.2 chama o reset de recomeço, e
+exercício que recomeça não herda a pausa do anterior.
+
+**`restore_pause_state` restaura o estado de pausa, e SÓ ele.** T0, o acumulado,
+o multiplicador e a origem da epoch continuam por restaurar — item de DoD da
+**Fase 4**. A metade que está aqui é a que **não era possível** antes do evento:
+as outras três são deriváveis do envelope hoje.
+
+#### O par de `06` T5, e o teste que passava pelo motivo errado
+
+O critério novo pede os dois casos, e a razão é que **um teste que só verifique o
+primeiro passa com um engine que sobe sempre pausado**. Os dois estão em
+`test_inject_engine.ReinicioRestauraPausa`.
+
+**Um terceiro teste meu passava pelo motivo errado, e a mutação o pegou.** Ele
+dizia *"o bloqueio de disparo agendado sobrevive ao reinício"* e afirmava
+`due_injects() == ()`. Mas o clock reiniciado nasce em `T+00:00:00` — nenhum
+inject vence nele, pausado ou não. A asserção teria continuado verde com o
+bloqueio removido.
+
+Trocado por `test_a_posicao_do_exercicio_NAO_e_restaurada`, que afirma **o
+limite**: o reinício restaura a pausa e não a posição. Mesma forma de
+`test_truncar_a_cauda_NAO_e_detectado` no store — se um dia a posição passar a
+ser restaurada, o teste fica vermelho e alguém atualiza a declaração, em vez de o
+limite envelhecer escrito em prosa.
+
+**As duas mutações conferidas:** `restore_pause_state` que lê e não aplica
+derruba dois testes; `paused_in` que ignora o `exercise_resumed` derruba outros
+dois. Nenhuma delas passa despercebida.
+
+#### O item 7 veio junto, e não por conveniência de arquivo
+
+`$defs/frozen_interval` fecha a **P2-4**, e o argumento está lá. O que vale
+registrar aqui é a ordem: o campo só podia ser escrito depois de existir o
+consumidor que diz quais chaves ele exige — foi o que a P2-4 dizia desde o
+início, e é por isso que ela não foi antecipada para o `spec-change`.
+
+**O `technical_failure` deixou de recusar.** A recusa existia para o item 7 não
+passar por fechado enquanto o campo não existia; com o campo, ela vira o
+contrário — o que sobra é o engine derivar os extremos e gravá-los.
+
 ### 3.10 O `RANDOM_SEED`, e por que ele não ganhou consumidor nesta fase
 
 Item 2 da DoD: *"lido de `.env` **por código do `range-core`**, não por
@@ -880,14 +932,14 @@ agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
 | 4 | Aplicar A01 duas vezes produz projeção idêntica | ✅ | `test_simulation_state.Propriedades.test_p3_reaplicar_o_mesmo_inject_nao_muda_o_estado`, com 2, 3 e 7 repetições. Prova negativa: a mutação *"defaults removidos"* e a *"limite do intervalo movido"* o derrubam, em `test_simulation_state_probes` |
 | 5 | Rollback grava, incrementa epoch, reconstrói sem apagar | ✅ | Três metades, três fontes. **Grava**: `test_event_store_postgres.StoreEmPostgres.test_rollback_persistido_reconstroi_sem_apagar`. **Incrementa**: `test_event_store.Carimbo.test_epoch_atribuida_e_a_contagem_de_rollbacks`. **Sem apagar**: o mesmo teste de Postgres afirma 3 linhas na tabela depois do rollback |
 | 6 | `participant_action` da epoch anterior legível e marcada | ✅ | **Legível**: `test_simulation_state.Propriedades.test_participant_action_abandonada_permanece_no_fluxo` e `…test_rollback_atravessa_escrita_de_participant_action`. **Marcada**: `simulation_epoch` é coluna `NOT NULL` e é conferido por `_verify_epochs`, cuja ausência é pega pela mutação *"conferência de epoch desligada"*. **Sobrevive ao reinício**: `…test_instancia_nova_sobre_o_mesmo_banco_restaura_a_projecao` |
-| 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ⬜ | Forma normatizada em `06` T3; o campo é a **P2-4** |
+| 7 | `technical_failure` **registra** os extremos, em `exercise_timestamp` | ✅ | `$defs/frozen_interval` no contrato, com quatro fixtures negativas. `test_inject_engine.Rollback.test_technical_failure_registra_os_extremos_do_intervalo` prova o registro; `…test_os_outros_motivos_NAO_carregam_intervalo` prova que é só deste motivo; `…test_congelamento_contido_numa_pausa_registra_ZERO` prova o caso que `06` T3 nomeia — e é ele que fica vermelho se alguém trocar o campo por `wall_timestamp` |
 | 8 | Reconstrução completa em < 3 s | ⬜ **medido, não fechado** | Passa com folga até ~150 mil eventos (2,87 s) e estoura em 200 mil (4,30 s). Fecha quando o volume real de 4 h for conhecido — depende do pack e do engine, que não existem. Números e envelope na §3.8 |
 | 9 | Flag não declarada impede boot com mensagem clara | ✅ | `test_pack_loader.FlagNaoDeclarada`, em quatro asserções separadas porque `06` T2 exige **duas** metades: `…test_impede_o_boot` (recusa, com sítio próprio), `…test_a_mensagem_nomeia_a_flag`, `…test_a_mensagem_nomeia_o_arquivo_esperado` e `…test_vale_para_required_flags_do_manifesto`. `…test_objetivo_inexistente_e_violacao_de_regra_e_nao_de_flag` discrimina o sítio — sem ele, `UNDECLARED_FLAG` poderia estar sendo devolvido para qualquer violação |
 
-**Sete de nove fechados**, com cada ✅ nomeando o teste que o prova — atestação
-sem fonte é o que esta fase já registrou como caro. O que falta é o campo de
-payload do intervalo (item 7, e é a P2-4) e o envelope de volume do item 8 — que
-depende de um pack de 4 h, entregável da Fase 7.
+**Oito de nove fechados**, com cada ✅ nomeando o teste que o prova — atestação
+sem fonte é o que esta fase já registrou como caro. **O único aberto é o item
+8**, e ele depende do volume de um exercício de 4 h, que exige um pack real —
+entregável da Fase 7. Números, formas e envelope na §3.8.
 
 Os itens 4, 5 e 6 ganharam uma **segunda** fonte na peça do engine, e não é
 redundância: eles estavam provados no fold, que é onde a propriedade vive, e
@@ -907,14 +959,14 @@ campo de payload que carrega os extremos é a **P2-4**.
 | P2-1 | Propriedade entre projeções: abandono lido só pelo motivo declarado | **Fase 6** |
 | P2-2 | ~~AST sobre a superfície de leitura do store~~ | **FECHADA** — `scripts/check_store_read_surface.py` |
 | P2-3 | ~~Spec-change com os itens do checkpoint~~ | **FECHADA** em 15/08/2026, `a3aded5` |
-| P2-4 | Campo de payload dos extremos do intervalo congelado | **Fase 2**, no PR de código |
+| P2-4 | ~~Campo de payload dos extremos do intervalo congelado~~ | **FECHADA** — `$defs/frozen_interval` |
 | P2-5 | `00` §5.6 enumera duas das quatro marcas temporais | Antes da Fase 3, junto da P37 |
 | P2-6 | Sem forma declarativa de ligar `participant_action` a flag; a `01` §4.4 depende dela | **Fase 3** |
 | P2-9 | A frase do mecanismo na `01` §4.4 envelheceu — `spec-change` | Sem prazo amarrado à Fase 3 |
 | P2-10 | ~~Medir o item 8 antes de construir em cima do fold~~ | **FECHADA** — medida em 15/08/2026, §3.8 |
 | P2-11 | `append` abre uma conexão por chamada | **Fase 9**, com o item 8 e pela mesma causa |
 | P2-12 | ~~`AuroraChecker._valida` engole exceção e devolve `False`~~ | **FECHADA** — `tests/test_contract_rules.py` |
-| P2-13 | O store não responde "o exercício está pausado agora?" | **Decidida (a)** — `spec-change/exercise-resumed` aberto; a metade de contrato vence no PR desta fase |
+| P2-13 | ~~O store não responde "o exercício está pausado agora?"~~ | **FECHADA** — `exercise_resumed`, nas duas metades |
 | P2-14 | O engine não tem prova negativa por mutação, como o fold tem | **Fase 2**, no PR da fase |
 | P2-15 | ~~Nada guarda o que o core importa de `contracts/`~~ | **FECHADA** — `scripts/check_core_contract_imports.py` |
 | P2-7 | Exemplo de `09` §1.1 com `simulation_epoch: 1` e aritmética de epoch única | Sem prazo — candidato, não defeito |
@@ -991,9 +1043,51 @@ itens, seis, nove. A segunda achou dois BLOCKERs reais, e os dois teriam
 mergeado: `06` T3 contradizendo o `07` já corrigido, e a cláusula de forma
 apontando para `exercise_time`, que rebobina.
 
-#### P2-4 — campo de payload dos extremos do intervalo congelado
+#### P2-4 — campo de payload dos extremos do intervalo congelado — **FECHADA**
 
-**O que falta.** `contracts/events.schema.yaml` deixa `payload` aberto
+`$defs/frozen_interval` e `$defs/rollback_payload` em
+`contracts/events.schema.yaml`, com um exemplo positivo e **quatro** fixtures
+negativas. Fecha o **item 7** da DoD.
+
+**O nome e o tipo, que eram o que estava aberto:** `frozen_interval`, objeto com
+`start` e `end`, ambos strings na forma de `exercise_timestamp` — e **sem
+`pattern`**, porque o `exercise_timestamp` do envelope também não tem. Inventar
+aqui um formato que o campo de origem não exige seria cobrar da cópia mais que do
+original.
+
+**Fechado por `additionalProperties: false`**, ao contrário do `payload`
+genérico: a lista de chaves é conhecida e pequena, e chave nova sem contrato é
+erro de digitação que em runtime vira campo que ninguém lê.
+
+**Os extremos são derivados, não recebidos.** `start` é o `exercise_timestamp`
+da âncora; `end` é o de agora. Extremo passado por parâmetro é extremo que o
+chamador pode errar — e errar aqui **não falha**: produz número plausível que só
+vira métrica errada na Fase 6, que é exatamente o que `06` T3 descreve sobre as
+três formas erradas.
+
+**O caso zero sai de graça, e é normativo.** `06` T3: *"um congelamento
+inteiramente contido numa pausa registra ZERO"*. Sai sozinho, porque
+`exercise_timestamp` não avança durante o PAUSAR — não há caso especial no engine
+para produzi-lo, e há teste que o afirma.
+
+**Duas fixtures onde a primeira tentativa foi uma.** A negativa de *"duração em
+vez de extremos"* carregava **três** defeitos — chave fora do contrato, `start`
+ausente e `end` ausente — e o executor a reprovou pela regra do um-defeito-por-
+fixture. Separadas, cada uma prova metade da forma: que os dois extremos são
+exigidos, e que duração não entra ao lado deles.
+
+**O resíduo, declarado: este é o primeiro schema de payload por `event_type`, e
+por enquanto o único.** O `payload` dos outros 32 tipos continua aberto. Fechar
+todos agora seria escrever 32 contratos sem consumidor — e cada um nasce quando o
+seu nasce. Este nasceu porque tem dois: o fold exige `to_event_id`, e o item 7
+exige o intervalo. **Não vira pendência**: é regra declarada no próprio contrato,
+com gatilho — o consumidor.
+
+---
+
+O texto abaixo é o registro de quando a pendência estava aberta.
+
+**O que faltava.** `contracts/events.schema.yaml` deixa `payload` aberto
 (`type: object`, sem schema por `event_type`), declarando que os schemas chegam
 nesta fase. O item 7 da DoD pressupõe um campo concreto, e ele não existe — nem
 no `x-aurora-registry`, nem no exemplo de `rollback_performed` de `01` §4.2, que
@@ -1269,17 +1363,15 @@ some. O evento não existe para carregar a duração; existe para que não haja
 conta — e é por isso que a norma **não depende de campo que o contrato ainda não
 tem**, que era o risco de repetir a P2-4.
 
-**O que falta, e é do PR de código desta fase:** o enum de
-`event_type_facilitation` em `contracts/events.schema.yaml`, a entrada em
-`x-aurora-registry.effect_class`, as constantes geradas, a emissão em
-`InjectEngine.resume` e o teste. `contracts/` está no conjunto `CODE` do
-`spec_freeze`, e spec e código não vão no mesmo PR — a mesma separação que a
-P2-4 já obedece.
+**A metade de contrato fechou em 16/08/2026, depois do merge do `spec-change`**:
+enum de `event_type_facilitation`, entrada em `x-aurora-registry.effect_class`,
+constantes geradas em Python e TypeScript, emissão em `InjectEngine.resume`,
+`paused_in`, `restore_pause_state` e os testes. **A divergência entre os dois
+catálogos durou um merge**, e enquanto durou esteve escrita aqui — que era o
+ponto, porque o CI não a cruza: a tabela de `09` §4.1 é markdown e nenhum
+verificador a lê.
 
-**Enquanto os dois PRs não fecham, o catálogo do contrato tem 32 tipos e o da
-spec tem 33.** Divergência conhecida, com prazo, e **o CI não a cruza** porque a
-tabela de `09` §4.1 é markdown e nenhum verificador a lê. Fica dito aqui porque
-divergência conhecida e não escrita vira divergência esquecida.
+**A P2-13 está fechada.** Ver a §3.11.
 
 ##### 5.1 A varredura, com os critérios
 

@@ -17,6 +17,7 @@ export const EVIDENCE_SOURCE_OPENED = "evidence_source_opened";
 export const EVIDENCE_SOURCE_RELEASED = "evidence_source_released";
 export const EXERCISE_PAUSED = "exercise_paused";
 export const EXERCISE_RESET = "exercise_reset";
+export const EXERCISE_RESUMED = "exercise_resumed";
 export const EXERCISE_STARTED = "exercise_started";
 export const FACT_MATERIALIZED = "fact_materialized";
 export const IDENTITY_SCOPE_DISABLED = "identity_scope_disabled";
@@ -51,6 +52,7 @@ export const ALL_EVENT_TYPES = [
   EVIDENCE_SOURCE_RELEASED,
   EXERCISE_PAUSED,
   EXERCISE_RESET,
+  EXERCISE_RESUMED,
   EXERCISE_STARTED,
   FACT_MATERIALIZED,
   IDENTITY_SCOPE_DISABLED,

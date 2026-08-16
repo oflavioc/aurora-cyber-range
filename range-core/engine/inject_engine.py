@@ -57,11 +57,16 @@ A janela evita evento duplicado na timeline, que e outra coisa.
 
 O QUE ESTA PECA NAO FAZ
 ------------------------
-Branching (`branch_selected`) e Fase 7. `exercise_reset` e Fase 4. E `rollback`
-com `reason: technical_failure` **recusa**, porque o campo de payload que carrega
-os extremos do intervalo congelado nao existe — item 7 da DoD, pendencia P2-4.
-Emitir o evento sem o intervalo seria gravar um rollback que a Fase 6 le como se
-nao houvesse congelamento nenhum: registro que existe, requisito que some.
+Branching (`branch_selected`) e Fase 7. `exercise_reset` e Fase 4.
+
+`rollback` com `reason: technical_failure` **recusava**, porque o campo de
+payload que carrega os extremos do intervalo congelado nao existia. Ele existe
+desde a P2-4 — `$defs/frozen_interval` —, e o engine passou a **derivar** os dois
+extremos do proprio fluxo. Ver `_frozen_interval`.
+
+O REINICIO restaura o estado de PAUSA, e so ele: T0, acumulado, multiplicador e
+origem de epoch sao o item de DoD da Fase 4. Ver `restore_pause_state`, onde a
+fronteira esta declarada.
 """
 
 from __future__ import annotations
@@ -72,6 +77,8 @@ from dataclasses import dataclass
 from contracts.generated.events import (
     DECISION_MADE,
     EXERCISE_PAUSED,
+    EXERCISE_RESET,
+    EXERCISE_RESUMED,
     EXERCISE_STARTED,
     INJECT_FIRED,
     ROLLBACK_PERFORMED,
@@ -112,10 +119,39 @@ REASON = "reason"
 #: orfa em silencio.
 REASON_TECHNICAL_FAILURE = "technical_failure"
 
+#: O intervalo congelado, e as duas chaves dos EXTREMOS — `06` T3. Agora tem
+#: schema em `contracts/events.schema.yaml`, `$defs/frozen_interval`: deixaram de
+#: ser contrato de facto, que e o que a P2-4 cobrava.
+FROZEN_INTERVAL = "frozen_interval"
+INTERVAL_START = "start"
+INTERVAL_END = "end"
+
 #: Corte "adiante de tudo": nenhum inject cai na janela. Usado so no fluxo que o
 #: fold ja recusaria por ancora desconhecida, para o engine nao agendar por
 #: adivinhacao enquanto isso.
 _SEM_JANELA = 1 << 40
+
+
+def paused_in(events: Sequence[Event]) -> bool:
+    """O exercicio esta pausado, segundo o FLUXO. Pura, e nao consulta relogio.
+
+    Existe separada do engine porque e a resposta que o store passou a dar com o
+    `exercise_resumed` — e a P2-13 era exatamente ela nao existir. Funcao pura
+    sobre o fluxo, na mesma forma do fold: quem restaura pode conferir sem
+    montar engine.
+
+    `exercise_started` e `exercise_reset` tambem devolvem o estado a CORRENDO.
+    Nao e generosidade: `01` §4.2 chama o reset de recomeco, e exercicio que
+    recomeca nao herda a pausa do anterior. Sem estas duas, um reset depois de
+    uma pausa deixaria o exercicio novo parado sem que nada o dissesse.
+    """
+    pausado = False
+    for evento in events:
+        if evento.event_type == EXERCISE_PAUSED:
+            pausado = True
+        elif evento.event_type in (EXERCISE_RESUMED, EXERCISE_STARTED, EXERCISE_RESET):
+            pausado = False
+    return pausado
 
 
 class EngineSite:
@@ -128,7 +164,6 @@ class EngineSite:
     UNKNOWN_OPTION = "unknown_option"
     UNKNOWN_ANCHOR = "unknown_anchor"
     UNKNOWN_REASON = "unknown_reason"
-    INTERVAL_NOT_RECORDABLE = "interval_not_recordable"
 
 
 class EngineError(Exception):
@@ -333,20 +368,53 @@ class InjectEngine:
         self._clock.pause()
         return self._append(EXERCISE_PAUSED, payload=self._who())
 
-    def resume(self) -> None:
-        """CONTINUAR — retoma o clock. **Nao emite evento, e isso e uma lacuna.**
+    def resume(self) -> Event:
+        """CONTINUAR — retoma o clock e REGISTRA. A recusa da retomada dupla e do clock.
 
-        O catalogo de `09` §4.1 e registro FECHADO e nao tem `exercise_resumed`.
-        Entao o store guarda o inicio da pausa e nao guarda o fim: a duracao de
-        uma pausa nao e reconstruivel a partir do fluxo, e a timeline do AAR
-        (Fase 10) mostra uma pausa que nunca termina.
+        O evento existe desde o `spec-change` `exercise-resumed`. Antes dele o
+        store guardava o inicio da pausa e nao guardava o fim, e dois estados
+        distintos — "ainda pausado" e "retomado, e nada aconteceu desde entao" —
+        produziam exatamente o mesmo fluxo.
 
-        Nao e contornado aqui. Inventar `event_type` fora do catalogo violaria o
-        invariante 3, e reaproveitar `exercise_paused` para os dois sentidos
-        gravaria dois eventos identicos com significados opostos. Fica como
-        pendencia, com `spec-change` proprio — ver o registro da fase.
+        A DURACAO DA PAUSA NAO VAI NO PAYLOAD: e a distancia entre os
+        `wall_timestamp` deste evento e do `exercise_paused` que o precede.
+        Extremos, nunca duracao — a forma que `06` T3 fixou —, e em tempo de
+        PAREDE porque as duas marcas de exercicio congelam na pausa e mediriam
+        zero.
+
+        A ordem e retomar E DEPOIS registrar, ao contrario da pausa: o evento
+        pertence a linha do tempo que volta a correr, e nao a que estava parada.
         """
         self._clock.resume()
+        return self._append(EXERCISE_RESUMED, payload=self._who())
+
+    def restore_pause_state(self) -> bool:
+        """Reinicio: le o estado de pausa do STORE e o aplica ao clock.
+
+        `06` T5 — *"reinicio do engine com o exercicio pausado o restaura
+        pausado; reinicio depois da retomada o restaura correndo. Os dois casos
+        a partir do event store, sem intervencao."*
+
+        O QUE ESTE METODO NAO FAZ, e a fronteira e declarada
+        ----------------------------------------------------
+        Ele restaura **o estado de pausa**, e so isso. T0, o tempo de exercicio
+        acumulado, o multiplicador vigente e a origem da epoch corrente
+        continuam sendo estado do clock que um processo novo nao recupera — e
+        isso e o item de DoD da **Fase 4** (*"reinicio do container do engine
+        restaura o exercicio a partir do event store"*), que e maior que este
+        criterio.
+
+        A metade que esta aqui e a que **nao era possivel** antes do
+        `exercise_resumed`: as outras tres sao derivaveis do envelope hoje — o
+        multiplicador esta no ultimo evento, e as marcas dao o resto. O estado de
+        pausa era o unico que o store nao respondia.
+        """
+        pausado = paused_in(self._store.read_all())
+        if pausado and not self._clock.is_paused:
+            self._clock.pause()
+        elif not pausado and self._clock.is_paused:
+            self._clock.resume()
+        return pausado
 
     def rollback(self, *, to_event_id: str, reason: str) -> Event:
         """`rollback_performed` — grava, incrementa epoch, rebobina o rotulo.
@@ -376,17 +444,6 @@ class InjectEngine:
                 f"({sorted(self._rollback_reasons)}). Rotulo sem consequencia nao "
                 "serve: cada motivo tem efeito definido no AAR e nas metricas",
             )
-        if reason == REASON_TECHNICAL_FAILURE:
-            raise EngineError(
-                EngineSite.INTERVAL_NOT_RECORDABLE,
-                f"rollback com `reason: {REASON_TECHNICAL_FAILURE}` exige registrar "
-                "no evento os extremos do intervalo congelado, em `exercise_timestamp` "
-                "(item 7 da DoD da Fase 2, `06_ACCEPTANCE_TESTS.md` T3). O campo de "
-                "payload que os carrega ainda nao existe no contrato — pendencia "
-                "P2-4. Gravar sem ele produziria um rollback que a Fase 6 le como se "
-                "nao houvesse congelamento, e o desconto sumiria sem nada acusar",
-            )
-
         eventos = self._store.read_all()
         ancora = next((e for e in eventos if e.event_id == to_event_id), None)
         if ancora is None:
@@ -396,15 +453,19 @@ class InjectEngine:
                 "tem ancora",
             )
 
+        payload = {
+            TO_EVENT_ID: to_event_id,
+            TO_INJECT_ID: ancora.correlation.inject_id,
+            REASON: reason,
+            **self._who(),
+        }
+        if reason == REASON_TECHNICAL_FAILURE:
+            payload[FROZEN_INTERVAL] = self._frozen_interval(ancora)
+
         evento = self._append(
             ROLLBACK_PERFORMED,
             inject_id=ancora.correlation.inject_id,
-            payload={
-                TO_EVENT_ID: to_event_id,
-                TO_INJECT_ID: ancora.correlation.inject_id,
-                REASON: reason,
-                **self._who(),
-            },
+            payload=payload,
         )
         self._clock.start_new_epoch(
             self._clock.elapsed_seconds() - label_seconds(ancora.exercise_time)
@@ -415,6 +476,40 @@ class InjectEngine:
 
     def _who(self) -> dict:
         return {BY_USER: self._facilitator.user, ROLE: self._facilitator.role}
+
+    def _frozen_interval(self, ancora: Event) -> dict:
+        """Os extremos do intervalo congelado, DERIVADOS — item 7 da DoD.
+
+        `06` T3: *"o intervalo vai do inject falho ate a retomada"*. Os dois
+        extremos ja existem no fluxo, e por isso nao sao parametro:
+
+        - `start` e o `exercise_timestamp` da **ancora** — o ponto ao qual se
+          rebobina e, portanto, onde a linha que falhou comecou a ser
+          descartada;
+        - `end` e o `exercise_timestamp` de **agora**, que e a retomada: o
+          rollback e o ato que devolve o exercicio a linha boa.
+
+        DERIVAR, E NAO RECEBER, e decisao. Extremo passado por parametro e
+        extremo que o chamador pode errar — e errar aqui nao falha: produz numero
+        plausivel que so vira metrica errada na Fase 6, que e exatamente o que
+        `06` T3 descreve sobre as tres formas erradas do campo.
+
+        O CASO ZERO SAI DE GRACA, e ele e normativo. `06` T3: *"um congelamento
+        inteiramente contido numa pausa registra ZERO, que e o valor certo"* —
+        e sai sozinho, porque `exercise_timestamp` nao avanca durante o PAUSAR.
+        Nao ha caso especial aqui para produzi-lo.
+
+        DUAS LEITURAS DO MESMO RELOGIO, dito porque e o unico ponto frouxo:
+        `end` vem de uma leitura feita agora, e o envelope do evento vem de
+        outra, feita pelo store no `append`. As duas sao truncadas ao segundo,
+        entao diferem so se um limite de segundo cair entre elas — no maximo 1 s
+        num intervalo de metrica. A alternativa seria o produtor carimbar o
+        proprio tempo, que e exatamente o que a D1 proibe.
+        """
+        return {
+            INTERVAL_START: ancora.exercise_timestamp,
+            INTERVAL_END: self._clock.marks().exercise_timestamp,
+        }
 
     def _started(self) -> bool:
         return any(e.event_type == EXERCISE_STARTED for e in self._store.read_all())

@@ -40,12 +40,16 @@ from jsonschema import Draft202012Validator
 from contracts.generated.events import (
     DECISION_MADE,
     EXERCISE_PAUSED,
+    EXERCISE_RESUMED,
     EXERCISE_STARTED,
     INJECT_FIRED,
     ROLLBACK_PERFORMED,
 )
 from range_core.clock.exercise_clock import ExerciseClock, label_seconds
 from range_core.engine.inject_engine import (
+    FROZEN_INTERVAL,
+    INTERVAL_END,
+    INTERVAL_START,
     REASON,
     REASON_TECHNICAL_FAILURE,
     TO_INJECT_ID,
@@ -53,6 +57,7 @@ from range_core.engine.inject_engine import (
     EngineSite,
     Facilitator,
     InjectEngine,
+    paused_in,
 )
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
@@ -204,6 +209,144 @@ class PausaBloqueiaAgendado(_ComEngine):
         evento = self.engine.fire(A01)
         self.assertEqual(evento.event_type, INJECT_FIRED)
         self.assertEqual(self.engine.due_injects(), ())
+
+
+class Retomada(_ComEngine):
+    """`exercise_resumed` — o evento que o `spec-change` `exercise-resumed` criou."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.engine.start()
+        self.minutos(6)
+
+    def test_continuar_registra(self):
+        pausa = self.engine.pause()
+        retomada = self.engine.resume()
+        self.assertEqual(pausa.event_type, EXERCISE_PAUSED)
+        self.assertEqual(retomada.event_type, EXERCISE_RESUMED)
+
+    def test_a_duracao_da_pausa_sai_dos_dois_wall_timestamp(self):
+        """Extremos, nunca duracao — e em tempo de PAREDE.
+
+        Nao ha campo de duracao no payload, e este teste e o que mostra por que
+        nao precisa haver: os dois extremos ja estao no fluxo.
+        """
+        pausa = self.engine.pause()
+        self.minutos(10)
+        retomada = self.engine.resume()
+
+        def parede(evento):
+            return datetime.fromisoformat(evento.wall_timestamp)
+
+        self.assertEqual((parede(retomada) - parede(pausa)).total_seconds(), 600)
+
+    def test_em_exercise_timestamp_a_pausa_mede_zero(self):
+        """A razao de a duracao ser lida em tempo de parede, e nao de exercicio."""
+        pausa = self.engine.pause()
+        self.minutos(10)
+        retomada = self.engine.resume()
+        self.assertEqual(pausa.exercise_timestamp, retomada.exercise_timestamp)
+
+    def test_retomar_o_que_nao_esta_pausado_e_recusado_pelo_clock(self):
+        from range_core.clock.exercise_clock import ClockError
+
+        with self.assertRaises(ClockError):
+            self.engine.resume()
+
+    def test_a_retomada_nao_e_gravada_quando_o_clock_recusa(self):
+        """A ordem importa: o clock recusa ANTES de o evento existir.
+
+        Gravar e depois tentar retomar deixaria no store uma retomada que nao
+        aconteceu — e o store e append-only, entao ela ficaria la.
+        """
+        from range_core.clock.exercise_clock import ClockError
+
+        with self.assertRaises(ClockError):
+            self.engine.resume()
+        self.assertNotIn(EXERCISE_RESUMED, self.tipos())
+
+
+class ReinicioRestauraPausa(_ComEngine):
+    """`06` T5, o par — e o par é o que discrimina.
+
+    *"Reinicio do engine com o exercicio pausado o restaura pausado; reinicio
+    depois da retomada o restaura correndo."*
+
+    Um teste que so verificasse o primeiro caso passaria com um engine que sobe
+    SEMPRE pausado. E um que so verificasse o segundo passaria com um engine que
+    ignora o store. Os dois juntos nao admitem nenhuma das duas.
+
+    O QUE FAZ AS VEZES DO REINICIO: um clock novo e um engine novo sobre o MESMO
+    fluxo. O veiculo real e o `PostgresEventStore`, que sobrevive ao processo;
+    aqui o duplo carrega os mesmos eventos para o teste nao exigir banco. O
+    caminho de leitura e o mesmo — `read_all` —, que e o que esta sob teste.
+    """
+
+    class _StoreRestaurado(InMemoryEventStore):
+        def __init__(self, clock, eventos):
+            super().__init__(clock)
+            self._events = list(eventos)
+
+    def reinicia(self) -> InjectEngine:
+        parede = RelogioDeParede()
+        clock = ExerciseClock(T_ZERO, now=parede)
+        novo = InjectEngine(
+            pack=PACK_CARREGADO,
+            clock=clock,
+            store=self._StoreRestaurado(clock, self.store.read_all()),
+            facilitator=Facilitator(user="facilitador-teste", role="control"),
+            rollback_reasons=MOTIVOS,
+        )
+        self.assertFalse(clock.is_paused, "o clock novo nasce correndo")
+        novo.restore_pause_state()
+        return novo
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.engine.start()
+        self.minutos(6)
+
+    def test_pausado_restaura_pausado(self):
+        self.engine.pause()
+        self.assertTrue(self.reinicia()._clock.is_paused)
+
+    def test_depois_da_retomada_restaura_correndo(self):
+        self.engine.pause()
+        self.engine.resume()
+        self.assertFalse(self.reinicia()._clock.is_paused)
+
+    def test_sem_pausa_nenhuma_restaura_correndo(self):
+        self.assertFalse(self.reinicia()._clock.is_paused)
+
+    def test_a_posicao_do_exercicio_NAO_e_restaurada(self):
+        """O LIMITE, verificado em vez de herdado como crenca.
+
+        A primeira versao deste teste afirmava que *"o bloqueio de disparo
+        agendado sobrevive ao reinicio"* — e passava pelo motivo errado. O clock
+        reiniciado nasce em `T+00:00:00`, entao nenhum inject vence nele, esteja
+        pausado ou nao: a assercao teria continuado verde com o bloqueio
+        removido. Conferido por mutacao, que e como ela apareceu.
+
+        O que este teste afirma agora e a fronteira: `restore_pause_state`
+        restaura **so o estado de pausa**. T0, o acumulado, o multiplicador e a
+        origem da epoch continuam por restaurar, e sao o item de DoD da Fase 4.
+
+        Mesma forma de `test_truncar_a_cauda_NAO_e_detectado` no store: se um dia
+        a posicao passar a ser restaurada, este teste fica VERMELHO e alguem
+        atualiza a declaracao — em vez de o limite envelhecer escrito em prosa.
+        """
+        self.engine.pause()
+        reiniciado = self.reinicia()
+        self.assertTrue(reiniciado._clock.is_paused)
+        self.assertEqual(reiniciado.position_seconds(), 0)
+        self.assertEqual(self.engine.position_seconds(), 6 * 60)
+
+    def test_o_fluxo_responde_sozinho_sem_engine(self):
+        """`paused_in` e funcao pura sobre o fluxo — quem restaura pode conferir."""
+        self.engine.pause()
+        self.assertTrue(paused_in(self.store.read_all()))
+        self.engine.resume()
+        self.assertFalse(paused_in(self.store.read_all()))
 
 
 class JanelaDeAgendamento(_ComEngine):
@@ -378,21 +521,52 @@ class Rollback(_ComEngine):
             self.engine.rollback(to_event_id=self.a01.event_id, reason="porque_sim")
         self.assertEqual(capturado.exception.site, EngineSite.UNKNOWN_REASON)
 
-    def test_technical_failure_e_recusado_enquanto_o_campo_nao_existe(self):
-        """ITEM 7 ESTA ABERTO, e a recusa e o que impede que ele passe por fechado.
+    def test_technical_failure_registra_os_extremos_do_intervalo(self):
+        """ITEM 7 DA DoD, e `06` T3 define a forma: extremos, em `exercise_timestamp`.
 
-        `09` §3.1 da a este motivo o efeito *"relogio de metricas congelado"*, e
-        T3 exige que os extremos do intervalo sejam gravados NO EVENTO. O campo
-        de payload e a P2-4 e nao existe. Emitir sem ele gravaria um rollback que
-        a Fase 6 le como se nao houvesse congelamento — o requisito sumiria sem
-        nada ficar vermelho.
+        Os dois extremos sao DERIVADOS do fluxo — `start` da ancora, `end` de
+        agora —, e nao recebidos por parametro. Extremo passado pelo chamador e
+        extremo que ele pode errar, e errar aqui nao falha: produz numero
+        plausivel que so vira metrica errada na Fase 6.
         """
-        with self.assertRaises(EngineError) as capturado:
-            self.engine.rollback(
-                to_event_id=self.a01.event_id, reason=REASON_TECHNICAL_FAILURE
-            )
-        self.assertEqual(capturado.exception.site, EngineSite.INTERVAL_NOT_RECORDABLE)
-        self.assertIn("P2-4", str(capturado.exception))
+        evento = self.engine.rollback(
+            to_event_id=self.a01.event_id, reason=REASON_TECHNICAL_FAILURE
+        )
+        intervalo = evento.payload[FROZEN_INTERVAL]
+        self.assertEqual(intervalo[INTERVAL_START], self.a01.exercise_timestamp)
+        self.assertEqual(intervalo[INTERVAL_END], evento.exercise_timestamp)
+
+    def test_os_outros_motivos_NAO_carregam_intervalo(self):
+        """`09` §3.1 da o congelamento a `technical_failure` e so a ele.
+
+        Sem esta asserção, o engine poderia gravar o campo em todo rollback e o
+        teste acima continuaria verde — e a Fase 6 passaria a descontar intervalo
+        de rollback que nao congelou nada.
+        """
+        evento = self.engine.rollback(
+            to_event_id=self.a01.event_id, reason=MOTIVO_SIMPLES
+        )
+        self.assertNotIn(FROZEN_INTERVAL, evento.payload)
+
+    def test_congelamento_contido_numa_pausa_registra_ZERO(self):
+        """`06` T3, literal: *"um congelamento inteiramente contido numa pausa
+        registra ZERO, que e o valor certo"*.
+
+        Sai de graca, e e isso que o teste afirma: `exercise_timestamp` nao
+        avanca durante o PAUSAR, entao os dois extremos coincidem sem que haja
+        caso especial no engine para produzir o zero. Se alguem trocar o campo
+        por `wall_timestamp` — uma das tres formas erradas que T3 descarta —,
+        este teste fica vermelho e os outros nao.
+        """
+        self.engine.pause()
+        ancora = self.store.read_all()[-1]
+        self.minutos(30)  # so o relogio de PAREDE anda
+        evento = self.engine.rollback(
+            to_event_id=ancora.event_id, reason=REASON_TECHNICAL_FAILURE
+        )
+        intervalo = evento.payload[FROZEN_INTERVAL]
+        self.assertEqual(intervalo[INTERVAL_START], intervalo[INTERVAL_END])
+        self.assertNotEqual(ancora.wall_timestamp, evento.wall_timestamp)
 
     def test_a_guarda_nao_pode_ficar_orfa(self):
         """Se o contrato renomear o motivo, o engine recusa a construcao.
@@ -445,6 +619,7 @@ class RoteiroDoDemo(_ComEngine):
                 EXERCISE_STARTED,
                 INJECT_FIRED,
                 EXERCISE_PAUSED,
+                EXERCISE_RESUMED,
                 INJECT_FIRED,
                 DECISION_MADE,
                 ROLLBACK_PERFORMED,
@@ -475,6 +650,11 @@ class ConformeAoContrato(_ComEngine):
         self.engine.fire_due()
         self.engine.decide(A02, OPCAO, actor_id="user-01", persona="ti")
         self.engine.rollback(to_event_id=a01.event_id, reason=MOTIVO_SIMPLES)
+        # O SEGUNDO ROLLBACK e por `technical_failure`, e existe para o payload
+        # novo passar pelo validador: `$defs/rollback_payload` so e exercitado
+        # por um evento que o carregue. Ancorar em A01 de novo e legitimo — ele e
+        # o ponto de corte do rollback anterior, entao sobreviveu a ele.
+        self.engine.rollback(to_event_id=a01.event_id, reason=REASON_TECHNICAL_FAILURE)
 
         for evento in self.store.read_all():
             with self.subTest(event_type=evento.event_type):
