@@ -1434,6 +1434,7 @@ vazia, é **verificação correta cujo resultado morre antes do destinatário**:
 | 1ª | *"degradar antes de autenticar entregaria o estado da simulação"* | num **comentário** de `degradacao.py`. O FastAPI é que decidia, e nada afirmava a ordem — o M2 |
 | 2ª | o veredito da guarda de base | era calculado contra `--base` em vez da branch default: certo para a pergunta errada — o eixo (h) |
 | 3ª | *"esta auditoria é LAUDO, e não porta"* | no **stderr** do lançador. O auditor deduziu "porta" do silêncio e julgou como gate — a §8.6.2 |
+| 4ª | o prompt inteiro, já montado e correto | numa **opção variádica** que o engoliu como nome de ferramenta. A sessão morreu antes de nascer — a §8.6.3 |
 
 **O que as três têm em comum:** em nenhuma delas alguém errou o raciocínio. O
 argumento estava certo nas três, e o defeito é de **transporte** — o canal entre
@@ -1444,6 +1445,13 @@ teste é sobre o destinatário, não sobre a declaração.* Provar que o aviso f
 impresso não prova que ele chegou ao prompt. É por isso que o eixo (i) lê o
 **prompt montado**, e não o stderr — e é a mesma escolha que fez o teste da ordem
 `autoriza → degrada` ser comportamental antes de ser estrutural.
+
+**E a 4ª ocorrência mostra que "destinatário" tem camadas.** O eixo (i) provava
+que o veredito chegava ao *prompt*; o prompt não chegava ao *processo*. Cada vez
+que se prova a entrega num nível, o nível seguinte vira o novo ponto cego — e a
+única saída conhecida é a mesma da §7.3.1: **executar o caminho inteiro, até o
+destinatário final**, em vez de provar o último trecho que se lembrou de olhar.
+Foi assim que o (j) nasceu, e ele mesmo nasceu vacuoso até ser medido.
 
 ### O contraste que vale registrar
 
@@ -1705,7 +1713,63 @@ deixa de conter"*. O probe é o eixo **(i)**, e ele lê o **prompt montado** —
 o bloco `PROMPT=` do próprio lançador e o executa com as variáveis definidas.
 Ler o stderr provaria a metade errada.
 
-### 8.6.3 Os achados, e o que foi feito com cada um
+### 8.6.3 O quarto lançamento morreu antes da sessão, e a causa era a correção do B1
+
+Relançada a auditoria, ela não chegou a existir:
+
+```text
+Error: Input must be provided either through stdin or as a prompt argument when using --print
+```
+
+**`--allowedTools <tools...>` é variádico** — está no próprio `claude --help`. Posto
+imediatamente antes de `"$PROMPT"`, ele consumiu o prompt **como nome de
+ferramenta**: não sobrou operando, e o CLI morreu antes de abrir sessão. O
+transcript nunca existiu, e por isso a captura falhou e `--recover` não tinha o
+que recuperar — o `audit_log.jsonl` registrou `verdict=sem_relatorio`, que é o
+mecanismo de captura funcionando.
+
+**Medido nos dois sentidos, com chamadas reais ao CLI:**
+
+| Invocação | Resultado |
+|---|---|
+| `claude -p --allowedTools Bash --permission-mode default "..."` | responde `OK` |
+| `claude -p --permission-mode default --allowedTools Bash "..."` | `Error: Input must be provided…` |
+
+A correção é a ordem: a opção variádica vem **antes** de `--permission-mode`, e a
+flag seguinte fecha a lista — o prompt volta a ser operando.
+
+**E a lição é a que eu tinha acabado de escrever, não aplicada.** A §7.3.1 diz
+*"rodar o caminho que se vai entregar, antes de entregar"*. Rodei o predicado, os
+probes e a suíte; **não rodei a invocação**. O eixo (i) executa o bloco `PROMPT=`
+e prova que o veredito **entra na montagem** — não prova que a montagem **chega ao
+destinatário**. É a §7.3.2 um nível acima.
+
+**O eixo (j), e ele nasceu vacuoso — pego por medição, não por leitura.** A
+primeira versão executava as duas invocações reais do lançador com um `claude` de
+mentira que grava o próprio argv. Plantando a ordem quebrada, **ficou verde**: o
+falso `claude` recebe o argv inteiro em qualquer ordem, porque quem quebra é o
+**parser** do CLI. O probe provava transporte, e o defeito era de *parsing*.
+
+A versão que ficou afirma as duas coisas:
+
+| | O que pega |
+|---|---|
+| o prompt chega como **um** argumento, inteiro | `$PROMPT` sem aspas, quebras de linha perdidas |
+| nenhuma opção **variádica** fica imediatamente antes do operando | exatamente o defeito deste lançamento |
+
+Com a ordem quebrada plantada, ele fica vermelho com *"`--allowedTools` engole o
+PROMPT na invocacao 0"*. Restaurada, 14 eixos verdes. **Limite declarado:** a
+segunda metade é um *modelo* do parser, conferido contra o CLI real nos dois
+sentidos; se a aridade da opção mudar, o modelo envelhece — e o comentário no
+probe é o aviso.
+
+**Um defeito do próprio probe, também achado rodando:** a primeira versão punha
+um `claude` falso em disco e o adicionava ao `PATH`. No Git Bash a grafia de
+`PATH` não é a do Windows, o falso nunca era encontrado, e o probe reprovava a si
+mesmo. Virou **função de shell**, que sombreia o comando externo sem depender de
+`chmod` nem de grafia de caminho.
+
+### 8.6.4 Os achados, e o que foi feito com cada um
 
 | | Achado | Disposição |
 |---|---|---|

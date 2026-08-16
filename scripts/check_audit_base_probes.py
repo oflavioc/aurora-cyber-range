@@ -346,6 +346,127 @@ def probe_i() -> bool:
     return False
 
 
+def probe_j() -> bool:
+    """(j) `--allowedTools` nao pode engolir o prompt.
+
+    `--allowedTools <tools...>` e VARIADICO. Posto imediatamente antes de
+    `"$PROMPT"`, ele consome o prompt como nome de ferramenta, e a sessao morre
+    com *"Input must be provided either through stdin or as a prompt argument"*.
+    Foi o que aconteceu no quarto lancamento da Fase 3: a concessao de Bash
+    entrou no lugar errado da linha e a auditoria nao chegou a existir.
+
+    Medido nos dois sentidos, com chamadas reais:
+
+        claude -p --allowedTools Bash --permission-mode default "..."  -> OK
+        claude -p --permission-mode default --allowedTools Bash "..."  -> Error
+
+    O EIXO (i) NAO PEGAVA ISTO, e a distincao e a licao: ele executa o bloco
+    `PROMPT=` e prova que o veredito ENTRA na montagem. Nao prova que a montagem
+    CHEGA ao destinatario. E a 7.3.2 um nivel acima — a declaracao chega ao
+    prompt, e o prompt nao chega a quem decide.
+
+    ENTAO ESTE PROBE EXECUTA AS INVOCACOES REAIS, com um `claude` de mentira no
+    PATH que grava o proprio argv separado por NUL. Nao ha chamada de modelo, e
+    ainda assim o que se afirma e o que chega ao processo: o prompt montado tem
+    de aparecer como UM argumento, inteiro, com as quebras de linha e o veredito
+    da guarda dentro.
+    """
+    linhas = LANCADOR.read_text(encoding="utf-8").splitlines()
+
+    invocacoes: list[str] = []
+    i = 0
+    while i < len(linhas):
+        if linhas[i].lstrip().startswith("claude "):
+            junta = [linhas[i].rstrip()]
+            while junta[-1].endswith("\\") and i + 1 < len(linhas):
+                i += 1
+                junta.append(linhas[i].rstrip())
+            invocacoes.append("\n".join(junta))
+        i += 1
+
+    if len(invocacoes) < 2:
+        print(f"  FALHA (j): esperava as 2 invocacoes de `claude`, achei {len(invocacoes)}")
+        return False
+
+    bash = shutil.which("bash")
+    if bash is None:
+        print("  FALHA (j): este probe precisa de `bash` para executar a invocacao")
+        return False
+
+    marca = "AVISO: ... LAUDO, e nao porta."
+    prompt = f"linha um\n\nVEREDITO:\n{marca}\n\nlinha final."
+
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        raiz = Path(tmp).as_posix()
+
+        for n, inv in enumerate(invocacoes):
+            saida = f"{raiz}/argv{n}.bin"
+            script = "\n".join(
+                [
+                    # `claude` COMO FUNCAO, e nao como arquivo no PATH: funcao de
+                    # shell sombreia o comando externo sem depender de chmod nem
+                    # da grafia de PATH, que no Git Bash nao e a mesma do Windows.
+                    # A primeira versao deste probe usava um shim em disco e
+                    # falhava por isso — o probe reprovava a si mesmo.
+                    'claude() { printf "%s\\0" "$@" > "$ARGV_OUT"; }',
+                    f'ARGV_OUT="{saida}"',
+                    "SESSION_ID=sess-de-teste",
+                    f"RAW={raiz}/raw{n}.txt",
+                    f"PROMPT={shlex.quote(prompt)}",
+                    inv,
+                ]
+            )
+            subprocess.run([bash, "-c", script], capture_output=True, text=True, check=False)
+
+            bruto = Path(saida)
+            if not bruto.is_file():
+                print(f"  FALHA (j): a invocacao {n} nao chegou a executar `claude`")
+                return False
+            argv = [a for a in bruto.read_bytes().decode("utf-8").split("\0") if a]
+
+            if prompt not in argv:
+                print(
+                    f"  FALHA (j): o PROMPT montado NAO chegou como argumento na "
+                    f"invocacao {n}. argv={argv!r}"
+                )
+                return False
+            if "Bash" not in argv:
+                print(f"  FALHA (j): a invocacao {n} nao concede Bash ao auditor")
+                return False
+
+            # A SEGUNDA METADE, e sem ela a primeira nao pega o defeito que
+            # motivou este eixo. O `claude` de mentira recebe o argv inteiro em
+            # qualquer ordem: quem quebra e o PARSER do CLI real, que trata
+            # `--allowedTools` como variadico. Medido escrevendo o probe errado
+            # primeiro — ele ficou VERDE com a ordem quebrada plantada.
+            #
+            # Entao a regra vai afirmada sobre o argv: entre a opcao variadica e
+            # o operando tem de haver outra flag. Limite declarado: isto e um
+            # MODELO do parser, conferido contra o CLI real nos dois sentidos —
+            # `--allowedTools Bash --permission-mode default "..."` responde, e
+            # `--permission-mode default --allowedTools Bash "..."` morre com
+            # "Input must be provided ... when using --print". Se o CLI mudar a
+            # aridade da opcao, o modelo envelhece e este comentario e o aviso.
+            variadicas = {"--allowedTools", "--allowed-tools", "--disallowedTools"}
+            for pos, tok in enumerate(argv):
+                if tok not in variadicas:
+                    continue
+                engolidos = []
+                for seguinte in argv[pos + 1 :]:
+                    if seguinte.startswith("-"):
+                        break
+                    engolidos.append(seguinte)
+                if prompt in engolidos:
+                    print(
+                        f"  FALHA (j): `{tok}` engole o PROMPT na invocacao {n} — "
+                        "opcao variadica imediatamente antes do operando"
+                    )
+                    return False
+
+    print("  ok    (j) o PROMPT chega inteiro E nenhuma opcao variadica o engole")
+    return True
+
+
 def probe_da_deteccao() -> bool:
     """O probe dos probes: a ancora legitima nao pode ser confundida com outra.
 
@@ -374,6 +495,7 @@ def main_probes() -> int:
     resultados.append(probe_g())
     resultados.append(probe_h())
     resultados.append(probe_i())
+    resultados.append(probe_j())
     resultados.append(probe_da_deteccao())
 
     print()
