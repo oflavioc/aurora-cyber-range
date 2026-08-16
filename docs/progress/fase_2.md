@@ -1037,9 +1037,20 @@ para algo que valia mudar — as outras duas custaram uma reescrita de prosa cad
 
 ## 4. Itens da Definition of Done
 
-Da `07` Fase 2, **já com as correções de E1 e E2**, que entraram em `main` no
-`a3aded5`. A coluna "o que mudou" existe porque três itens são mais exigentes
-agora do que eram no texto que a fase encontrou. Nenhum item iniciado.
+Da `07` Fase 2, **na forma que os três `spec-change` desta fase deixaram**: E1 e
+E2 no `a3aded5`, o item 8 no `item-8-volume-de-4h`. O `exercise-resumed` não
+tocou esta lista — ele criou evento, não item.
+
+> **Esta abertura dizia *"nenhum item iniciado"* e descrevia uma coluna
+> *"o que mudou"* que a tabela não tem.** As duas eram verdadeiras quando foram
+> escritas, no primeiro dia da fase, e sobreviveram a nove itens fechados. É a
+> §1.6 dentro do documento que a nomeia — e apareceu ao reler a tabela para o
+> checkpoint, que é tarde: quem a lesse antes teria lido "nenhum item iniciado"
+> embaixo de nove ✅.
+
+**A quarta coluna nomeia a fonte, e é ela que o checkpoint confere.** Atestação
+sem fonte é o que esta fase registrou como caro; a tabela existe para que
+"passa" e "aqui está a prova" sejam a mesma frase.
 
 | | Item | Status | Verificado contra o quê |
 |---|---|---|---|
