@@ -100,7 +100,11 @@ Inject sem objetivo associado é ruído deliberado ou erro de autoria. O linter 
 
 **5.5 Rollback incrementa epoch, não apaga.** Apenas a projeção de simulação é reconstruída. Ação de participante, avaliação e auditoria de facilitação são append-only permanentes.
 
-**5.6 Dois relógios, sempre.** Todo evento carrega `exercise_time` e `wall_timestamp`, mais `clock_multiplier`. Telemetria carrega também `ingest_time`.
+**5.6 Dois relógios, sempre.** São dois relógios e **três marcas**: o exercise-clock produz `exercise_time` e `exercise_timestamp`, o relógio de parede produz `wall_timestamp`. Todo evento carrega as três, mais `clock_multiplier`. Telemetria carrega também `ingest_time`.
+
+> A enumeração trazia `exercise_time` e `wall_timestamp`, omitindo `exercise_timestamp`. **Não era contradição** — o texto não dizia "apenas", e esta seção conta *relógios*, que são dois, enquanto `01_ARCHITECTURE.md` §3 conta *marcas*, que são três. Mas o MASTER é a autoridade que os demais citam, e uma lista incompleta aqui é lida como fechada: `09_EVENT_MODEL.md` §1.1 cita esta seção como fonte de `clock_multiplier`, e a Fase 2 gastou uma escalação (E2) exatamente sobre qual marca o envelope tem. Corrigido no `spec-change` `quatro-marcas-e-quem-escreve-flag`; era a P2-5.
+>
+> **Os dois relógios continuam dois, e é isso que o título afirma.** `exercise_timestamp` é marca do exercise-clock — congela no PAUSAR junto de `exercise_time` e avança na cadência do multiplicador (`01_ARCHITECTURE.md` §3) —, e não um terceiro relógio. O que se separa no rollback são as duas marcas do mesmo relógio, não relógios distintos.
 
 **5.7 Evidência antes de julgamento.** Critério sem evidência observável associada — `auto` ou `observed` — não entra no AAR como métrica. Impressão de facilitador entra rotulada como nota qualitativa.
 
