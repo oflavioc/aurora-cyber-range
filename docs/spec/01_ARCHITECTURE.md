@@ -100,6 +100,12 @@ Telemetria carrega adicionalmente `ingest_time`, distinto de `event_time`.
 
 **exercise-clock**: T0 definido pelo facilitador; PAUSAR congela e impede disparo agendado; multiplicador 1x / 5x / 20x para ensaio; `clock_multiplier` gravado em cada evento para reconstrução.
 
+**A pausa tem começo e fim registrados.** PAUSAR grava `exercise_paused` e CONTINUAR grava `exercise_resumed` (`09_EVENT_MODEL.md` §4.1). O intervalo pausado é a distância entre os `wall_timestamp` dos dois eventos — **em tempo de parede, e não de exercício**, porque as duas marcas de exercício congelam na pausa e mediriam zero. É o espelho da escolha de `06_ACCEPTANCE_TESTS.md` T3, que usa `exercise_timestamp` justamente por ele excluir a pausa.
+
+**Disparo manual continua permitido com o exercício pausado**; o que a pausa bloqueia é o disparo **agendado**. São dois comandos distintos em §6, e só o segundo aparece na frase do PAUSAR.
+
+> As duas frases acima entraram no `spec-change` `exercise-resumed`. A primeira acompanha o evento novo. A segunda **já era implicação** de §3 dizer "agendado" e de §6 listar os dois disparos como coisas distintas, e passa a ser enunciada porque a justificativa do evento novo se apoia nela: é justamente por o disparo manual ser permitido que um evento posterior ao `exercise_paused` **não** prova que houve retomada. Exigência apoiada em propriedade não enunciada é a classe de defeito que o `spec-change` anterior consertou em três lugares.
+
 **`exercise_timestamp` é marca do exercise-clock, não do relógio de parede.** Congela com o PAUSAR, junto de `exercise_time`, e avança na cadência do `clock_multiplier`. Os dois se separam no **rollback**: `exercise_time` é o rótulo `T+` e rebobina até o ponto de corte; `exercise_timestamp` **não rebobina**, e é o que torna ordenáveis entre si eventos de epochs distintas (`09_EVENT_MODEL.md` §1.1). O exemplo acima é de epoch única, onde os dois coincidem por construção — `T0 + exercise_time` —; a partir do primeiro rollback separam-se **pela quantidade de tempo de exercício que o rollback descartou**, e é essa separação que dá ao envelope duas marcas de exercício em vez de uma.
 
 **Congelamento por falha do range**: rollback com `reason: technical_failure` congela o relógio de métricas entre o inject falho e a retomada (`09_EVENT_MODEL.md` §3.1). O clock de exercício continua correndo; apenas a projeção de métricas desconta o intervalo.
@@ -147,6 +153,8 @@ Um filtro no caminho de leitura compartilhado faria as outras quatro herdarem um
 Motivos e sua semântica métrica: `09_EVENT_MODEL.md` §3.1.
 
 **RESET TOTAL** grava `exercise_reset`, restaura defaults do contrato e o snapshot de business state do start. É recomeço, não correção.
+
+**PAUSAR grava `exercise_paused` e CONTINUAR grava `exercise_resumed`** — ver §3. Os quatro comandos de execução do console (§6) passam a ter, cada um, evento no catálogo: sem isso, o estado de pausa não é reconstruível a partir do store, e o reinício exigido pela Fase 4 não teria como saber se o exercício estava parado.
 
 ### 4.3 Por que business state não reverte
 

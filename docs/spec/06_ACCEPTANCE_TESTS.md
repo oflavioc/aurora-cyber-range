@@ -54,6 +54,11 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - A sequência do DEMO SCRIPT da Fase 4 completa sem intervenção manual.
 - Wallboard reflete mudança de flag em < 1 s.
 - Refresh do browser recupera estado corrente em wallboard e participant-view.
+- **Reinício do engine com o exercício pausado o restaura pausado; reinício depois da retomada o restaura correndo.** Os dois casos a partir do event store, sem intervenção.
+
+> O último critério entrou no `spec-change` `exercise-resumed`. Ele não acrescenta escopo à Fase 4: o item de DoD dela em `07_IMPLEMENTATION_PHASES.md` já manda o reinício restaurar **o exercício** a partir do event store, e o estado de pausa é parte do exercício. O que faltava era a forma **verificável** — e sem ela o `exercise_resumed` seria evento novo que nenhuma checklist cobra, que é como um requisito morre sem nada ficar vermelho. Mesma correção que T10 recebeu no `spec-change` anterior, e pelo mesmo motivo.
+>
+> **Os dois casos, e não um.** Um teste que só verificasse o reinício pausado passaria com um engine que sobe sempre pausado; o par é o que discrimina.
 
 ## T6 — Isolamento de papel (Fases 4–5)
 

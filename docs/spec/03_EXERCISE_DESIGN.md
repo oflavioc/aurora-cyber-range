@@ -285,7 +285,7 @@ Cada persona vê apenas sua camada `reported`.
 
 ## 7. Papéis de facilitação
 
-**`facilitador`** — timeline integral, linhas, ground truth, GM_NOTES, consequências, PAUSAR / ROLLBACK / RESET, AAR.
+**`facilitador`** — timeline integral, linhas, ground truth, GM_NOTES, consequências, PAUSAR / CONTINUAR / ROLLBACK / RESET, AAR.
 
 **`operador`** — apenas fila de injects liberados, com `titulo_operacional` neutro, botão de disparo. **Não vê**: linha, `descricao_facilitador`, GM_NOTES, ground truth, timeline futura, consequências. Se enxergar que existe Linha B, o efeito de triagem sob viés é destruído. Teste é sobre payload de API, não sobre interface.
 
