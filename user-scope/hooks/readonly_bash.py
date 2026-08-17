@@ -188,6 +188,14 @@ ALLOWED = [
     # aspas nao bloqueia, e termo de um caractere nao entra. Sem ela o auditor
     # nao teria como distinguir "nao vazou" de "nao procurou".
     rf"|check_telas_sem_vocabulario|check_telas_sem_vocabulario_probes"
+    # `check_banner_de_simulacao` — B1 da primeira auditoria da Fase 4, e o
+    # criterio de admissao e o mesmo dos dois acima: o auditor nao consegue
+    # responder isto por leitura. O texto e extraido da spec e comparado letra
+    # por letra contra tres fontes e tres bundles minificados de ~160 kB.
+    #
+    # A prova negativa entra junto, e aqui ela carrega o eixo que mais importa:
+    # a fonte pode ter o banner e o BUNDLE nao.
+    rf"|check_banner_de_simulacao|check_banner_de_simulacao_probes"
     # SENTINELA DE BRANCH — D15, Fase 4. A DECISAO DE ADMISSAO ESTA AQUI, NO
     # COMMIT QUE CRIA O MECANISMO, e o resultado dela e "nada novo entra".
     #

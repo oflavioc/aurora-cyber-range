@@ -147,6 +147,20 @@ jobs:
       - name: teste negativo do verificador de vocabulario das telas
         run: python scripts/check_telas_sem_vocabulario_probes.py
 
+      # O BANNER DE `05` §4 — B1 da primeira auditoria da Fase 4. A secao inteira
+      # nao tinha verificador: `check_security_constraints.py` declara escopo §1
+      # e `check_synthetic_data.py` cobre §3, e a §4 estava fora dos dois. A Fase
+      # 4 entregou tres telas sem o banner, e nada acusou por sete pecas.
+      #
+      # Presenca de banner e propriedade do DOM, e nao de renderizacao: ela caiu
+      # no limite declarado da §2.2 por acidente, e agora e gate. Aqui sobre a
+      # FONTE; no `contratos`, sobre o bundle.
+      - name: banner de simulacao em toda tela (05 secao 4)
+        run: python scripts/check_banner_de_simulacao.py
+
+      - name: teste negativo do verificador do banner
+        run: python scripts/check_banner_de_simulacao_probes.py
+
       # P3-1. Na peca 3 eu inventei o digest do Redis para o servico deste
       # workflow, com o `docker-compose.yml` ja pinando o valor ao lado. Foi
       # pego por `grep`, e nao por mecanismo — entao na rodada seguinte poderia
@@ -522,6 +536,12 @@ jobs:
       # parasse de produzir `dist/`.
       - name: o bundle construido nao carrega vocabulario
         run: python scripts/check_telas_sem_vocabulario.py --exige-bundle
+
+      # O banner no ARTEFATO, e nao so na fonte: o bundle e o que chega ao
+      # navegador, e uma checagem que so olhasse `.tsx` diria "coberto" sobre um
+      # telao sem banner.
+      - name: o bundle construido carrega o banner de simulacao
+        run: python scripts/check_banner_de_simulacao.py --exige-bundle
 
       # ---------------------------------------------------------------------
       # A STACK DE CONTAINERS — peca 7. Daqui para baixo o que roda nao e mais

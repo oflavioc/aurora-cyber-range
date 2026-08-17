@@ -20,6 +20,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BannerDeSimulacao } from "../src/banner";
 import { useCanal } from "../src/canal";
 import { corDa, type Wallboard } from "../src/payload";
 import "../src/estilo.css";
@@ -41,14 +42,21 @@ function Telao() {
 
   if (estado === null) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-950 text-[3vw] text-slate-500">
-        aguardando o exercício…
+      <div className="flex h-full flex-col bg-slate-950">
+        <BannerDeSimulacao />
+        <div className="flex flex-1 items-center justify-center text-[3vw] text-slate-500">
+          aguardando o exercício…
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col gap-[1.5vw] bg-slate-950 p-[2vw] text-slate-100">
+    <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+      {/* `05` §4: em TODA tela. Ele custa uma linha do orcamento da D16, e o
+          custo esta declarado la — a spec nao abre excecao para tela pequena. */}
+      <BannerDeSimulacao />
+      <div className="flex flex-1 flex-col gap-[1.5vw] p-[2vw]">
       <header className="flex items-baseline gap-[2vw]">
         <h1 className="text-[1.8vw] uppercase tracking-[0.3em] text-slate-400">
           Universidade Aurora
@@ -110,6 +118,7 @@ function Telao() {
           + {estado.omitidos} outros efeitos ativos
         </p>
       ) : null}
+      </div>
     </div>
   );
 }

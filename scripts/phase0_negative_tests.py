@@ -178,6 +178,10 @@ LEITURA_LEGITIMA = [
      "python scripts/check_telas_sem_vocabulario.py"),
     ("teste negativo do verificador de vocabulario das telas",
      "python scripts/check_telas_sem_vocabulario_probes.py"),
+    ("banner de simulacao em toda tela",
+     "python scripts/check_banner_de_simulacao.py"),
+    ("teste negativo do verificador do banner",
+     "python scripts/check_banner_de_simulacao_probes.py"),
     ("autoridade do fold sobre o estado",
      "python scripts/check_fold_authority.py"),
     ("teste negativo da autoridade do fold",
@@ -965,25 +969,89 @@ def isencao_de_leitor_e_a_revisada() -> None:
     print(f"OK: isencao de alvo inexistente cobre {len(isentos)} leitores revisados")
 
 
-def hook_copies_in_sync() -> None:
-    """A copia instalada e a que roda. Divergencia silenciosa e o pior caso."""
-    if not READONLY_HOOK_INSTALLED.exists():
+#: Quantas copias instaladas foram CONFERIDAS e quantas estavam AUSENTES.
+#:
+#: Contar existe porque o relatorio final dizia "Hooks exercitados: fonte
+#: versionada, copia instalada" mesmo quando NENHUMA copia foi conferida — que e
+#: o caso do CI, onde nao ha escopo de usuario. Afirmacao de cobertura que nao
+#: acompanha o que de fato rodou e a §7.3 desta linhagem: a verificacao que
+#: PARECE existir.
+COPIAS_CONFERIDAS: list[str] = []
+COPIAS_AUSENTES: list[str] = []
+
+
+def copia_em_sincronia(rotulo: str, fonte: Path, instalada: Path, instrucao: str) -> None:
+    """A copia instalada e o mesmo PROGRAMA que a fonte versionada.
+
+    UMA IMPLEMENTACAO, E NAO TRES — H1 da primeira auditoria da Fase 4
+    ------------------------------------------------------------------
+    Havia tres copias desta checagem, e elas divergiam: a do `readonly_bash`
+    comparava `splitlines()` e as do guarda e do sentinela comparavam
+    `read_bytes()`. **Duas implementacoes da mesma propriedade divergindo e a
+    classe P3-1**, e o resultado liquido era pior que vermelho: na maquina de
+    quem desenvolve a comparacao de bytes disparava contra CRLF — diferenca que
+    o `core.autocrlf` do checkout produz e que o autor nao escreveu —, e no CI as
+    tres caiam no ramo de aviso e nao verificavam nada. **Vermelha para quem
+    desenvolve, cega para quem julga.**
+
+    A COMPARACAO E POR LINHA, e a escolha e semantica: o que se afirma aqui e que
+    o codigo instalado e o mesmo, e o fim de linha de um arquivo versionado e
+    decidido pelo checkout, nao pelo autor. Comparar bytes faria a checagem
+    reprovar contra uma nao-diferenca.
+
+    **O fim de linha do `pre-commit` E relevante — e por isso ele tem assercao
+    PROPRIA**, e nao fica escondido dentro desta: ele e `#!/bin/sh`, e um CR no
+    shebang o torna inexecutavel. `.gitattributes` forca LF nele, e
+    `sem_carriage_return` afirma o resultado. Duas propriedades, duas assercoes.
+    """
+    if not instalada.exists():
+        COPIAS_AUSENTES.append(rotulo)
         print(
-            "AVISO: ~/.claude/hooks/readonly_bash.py ausente — checagem de drift "
-            "pulada (esperado em CI, onde nao ha escopo de usuario)."
+            f"AUSENTE: {instalada} nao existe — sincronia de `{rotulo}` NAO "
+            f"conferida (esperado no CI, que nao tem escopo de usuario). {instrucao}"
         )
         return
-    fonte = READONLY_HOOK_SOURCE.read_text(encoding="utf-8").splitlines()
-    instalada = READONLY_HOOK_INSTALLED.read_text(encoding="utf-8").splitlines()
-    if fonte != instalada:
+
+    if fonte.read_text(encoding="utf-8").splitlines() != instalada.read_text(
+        encoding="utf-8"
+    ).splitlines():
         _reject(
-            "readonly_bash.py",
-            "fonte versionada e copia instalada DIVERGEM. "
-            f"Copie {READONLY_HOOK_SOURCE.relative_to(ROOT).as_posix()} "
-            "para ~/.claude/hooks/",
+            rotulo,
+            f"fonte versionada e copia instalada DIVERGEM. {instrucao}",
             "",
         )
-    print("OK: fonte versionada e copia instalada de readonly_bash.py identicas")
+    COPIAS_CONFERIDAS.append(rotulo)
+    print(f"OK: fonte versionada e copia instalada de {rotulo} identicas")
+
+
+def sem_carriage_return(rotulo: str, caminho: Path) -> None:
+    """Script de shell com CR e script inexecutavel — e o erro nao nomeia isso.
+
+    Vale para a FONTE versionada: e ela que `bootstrap.sh` copia. `.gitattributes`
+    forca `eol=lf` no `pre-commit` justamente porque `core.autocrlf` esta ligado
+    na maquina do operador, e um shebang com CR falha com "bad interpreter".
+    """
+    # O BYTE, e nao um escape: escrever a sequencia de escape aqui foi
+    # exatamente o que quebrou este arquivo uma vez — o CR literal entrou no
+    # lugar dela. `bytes([13])` nao tem como ser mal interpretado.
+    if bytes([13]) in caminho.read_bytes():
+        _reject(
+            rotulo,
+            f"{caminho.name} tem CRLF, e ele e `#!/bin/sh`. Um CR no shebang o "
+            "torna inexecutavel; `.gitattributes` deve forcar `eol=lf`.",
+            "",
+        )
+    print(f"OK: {rotulo} sem CRLF — executavel onde `bootstrap.sh` o instala")
+
+
+def hook_copies_in_sync() -> None:
+    """A copia instalada e a que roda. Divergencia silenciosa e o pior caso."""
+    copia_em_sincronia(
+        "readonly_bash.py",
+        READONLY_HOOK_SOURCE,
+        READONLY_HOOK_INSTALLED,
+        f"Copie {READONLY_HOOK_SOURCE.relative_to(ROOT).as_posix()} para ~/.claude/hooks/",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -1062,14 +1130,13 @@ def guarda_de_branch() -> None:
 
 def guarda_copias_em_sincronia() -> None:
     """Fonte versionada e copia instalada neste clone sao identicas."""
-    instalada = ROOT / ".git" / "hooks" / "pre-commit"
-    if not instalada.exists():
-        print("AVISO: guarda de branch nao instalado neste clone (rode bootstrap.sh)")
-        return
-    if instalada.read_bytes() != GUARDA_FONTE.read_bytes():
-        _reject("guarda de branch",
-                "fonte versionada e copia instalada DIVERGEM", "")
-    print("OK: fonte versionada e copia instalada do guarda de branch identicas")
+    sem_carriage_return("guarda de branch", GUARDA_FONTE)
+    copia_em_sincronia(
+        "guarda de branch",
+        GUARDA_FONTE,
+        ROOT / ".git" / "hooks" / "pre-commit",
+        "Rode bootstrap.sh",
+    )
 
 
 # --------------------------------------------------------------------------
@@ -1265,17 +1332,12 @@ def sentinela_copias_em_sincronia() -> None:
     instalada e a que roda, e divergencia silenciosa e o pior caso — o harness
     mediria a fonte e o operador viveria com outra coisa.
     """
-    instalada = Path.home() / ".claude" / "hooks" / "sentinela_de_branch.py"
-    if not instalada.exists():
-        print(
-            "AVISO: ~/.claude/hooks/sentinela_de_branch.py ausente — checagem de "
-            "drift pulada (esperado em CI, onde nao ha escopo de usuario)."
-        )
-        return
-    if instalada.read_bytes() != SENTINELA_FONTE.read_bytes():
-        _reject("sentinela de branch",
-                "fonte versionada e copia instalada DIVERGEM. Rode bootstrap.sh", "")
-    print("OK: fonte versionada e copia instalada do sentinela identicas")
+    copia_em_sincronia(
+        "sentinela de branch",
+        SENTINELA_FONTE,
+        Path.home() / ".claude" / "hooks" / "sentinela_de_branch.py",
+        "Rode bootstrap.sh",
+    )
 
 
 def main() -> int:
@@ -1559,7 +1621,14 @@ def main() -> int:
         f"{len(ESCRITA_POR_ALVO)} formas x {len(GRAFIAS_DE_ALVO)} grafias de alvo "
         f"= {len(ESCRITA_POR_ALVO) * len(GRAFIAS_DE_ALVO)} provas de invariante.\n"
         f"Hooks exercitados: {', '.join(o for o, _ in _hooks_sob_teste())}.\n"
-        "sentinela_de_branch.py: as 3 pernas da D15, mais 6 direcoes de limite "
+        f"Copias instaladas: {len(COPIAS_CONFERIDAS)} conferidas"
+        + (
+            f", {len(COPIAS_AUSENTES)} AUSENTES ({', '.join(COPIAS_AUSENTES)}) — "
+            "sincronia NAO verificada nesta execucao.\n"
+            if COPIAS_AUSENTES
+            else ", nenhuma ausente.\n"
+        )
+        + "sentinela_de_branch.py: as 3 pernas da D15, mais 6 direcoes de limite "
         "declarado e a sincronia da copia instalada.\n"
         f"DEFEITOS ABERTOS, afirmados e nao escondidos (P23 reaberto): "
         f"{len(FALSOS_BLOQUEIOS_CONHECIDOS)} leituras legitimas bloqueadas e "
