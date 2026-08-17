@@ -457,6 +457,19 @@ ou `if: always()`; e que `Dockerfile` e compose dizem o que os scripts supõem. 
 que ele **não** verifica é a execução — e isso vale igualmente para o
 `demo_fase2.py` desde a Fase 2, com o mesmo estatuto.
 
+> **A última frase mudou de escopo com a P4-10, e não de valor.** Ela dizia que o
+> auditor não verifica a execução, e continua verdade que **ele não a vê**. O que
+> passou a existir é uma execução **amarrada a este commit**: o lançador roda as
+> duas provas contra o worktree auditado e grava a saída com o SHA, e
+> `check_provas_de_container.py` reprova se o SHA divergir ou se o arquivo não
+> existir. A §4.11 tem a forma inteira.
+>
+> **Isto não reabre a exigência que a D12 dispensou.** Aquela era sobre pôr o
+> serviço na stack efêmera para o teste não *pular*, e passo de CI continua não
+> pulando. A P4-10 resolve outra coisa — os itens 1 e 4 chegavam ao veredito como
+> NÃO VERIFICADO —, e resolve pelo lado que a P2-19 já tinha escolhido: no
+> lançador, e não na allowlist do julgador.
+
 **Isto é revisão da decisão, e não exceção a ela.** A diferença importa: uma
 exceção deixaria a regra valendo e abriria um caso; a revisão diz que a regra
 mudou de escopo — **a segunda ponta é exigida quando a prova puder pular**, e não
@@ -2479,6 +2492,199 @@ existe para carregar. Ver a **P4-9**.
 que é o padrão da P2-19. A proposta está na **P4-10**, e ela **não foi
 implementada** — a decisão é do operador.
 
+> **Decidida: opção A, e implementada na §4.11.** O operador escolheu com o
+> argumento das outras duas escrito: a **B** põe rede e execução de container na
+> mão do julgador, que é o que a P2-19 recusou e continua valendo; a **C** deixa
+> o item 4 — o único que esta fase existe para fechar — sustentado por
+> auto-relato.
+
+---
+
+## 4.11 A P4-10 — a opção A, e a condição que a separa de atestação
+
+**Decisão do operador: A**, com as outras duas recusadas por motivo escrito. A
+**B** — `docker compose` e `docker inspect` na allowlist — põe rede e execução de
+container na mão do julgador, que é exatamente o que a P2-19 recusou ao negar
+`gh`, e aquela decisão não mudou de fundamento. A **C** — nada muda — deixaria o
+**item 4**, que é o único que esta fase existe para fechar no nível de container,
+sustentado por auto-relato.
+
+### A forma: o que exige rede acontece no lançador
+
+É a mesma saída que a P2-19 escolheu para a stack efêmera e que a P3-4 seguiu
+para o venv. O lançador, na máquina do operador, sobe a stack a partir do
+**worktree auditado**, roda as duas provas e grava a saída íntegra num arquivo
+que o auditor **lê**.
+
+| | |
+|---|---|
+| `scripts/grava_provas_de_container.py` | roda no lançador, sobe container. **Fora da allowlist** |
+| `scripts/check_provas_de_container.py` | lê o arquivo e julga. **Dentro da allowlist**, no mesmo commit |
+
+### O SHA é o que separa isto de atestação — e a razão é mecânica
+
+O arquivo carrega o **SHA do commit**, e o verificador **reprova** se ele não for
+o do checkout que se julga. O auditor continua não tendo visto a execução — isso
+é verdade e está dito na saída dele, não escondido —, mas a evidência fica
+**amarrada ao objeto**: é a diferença entre *"alguém rodou"* e *"rodou nisto"*.
+
+**A condição é forte por mecânica, e não por confiança: um commit não pode conter
+o próprio SHA.** A forma óbvia de forjar — versionar o arquivo junto com o
+código — não tem como carregar o hash do commit que o contém. A checagem de SHA
+não é formalidade; é o que torna a forja impossível em vez de difícil.
+
+A segunda condição não acrescenta segurança sobre a primeira, e **acrescenta
+diagnóstico**: evidência **versionada** reprova sem nem olhar o SHA. O caso
+provável não é forja — é alguém commitar o arquivo por engano —, e esse merece a
+mensagem que nomeia a causa.
+
+### As duas direções que a pendência exige por nome
+
+| Eixo | O que acontece |
+|---|---|
+| **SHA divergente** | **recusa**, imprimindo os dois SHAs — o declarado e o julgado |
+| **arquivo ausente** | **recusa**. Não há "sai 0 por não saber" |
+
+O segundo é o eixo que esta linhagem já errou três vezes em outro mecanismo: os
+dois predicados que `check_audit_base.py` aposentou **degradaram para "ok" quando
+não sabiam**, cada um à sua maneira. Não ter a evidência é exatamente o caso em
+que não se pode afirmar que os itens 1 e 4 passam — então ele recusa, e os dois
+voltam a ser **NÃO VERIFICADO**, que é a opção C e é honesto. O que ele não faz é
+deixar alguém concluir verde de um silêncio.
+
+**Treze eixos em `scripts/check_provas_de_container_probes.py`** — onze escritos
+antes de rodar, e dois que a execução acrescentou (abaixo). O que os sustenta é o
+terceiro:
+
+| | |
+|---|---|
+| ausência, SHA divergente, JSON truncado, esquema ausente, `commit` inválido | recusa |
+| lista vazia; uma das duas provas faltando; prova em `rc != 0` | recusa — é a vacuidade, e ela tem dois tamanhos |
+| evidência versionada | recusa, nomeando o engano |
+| **prova verde e muda** — `rc: 0` com saída vazia | recusa. Não estava previsto; ver abaixo |
+| **evidência legítima deste commit** | **aprova**, e imprime a saída íntegra |
+| a raiz vem do `__file__`, e não do `cwd` | quem chama não escolhe contra qual árvore comparar |
+| o verificador não morre no que imprime | verificador que morre não diz "reprovou" — não diz nada |
+
+**O par é o que impede os outros doze de virarem superstição:** um verificador que
+recusasse sempre passaria em onze deles. E ele afirma duas coisas, não uma — que
+aprova, e que **a saída íntegra aparece**. Aprovar em silêncio trocaria um NÃO
+VERIFICADO por *"confie na minha checagem"*, que não é o que a opção A comprou.
+
+**Medido, uma mutação por vez** — porque probe que nunca foi visto detectando é
+um script que sai com zero:
+
+| Mutação plantada | Eixos vermelhos |
+|---|---|
+| ausência degrada para "ok" | **1** — e é o (a) |
+| o SHA deixa de ser conferido | **1** — e é o (b) |
+
+Cada uma mata exatamente o seu eixo. Se matassem mais, haveria redundância
+silenciosa entre eles.
+
+### A prova roda contra o compose da fase, e três coisas mudam de nome
+
+O `docker-compose.yml` é o objeto da auditoria — é ele que a peça 7 entrega —,
+então a prova roda contra **ele**, e não contra uma cópia. Um segundo arquivo
+descrevendo os mesmos serviços seria duas declarações do mesmo fato, e a que
+diverge em silêncio é sempre a que ninguém está olhando.
+
+O que muda são as três coisas que colidiriam com a stack de quem desenvolve, e
+**a colisão não é hipotética: a stack de desenvolvimento estava no ar quando isto
+foi rodado pela primeira vez.**
+
+| | Por quê |
+|---|---|
+| projeto `aurora-provas`, por `-p` | isola a reconciliação de serviços |
+| `AURORA_STACK_PREFIX` | **`container_name` é global no daemon** — `-p` não basta, porque o nome não passa pelo projeto |
+| portas próprias, e diferentes também das `15432`/`16379` | a stack efêmera da auditoria sobe **antes** desta e fica no ar durante a sessão inteira |
+| `AURORA_PGDATA_VOLUME`, removido no `down -v` | sem isso a prova escreveria no `aurora_pgdata` de desenvolvimento — que é exatamente o que o `docker-compose.audit.yml` existe para não fazer. E a rodada seguinte encontraria o `exercise_started` da anterior, com `engine.start()` recusando |
+
+Os defaults são os de sempre: `docker compose up` continua idêntico, e o CI não
+mudou de comportamento. É o mesmo argumento que já tinha escolhido
+`${AURORA_PG_PORT:-5432}` naquele arquivo.
+
+### Falha baixo, ao contrário do venv — e a assimetria é decisão
+
+A P3-4 **para** a auditoria quando o `pip` falha, porque sem o venv o veredito
+sairia sobre outro núcleo: errado, e não incompleto. Aqui não. Sem as provas, os
+itens 1 e 4 voltam a NÃO VERIFICADO, e derrubar a auditoria inteira por falta de
+Docker trocaria um veredito parcial por nenhum.
+
+**O estado vai no prompt, verbatim**, ao lado de `Servicos:` e do veredito da
+guarda de base — e pela mesma lição: declaração que existe e não chega a quem
+decide com ela é a terceira ocorrência desta forma nesta linhagem.
+
+### O que ele NÃO prova, declarado
+
+- **O auditor não viu rodar.** Ele lê uma saída gravada por um processo que não é
+  o dele. A procedência é melhor que a de uma frase de registro — há SHA, há
+  saída íntegra, e o texto é o dos próprios scripts —, e continua sendo leitura.
+  Está impresso no caminho de aprovação, e não só aqui.
+- **A saída é dos scripts, e os scripts podem estar errados.** Isso não muda: eles
+  são código do commit auditado e o auditor pode lê-los, que é o mesmo estatuto
+  do `demo_fase2.py` desde a Fase 2.
+- **Nada sobre o CI.** Verde de CI é de outro commit até que se prove o contrário,
+  e foi o L1 da primeira auditoria desta fase.
+
+### Dois defeitos meus, os dois achados rodando — e são o mesmo, nas duas pontas
+
+**Nenhum dos dois foi previsto por leitura, e a razão de não terem sido é o que
+os torna interessantes:** eles são a mesma fronteira de texto, atravessada em
+direções opostas. O caminho inteiro foi rodado antes de ser entregue — é a
+§7.3.1 da Fase 3 funcionando como antídoto, e é a terceira vez nesta fase.
+
+| O que | Por que só a execução separa |
+|---|---|
+| o **gravador** não decodificava a saída do `docker compose` | `text=True` sozinho usa a codepage do locale — `cp1252` aqui —, e a saída do build tem bytes que ela não mapeia. **No Windows a captura roda em thread leitora, e a exceção morre lá:** `subprocess.run` devolve **saída vazia com o rc do processo** |
+| o **verificador** não conseguia imprimir a evidência de volta | as barras de progresso do build trazem caracteres fora de `cp1252`, e ele saía com `UnicodeEncodeError` e **rc=1 sobre evidência legítima** |
+
+**O primeiro é o pior dos dois, e por uma diferença que importa:** ele produzia
+`rc: 0` com `saida: ""` — uma prova **verde e muda**. O verificador, como estava,
+**aprovava**. Seria o pior resultado possível deste mecanismo: trocar um NÃO
+VERIFICADO honesto por um verde que *parece* ter evidência.
+
+**O segundo é mais barulhento e por isso menos perigoso**, mas ele mata quem
+julga: um verificador que morre não diz "reprovou" — não diz nada, e o auditor
+fica com um traceback no lugar do veredito.
+
+**As duas causas estão corrigidas** — codificação explícita nos dois lados, mais
+`PYTHONIOENCODING` para as provas, que escrevem acento. **E os dois eixos ficaram
+nos probes, porque o que se verifica não é a causa:** que a evidência tenha
+conteúdo, e que quem julga consiga imprimi-la. Perder a saída tem mais de uma
+forma, e a próxima não vai ser a codificação.
+
+São **treze eixos**, e os dois últimos não estavam na lista escrita antes de
+rodar.
+
+### Visto rodando, contra dois containers e com a stack de desenvolvimento no ar
+
+```text
+telao reagiu................ saude 90, 2 destaques, 78 ms
+matricula degradada......... 503
+rollback.................... saude 100, epoch 1
+matricula restaurada........ 201 — a mesma requisicao que deu 503
+reiniciado pausado.......... StartedAt 21:05:00 -> 21:05:07
+clock congelado............. T+5s, o mesmo de antes do reinicio
+reiniciado correndo......... StartedAt 21:05:07 -> 21:05:16
+clock correu................ T+5s -> T+14s, com 9s fora do ar
+```
+
+E o verificador, sobre essa evidência: **rc=0**, com os dois itens nomeados, a
+saída íntegra impressa e o limite declarado no fim — *"o auditor não viu rodar"*.
+
+### A allowlist decidiu as duas entradas, e uma delas é "não"
+
+No mesmo commit, que é a regra escrita dentro do `readonly_bash.py` desde o B1 da
+Fase 2. O verificador e o probe **entram**; o gravador **fica fora**, e a exclusão
+é a própria propriedade — ele constrói imagem, sobe container e derruba stack.
+
+**E a exclusão é provada, não escrita:** `phase0_negative_tests.py` afirma que o
+gravador é **bloqueado**, ao lado de `docker compose up`. Comentário na allowlist
+não é mecanismo — sem essa linha, acrescentar o gravador à alternação passaria sem
+nada acusar. O harness passou de **60 para 64** leituras legítimas e de **40 para
+42** escritas bloqueadas.
+
 ---
 
 ## 5. O procedimento desta fase, e o que muda
@@ -2520,7 +2726,7 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-7 | três avisos de `npm audit` no toolchain do cliente, todos em dependência de desenvolvimento | **condição** — ver abaixo |
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume | **condição** — ver abaixo |
 | P4-9 | ~~a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change`~~ | ✅ **FECHADA** pelo `spec-change` mergeado em `486df18` |
-| P4-10 | itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor | **decisão do operador** — proposta abaixo |
+| P4-10 | ~~itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor~~ | ✅ **FECHADA** com a opção A (§4.11) |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -2945,6 +3151,28 @@ ao objeto — que é a diferença entre "alguém rodou" e "rodou nisto".
 **Não implementei.** A P2-19 é decisão de arquitetura de auditoria, e a lição do
 B1 da Fase 2 é que "nada novo entra" também precisa ser decidido — por quem
 decide.
+
+> **✅ FECHADA: o operador decidiu A, e ela está implementada — §4.11.** A
+> recomendação foi aceita **com a condição inteira**, e não com a metade fácil: o
+> arquivo carrega o SHA, o verificador reprova quando ele diverge, **e reprova
+> quando o arquivo não existe** — sem degradar para "ok por não saber", que é o
+> erro que os dois predicados de base aposentados cometeram.
+>
+> **As duas direções foram exercidas reprovando**, e a medição diz que cada
+> mutação mata exatamente um eixo: ausência degradando para "ok" derruba o (a), o
+> SHA deixando de ser conferido derruba o (b). O par que impede os outros de
+> virarem superstição é o (c), e ele afirma também que **a saída íntegra é
+> impressa** — aprovar em silêncio trocaria um NÃO VERIFICADO por "confie na
+> minha checagem".
+>
+> **A recusa das outras duas ficou escrita, e não implícita**, que é o que a
+> lição do B1 da Fase 2 cobra: a B poria rede e execução de container na mão do
+> julgador — a P2-19 exatamente —, e a C deixaria o item 4 sustentado por
+> auto-relato.
+>
+> **O gravador ficou FORA da allowlist, e a exclusão é provada e não escrita.**
+> É a mesma forma da D15: a decisão de admissão acontece no commit que cria o
+> mecanismo, e o resultado dela pode ser "não".
 
 ---
 

@@ -182,6 +182,14 @@ LEITURA_LEGITIMA = [
      "python scripts/check_banner_de_simulacao.py"),
     ("teste negativo do verificador do banner",
      "python scripts/check_banner_de_simulacao_probes.py"),
+    # P4-10. As duas entram, e o GRAVADOR nao — ele sobe container, e a P2-19
+    # recusou pôr rede e execucao de container na mao do julgador. A direcao
+    # oposta esta em ESCRITA_DELIBERADA, para que a exclusao seja PROVADA e nao
+    # apenas escrita no comentario da allowlist.
+    ("as provas de container rodaram sobre este commit",
+     "python scripts/check_provas_de_container.py"),
+    ("teste negativo do verificador das provas de container",
+     "python scripts/check_provas_de_container_probes.py"),
     ("autoridade do fold sobre o estado",
      "python scripts/check_fold_authority.py"),
     ("teste negativo da autoridade do fold",
@@ -472,6 +480,16 @@ ESCRITA_DELIBERADA = [
     ("secret .env por shell", "cat .env"),
     ("secret .env.local por shell", "cat .env.local"),
     ("secret .env.<nome>.local por shell", "cat .env.prod.local"),
+    # P4-10 — A EXCLUSAO DO GRAVADOR, PROVADA E NAO SO ESCRITA. Ele sobe
+    # container e derruba stack; a P2-19 recusou pôr rede e execucao de container
+    # na mao do julgador, e a allowlist diz isso num comentario. Comentario nao e
+    # mecanismo: sem esta linha, acrescentar `grava_provas_de_container` a
+    # alternacao de `python scripts/(...)` passaria sem nada acusar.
+    ("gravador das provas de container, que sobe stack",
+     "python scripts/grava_provas_de_container.py --worktree ."),
+    # E `docker compose up` continua fora, pelo mesmo argumento: o que a
+    # allowlist admite de `docker compose` sao `ps`, `logs` e `config`.
+    ("subida de stack pelo auditor", "docker compose up -d"),
 ]
 
 #: PROBES POR INVARIANTE, NAO POR GRAFIA. Foi o B2 da decima auditoria: as oito

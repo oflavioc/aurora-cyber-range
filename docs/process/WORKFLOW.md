@@ -160,11 +160,52 @@ de uma vez. A saída foi o lançador subir a stack efêmera.
 | `git fetch origin main` | a base de comparação é `origin/main` atualizado, e não `main` local — P2-16 |
 | `docker compose up` da stack efêmera | sem ela, doze testes pulam e o pulo é lido como verde — P2-19 |
 | `pip install -e <worktree>` num venv próprio | sem ele, `range_core` resolve pela árvore principal — P3-4, abaixo |
+| **as provas de container do commit auditado** | o DEMO ponta a ponta e o reinício de container exigem Docker, e o auditor não o tem — P4-10, abaixo |
 
-**Falha de rede no lançador falha ALTO.** Nenhum dos três degrada para "segue
-sem". O caso da P3-4 é o mais direto: auditoria que roda contra o núcleo da
-árvore principal porque o `pip` falhou em silêncio é pior que auditoria que não
-roda — ela produz veredito, e o veredito é sobre outro commit.
+**Falha de rede no lançador falha ALTO — em três dos quatro.** O caso da P3-4 é o
+mais direto: auditoria que roda contra o núcleo da árvore principal porque o `pip`
+falhou em silêncio é pior que auditoria que não roda — ela produz veredito, e o
+veredito é sobre outro commit.
+
+**A quarta falha BAIXO, e a assimetria é decisão e não descuido.** Sem as provas
+de container, os dois itens de DoD que elas sustentam voltam a ser NÃO
+VERIFICADO — incompleto, e não errado. Derrubar a auditoria inteira por falta de
+Docker trocaria um veredito parcial por nenhum. A diferença entre as duas
+severidades é essa, e ela é o critério: **falha alto o que faria o veredito falar
+de outra coisa; falha baixo o que faria o veredito dizer menos.**
+
+### As provas de container, e por que elas não são atestação — P4-10
+
+Itens 1 e 4 da DoD da Fase 4 — o DEMO ponta a ponta e o reinício do **container**
+do engine. Os dois exigem Docker e uma stack no ar, e `docker` está fora da
+allowlist pelo argumento desta mesma seção. Na primeira auditoria daquela fase os
+dois chegaram ao veredito como NÃO VERIFICADO.
+
+O lançador sobe a stack **a partir do worktree auditado**, roda as duas provas e
+grava a saída íntegra num arquivo. O auditor **lê** — e é aqui que a coisa
+deixaria de valer, se parasse aqui.
+
+**O que a separa de atestação é o SHA.** O arquivo carrega o commit, e
+`scripts/check_provas_de_container.py` — que está na allowlist —, **reprova** se
+ele não for o do checkout que se julga. E **reprova também quando o arquivo não
+existe**: não há degradação para "ok por não saber", que é o erro que os dois
+predicados de base aposentados cometeram.
+
+**A condição é forte por mecânica, e não por confiança: um commit não pode conter
+o próprio SHA.** A forma óbvia de forjar — versionar o arquivo junto com o
+código — não tem como carregar o hash do commit que a contém.
+
+**O que continua verdade, e está impresso na saída do próprio verificador:** o
+auditor não viu rodar. A procedência é melhor que a de uma frase de registro — há
+SHA, há saída íntegra, e o texto é o dos próprios scripts —, e continua sendo
+leitura.
+
+**Quem grava fica FORA da allowlist**, e a exclusão é a mesma separação de papéis
+que faz o auditor não ter `Write`: `grava_provas_de_container.py` constrói
+imagem, sobe container e derruba stack. Admiti-lo poria rede **e** execução de
+container na mão do julgador, que é o que a P2-19 recusou. A exclusão é provada
+em `scripts/phase0_negative_tests.py`, e não apenas escrita no comentário da
+allowlist.
 
 **Para quem vier depois:** precisar de rede não é argumento para acrescentá-la à
 allowlist do auditor. É argumento para fazer a coisa no lançador, antes da
