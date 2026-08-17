@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peça 0 de 7 fechada.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0 e 1 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -445,7 +445,7 @@ sem nada guardado em lugar nenhum.
 | | Peça | Por que nesta posição |
 |---|---|---|
 | 0 | **aparato**: P3-4 e P3-8 ✅ | as duas vencem antes deste checkpoint, e as duas mudam o que o auditor consegue medir |
-| 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) | antes de existir rota, como na Fase 3 |
+| 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) ✅ | antes de existir rota, como na Fase 3 |
 | 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) | funções puras, testadas sem servidor |
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa | é o item 4 da DoD e T5, e não depende de HTTP |
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) | a latência do item 2 é medida aqui |
@@ -594,6 +594,132 @@ mecanismo funcionando.
 
 ---
 
+## 4.2 A peça 1 — a superfície do `range-api`, antes de existir rota
+
+`range-core/api_surface.yaml`: **13 rotas declaradas, zero implementadas**, e o
+verificador já roda. É a forma da peça 2 da Fase 3, e ela funcionou lá pelo
+motivo que continua valendo — o que se declara antes do código não é a lista, é
+a **obrigação**.
+
+O verificador é **o mesmo**, generalizado: `scripts/check_api_surface.py` passou
+de 36 para **66 eixos de prova negativa**.
+
+### A generalização, e o que ela deixa de provar
+
+A pergunta do operador é a certa: *um verificador parametrizado que aceite
+qualquer par vira mais frouxo que dois específicos.* Vira — se o par for
+argumento. **A generalização aqui é sobre as superfícies, e não sobre as
+regras**, e a diferença é exatamente essa.
+
+Não existe "papéis permitidos" e "papéis recusados" como parâmetro de chamada.
+Existe **uma âncora** — `PAPEIS_DE_EXERCICIO`, os três de `03` §7 — e cada
+perfil se relaciona com ela de um jeito **fixo**:
+
+| Perfil | Relação com a âncora | O que reprova |
+|---|---|---|
+| `nucleo` | **igualdade**, nas duas direções | papel de domínio na lista; âncora encolhida |
+| `dominio` | **disjunção** | papel de exercício na lista (o buraco da peça 2) |
+
+Encolher a âncora reprova, e isso importa mais do que parece: era por ela que a
+disjunção do outro lado se sustentava. Sem esse eixo, tirar `facilitador` da
+lista do núcleo afrouxaria a guarda do adapter **sem tocar no adapter**.
+
+**As três coisas que a generalização deixa de provar, e nenhuma é hipótese:**
+
+**1. Família só roda onde o perfil a reivindica — e isso tem data.** Antes havia
+uma superfície, e toda regra rodava nela. Agora, quando a `academus-api` passar
+a emitir evento — Fase 5 pela trilha, Fase 8 pela instrumentação —, a família
+`eventos` **não roda lá**, e "não declarar `emite`" é legítimo no perfil de
+domínio. **Não é buraco novo** (o verificador nunca olhou emissão em código),
+e é pior que isso: agora ele *parece* cobrir eventos. É a §7.3 da Fase 3 — a
+verificação que parece existir — entrando pela porta da generalização.
+Mitigação parcial, e ela é real: `emite` é campo **proibido** no perfil de
+domínio, então declará-lo lá reprova alto. O que ninguém pega é emitir **sem**
+declarar.
+
+**2. A classificação é declaração minha, e superfície no perfil errado seria
+verificada pelas regras erradas.** Duas metades fecham quase tudo: a tabela é
+conferida **nas duas direções** contra o disco — superfície nova sem perfil
+reprova, e não degrada para um perfil padrão —, e **perfil trocado é
+barulhento**, porque os vocabulários de chave são disjuntos: com os perfis
+invertidos, `flags` vira campo desconhecido e `efeito` vira campo obrigatório
+ausente. Isso é *consequência* de como as chaves foram escolhidas, e não regra
+escrita — então há eixo afirmando que cada perfil tem vocabulário exclusivo. Sem
+ele, dois perfis que viessem a se sobrepor fariam a troca voltar a ser
+silenciosa, e o probe de hoje continuaria verde porque olha os arquivos de hoje.
+
+**3. Nada sobre o payload.** A igualdade byte a byte entre frame e snapshot está
+**declarada e não medida**. A prova vem com o produtor, na peça 2 — e a rota só
+passa a `implementada` junto dela.
+
+**O que ela ganhou, e não tinha:** whitelist de chaves por perfil, nas duas
+direções. Campo desconhecido reprova, e **campo obrigatório ausente também** — a
+direção que importa, porque regra que só roda quando o campo existe se desliga
+apagando o campo. Foi a forma da `degradacao` como prosa na Fase 3: declarada,
+lida por ninguém, até a peça 5.
+
+### D3 na declaração: a sala e quem reconecta veem o mesmo
+
+O frame do WebSocket e o snapshot HTTP têm de ser o mesmo payload para o mesmo
+estado. Antes de existir código, o que dá para afirmar é a declaração — e ela já
+pega o caso que ninguém veria depois:
+
+| Eixo | Por quê |
+|---|---|
+| canal e snapshot com **projeções diferentes** | duas serializações do mesmo fato divergem |
+| canal e snapshot com **visibilidades diferentes** | a assimetria entra pela porta da **autorização**: canal público com snapshot autenticado, e cada um está certo sozinho |
+| canal **sem** snapshot | "refresh recupera o estado corrente" não teria de onde acontecer |
+| **um** canal e **um** snapshot por projeção | dois produtores do mesmo payload é a divergência esperando |
+| projeção usada e não declarada; declarada e não usada | as duas direções, como sempre |
+
+E o canal é rota como qualquer outra: a varredura por AST passou a enxergar
+`@app.websocket(...)`. **Sem isso, um canal implementado ficaria invisível ao
+eixo mais forte da checagem** — "implementada e não declarada" —, e o buraco
+teria o tamanho da única superfície com WebSocket. Há probe.
+
+### As rotas operam o exercício, e a superfície diz o que não tem volta
+
+`01` §4.2 dá ao console quatro comandos com semânticas muito diferentes, e um
+botão que dispara inject por engano não tem desfazer. O vocabulário é fechado:
+
+| `efeito` | O que é | Exige |
+|---|---|---|
+| `nenhum` | não move o exercício | `emite` **proibido** |
+| `reversivel` | existe comando inverso | `inverso`, e **mútuo** |
+| `irreversivel` | não tem volta | `confirmacao: true` |
+| `destrutivo` | irreversível **e** descarta o estado corrente | `confirmacao: true` |
+
+**`destrutivo` não quer dizer que apaga história**, e a linha está no próprio
+YAML porque a leitura errada inverteria a garantia central do event store:
+`00` §5.5 e `01` §4.2 são explícitos — rollback não remove evento nenhum,
+incrementa epoch. O que ele descarta é a projeção corrente.
+
+Três eixos que valem nomeados:
+
+- **inverso de uma seta só reprova.** Se A declara B como inverso, B tem de
+  declarar A. Uma seta só faria "reversível" virar rótulo — e é o rótulo que a
+  interface vai ler para decidir se pede confirmação.
+- **confirmação onde não há o que confirmar também reprova.** Confirmar o que
+  tem volta treina o operador a clicar "sim", e é assim que a confirmação do que
+  **não** tem volta deixa de ser lida.
+- **rota que move o exercício não pode ser pública.** `05` §8 isenta de
+  autenticação apenas wallboard e participant-view, que *olham* o exercício.
+
+### A quarta porta do nome de evento
+
+`emite` é conferido contra `contracts/events.schema.yaml`: é a quarta porta pela
+qual um `event_type` entra no sistema — depois do código, do pack e da spec —, e
+as outras três já tinham guarda. **E a camada junto:** comando de console emite
+`facilitation`, e não outra coisa. Emitir `participant_action` por aqui
+misturaria máquina de exercício com fato do incidente, que é a confusão que
+`00` §3 existe para impedir.
+
+O extrator do catálogo tem probe próprio, pelo motivo de sempre: um catálogo
+lido como `{}` deixaria os eixos de camada verdes **pelo caminho errado** —
+acusariam "não está no catálogo", que é outro eixo.
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -624,6 +750,7 @@ a peça que as vence.
 | P3-8 | ~~dois falsos bloqueios do hook do auditor~~ | ✅ **FECHADA** na peça 0 |
 | P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4 | **peça 5** (D9) |
 | P3-11 | flag declarada e ausente do estado vira no-op silencioso | **peça 5** (D10) |
+| P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **aberta** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -698,6 +825,35 @@ e nada avisa. O gate protege o repositório; não protege o exercício em curso.
 
 Ver a **D10**: a guarda de boot só tem sentido onde há boot, e o boot é desta
 fase.
+
+---
+
+#### P4-1 — os caminhos da `academus-api` estão em português
+
+**Achado escrevendo a superfície do núcleo**, ao decidir o idioma dela.
+`CLAUDE.md` §Idioma põe **endpoints** na lista do inglês, junto de
+identificadores, tabelas, colunas, logs e nomes de flag e de evento. As cinco
+rotas da Fase 3 são `/alunos/{aluno_id}`, `/turmas/{turma_id}`,
+`/turmas/{turma_id}/diario`, `/turmas/{turma_id}/notas` e `/matricula`.
+
+**Não é ambiguidade da regra, e conferi antes de registrar:** a mesma seção põe
+em português a interface, os dados sintéticos, os cenários, as rubricas e a
+documentação. Caminho de rota não é nenhum dos cinco.
+
+**E a spec tem uma exceção própria, que não cobre essas cinco:** `01` §6 escreve
+o caminho da participant-view como `/plateia`, literalmente. Documento normativo
+prevalece sobre a convenção do `CLAUDE.md`, então a superfície do núcleo usa
+inglês em tudo **menos** ali — e a exceção está dita no YAML, em vez de parecer
+descuido.
+
+**Por que não corrijo agora.** Renomear rota é mudança de produto, não de
+aparato: toca `app.py`, `api_surface.yaml`, os testes de RBAC e de degradação, e
+a Fase 3 está mergeada e auditada com esses nomes. Fazer isso dentro da peça 1
+misturaria a correção com a superfície nova, e a peça deixaria de ter uma volta.
+
+**Vencimento: a peça 5**, que é quando a `academus-api` é reaberta para a P3-5 —
+o `repositorio.py` inteiro muda de forma ali, e os testes já vão ser tocados.
+Renomear junto é uma edição; renomear à parte é duas.
 
 ---
 
