@@ -53,7 +53,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -207,6 +207,20 @@ class LoadedPack:
     injects: tuple[Inject, ...]
     declarations: Declarations
 
+    #: `inject_id -> texto_para_plateia`, e SO isso — D6 da Fase 4.
+    #:
+    #: `Inject` continua sem os campos de narrativa, e o comentario de la diz por
+    #: que: o caminho mais curto para vazar e o engine carregar o campo sem
+    #: precisar dele. A participant-view precisa de UM campo, entao ela recebe um
+    #: mapa de strings — `linha`, `descricao_facilitador`, `objectives` e
+    #: `decision_point` nao ficam ao alcance de quem projeta.
+    #:
+    #: A narrativa do FACILITADOR — `titulo`, `descricao_facilitador` — nao entra
+    #: aqui por enquanto, e a ausencia e a §7.3 aplicada: a checagem que a
+    #: guarda so pode ser escrita quando existir o consumidor, e ele e o
+    #: gm-console da peca 4.
+    textos_para_plateia: Mapping[str, str] = field(default_factory=dict)
+
     def by_id(self, inject_id: str) -> Inject | None:
         for inject in self.injects:
             if inject.id == inject_id:
@@ -290,6 +304,10 @@ def load_pack(
         source=str(raiz),
         manifest=manifest,
         injects=injects,
+        textos_para_plateia={
+            str(bruto["id"]): str(bruto.get("texto_para_plateia") or "")
+            for bruto in (documentos.get("injects.yaml") or {}).get("injects") or []
+        },
         declarations=Declarations(
             pack_id=manifest["pack_id"],
             schema_version=manifest["schema_version"],

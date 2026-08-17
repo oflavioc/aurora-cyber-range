@@ -89,6 +89,12 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         frozenset({"contracts.generated.events"}),
         "mesma razao — o engine emite os tipos do catalogo",
     ),
+    "api/projecoes.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a timeline rotula por `event_type` e a plateia acha o "
+        "inject corrente pelo `inject_fired`. E LEITURA do catalogo, e nao "
+        "emissao: este modulo nao chama `append` e nao tem store ao alcance",
+    ),
     "engine/loader/contract_source.py": (
         frozenset({CONTRACTS}),
         "A EXCECAO, e a unica: importa o PACOTE para resolver o diretorio e ler "
