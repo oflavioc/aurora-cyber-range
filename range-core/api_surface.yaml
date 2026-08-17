@@ -1,0 +1,235 @@
+# SUPERFICIE DO `range-api` — declarada ANTES de a rota existir.
+#
+# Autoridade: 01_ARCHITECTURE.md secao 4.2 (os quatro comandos do console),
+# secao 6 (gm-console, wallboard, participant-view); 03_EXERCISE_DESIGN.md
+# secao 7 (papeis de facilitacao); 05_SECURITY_REQUIREMENTS.md secao 8
+# (nenhum servico sem autenticacao, EXCETO wallboard e participant-view);
+# 07_IMPLEMENTATION_PHASES.md Fase 4; 09_EVENT_MODEL.md secao 4.1 (catalogo).
+#
+# Lido por `scripts/check_api_surface.py`, perfil NUCLEO. E o mesmo verificador
+# que guarda `domains/academus/api_surface.yaml`, e nao um segundo: duas listas
+# sobre a mesma fronteira divergem, e a que diverge em silencio e sempre a que
+# ninguem esta olhando.
+#
+# ---------------------------------------------------------------------------
+# OS DOIS VOCABULARIOS, E POR QUE ELES SAO RECUSADOS EM LADOS OPOSTOS
+# ---------------------------------------------------------------------------
+#
+# Aqui os papeis de EXERCICIO — facilitador, operador, avaliador — sao o
+# vocabulario legitimo, e papel de DOMINIO e recusado. Na superficie do adapter
+# e o contrario, exatamente. E a mesma fronteira lida nos dois sentidos, e e ela
+# que o invariante 1 nao alcanca: o verificador de import varre import, e nao
+# vocabulario.
+#
+# A disjuncao entre as duas listas e VERIFICADA. Sem ela, bastaria acrescentar
+# `facilitador` a `papeis_de_dominio` do adapter para a guarda evaporar dos dois
+# lados ao mesmo tempo.
+#
+# ---------------------------------------------------------------------------
+# `efeito` — O QUE A ROTA FAZ COM O EXERCICIO, E SE TEM VOLTA
+# ---------------------------------------------------------------------------
+#
+# Estas rotas nao sao leitura: elas OPERAM o exercicio. `01` secao 4.2 da ao
+# console quatro comandos com semanticas muito diferentes, e um botao que
+# dispara inject por engano nao tem desfazer. O vocabulario e FECHADO:
+#
+#   nenhum        nao move o exercicio. Nao emite evento, e `emite` e PROIBIDO.
+#
+#   reversivel    move, e existe comando INVERSO declarado. So o par
+#                 PAUSAR/CONTINUAR e assim, e o inverso e conferido nos dois
+#                 sentidos: se A diz que B o desfaz, B tem de dizer o mesmo de A.
+#
+#   irreversivel  move e NAO tem volta. `inject_fired` e o caso: o evento fica no
+#                 store para sempre (append-only, `00` secao 5.5) e o efeito so
+#                 sai por rollback — que e outro ato, com epoch nova, e nao um
+#                 desfazer. Exige `confirmacao: true`.
+#
+#   destrutivo    irreversivel E DESCARTA O ESTADO CORRENTE de simulacao.
+#                 Exige `confirmacao: true`.
+#
+# DESTRUTIVO NAO QUER DIZER QUE APAGA HISTORIA, e a distincao e normativa:
+# `00` secao 5.5 e `01` secao 4.2 sao explicitos — rollback NAO remove evento
+# nenhum, incrementa epoch. O que ele descarta e a projecao corrente. Ler
+# "destrutivo" como "apaga eventos" inverteria a garantia central do event
+# store, e por isso a palavra vem com esta linha ao lado.
+#
+# `emite` e conferido contra `contracts/events.schema.yaml`: e a QUARTA porta
+# pela qual um nome de `event_type` entra no sistema — depois do codigo, do pack
+# e da spec —, e passa a ter a mesma guarda que as outras tres. O `truth_layer`
+# tambem: comando de console emite `facilitation`, e nao outra coisa.
+#
+# ---------------------------------------------------------------------------
+# `projecao` E `snapshot` — a sala e quem reconecta veem O MESMO
+# ---------------------------------------------------------------------------
+#
+# D3: o frame do WebSocket e o snapshot HTTP sao o MESMO payload, byte a byte,
+# para o mesmo estado. Se nao forem, quem esta na sala e quem acabou de dar
+# refresh veem coisas diferentes — e ninguem percebe, porque cada um dos dois
+# esta certo sozinho.
+#
+# A declaracao e o que torna isso verificavel antes de existir codigo: canal e
+# snapshot declaram a MESMA `projecao`, e o verificador cobra que os dois tenham
+# a mesma visibilidade e os mesmos papeis. Canal publico com snapshot
+# autenticado seria a mesma assimetria, entrando pela porta da autorizacao.
+#
+# A prova byte a byte vem com o produtor, na peca 2, e a rota so passa a
+# `implementada` junto dela.
+#
+# ---------------------------------------------------------------------------
+# IDIOMA DOS CAMINHOS
+# ---------------------------------------------------------------------------
+#
+# Ingles, por `CLAUDE.md` secao Idioma — "endpoints" esta na lista. A excecao e
+# `/plateia`, e ela e da SPEC: `01` secao 6 escreve o caminho da participant-view
+# assim, literalmente. Documento normativo prevalece sobre a convencao, e a
+# excecao fica dita aqui em vez de parecer descuido.
+#
+# `domains/academus/api_surface.yaml` diverge disto e nao e tocado por esta
+# peca — ver a P4-1 no registro da fase.
+
+papeis_de_exercicio:
+  - facilitador
+  - operador
+  - avaliador
+
+# `operador` e `avaliador` sao declarados e nao aparecem em rota nenhuma. E a
+# superficie dizendo o que ainda nao existe: o NON-GOAL desta fase e "tres papeis
+# de facilitacao", e a metade de `06` T6 que fala do operador vence com eles.
+
+projecoes:
+  - wallboard
+  - plateia
+
+rotas:
+
+  # -------------------------------------------------------------------------
+  # SESSAO — `05` secao 8 exige autenticacao em todo servico que nao seja
+  # wallboard ou participant-view, e o gm-console e um deles.
+  #
+  # A credencial vem do ambiente, sem default (D5). O que esta rota NAO pode ser
+  # e o que a Fase 3 recusou em `POST /auth/token`: endpoint que assina o papel
+  # pedido no corpo e vulnerabilidade intencional, e `CLAUDE.md` nao a admite.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /session
+    publica: true
+    efeito: nenhum
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # CONSOLE — leitura. `03` secao 7 da ao facilitador a timeline integral.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /injects
+    papeis: [facilitador]
+    efeito: nenhum
+    status: planejada
+
+  # Item 5 da DoD: "rollback aparece anotado na timeline".
+  - method: GET
+    path: /timeline
+    papeis: [facilitador]
+    efeito: nenhum
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # CONSOLE — os comandos. Aqui mora a diferenca que o `efeito` existe para
+  # dizer.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /exercise/start
+    papeis: [facilitador]
+    efeito: irreversivel
+    emite: exercise_started
+    confirmacao: true
+    status: planejada
+
+  - method: POST
+    path: /exercise/pause
+    papeis: [facilitador]
+    efeito: reversivel
+    emite: exercise_paused
+    inverso: POST /exercise/resume
+    status: planejada
+
+  - method: POST
+    path: /exercise/resume
+    papeis: [facilitador]
+    efeito: reversivel
+    emite: exercise_resumed
+    inverso: POST /exercise/pause
+    status: planejada
+
+  # O DISPARO. Nao ha desfazer: o `inject_fired` fica no store, e o efeito so sai
+  # por rollback — que e outro ato, com epoch nova.
+  - method: POST
+    path: /injects/{inject_id}/fire
+    papeis: [facilitador]
+    efeito: irreversivel
+    emite: inject_fired
+    confirmacao: true
+    status: planejada
+
+  - method: POST
+    path: /exercise/rollback
+    papeis: [facilitador]
+    efeito: destrutivo
+    emite: rollback_performed
+    confirmacao: true
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # RESET fica de fora desta fase, por decisao — D7.
+  #
+  # `07` OUTPUTS pede disparo e rollback. `01` secao 4.2 manda o RESET repor os
+  # defaults do contrato E o snapshot de business state do start, e snapshot de
+  # business state exige o dataset, que e Fase 5.
+  #
+  # Fica `planejada` para que a obrigacao viva no mecanismo: o terceiro eixo do
+  # verificador cobra a promocao no dia em que a rota nascer.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /exercise/reset
+    papeis: [facilitador]
+    efeito: destrutivo
+    emite: exercise_reset
+    confirmacao: true
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # SALA — as duas superficies que `05` secao 8 isenta de autenticacao, e as
+  # unicas. `01` secao 6: wallboard sem login, participant-view so com
+  # `texto_para_plateia`.
+  #
+  # Publicas e sem `emite`: a sala OLHA o exercicio, e nao o opera.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /wallboard/state
+    publica: true
+    efeito: nenhum
+    projecao: wallboard
+    status: planejada
+
+  - method: WS
+    path: /ws/wallboard
+    publica: true
+    efeito: nenhum
+    projecao: wallboard
+    snapshot: GET /wallboard/state
+    status: planejada
+
+  # `/plateia` e da spec — `01` secao 6 escreve o caminho assim.
+  - method: GET
+    path: /plateia/state
+    publica: true
+    efeito: nenhum
+    projecao: plateia
+    status: planejada
+
+  - method: WS
+    path: /ws/plateia
+    publica: true
+    efeito: nenhum
+    projecao: plateia
+    snapshot: GET /plateia/state
+    status: planejada
