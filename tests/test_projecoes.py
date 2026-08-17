@@ -42,14 +42,22 @@ from pathlib import Path
 from range_core.api import projecoes
 from range_core.api.projecoes import (
     ATIVA,
+    ATIVOS,
     CATEGORIA,
+    DESTAQUES,
+    DESTAQUES_NO_TELAO,
     ENTRADAS,
     GRUPO,
+    INDICE_DE_SAUDE,
     INTENSIDADE,
     ITENS,
+    OMITIDOS,
+    PAINEIS,
     ROTULO,
     SAUDE_PLENA,
+    SEVERIDADE,
     TEXTO,
+    TOTAL,
     indice_de_saude,
     paineis,
     plateia,
@@ -104,6 +112,39 @@ def _estado(**mudancas) -> SimulationState:
     flags = dict(DEFAULTS)
     flags.update(mudancas)
     return SimulationState(flags=flags, simulation_epoch=0)
+
+
+def _specs_reais() -> dict:
+    """As 13 flags de `domains/academus/flags.yaml`, e nao uma fixture.
+
+    O orcamento de telao e sobre o payload REAL: uma fixture de duas flags nunca
+    estouraria limite nenhum, e o teste passaria afirmando o contrario do que ha.
+    """
+    import yaml  # noqa: PLC0415
+
+    raiz = Path(__file__).resolve().parent.parent
+    documento = yaml.safe_load(
+        (raiz / "domains" / "academus" / "flags.yaml").read_text(encoding="utf-8")
+    )
+    return {flag["name"]: flag for flag in documento["flags"]}
+
+
+TODAS_AS_SPECS = _specs_reais()
+
+
+def _folhas_de(documento) -> list:
+    """Toda chave e todo valor do JSON, recursivamente."""
+    achados: list = []
+    if isinstance(documento, dict):
+        for chave, valor in documento.items():
+            achados.append(str(chave))
+            achados.extend(_folhas_de(valor))
+    elif isinstance(documento, list):
+        for item in documento:
+            achados.extend(_folhas_de(item))
+    else:
+        achados.append(str(documento))
+    return achados
 
 
 class IgualdadeByteAByte(unittest.TestCase):
@@ -395,6 +436,144 @@ class PaineisPorTaxonomia(unittest.TestCase):
         self.assertEqual(ava[ITENS][0][INTENSIDADE], 0.25)
         identidade = next(p for p in montados if p[GRUPO] == "Identidade")
         self.assertNotIn(INTENSIDADE, identidade[ITENS][0])
+
+
+class OOrcamentoDoTelao(unittest.TestCase):
+    """A D17: o corte de telao e propriedade do PAYLOAD, e por isso tem teste.
+
+    A §2.2 declarava *"legibilidade a 10 m"* como limite inteiro. Metade dele
+    deixa de ser limite aqui: **quantos itens cabem** e decidido no servidor e
+    exercido no pior caso. O que continua sem teste — e deve continuar — e a
+    pergunta fisica: 113 px le a 10 m naquela sala?
+
+    O PIOR CASO E "TUDO ATIVO", e nao um estado plausivel. Um teste sobre o
+    estado tipico do exercicio passaria enquanto o orcamento estivesse folgado e
+    quebraria em producao, no pico — que e exatamente quando o telao importa.
+    """
+
+    def _tudo_ativo(self) -> SimulationState:
+        """Toda flag fora do default. Boolean inverte; number vai ao maximo."""
+        flags = {}
+        for nome, spec in TODAS_AS_SPECS.items():
+            if spec["type"] == "number":
+                flags[nome] = spec.get("max", 1)
+            else:
+                flags[nome] = not spec["default"]
+        return SimulationState(flags=flags, simulation_epoch=0)
+
+    def test_NUNCA_mais_de_N_destaques_com_todas_as_flags_ativas(self) -> None:
+        payload = json.loads(projecoes.wallboard(self._tudo_ativo(), TODAS_AS_SPECS))
+        self.assertLessEqual(len(payload[DESTAQUES]), DESTAQUES_NO_TELAO)
+        # E O PAR: com tudo ativo o telao nao pode ficar VAZIO, que e a outra
+        # forma de respeitar um orcamento sem informar nada.
+        self.assertEqual(len(payload[DESTAQUES]), DESTAQUES_NO_TELAO)
+
+    def test_o_que_nao_coube_e_CONTADO_e_nao_some(self) -> None:
+        """Corte que nao se anuncia faz ler "tres problemas" onde ha sete."""
+        estado = self._tudo_ativo()
+        payload = json.loads(projecoes.wallboard(estado, TODAS_AS_SPECS))
+        ativos = sum(bloco[ATIVOS] for bloco in payload[PAINEIS])
+        self.assertEqual(len(payload[DESTAQUES]) + payload[OMITIDOS], ativos)
+        self.assertGreater(payload[OMITIDOS], 0, "o pior caso nao esta omitindo nada")
+
+    def test_os_destaques_sao_os_PIORES_e_o_criterio_e_peso_ativo(self) -> None:
+        """Severidade vezes intensidade, e nao `severity_weight` cru.
+
+        O par que discrimina: uma flag `number` de severidade ALTA em intensidade
+        baixa nao pode empurrar do telao uma boolean de severidade menor e no
+        maximo. Ordenar so por `severity_weight` poria a quase-inativa na frente.
+        """
+        specs = {
+            "fixture.grave_quase_inativa": {
+                "name": "fixture.grave_quase_inativa", "type": "number",
+                "min": 0, "max": 1, "default": 0, "category": "performance",
+                "severity_weight": 10, "wallboard_group": "AVA",
+                "effect_ui": "Uma fracao pequena de sessoes cai",
+            },
+            "fixture.media_no_maximo": {
+                "name": "fixture.media_no_maximo", "type": "boolean",
+                "default": False, "category": "availability",
+                "severity_weight": 4, "wallboard_group": "Matricula",
+                "effect_ui": "Matricula fora do ar",
+            },
+        }
+        estado = SimulationState(
+            flags={"fixture.grave_quase_inativa": 0.1, "fixture.media_no_maximo": True},
+            simulation_epoch=0,
+        )
+        escolhidos, _ = projecoes.destaques(estado, specs, limite=1)
+        self.assertEqual(escolhidos[0][ROTULO], "Matricula fora do ar")
+
+    def test_SEM_NADA_ATIVO_o_telao_ainda_diz_alguma_coisa(self) -> None:
+        """O argumento contra "so os ativos, texto completo".
+
+        Aquela forma mostraria tela vazia no inicio do exercicio, e a sala leria
+        wallboard quebrado em vez de exercicio calmo. Aqui o indice e os blocos
+        estao la, sempre — e e o indice que resolve os dois extremos, porque ele
+        SEMPRE tem valor.
+        """
+        payload = json.loads(projecoes.wallboard(_estado(), SPECS))
+        self.assertEqual(payload[DESTAQUES], [])
+        self.assertEqual(payload[OMITIDOS], 0)
+        self.assertEqual(payload[INDICE_DE_SAUDE], SAUDE_PLENA)
+        self.assertTrue(payload[PAINEIS])
+
+    def test_os_BLOCOS_nao_carregam_texto_de_item(self) -> None:
+        """Eles respondem *onde*, e nao *o que* — a D16.
+
+        Se o `effect_ui` voltasse para dentro do bloco, o orcamento estouraria
+        pela porta que o teste de contagem nao olha: `destaques` continuaria com
+        tres, e a tela teria treze linhas.
+        """
+        payload = json.loads(projecoes.wallboard(self._tudo_ativo(), TODAS_AS_SPECS))
+        rotulos = {str(spec["effect_ui"]) for spec in TODAS_AS_SPECS.values()}
+        for bloco in payload[PAINEIS]:
+            self.assertEqual(set(bloco) & {ROTULO, ITENS}, set())
+            self.assertFalse(rotulos & set(map(str, bloco.values())))
+
+    def test_o_payload_publico_carrega_no_maximo_N_effect_ui(self) -> None:
+        """A consequencia de seguranca da D17, medida.
+
+        O payload deixou de carregar o `effect_ui` de tudo e passou a carregar o
+        de tres. A varredura de `06` T6 e a mesma; a superficie e menor.
+        """
+        payload = json.loads(projecoes.wallboard(self._tudo_ativo(), TODAS_AS_SPECS))
+        rotulos = {str(spec["effect_ui"]) for spec in TODAS_AS_SPECS.values()}
+        presentes = [f for f in _folhas_de(payload) if f in rotulos]
+        self.assertLessEqual(len(presentes), DESTAQUES_NO_TELAO)
+
+    def test_o_bloco_pega_a_cor_do_PIOR_ativo_e_nao_do_primeiro(self) -> None:
+        """`01` §5.3 poe a codificacao visual em `category`.
+
+        Um painel colorido pelo item mais leve contaria a coisa errada a 10 m —
+        e a 10 m a cor e lida antes de qualquer texto.
+        """
+        specs = {
+            "fixture.leve": {
+                "name": "fixture.leve", "type": "boolean", "default": False,
+                "category": "narrative", "severity_weight": 1,
+                "wallboard_group": "Um Grupo", "effect_ui": "A coisa leve",
+            },
+            "fixture.grave": {
+                "name": "fixture.grave", "type": "boolean", "default": False,
+                "category": "integrity", "severity_weight": 10,
+                "wallboard_group": "Um Grupo", "effect_ui": "A coisa grave",
+            },
+        }
+        estado = SimulationState(
+            flags={"fixture.leve": True, "fixture.grave": True}, simulation_epoch=0
+        )
+        (bloco,) = projecoes.blocos(estado, specs)
+        self.assertEqual(bloco[CATEGORIA], "integrity")
+        self.assertEqual(bloco[SEVERIDADE], 10)
+        self.assertEqual((bloco[ATIVOS], bloco[TOTAL]), (2, 2))
+
+    def test_grupo_sem_nada_ativo_nao_tem_cor(self) -> None:
+        """O par do anterior: sem ativo, o bloco nao inventa categoria."""
+        (bloco,) = [b for b in projecoes.blocos(_estado(), SPECS) if b[GRUPO] == "Matricula"]
+        self.assertEqual(bloco[CATEGORIA], "")
+        self.assertEqual(bloco[SEVERIDADE], 0)
+        self.assertEqual(bloco[ATIVOS], 0)
 
 
 class OQueASalaNaoPodeVer(unittest.TestCase):

@@ -206,13 +206,15 @@ class Latencia(BaseDaApi):
             self.cliente.post("/injects/A01/fire", headers=self.cabecalho)
             depois = json.loads(ws.receive_bytes())
 
-        ativos = [
-            item
-            for painel in depois["paineis"]
-            for item in painel["itens"]
-            if item["ativa"]
-        ]
+        # O PAYLOAD MUDOU DE FORMA NA PECA 6 (D16/D17): o telao passou a carregar
+        # blocos com contagem, e nao a lista de itens. A pergunta deste teste e a
+        # mesma — "o frame ja traz a mudanca?" — e a evidencia dela agora e a
+        # contagem de ativos, que e o que o bloco carrega.
+        ativos = sum(bloco["ativos"] for bloco in depois["paineis"])
         self.assertTrue(ativos, "o frame chegou sem a mudanca que o disparo causou")
+        self.assertTrue(
+            depois["destaques"], "o frame chegou sem o item que o disparo ativou"
+        )
 
     def test_UM_frame_por_evento_e_nao_um_por_cliente(self) -> None:
         """A metade contavel, e a que sustenta o orcamento com a sala cheia.

@@ -95,9 +95,25 @@ INTENSIDADE = "intensidade"
 ESTADO = "estado"
 TEXTO = "texto"
 ENTRADAS = "entradas"
+DESTAQUES = "destaques"
+OMITIDOS = "omitidos"
+ATIVOS = "ativos"
+TOTAL = "total"
 
 #: O indice de uma sala sem nenhuma flag fora do default.
 SAUDE_PLENA = 100
+
+#: QUANTOS ITENS O TELAO CARREGA EM TEXTO — a D16, e o numero saiu de uma conta.
+#:
+#: A 10 m, a regra de legibilidade confortavel (altura de caixa alta >=
+#: distancia/200) pede ~50 mm; numa tela de 55" 1080p isso e fonte de ~113 px, e
+#: cabem 7 a 8 linhas na tela inteira. Tirando o indice e a faixa de blocos,
+#: sobram tres linhas de texto — e um `effect_ui` de mediana 59 caracteres ocupa
+#: uma linha cheia a ~34 caracteres por linha.
+#:
+#: TRES E O ORCAMENTO, e nao um gosto. Se a tela ou a distancia mudarem, o numero
+#: muda AQUI, num lugar so, e o teste de orcamento acompanha.
+DESTAQUES_NO_TELAO = 3
 
 #: `event_type -> rotulo` da timeline. Fechado: evento novo aparece como o
 #: proprio `event_type`, e nao some da timeline por nao estar aqui.
@@ -212,12 +228,113 @@ def paineis(estado: SimulationState, specs: Mapping[str, Mapping]) -> list[dict]
     ]
 
 
+def _peso_visivel(item: Mapping) -> float:
+    """Quanto este item pesa AGORA — severidade vezes intensidade.
+
+    A mesma conta do indice de saude, aplicada ao item em vez de ao total: uma
+    taxa de queda de sessoes em 0,1 nao disputa espaco de telao com um bloqueio
+    de nota. Ordenar so por `severity_weight` poria a flag mais grave e quase
+    inativa acima da menos grave e no maximo.
+    """
+    return float(item[SEVERIDADE]) * float(item.get(INTENSIDADE, 1.0))
+
+
+def blocos(estado: SimulationState, specs: Mapping[str, Mapping]) -> list[dict]:
+    """Os paineis SEM texto de item — a D16: eles respondem *onde*, e nao *o que*.
+
+    DERIVADOS DE `paineis`, e nao de `specs` outra vez. A promessa de `01` §5.3 —
+    *"adicionar flag nao exige tocar no wallboard"* — tem uma implementacao so, e
+    duas divergiriam na primeira correcao. O probe que planta uma flag num grupo
+    inexistente continua guardando a derivacao inteira por tabela.
+
+    `categoria` e `severidade` vem do PIOR ativo do grupo, e nao do primeiro: a
+    codificacao visual e por `category` (`01` §5.3), e um painel colorido pelo
+    item mais leve contaria a coisa errada a 10 m. Grupo sem nada ativo nao tem
+    cor — `categoria` vazia e `severidade` zero.
+    """
+    saida: list[dict] = []
+    for painel in paineis(estado, specs):
+        ativos = [item for item in painel[ITENS] if item[ATIVA]]
+        pior = max(ativos, key=lambda i: (_peso_visivel(i), i[ROTULO]), default=None)
+        saida.append(
+            {
+                GRUPO: painel[GRUPO],
+                ATIVOS: len(ativos),
+                TOTAL: len(painel[ITENS]),
+                CATEGORIA: pior[CATEGORIA] if pior else "",
+                SEVERIDADE: pior[SEVERIDADE] if pior else 0,
+            }
+        )
+    return saida
+
+
+def destaques(
+    estado: SimulationState,
+    specs: Mapping[str, Mapping],
+    limite: int = DESTAQUES_NO_TELAO,
+) -> tuple[list[dict], int]:
+    """Os `limite` piores ativos, em texto, e quantos ficaram de fora.
+
+    A ORDENACAO E A CONVENCAO, e e ela que reconcilia as duas fontes. `07` pede
+    *"wallboard minimo (dois paineis...)"* e `01` §5.3 promete que flag nova nao
+    exige tocar no wallboard: uma lista de dois nomes de grupo no codigo
+    satisfaria o primeiro e quebraria o segundo. Ordenar por peso ativo sai do
+    proprio `flags.yaml`, entao flag nova entra na disputa sozinha.
+
+    O DESEMPATE E O ROTULO, e nao a ordem de iteracao: dois itens de mesmo peso
+    trocariam de lugar entre duas montagens do MESMO estado, e a igualdade byte a
+    byte da D3 cairia por um motivo que ninguem localizaria.
+    """
+    ativos = [
+        item
+        for painel in paineis(estado, specs)
+        for item in painel[ITENS]
+        if item[ATIVA]
+    ]
+    ativos.sort(key=lambda i: (-_peso_visivel(i), i[ROTULO]))
+    escolhidos = [
+        {ROTULO: i[ROTULO], CATEGORIA: i[CATEGORIA], SEVERIDADE: i[SEVERIDADE]}
+        for i in ativos[:limite]
+    ]
+    return escolhidos, len(ativos) - len(escolhidos)
+
+
 def wallboard(estado: SimulationState, specs: Mapping[str, Mapping]) -> bytes:
-    """A projecao do telao. Sem login, sem nome de flag, sem hora de geracao."""
+    """A projecao do telao. Sem login, sem nome de flag, sem hora de geracao.
+
+    O CORTE DE TELAO E DAQUI, E NAO DO CSS — a D17
+    -----------------------------------------------
+    Ate a peca 2 esta funcao emitia tudo e o cliente escolheria o que mostrar.
+    O numero que mudou a decisao foi medido antes de existir tela: a 10 m, a
+    regra de legibilidade confortavel (caixa alta >= distancia/200) da fonte de
+    ~113 px numa tela de 55" 1080p — **7 a 8 linhas na tela inteira**. O payload
+    tinha 13 itens de `effect_ui` com mediana de 59 caracteres, que no tamanho de
+    telao quebram em duas linhas cada: ~26 linhas contra um orcamento de 8.
+
+    Nao e problema de CSS. Nenhuma escolha de fonte resolve 26 linhas em 8, e
+    deixar o corte no cliente moveria a decisao para o unico lugar onde defeito
+    nao fica vermelho — o limite declarado da §2.2 do registro da fase.
+
+    Com o corte aqui, o orcamento vira propriedade com teste: *nunca mais de
+    `DESTAQUES_NO_TELAO` itens em texto, qualquer que seja o estado*, exercido no
+    pior caso com todas as flags ativas. O que sobra como limite e a pergunta
+    fisica, e ela deve continuar sem teste: 113 px le a 10 m naquela sala?
+
+    E HA CONSEQUENCIA DE SEGURANCA, que e ganho: o payload publico deixa de
+    carregar o `effect_ui` de tudo e passa a carregar o de tres. A varredura de
+    `06` T6 e a mesma, sobre uma superficie menor.
+
+    `omitidos` E CONTAGEM, E NAO OMISSAO SILENCIOSA: a sala ve *"+ 4 outros"* e
+    sabe que o telao esta resumindo. Um corte que nao se anunciasse faria o
+    facilitador ler "tres problemas" onde ha sete.
+    """
+    escolhidos, omitidos = destaques(estado, specs)
     return serializa(
         {
-            PAINEIS: paineis(estado, specs),
             INDICE_DE_SAUDE: indice_de_saude(estado, specs),
+            PAINEIS: blocos(estado, specs),
+            DESTAQUES: escolhidos,
+            OMITIDOS: omitidos,
         }
     )
 
