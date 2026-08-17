@@ -18,11 +18,12 @@ voltam a ser NAO VERIFICADO.
 
 E O EIXO (c) E O QUE IMPEDE OS OUTROS DE VIRAREM SUPERSTICAO
 --------------------------------------------------------------
-Sao TREZE eixos, e um verificador que recusasse SEMPRE passaria em onze deles sem
-provar nada. O (c) e a metade que obriga o caminho de aprovacao a existir — e ele
-afirma duas coisas, nao uma: que rc=0, e que **a saida integra das provas
-aparece**. Um verificador que aprovasse em silencio trocaria um NAO VERIFICADO
-por um "confie na minha checagem", que nao e o que a P4-10 comprou.
+Sao TREZE eixos, e **dez deles exigem RECUSA** — um verificador que negasse sempre
+passaria nesses dez sem provar nada. Sao TRES os que exigem aprovacao, e contados
+aqui na fonte: o (c), o (k) e o (m). O (c) e o principal: ele afirma duas coisas,
+nao uma — que rc=0, e que **a saida integra das provas aparece**. Um verificador
+que aprovasse em silencio trocaria um NAO VERIFICADO por um "confie na minha
+checagem", que nao e o que a P4-10 comprou.
 
 A VACUIDADE TEM EIXO PROPRIO, E SAO DOIS TAMANHOS
 ---------------------------------------------------
@@ -59,6 +60,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -401,15 +403,25 @@ def eixo_m() -> bool:
         doc["stack"]["saida"] = "⣿ Building ━━━ 42.0s"
         escreve(d, doc)
 
+        # O PAI LE BYTES, E NAO TEXTO — e isto tambem foi achado RODANDO, no CI.
+        #
+        # A primeira versao usava `text=True`. O filho encoda em `cp1252` por
+        # exigencia do proprio eixo, e o pai decodifica em UTF-8: no runner Linux
+        # o byte 0x97 do travessao derrubou o PROBE com `UnicodeDecodeError`, com
+        # o verificador funcionando perfeitamente. **Terceira vez que a mesma
+        # fronteira de texto morde nesta pendencia**, agora dentro do eixo escrito
+        # para ela — e por isso a saida aqui nao e decodificada: o que se afirma e
+        # o `rc` e a AUSENCIA de um traceback, e nenhum dos dois precisa de texto.
         r = subprocess.run(
             [sys.executable, str(d / "scripts" / "check_provas_de_container.py")],
-            cwd=str(d), capture_output=True, text=True, check=False,
-            env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"},
+            cwd=str(d), capture_output=True, check=False,
+            env={**os.environ, "PYTHONIOENCODING": "cp1252"},
         )
-        if r.returncode != 0 or "UnicodeEncodeError" in r.stderr:
+        if r.returncode != 0 or b"UnicodeEncodeError" in r.stderr:
             print(
                 "FALHOU: [m - saida tolerante] morreu imprimindo evidencia legitima\n"
-                f"        (rc={r.returncode}).\n{r.stderr[-600:]}"
+                f"        (rc={r.returncode}).\n"
+                f"{r.stderr[-600:].decode('utf-8', 'replace')}"
             )
             return False
         print("OK: [m - saida tolerante] imprimiu evidencia que o terminal nao tem.")
