@@ -1,0 +1,114 @@
+<!doctype html>
+<!--
+  A SALA, EM HTML CRU — peca 4 da Fase 4, e DESCARTAVEL por decisao.
+
+  POR QUE ELA EXISTE
+  ------------------
+  A Fase 4 e o marco que existe para ser VISTO, e as telas de verdade sao a peca
+  6. Este arquivo prova a cadeia inteira — disparo, evento, projecao, canal,
+  navegador — tres pecas antes do fim, e da para ver o exercicio acontecer.
+
+  O QUE ELA NAO E
+  ---------------
+  Nao e o wallboard. Nao tem build, nao tem dependencia, nao tem componente, nao
+  tem estilo alem do minimo para ser legivel, e NAO e o que `01` secao 6 descreve
+  (alto contraste, legivel a 10 m). A peca 6 a substitui pelo bundle React que a
+  spec fixa em `00` secao 8, e a rota `/sala` passa a servir aquele.
+
+  A DIVIDA E DECLARADA E TEM DESTINO: P4-3 no registro da fase.
+
+  O QUE ELA NAO FAZ, E ISSO E DESENHO
+  ------------------------------------
+  Nao dispara inject, nao rebobina, e nao pede token. As duas projecoes que ela
+  consome sao as que `05` secao 8 isenta de autenticacao; o console e HTTP
+  autenticado, e quem o opera nesta fase e o DEMO. Uma pagina publica com botao
+  de disparo poria o console na rede sem token.
+
+  O ESTADO VEM INTEIRO, SEMPRE
+  ----------------------------
+  Nao ha acumulacao aqui: cada frame e o estado TOTAL (D3), e a tela e uma
+  funcao dele. E por isso que dar refresh recupera o estado corrente — nao ha o
+  que perder, porque nao ha o que guardar.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>AURORA — sala</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; padding: 24px; background: #0d1117; color: #e6edf3;
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+    header { display: flex; align-items: baseline; gap: 24px; margin-bottom: 24px; }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .08em; text-transform: uppercase; }
+    #saude { font-size: 56px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #ligacao { margin-left: auto; font-size: 13px; opacity: .7; }
+    #paineis { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    section { border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; }
+    h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+    li { list-style: none; padding: 4px 0; display: flex; gap: 8px; align-items: baseline; }
+    .marca { width: 10px; height: 10px; border-radius: 50%; background: #30363d; flex: none; }
+    .ativa .marca { background: #f85149; }
+    .ativa { color: #ffa198; }
+    #plateia {
+      margin-top: 24px; border-top: 1px solid #30363d; padding-top: 16px;
+      font-size: 24px; min-height: 2em;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Universidade Aurora</h1>
+    <div id="saude">—</div>
+    <div id="ligacao">conectando…</div>
+  </header>
+
+  <div id="paineis"></div>
+  <div id="plateia"></div>
+
+<script>
+// UMA FUNCAO DO ESTADO PARA A TELA, e nada mais. Sem estado local, sem merge:
+// o frame e total, entao pintar do zero e correto e mais simples que reconciliar.
+function pintaWallboard(estado) {
+  document.getElementById("saude").textContent = estado.indice_de_saude;
+  document.getElementById("paineis").innerHTML = estado.paineis.map(function (painel) {
+    var itens = painel.itens.map(function (item) {
+      var extra = item.intensidade !== undefined
+        ? " (" + Math.round(item.intensidade * 100) + "%)"
+        : (item.estado !== undefined ? " (" + item.estado + ")" : "");
+      return '<li class="' + (item.ativa ? "ativa" : "") + '">'
+        + '<span class="marca"></span><span>' + item.rotulo + extra + "</span></li>";
+    }).join("");
+    return "<section><h2>" + painel.grupo + "</h2><ul>" + itens + "</ul></section>";
+  }).join("");
+}
+
+function pintaPlateia(estado) {
+  document.getElementById("plateia").textContent = estado.texto;
+}
+
+// O CANAL, e a reconexao. `onclose` volta a tentar: um exercicio dura horas, e
+// uma tela que morre na primeira queda de rede exige alguem que a reabra.
+function liga(caminho, pinta) {
+  var protocolo = location.protocol === "https:" ? "wss:" : "ws:";
+  var socket = new WebSocket(protocolo + "//" + location.host + caminho);
+  // BINARIO, e nao texto: o canal entrega os MESMOS BYTES que o snapshot HTTP
+  // devolve (D3), e converter para texto no servidor seria uma segunda
+  // serializacao — a divergencia que a peca 2 existe para impedir.
+  socket.binaryType = "arraybuffer";
+  socket.onmessage = function (evento) {
+    pinta(JSON.parse(new TextDecoder("utf-8").decode(evento.data)));
+  };
+  socket.onopen = function () { document.getElementById("ligacao").textContent = "ao vivo"; };
+  socket.onclose = function () {
+    document.getElementById("ligacao").textContent = "reconectando…";
+    setTimeout(function () { liga(caminho, pinta); }, 1000);
+  };
+}
+
+liga("/ws/wallboard", pintaWallboard);
+liga("/ws/plateia", pintaPlateia);
+</script>
+</body>
+</html>

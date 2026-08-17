@@ -114,7 +114,7 @@ rotas:
     path: /session
     publica: true
     efeito: nenhum
-    status: planejada
+    status: implementada
 
   # -------------------------------------------------------------------------
   # CONSOLE — leitura. `03` secao 7 da ao facilitador a timeline integral.
@@ -123,14 +123,14 @@ rotas:
     path: /injects
     papeis: [facilitador]
     efeito: nenhum
-    status: planejada
+    status: implementada
 
   # Item 5 da DoD: "rollback aparece anotado na timeline".
   - method: GET
     path: /timeline
     papeis: [facilitador]
     efeito: nenhum
-    status: planejada
+    status: implementada
 
   # -------------------------------------------------------------------------
   # CONSOLE — os comandos. Aqui mora a diferenca que o `efeito` existe para
@@ -142,7 +142,7 @@ rotas:
     efeito: irreversivel
     emite: exercise_started
     confirmacao: true
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /exercise/pause
@@ -150,7 +150,7 @@ rotas:
     efeito: reversivel
     emite: exercise_paused
     inverso: POST /exercise/resume
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /exercise/resume
@@ -158,7 +158,7 @@ rotas:
     efeito: reversivel
     emite: exercise_resumed
     inverso: POST /exercise/pause
-    status: planejada
+    status: implementada
 
   # O DISPARO. Nao ha desfazer: o `inject_fired` fica no store, e o efeito so sai
   # por rollback — que e outro ato, com epoch nova.
@@ -168,7 +168,7 @@ rotas:
     efeito: irreversivel
     emite: inject_fired
     confirmacao: true
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /exercise/rollback
@@ -176,7 +176,7 @@ rotas:
     efeito: destrutivo
     emite: rollback_performed
     confirmacao: true
-    status: planejada
+    status: implementada
 
   # -------------------------------------------------------------------------
   # RESET fica de fora desta fase, por decisao — D7.
@@ -208,7 +208,7 @@ rotas:
     publica: true
     efeito: nenhum
     projecao: wallboard
-    status: planejada
+    status: implementada
 
   - method: WS
     path: /ws/wallboard
@@ -216,7 +216,7 @@ rotas:
     efeito: nenhum
     projecao: wallboard
     snapshot: GET /wallboard/state
-    status: planejada
+    status: implementada
 
   # `/plateia` e da spec — `01` secao 6 escreve o caminho assim.
   - method: GET
@@ -224,7 +224,7 @@ rotas:
     publica: true
     efeito: nenhum
     projecao: plateia
-    status: planejada
+    status: implementada
 
   - method: WS
     path: /ws/plateia
@@ -232,4 +232,22 @@ rotas:
     efeito: nenhum
     projecao: plateia
     snapshot: GET /plateia/state
-    status: planejada
+    status: implementada
+
+  # -------------------------------------------------------------------------
+  # A PAGINA CRUA DA PECA 4 — declarada porque toda rota implementada tem de
+  # estar aqui, e registrada como DESCARTAVEL na P4-3.
+  #
+  # Ela existe para que a cadeia inteira seja VISTA antes de as telas existirem.
+  # A peca 6 substitui o arquivo pelo bundle de `range-core/web/`, e esta rota
+  # passa a servir aquele — o caminho fica, o conteudo muda.
+  #
+  # Publica pelo mesmo motivo das outras duas da sala: e a projecao do telao, e
+  # `05` secao 8 isenta wallboard e participant-view. Ela NAO opera o exercicio,
+  # e nao carrega token nenhum.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /sala
+    publica: true
+    efeito: nenhum
+    status: implementada

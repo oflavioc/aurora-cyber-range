@@ -69,3 +69,11 @@ typing_extensions==4.16.0
 typing_inspection==0.4.4
 truststore==0.10.4
 tzdata==2026.3
+
+# FASE 4, peca 4 — o servidor. `uvicorn` traz `click` (fecho direto) e usa `h11`,
+# que ja estava pinado como fecho de `httpx2` e cuja versao BATE — conferido, e
+# nao suposto. `websockets` e dependencia DIRETA e nao extra: sem ela o uvicorn
+# recusa o upgrade, e o canal e o item 2 da DoD.
+click==8.4.2
+uvicorn==0.52.3
+websockets==17.0.1
