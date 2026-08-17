@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0 e 1 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0, 1 e 2 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -446,7 +446,7 @@ sem nada guardado em lugar nenhum.
 |---|---|---|
 | 0 | **aparato**: P3-4 e P3-8 ✅ | as duas vencem antes deste checkpoint, e as duas mudam o que o auditor consegue medir |
 | 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) ✅ | antes de existir rota, como na Fase 3 |
-| 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) | funções puras, testadas sem servidor |
+| 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) ✅ | funções puras, testadas sem servidor |
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa | é o item 4 da DoD e T5, e não depende de HTTP |
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) | a latência do item 2 é medida aqui |
 | 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11 (D8, D9, D10) | o adapter deixa de perder estado no reinício |
@@ -720,6 +720,126 @@ acusariam "não está no catálogo", que é outro eixo.
 
 ---
 
+## 4.3 A peça 2 — as projeções de sala, e a igualdade medida
+
+`range-core/api/projecoes.py`: quatro funções puras — `wallboard`, `plateia`,
+`timeline` e o serializador. **Nenhuma delas conhece HTTP**, e é por isso que a
+peça inteira é testável sem servidor.
+
+### A igualdade byte a byte deixou de ser declarada
+
+Os cinco eixos da peça 1 provam que canal e snapshot existem **em par**. Nenhum
+deles prova que os dois **produzem o mesmo** — e essa era a metade que faltava.
+
+**A decisão que a torna verificável: as projeções devolvem `bytes`.** Devolver
+`dict` deixaria cada rota serializar, e o mesmo fato escrito duas vezes diverge:
+o `JSONResponse` do FastAPI não ordena chaves nem usa os separadores de um
+`json.dumps` escrito à mão, e **nenhum teste que compare estruturas acusaria**.
+Com `bytes`, o snapshot e o frame não têm por onde discordar — é a forma da peça
+3 da Fase 3 outra vez: em vez de detectar a divergência, retirar o material com
+que ela se escreve.
+
+O serializador é um só, e cada opção fecha um caminho: `sort_keys=True`
+(ordenação), `separators=(",", ":")` (estilo), `ensure_ascii=False` +
+`.encode("utf-8")` (fronteira de byte, e acento em UTF-8).
+
+**Os três caminhos de divergência, e o que fecha cada um:**
+
+| Caminho | Fechado por | Como fica vermelho |
+|---|---|---|
+| ordenação de chave | `sort_keys` | dois dicionários de mesma chave em ordens diferentes |
+| **carimbo de geração** | ausência do material | teste por **AST**: o módulo não importa `time`, `datetime`, `random`, `secrets` nem `uuid` |
+| **tipo que muda no transporte** | — | o estado que atravessou o **Redis de verdade** contra o que saiu do fold |
+
+O segundo é afirmado por estrutura de propósito. Provar por comportamento
+exigiria montar duas vezes em instantes diferentes e concluir por **ausência de
+diferença** — a asserção de ausência que passa também quando nada é observável,
+que é o H1 da segunda auditoria da Fase 3.
+
+**O terceiro é o que mede, e ele discrimina — plantado e medido:**
+
+```text
+$ # com {k: bool(v) ...} plantado na serializacao do RedisProjectionCache
+FAIL: test_o_estado_que_passou_pelo_redis_produz_os_MESMOS_bytes
+  b'{"indice_de_saude":15,...}' != b'{"indice_de_saude":0,...}'
+```
+
+**15 contra 0.** A taxa de queda de 0,4 volta do Redis como `True`, vira peso
+cheio, e o telão mostraria saúde **zero** enquanto quem reconecta veria **15** —
+para o mesmo estado. É exatamente o L1 da terceira auditoria da Fase 3, agora
+com a consequência visível em vez de latente. Revertido, 20/20.
+
+### O sinal do índice de saúde, fixado pelo par
+
+A D14 inventa a fórmula, então o teste fixa o sinal. **"Ativa" é `valor ≠
+default`**, e o par que prova são duas flags de **mesmo peso e defaults
+opostos**: as duas têm de piorar o índice na mesma magnitude.
+
+**Medido:** com `esta_ativa` trocado para `valor is True`, **seis testes ficam
+vermelhos** — inclusive `test_sem_nada_fora_do_default_a_saude_e_plena`, porque
+a flag de default `true` passaria a contar como ativa **em repouso**. Revertido,
+20/20.
+
+E há o caso real, contra `flags.yaml` e não contra fixture:
+`academus.federated_session_active` é a única flag de default `true` do adapter
+— **conferido no teste**, não lembrado —, e revogá-la tem de **baixar** o
+índice. Com o sinal invertido, revogar acesso melhoraria o telão.
+
+> **O hook recusou a primeira versão deste teste**, e recusou com razão: eu
+> escrevi o nome da flag como literal. Nome de flag em código é o erro de
+> digitação que o invariante 2 existe para pegar, e a constante gerada existe
+> para isso. Segunda vez nesta fase que o hook aponta para o desenho certo.
+
+### Os painéis são derivados, e o probe planta onde não há painel
+
+`01` §5.3 promete que *"adicionar flag não exige tocar no wallboard"*. A flag
+plantada cai num `wallboard_group` que **não existe** — e a categoria dela
+também não está no conjunto de partida. Plantar num grupo existente provaria
+menos: o item apareceria por herdar um painel que já estava lá, e uma lista fixa
+de grupos passaria no teste.
+
+**Medido:** agrupando por `category` em vez de `wallboard_group` — o erro
+plausível —, o teste fica vermelho. Revertido, 20/20.
+
+**Uma nota sobre a categoria, medida e não suposta:** os **sete** valores de
+`category` de `01` §5.2 estão todos em uso em `flags.yaml`, então não existe
+"categoria sem painel" para plantar no conjunto real. O probe usa fixture, onde
+o conjunto de partida tem duas categorias e a plantada é a terceira.
+
+### O que a sala não pode ver
+
+`06` T6 é teste de **payload**, e as duas superfícies desta peça são as que
+`05` §8 deixa sem autenticação — não há token entre elas e a rede.
+
+- **O wallboard não carrega nome de flag.** `academus.enrollment_offline` é
+  vocabulário de mecanismo; o que vai ao painel é o `effect_ui`, que
+  `flags.yaml` escreve em linguagem de negócio desde a Fase 1. Varredura
+  recursiva sobre o payload inteiro.
+- **A plateia recebe um campo, e a garantia é do tipo.** `plateia` recebe
+  `Mapping[str, str]` — `inject_id → texto_para_plateia` — e não o inject.
+  `linha`, `descricao_facilitador`, `objectives` e `decision_point` **não estão
+  ao alcance**: vazar exigiria mudar o chamador. É a D6, e é por isso que
+  `pack_loader.Inject` continua sem esses campos — há teste afirmando isso.
+
+`LoadedPack` ganhou `textos_para_plateia`, e só isso. A narrativa do
+facilitador não entra ainda, e a ausência é a §7.3 aplicada: a checagem que a
+guarda só pode ser escrita quando existir o consumidor, e ele é o gm-console da
+peça 4.
+
+### A whitelist do core disparou, e foi o mecanismo funcionando
+
+`check_core_contract_imports.py` reprovou o import novo de
+`contracts.generated.events`. Era exatamente o desenho — *"o custo de acrescentar
+é uma conversa, e é esse o ponto"* —, e o argumento que o admitiu é o mesmo dos
+outros três: a timeline rotula por `event_type` e a plateia acha o inject
+corrente pelo `inject_fired`; literal de catálogo dentro do core violaria o
+invariante 2. **É leitura, e não emissão** — o módulo não chama `append` e não
+tem store ao alcance.
+
+**248 testes, zero pulos com Redis no ar** (eram 228).
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -750,7 +870,8 @@ a peça que as vence.
 | P3-8 | ~~dois falsos bloqueios do hook do auditor~~ | ✅ **FECHADA** na peça 0 |
 | P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4 | **peça 5** (D9) |
 | P3-11 | flag declarada e ausente do estado vira no-op silencioso | **peça 5** (D10) |
-| P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **aberta** — ver abaixo |
+| P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **peça 5** — ver abaixo |
+| P4-2 | a família `eventos` não roda no perfil de domínio, e emitir sem declarar não tem guarda em lugar nenhum | **Fase 5** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -854,6 +975,46 @@ misturaria a correção com a superfície nova, e a peça deixaria de ter uma vo
 **Vencimento: a peça 5**, que é quando a `academus-api` é reaberta para a P3-5 —
 o `repositorio.py` inteiro muda de forma ali, e os testes já vão ser tocados.
 Renomear junto é uma edição; renomear à parte é duas.
+
+#### P4-2 — a família `eventos` não roda no perfil de domínio
+
+**Aberta na peça 1, e ela é a §7.3 com nome:** o verificador passou a conferir
+`emite` contra o catálogo e contra a camada, e isso vale **só para o perfil do
+núcleo**. Lido rápido, ele *parece* cobrir eventos.
+
+**As duas metades, e a segunda é a que não tem dono:**
+
+| | Estado |
+|---|---|
+| declarar `emite` na superfície de domínio | **reprova alto** — o campo é proibido no perfil, e há eixo |
+| **emitir sem declarar** | **sem guarda em lugar nenhum** |
+
+A segunda metade não é regressão da peça 1 — o verificador nunca olhou emissão em
+código, em superfície nenhuma. O que a peça 1 mudou foi a aparência: antes não
+havia família de eventos, e agora há uma que não alcança o adapter.
+
+**O que falta é uma varredura por AST do lado do código**, e ela não existe para
+nenhum dos dois perfis: hoje nada cruza *"quem chama `store.append`"* com
+*"quem declarou `emite`"*. `tools/check_event_envelope.py` guarda outra coisa —
+que nenhum evento emitido carregue `objective_ids`.
+
+**Vencimento: Fase 5**, e o gatilho é a **condição**, não o marco — a §7.2 desta
+linhagem existe por isso. A condição é *o primeiro emissor fora do
+`inject-engine`*, e ele é da Fase 5: `06` T7 e a DoD daquela fase põem a trilha
+de auditoria com hash na `academus-api`, e a P3-6 já registra que
+`POST .../notas` vai encontrar a rota antes da trilha. O primeiro `append` do
+adapter é lá.
+
+**A `academus-api` não emite nada hoje, e a frase que eu ia escrever aqui era
+falsa.** Eu ia registrar que *"nenhum módulo de `api/` importa o store"*.
+**Importa:** `degradacao.py` importa `EventStore`, e é o único — conferido com o
+próprio extrator do verificador, e não de memória. O que ele faz com o store é
+**ler**: `current(store, declarations, cache)` chama `head()` e `read_all()`.
+
+A afirmação verdadeira é mais estreita e é a que vale: **nenhum módulo de `api/`
+chama `append`**. Enquanto isso for verdade, a metade sem guarda não tem sujeito
+— e é ela que a Fase 5 recebe, no commit em que o primeiro `append` do adapter
+nascer.
 
 ---
 
