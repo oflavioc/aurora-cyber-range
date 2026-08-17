@@ -429,6 +429,40 @@ pausado restaura pausado, retomado restaura correndo.
 > ninguém julga e falta onde alguém julga — e o teste **pula** na auditoria, que
 > é o que a P2-19 atacou.
 
+#### D12 revisada na peça 7 — a segunda ponta deixou de existir, e por isso não é exceção
+
+**A exigência acima comprava uma proteção precisa: que o teste de container não
+`pule` na auditoria.** Ela pressupunha a forma que a decisão tinha em mente — um
+`unittest` que, sem stack, se marca como pulado, e pulo silencioso é lido como
+verde.
+
+**A peça 7 escolheu outra forma, e a escolha removeu a condição em vez de
+atendê-la.** O reinício de container e o DEMO são **passos de CI**, na forma que
+a Fase 2 fixou para o DEMO: um `run:` que falha reprova o job. **Passo de CI não
+pula.** A proteção que a exigência comprava não tem o que proteger neste formato.
+
+**E a exigência, aplicada assim mesmo, custaria sem entregar.** Acrescentar as
+duas APIs ao `docker-compose.audit.yml` faria o lançador construir a imagem —
+Node mais `pip install` — **a cada rodada de auditoria**, e **não daria ao
+auditor a capacidade de rodar as provas**: `docker` está fora da allowlist pelo
+mesmo argumento da P2-19, que recusou pôr rede na mão do julgador.
+
+**O que o auditor verifica por leitura, e é o que sustenta a revisão:** que os
+passos existem no workflow; que nenhum deles tem `continue-on-error`, `|| true`
+ou `if: always()`; e que `Dockerfile` e compose dizem o que os scripts supõem. O
+que ele **não** verifica é a execução — e isso vale igualmente para o
+`demo_fase2.py` desde a Fase 2, com o mesmo estatuto.
+
+**Isto é revisão da decisão, e não exceção a ela.** A diferença importa: uma
+exceção deixaria a regra valendo e abriria um caso; a revisão diz que a regra
+mudou de escopo — **a segunda ponta é exigida quando a prova puder pular**, e não
+quando ela for passo de CI. Escrever isto como exceção ensinaria que a D12 se
+contorna quando dá trabalho, que é o oposto do que aconteceu.
+
+> **Ratificada pelo operador**, com o argumento aceito nestes termos: *"passo de
+> CI não pula, então a proteção que a D12 comprava não existe nesse formato, e o
+> custo seria real sem dar capacidade ao auditor"*.
+
 ### D13 — o pack do DEMO é o `pack_minimo` do fixture — **DECIDIDA**
 
 `A01` já tem `academus.enrollment_offline: true` e `texto_para_plateia`, que é
@@ -2240,24 +2274,16 @@ Os três exigem **docker e uma stack no ar**, e a P2-19 recusou pôr rede na
 allowlist do julgador. Rodá-los sem stack produziria *connection refused* — um
 **FAIL falso**, que é pior que não rodar.
 
-> **Isto diverge da letra da D12, e a divergência é declarada.** A D12 foi
-> aprovada com a exigência de *"fechar as duas pontas no mesmo commit: CI e stack
-> efêmera da auditoria"*, e o motivo dela era preciso: **um teste que pula na
-> auditoria é lido como verde**.
+> **A D12 foi REVISADA por causa disto, e a revisão mora com ela** — §3, D12,
+> *"a segunda ponta deixou de existir"*. O resumo: a exigência de pôr o serviço
+> na stack da auditoria comprava uma proteção precisa — que o teste **não pule**
+> —, e passo de CI não pula. A regra mudou de escopo em vez de ganhar um caso
+> excepcional, e o operador ratificou nesses termos.
 >
-> **A implementação removeu a condição em vez de atendê-la.** Estes não são
-> testes que pulam: são passos de CI, na forma que a Fase 2 fixou para o DEMO.
-> Um passo de CI que falha reprova o job — não há pulo silencioso a evitar.
-> Acrescentar os dois serviços ao `docker-compose.audit.yml` custaria uma
-> construção de imagem por rodada de auditoria (Node + `pip install`, minutos) e
-> **não daria ao auditor a capacidade de rodá-los**, porque `docker` continua
-> fora da allowlist.
->
-> **O que o auditor pode verificar por leitura**, e é o que sustenta a decisão:
-> que os passos existem no workflow, que nenhum deles tem `continue-on-error`,
-> `|| true` ou `if: always()`, e que o `Dockerfile` e o compose dizem o que os
-> scripts supõem. **A decisão de não acrescentar o serviço é do operador**, e
-> está aqui para ser revertida se ele preferir a letra.
+> **O que o auditor verifica por leitura**, e é o que sustenta a revisão: que os
+> passos existem no workflow, que nenhum deles tem `continue-on-error`, `|| true`
+> ou `if: always()`, e que o `Dockerfile` e o compose dizem o que os scripts
+> supõem.
 
 ### O gate da superfície pegou a raiz de composição do adapter
 
