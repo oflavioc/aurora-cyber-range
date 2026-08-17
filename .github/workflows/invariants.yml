@@ -132,6 +132,21 @@ jobs:
       - name: teste negativo do verificador do cliente
         run: python scripts/check_web_sem_derivacao_probes.py
 
+      # A CASCA PUBLICA NAO CARREGA VOCABULARIO — Fase 4, peca 6, e ele nasceu
+      # de uma pergunta do operador que achou uma afirmacao FALSA no registro: a
+      # D19 dizia que a casca do console tinha teste de vazamento, e o que havia
+      # era a direcao inversa. Nome de flag em fonte `.tsx` ja era coberto pelo
+      # invariante 2; no BUNDLE `.html`, e id e texto de inject em qualquer
+      # lugar, nao eram cobertos por nada.
+      #
+      # Aqui ele varre a FONTE; no job `contratos`, depois do build, ele varre o
+      # artefato com `--exige-bundle`.
+      - name: as telas nao carregam vocabulario de mecanismo nem cenario
+        run: python scripts/check_telas_sem_vocabulario.py
+
+      - name: teste negativo do verificador de vocabulario das telas
+        run: python scripts/check_telas_sem_vocabulario_probes.py
+
       # P3-1. Na peca 3 eu inventei o digest do Redis para o servico deste
       # workflow, com o `docker-compose.yml` ja pinando o valor ao lado. Foi
       # pego por `grep`, e nao por mecanismo — entao na rodada seguinte poderia
@@ -486,6 +501,14 @@ jobs:
       # produza — foi a P1-18.
       - name: as tres telas compilam, e o gate do build reprova
         run: docker compose --profile build run --rm web-build
+
+      # O MESMO verificador do job `arquitetura`, agora sobre o ARTEFATO — que
+      # so existe depois do passo acima. `--exige-bundle` recusa se as tres
+      # telas nao estiverem construidas: sem essa guarda, este passo varreria a
+      # fonte outra vez e diria que varreu o bundle, no dia em que o build
+      # parasse de produzir `dist/`.
+      - name: o bundle construido nao carrega vocabulario
+        run: python scripts/check_telas_sem_vocabulario.py --exige-bundle
 
       # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
       # sem instalacao — verificado com `python -S`. Sem este passo, a entrada
