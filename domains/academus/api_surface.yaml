@@ -136,6 +136,38 @@
 # aqui dentro, um token de `facilitador` deixa de ser proibido e passa a ser
 # INEXPRIMIVEL: para existir, o papel precisaria estar na lista; para estar na
 # lista, precisaria passar pelo gate que o recusa por nome.
+#
+# ---------------------------------------------------------------------------
+# IDIOMA DOS CAMINHOS — P4-1, fechada na peca 5 da Fase 4
+# ---------------------------------------------------------------------------
+#
+# INGLES, por `CLAUDE.md` secao Idioma — "endpoints" esta na lista, junto de
+# identificadores, tabelas, colunas, logs e nomes de flag e de evento. A mesma
+# secao poe em portugues a interface, os dados sinteticos, os cenarios, as
+# rubricas e a documentacao; caminho de rota nao e nenhum dos cinco.
+#
+# As cinco rotas da Fase 3 nasceram em portugues e foram renomeadas aqui:
+#
+#   /alunos/{aluno_id}            -> /students/{student_id}
+#   /turmas/{turma_id}            -> /classes/{class_id}
+#   /turmas/{turma_id}/diario     -> /classes/{class_id}/gradebook
+#   /turmas/{turma_id}/notas      -> /classes/{class_id}/grades
+#   /matricula                    -> /enrollment
+#
+# A renomeacao veio junto da P3-5 e nao a parte: `repositorio.py` inteiro muda
+# de forma com o Postgres e os mesmos testes ja sao tocados. Renomear junto e
+# uma edicao; renomear a parte sao duas.
+#
+# O QUE CONTINUA EM PORTUGUES, e nao e sobra: os VALORES de papel — `aluno`,
+# `professor`, `secretaria`, `financeiro` — sao vocabulario de persona, que
+# `03` secoes 6 e 7 escrevem assim, e nao identificador. E as `mensagem` de
+# degradacao, que sao o texto que o PARTICIPANTE le, e interface esta na lista
+# do portugues.
+#
+# A UNICA EXCECAO DO PROJETO E `/plateia`, e ela vive na superficie do NUCLEO:
+# `01` secao 6 escreve o caminho da participant-view assim, literalmente, e
+# documento normativo prevalece sobre a convencao. Esta dita la, no lugar em que
+# ela ocorre.
 
 token:
   claims:
@@ -156,7 +188,7 @@ rotas:
   # matricula retornar 503".
   # -------------------------------------------------------------------------
   - method: POST
-    path: /matricula
+    path: /enrollment
     papeis: [aluno, secretaria]
     escopo:
       aluno: proprio
@@ -179,7 +211,7 @@ rotas:
   # falar com a coordenacao.
   # -------------------------------------------------------------------------
   - method: POST
-    path: /turmas/{turma_id}/notas
+    path: /classes/{class_id}/grades
     papeis: [professor, secretaria]
     escopo:
       professor: titular
@@ -201,7 +233,7 @@ rotas:
   # flag muda a forma do efeito.
   # -------------------------------------------------------------------------
   - method: GET
-    path: /turmas/{turma_id}/diario
+    path: /classes/{class_id}/gradebook
     papeis: [professor, secretaria]
     escopo:
       professor: titular
@@ -228,7 +260,7 @@ rotas:
   # tocar `if flag` aqui seria decidir a D4 de passagem, no lugar errado.
   # -------------------------------------------------------------------------
   - method: GET
-    path: /alunos/{aluno_id}
+    path: /students/{student_id}
     papeis: [aluno, secretaria]
     escopo:
       aluno: proprio
@@ -237,7 +269,7 @@ rotas:
     status: implementada
 
   - method: GET
-    path: /turmas/{turma_id}
+    path: /classes/{class_id}
     papeis: [professor, secretaria]
     escopo:
       professor: titular

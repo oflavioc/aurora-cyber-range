@@ -11,46 +11,71 @@ negado.
 Nao ha regra de escopo aqui tambem. `repositorio.aluno(id, escopo)` devolve
 `None` tanto para ausente quanto para fora de escopo, entao o unico `if` que o
 handler escreve e `if registro is None` — e ele nao consegue distinguir os dois
-casos nem se quisesse. A indistinguibilidade da peca 4 vale sem ninguem se
-lembrar dela.
+casos nem se quisesse. A indistinguibilidade da peca 4 da Fase 3 vale sem
+ninguem se lembrar dela.
+
+E nao ha SQL aqui. O repositorio devolve `dict` ja serializado, dentro da
+sessao — o handler nao tem sessao para vazar nem objeto destacado para tropecar.
 
 AS DUAS DEPENDENCIAS GLOBAIS, E A ORDEM ENTRE ELAS
 ---------------------------------------------------
 `autoriza` primeiro, `degrada` depois. Invertida, a ordem entregaria o estado da
 simulacao a quem nem token tem: um 503 de matricula responderia "a flag esta
-ligada" para qualquer um na rede.
+ligada" para qualquer um na rede. E, desde a P3-10, a ordem tambem e o que torna
+o **sujeito** disponivel a degradacao: quem cai e decidido pelo `sub` de um
+token ja verificado.
 
-O ITEM 1 E O ITEM 2 DA DoD SAO ROTAS DESTE ARQUIVO
-----------------------------------------------------
-`POST /matricula` com `academus.enrollment_offline` e `POST
-/turmas/{turma_id}/notas` com `academus.grades_readonly`. O terceiro endpoint
-degradado, que `07` exige, e `GET /turmas/{turma_id}/diario` — o unico com flag
-`number`, e por isso o unico em que o TIPO da flag muda a forma do efeito.
+OS CAMINHOS ESTAO EM INGLES — P4-1
+------------------------------------
+Eram `/alunos`, `/turmas`, `/turmas/{id}/diario`, `/turmas/{id}/notas` e
+`/matricula`. `CLAUDE.md` §Idioma poe **endpoints** na lista do ingles, junto de
+identificadores, tabelas, colunas, logs e nomes de flag e de evento, e a mesma
+secao poe em portugues a interface, os dados sinteticos, os cenarios, as
+rubricas e a documentacao — caminho de rota nao e nenhum dos cinco.
+
+A renomeacao veio nesta peca e nao na peca 1 porque ela e **mudanca de
+produto**: toca a superficie declarada, os handlers, os testes de RBAC e os de
+degradacao. Fazer isso na peca 1 misturaria a correcao com a superficie nova, e
+a peca deixaria de ter uma volta. Aqui o `repositorio.py` inteiro ja muda de
+forma pela P3-5, e os mesmos testes ja vao ser tocados: renomear junto e uma
+edicao; renomear a parte sao duas.
+
+**A unica excecao do projeto e `/plateia`**, e ela e da SPEC — `01` §6 escreve o
+caminho da participant-view assim, literalmente, e documento normativo prevalece
+sobre a convencao. Ela vive na superficie do NUCLEO, e esta dita la. Depois
+desta peca nao ha inconsistencia restante: ha uma excecao, com fonte.
+
+O ITEM 1 E O ITEM 2 DA DoD DA FASE 3 SAO ROTAS DESTE ARQUIVO
+--------------------------------------------------------------
+`POST /enrollment` com `academus.enrollment_offline` e `POST
+/classes/{class_id}/grades` com `academus.grades_readonly`. O terceiro endpoint
+degradado, que `07` exige, e `GET /classes/{class_id}/gradebook` — o unico com
+flag `number`, e por isso o unico em que o TIPO da flag muda a forma do efeito.
 
 O QUE ESTA API NAO FAZ, e tem data
 -----------------------------------
-Nao emite evento. `audit_query_performed` e de classe `observation` e a §2 deste
-registro ja o moveu para a **Fase 8**; a trilha de auditoria com hash e `06` T7,
-**Fase 5**. Uma rota que emitisse evento aqui anteciparia as duas.
-
-Nao ha servidor: `app` e um objeto ASGI, e subi-lo com `uvicorn` em
-`AURORA_BIND_HOST`/`PORT` e da Fase 4.
+Nao emite evento. `audit_query_performed` e de classe `observation` e ja foi
+movido para a **Fase 8**; a trilha de auditoria com hash e `06` T7, **Fase 5**.
+Uma rota que emitisse evento aqui anteciparia as duas — e e a P4-2 que espera
+esse commit, porque e nele que a metade sem guarda ganha sujeito.
 """
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 
-from domains.academus.api import repositorio
 from domains.academus.api.auth import Autenticacao, autoriza, escopo_do_pedido
-from domains.academus.api.degradacao import Degradador, degrada
-from domains.academus.api.repositorio import Escopo
-from domains.academus.models.registros import como_json
+from domains.academus.api.degradacao import (
+    Degradador,
+    confere_flags_declaradas,
+    degrada,
+)
+from domains.academus.api.repositorio import Escopo, Repositorio
 
 app = FastAPI(
     title="academus-api",
-    # AS TRES ROTAS QUE O FASTAPI ACRESCENTA SOZINHO, DESLIGADAS. Achado nesta
-    # peca, e o defeito era da peca 4: `/openapi.json` respondia **200 sem
+    # AS TRES ROTAS QUE O FASTAPI ACRESCENTA SOZINHO, DESLIGADAS. Achado na peca
+    # 5 da Fase 3, e o defeito era da peca 4: `/openapi.json` respondia **200 sem
     # token**, com 3.870 bytes descrevendo a API inteira.
     #
     # A dependencia global nao as cobria, e nao por descuido de configuracao:
@@ -74,69 +99,113 @@ app = FastAPI(
 )
 
 
-@app.get("/alunos/{aluno_id}")
-async def ler_aluno(aluno_id: str, escopo: Escopo = Depends(escopo_do_pedido)) -> dict:
+def repositorio_do_pedido(request: Request) -> Repositorio:
+    """O repositorio montado no boot. Dependencia de handler.
+
+    Vem do `app.state` e nao de variavel de modulo: variavel de modulo e
+    exatamente o que a P3-5 acabou de tirar daqui, e ela voltaria pela porta do
+    wiring. Quem monta o processo entrega o engine; quem nao entrega nao tem
+    aplicacao — ver `montar`.
+    """
+    return request.app.state.repositorio
+
+
+@app.get("/students/{student_id}")
+async def ler_aluno(
+    student_id: str,
+    escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
     """404 aqui cobre dois casos que o handler nao distingue, e nao deve.
 
     Aluno inexistente e aluno alheio chegam como `None`. Quem tem direito de
     saber que o aluno nao existe recebe a mesma coisa que quem nao tem direito
     de ver aquele aluno — e e assim que a regra de escopo nao vira oraculo.
     """
-    registro = repositorio.aluno(aluno_id, escopo)
+    registro = repositorio.aluno(student_id, escopo)
     if registro is None:
         raise HTTPException(status_code=404, detail="aluno nao encontrado")
-    return como_json(registro)
+    return registro
 
 
-@app.get("/turmas/{turma_id}")
-async def ler_turma(turma_id: str, escopo: Escopo = Depends(escopo_do_pedido)) -> dict:
-    registro = repositorio.turma(turma_id, escopo)
+@app.get("/classes/{class_id}")
+async def ler_turma(
+    class_id: str,
+    escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
+    registro = repositorio.turma(class_id, escopo)
     if registro is None:
         raise HTTPException(status_code=404, detail="turma nao encontrada")
-    return como_json(registro)
+    return registro
 
 
-@app.get("/turmas/{turma_id}/diario")
-async def ler_diario(turma_id: str, escopo: Escopo = Depends(escopo_do_pedido)) -> dict:
-    notas = repositorio.diario(turma_id, escopo)
+@app.get("/classes/{class_id}/gradebook")
+async def ler_diario(
+    class_id: str,
+    escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
+    notas = repositorio.diario(class_id, escopo)
     if notas is None:
         raise HTTPException(status_code=404, detail="turma nao encontrada")
-    return {"turma_id": turma_id, "notas": [como_json(n) for n in notas]}
+    return {"class_id": class_id, "grades": notas}
 
 
-@app.post("/turmas/{turma_id}/notas", status_code=201)
+@app.post("/classes/{class_id}/grades", status_code=201)
 async def lancar_nota(
-    turma_id: str,
+    class_id: str,
     corpo: dict,
     escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
 ) -> dict:
     registro = repositorio.lancar_nota(
-        turma_id, str(corpo["aluno_id"]), float(corpo["valor"]), escopo
+        class_id, str(corpo["student_id"]), float(corpo["value"]), escopo
     )
     if registro is None:
         raise HTTPException(status_code=404, detail="turma nao encontrada")
-    return como_json(registro)
+    return registro
 
 
-@app.post("/matricula", status_code=201)
-async def matricular(corpo: dict, escopo: Escopo = Depends(escopo_do_pedido)) -> dict:
+@app.post("/enrollment", status_code=201)
+async def matricular(
+    corpo: dict,
+    escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
     registro = repositorio.matricular(
-        str(corpo["aluno_id"]), str(corpo["turma_id"]), escopo
+        str(corpo["student_id"]), str(corpo["class_id"]), escopo
     )
     if registro is None:
         raise HTTPException(status_code=404, detail="matricula nao pode ser efetuada")
-    return como_json(registro)
+    return registro
 
 
-def montar(autenticacao: Autenticacao, degradador: Degradador | None = None) -> FastAPI:
-    """Liga autenticacao e degradacao a aplicacao. Chamado pelo processo e pela suite.
+def montar(
+    autenticacao: Autenticacao,
+    repositorio: Repositorio,
+    degradador: Degradador | None = None,
+) -> FastAPI:
+    """Liga autenticacao, persistencia e degradacao. Chamado pelo processo e pela suite.
 
-    `degradador` opcional, e o default e explicito: **sem ele nada degrada**. Nao
-    e conveniencia — e o que impede que esquecer o wiring produza degradacao
-    silenciosa ou, pior, excecao no meio de um exercicio. Quem monta o processo
-    entrega o event store, as declaracoes do pack e o cache; quem nao entrega
-    tem uma API que so autentica.
+    `repositorio` e OBRIGATORIO e `degradador` e OPCIONAL, e a assimetria e
+    deliberada. Sem repositorio nao ha aplicacao: toda rota implementada le ou
+    escreve business state, e um default silencioso so poderia ser um duplo em
+    memoria — que e o que a P3-5 acabou de remover. Sem degradador ha uma API
+    que so autentica, e isso e util e explicito: esquecer o wiring nao pode
+    produzir degradacao silenciosa nem excecao no meio de um exercicio.
+
+    A GUARDA DE BOOT DA P3-11 RODA AQUI, e so quando ha degradador — sem ele
+    nenhuma flag e lida, entao nao ha o que ficar no-op. Ela recusa alto: flag
+    citada na superficie e ausente do estado corrente derrubaria a rota para um
+    `None` silencioso, e `06` T2 exige que isso impeca o boot com mensagem
+    nomeando flag e arquivo.
     """
     app.state.autenticacao = autenticacao
+    app.state.repositorio = repositorio
     app.state.degradador = degradador
+    if degradador is not None:
+        confere_flags_declaradas(
+            autenticacao.superficie, degradador.leitura.declarations
+        )
     return app
