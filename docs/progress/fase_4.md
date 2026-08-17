@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0, 1 e 2 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0 a 3 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -447,7 +447,7 @@ sem nada guardado em lugar nenhum.
 | 0 | **aparato**: P3-4 e P3-8 ✅ | as duas vencem antes deste checkpoint, e as duas mudam o que o auditor consegue medir |
 | 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) ✅ | antes de existir rota, como na Fase 3 |
 | 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) ✅ | funções puras, testadas sem servidor |
-| 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa | é o item 4 da DoD e T5, e não depende de HTTP |
+| 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa ✅ | é o item 4 da DoD e T5, e não depende de HTTP |
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) | a latência do item 2 é medida aqui |
 | 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11 (D8, D9, D10) | o adapter deixa de perder estado no reinício |
 | 6 | **as três telas** (D1, D2) + build no CI | o cliente é o último porque não tem lógica |
@@ -837,6 +837,128 @@ invariante 2. **É leitura, e não emissão** — o módulo não chama `append` 
 tem store ao alcance.
 
 **248 testes, zero pulos com Redis no ar** (eram 228).
+
+---
+
+## 4.4 A peça 3 — a reconstrução do exercício, e o par de cada um dos cinco
+
+`range-core/clock/restauracao.py`: `derivar` responde **cada** pergunta
+separadamente, e `restaurar` monta o clock. **Duas funções e não uma**, e o
+motivo é o teste: um teste que só olhasse o clock mediria os cinco por
+consequência, e um erro de T0 e um erro de acumulado produzem o mesmo
+`exercise_timestamp`.
+
+| Valor | De onde vem |
+|---|---|
+| **T0** | `exercise_timestamp` do `exercise_started` — no instante do start o decorrido é zero, então aquela marca **é** o T0 |
+| **acumulado** | `exercise_timestamp` do último evento, mais o trecho desde o `wall_timestamp` dele |
+| **multiplicador** | `clock_multiplier` do último evento. `09` §1.1 o grava em cada evento *"para reconstrução"*, e esta é a reconstrução |
+| **origem de epoch** | `decorrido(evento) − rótulo(evento)`, de qualquer evento da epoch corrente |
+| **pausa** | `paused_in`, sobre o par `exercise_paused`/`exercise_resumed` |
+
+### O reinício não congela o exercício, e isso é da spec
+
+Enquanto o processo esteve fora do ar, o tempo de exercício **correu**. Não é
+escolha: `01` §3 fixa que, na falha do range, *"o clock de exercício continua
+correndo; apenas a projeção de métricas desconta o intervalo"* — e o desconto é
+o `rollback_performed` com `reason: technical_failure`, que grava os extremos
+desde a Fase 2.
+
+Restaurar congelado no último evento inventaria uma pausa que ninguém declarou, e
+o exercício andaria mais devagar que a sala. **O que congela é a pausa**, e ela é
+explícita.
+
+### O par de cada um — e o par é o arquivo inteiro
+
+*Reinício pausado restaura pausado* passa com um engine que sobe **sempre
+pausado**. Cada um dos outros quatro tem a sua forma de passar sem restaurar
+nada, e por isso cada valor é medido com **dois fluxos que só diferem nele**.
+
+**Medido, uma mutação por vez:**
+
+| Mutação plantada | Testes vermelhos |
+|---|---|
+| T0 fixo no código | **8** |
+| acumulado nasce em zero | **6** |
+| **multiplicador sempre 1x** | **4** — inclusive `test_um_exercicio_em_5x_NAO_restaura_em_1x` |
+| origem de epoch sempre zero | **4** |
+| sobe sempre pausado | **4** — inclusive o par de T5 numa asserção só |
+
+O multiplicador é o que o operador nomeou como mais fácil de enganar, e por isso
+ele tem **duas** formas independentes de ser observado: o campo derivado, e a
+conversão do tempo fora do ar. Um `derivar` que lesse o fluxo para o campo e
+usasse 1x na conta passaria na primeira e falharia na segunda.
+
+### O que é provado no container, e o que não é
+
+**Nenhum dos cinco, nesta peça.** A resposta direta, porque a pergunta é a
+certa: chamar processo de container seria trocar a condição por um proxy, que é
+o que a P3-2 custou a esta linhagem.
+
+| Nível | O que prova | Onde |
+|---|---|---|
+| função pura | a derivação: os cinco valores a partir de um fluxo | **peça 3** |
+| **processo novo** | os cinco atravessando o **Postgres** e uma fronteira de processo real — outro interpretador, nada compartilhado além da tabela | **peça 3** |
+| **container** | o *wiring*: imagem, entrypoint, caminho de configuração, rede e volume | **peça 7** |
+
+**O item 4 da DoD continua aberto**, e é isso que esta linha registra. O que a
+peça 3 fecha é a **lógica**; o que o container acrescenta não é aritmética, é a
+montagem — e é a montagem que a DoD nomeia.
+
+O teste de processo novo não é decoração: ele prova que os cinco sobrevivem à ida
+e volta pelo banco. `subprocess`, `python tests/_restaura_em_outro_processo.py`,
+e a asserção contra os cinco valores esperados.
+
+### `paused_in` lê os dois eventos — conferido na fonte
+
+A P2-13 existiu porque `exercise_paused` sem nada depois é o mesmo fluxo para
+*"ainda pausado"* e para *"retomado, e nada aconteceu desde então"*. Conferido no
+código e fixado em teste: `paused_in` desliga a pausa em `exercise_resumed`,
+`exercise_started` e `exercise_reset`, e o teste percorre `pausado → retomado →
+pausado` exigindo veredito diferente em cada passo. Um `paused_in` que só olhasse
+`exercise_paused` devolveria `True` nos três.
+
+E a heurística que pareceria salvar o caso — *evento posterior implica retomada* —
+tem teste próprio afirmando que é **falsa**: `01` §3 bloqueia o disparo agendado
+na pausa e §6 mantém o manual, então um `inject_fired` depois da pausa é
+compatível com o exercício ainda parado.
+
+**`paused_in` mudou de casa**, de `inject_engine` para `clock/restauracao`: quem
+restaura precisa dela antes de existir engine, e duas cópias divergiriam na
+primeira correção. Uma implementação, dois chamadores — a §1.4 do checkpoint da
+Fase 2.
+
+### Duas coisas que a suíte achou, e a segunda é defeito de verdade
+
+**1. O harness de mutação acusou a mudança de casa.** `fonte_mutada` exige que a
+linha alvo case **exatamente uma vez**, e casou zero: *"a linha alvo mudou de
+forma, e a prova negativa deixou de plantar o que diz plantar"*. É a guarda
+funcionando — prova negativa que deixa de plantar é prova que passa sem provar.
+
+**2. O harness vazava módulo mutado para o resto do processo.** O registro em
+`sys.modules` ficava **fora** do `try/finally`: com um mutável registrado e o
+seguinte levantando — que é exatamente o caso acima —, os já registrados nunca
+eram restaurados. **Toda a suíte seguinte rodava contra código mutado**, com as
+falhas aparecendo longe da causa.
+
+Quem achou foi o `test_procedencia_dos_pacotes` da **peça 0**, que é literalmente
+a pergunta *"de onde veio o módulo que executou?"*: ele acusou `pack_loader`
+vindo de um arquivo temporário. A P3-4 fechava a divergência entre **árvores**;
+esta é a mesma pergunta dentro de **um processo só** — e o teste escrito para uma
+pegou a outra.
+
+**Medido depois da correção:** com a âncora quebrada de propósito, o único teste
+vermelho é o do próprio harness. O vazamento não acontece mais.
+
+### Duas docstrings da Fase 2 ficaram falsas aqui, e foram corrigidas aqui
+
+`inject_engine` afirmava que *"T0, o acumulado, o multiplicador e a origem da
+epoch continuam sendo estado do clock que um processo novo não recupera"*. Era
+verdade quando escrita, e esta peça é quem a torna falsa. É a §1.6 da Fase 1 — e
+é a nota da D7 valendo na prática: as duas afirmações estavam em **docstring**, o
+único sítio onde datar uma promessa não custa nada.
+
+**267 testes, zero pulos com a stack efêmera no ar** (eram 248).
 
 ---
 

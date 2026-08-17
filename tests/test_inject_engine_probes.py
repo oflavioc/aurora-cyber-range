@@ -54,6 +54,21 @@ MUTAVEIS = (
         "range_core.engine.loader.pack_loader",
         REPO_ROOT / "range-core" / "engine" / "loader" / "pack_loader.py",
     ),
+    # `paused_in` MUDOU DE CASA na peca 3 da Fase 4 — de `inject_engine` para
+    # `clock/restauracao`, porque quem restaura precisa dela antes de existir
+    # engine. O mutavel a acompanha, e tem de vir ANTES do engine: e ele que a
+    # importa, e um engine mutado que importasse a restauracao original deixaria
+    # a mutacao pela metade.
+    #
+    # A mudanca foi acusada pelo proprio harness — `fonte_mutada` exige que a
+    # linha alvo case exatamente uma vez, e casou zero. E a guarda dele
+    # funcionando: prova negativa que deixa de plantar o que diz plantar e prova
+    # que passa sem provar.
+    (
+        "restauracao",
+        "range_core.clock.restauracao",
+        REPO_ROOT / "range-core" / "clock" / "restauracao.py",
+    ),
     (
         "engine",
         "range_core.engine.inject_engine",
@@ -192,7 +207,7 @@ MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
     "a retomada nao devolve o estado a correndo": (
         [
             (
-                "engine",
+                "restauracao",
                 "        elif evento.event_type in (EXERCISE_RESUMED, EXERCISE_STARTED, EXERCISE_RESET):",
                 "        elif evento.event_type in (EXERCISE_STARTED, EXERCISE_RESET):",
             )

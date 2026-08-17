@@ -106,6 +106,37 @@ class ExerciseClock:
         #: `exercise_timestamp` rebobine junto.
         self._epoch_started_at = 0.0
 
+    @classmethod
+    def restaurado(
+        cls,
+        t_zero: datetime,
+        *,
+        elapsed_seconds: float,
+        multiplier: float,
+        paused: bool,
+        epoch_started_at: float,
+        now: Callable[[], float] = time.time,
+    ) -> ExerciseClock:
+        """Um clock com os cinco valores JA DERIVADOS. Nao le evento nenhum.
+
+        A FRONTEIRA E DELIBERADA, e e a mesma que mantem o clock ignorante de
+        inject: quem sabe ler um fluxo e `range_core.clock.restauracao`, e o que
+        chega aqui sao cinco numeros. Se este construtor conhecesse `event_type`,
+        o clock passaria a depender do catalogo para existir — e o catalogo muda
+        por `spec-change`, enquanto o relogio nao.
+
+        NAO HA VALOR PADRAO PARA NENHUM DOS CINCO. Todos sao obrigatorios, e e
+        isso que impede a restauracao de "quase acontecer": um default aqui
+        produziria um clock plausivel a partir de um fluxo que nao respondia
+        aquela pergunta — que e a forma como um reinicio erra sem falhar.
+        """
+        clock = cls(t_zero, now=now, multiplier=multiplier)
+        clock._accumulated = elapsed_seconds
+        clock._since = now()
+        clock._paused = paused
+        clock._epoch_started_at = epoch_started_at
+        return clock
+
     # -- leitura ---------------------------------------------------------
 
     @property

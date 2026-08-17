@@ -64,9 +64,11 @@ payload que carrega os extremos do intervalo congelado nao existia. Ele existe
 desde a P2-4 — `$defs/frozen_interval` —, e o engine passou a **derivar** os dois
 extremos do proprio fluxo. Ver `_frozen_interval`.
 
-O REINICIO restaura o estado de PAUSA, e so ele: T0, acumulado, multiplicador e
-origem de epoch sao o item de DoD da Fase 4. Ver `restore_pause_state`, onde a
-fronteira esta declarada.
+O REINICIO restaura o estado de PAUSA por aqui, e os CINCO valores por
+`range_core.clock.restauracao`. A frase anterior dizia que *"T0, acumulado,
+multiplicador e origem de epoch sao o item de DoD da Fase 4"* — era verdadeira
+quando escrita e deixou de ser na peca 3 daquela fase, que e quem os deriva do
+fluxo. E a §1.6 da Fase 1, corrigida na peca que a tornou falsa.
 """
 
 from __future__ import annotations
@@ -84,6 +86,7 @@ from contracts.generated.events import (
     ROLLBACK_PERFORMED,
 )
 from range_core.clock.exercise_clock import ExerciseClock, label_seconds
+from range_core.clock.restauracao import paused_in
 from range_core.engine.loader.pack_loader import LoadedPack
 from range_core.events.envelope import Correlation, Event
 from range_core.events.epoch import current_epoch
@@ -132,26 +135,16 @@ INTERVAL_END = "end"
 _SEM_JANELA = 1 << 40
 
 
-def paused_in(events: Sequence[Event]) -> bool:
-    """O exercicio esta pausado, segundo o FLUXO. Pura, e nao consulta relogio.
-
-    Existe separada do engine porque e a resposta que o store passou a dar com o
-    `exercise_resumed` — e a P2-13 era exatamente ela nao existir. Funcao pura
-    sobre o fluxo, na mesma forma do fold: quem restaura pode conferir sem
-    montar engine.
-
-    `exercise_started` e `exercise_reset` tambem devolvem o estado a CORRENDO.
-    Nao e generosidade: `01` §4.2 chama o reset de recomeco, e exercicio que
-    recomeca nao herda a pausa do anterior. Sem estas duas, um reset depois de
-    uma pausa deixaria o exercicio novo parado sem que nada o dissesse.
-    """
-    pausado = False
-    for evento in events:
-        if evento.event_type == EXERCISE_PAUSED:
-            pausado = True
-        elif evento.event_type in (EXERCISE_RESUMED, EXERCISE_STARTED, EXERCISE_RESET):
-            pausado = False
-    return pausado
+#: `paused_in` MUDOU DE CASA na peca 3 da Fase 4, e nao de forma.
+#:
+#: Ela vive em `range_core.clock.restauracao` porque quem restaura o exercicio
+#: precisa dela ANTES de existir engine — e uma segunda copia aqui divergiria da
+#: primeira na primeira vez que uma das duas fosse corrigida. E a mesma decisao
+#: que a §1.4 do checkpoint da Fase 2 tomou com as regras do contrato: uma
+#: implementacao, dois chamadores.
+#:
+#: O nome continua importavel daqui porque este e o modulo que o consome, e
+#: `tests/test_inject_engine.py` o exercita pela porta de quem o usa.
 
 
 class EngineSite:
@@ -395,19 +388,20 @@ class InjectEngine:
         pausado; reinicio depois da retomada o restaura correndo. Os dois casos
         a partir do event store, sem intervencao."*
 
-        O QUE ESTE METODO NAO FAZ, e a fronteira e declarada
-        ----------------------------------------------------
-        Ele restaura **o estado de pausa**, e so isso. T0, o tempo de exercicio
-        acumulado, o multiplicador vigente e a origem da epoch corrente
-        continuam sendo estado do clock que um processo novo nao recupera — e
-        isso e o item de DoD da **Fase 4** (*"reinicio do container do engine
-        restaura o exercicio a partir do event store"*), que e maior que este
-        criterio.
+        O QUE ESTE METODO FAZ, E QUAL E O CAMINHO COMPLETO
+        ---------------------------------------------------
+        Ele aplica **o estado de pausa** a um clock que ja existe, e e o que um
+        engine em curso precisa. **Quem monta um clock do zero usa
+        `range_core.clock.restauracao.restaurar`**, que deriva os cinco valores —
+        T0, acumulado, multiplicador, origem de epoch e a pausa.
 
-        A metade que esta aqui e a que **nao era possivel** antes do
-        `exercise_resumed`: as outras tres sao derivaveis do envelope hoje — o
-        multiplicador esta no ultimo evento, e as marcas dao o resto. O estado de
-        pausa era o unico que o store nao respondia.
+        Nao sao duas implementacoes da mesma regra: os dois chamam `paused_in`, e
+        ela vive num lugar so desde a peca 3 da Fase 4.
+
+        > A redacao anterior dizia que *"T0, o acumulado, o multiplicador e a
+        > origem da epoch continuam sendo estado do clock que um processo novo
+        > nao recupera"*. Era verdade ate a peca 3 daquela fase, e deixou de
+        > ser — §1.6, corrigida onde foi invalidada.
         """
         pausado = paused_in(self._store.read_all())
         if pausado and not self._clock.is_paused:

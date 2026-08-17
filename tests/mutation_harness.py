@@ -139,13 +139,29 @@ def vermelhos(
     """
     anteriores: dict[str, types.ModuleType | None] = {}
     with tempfile.TemporaryDirectory() as temporario:
-        for chave, modulo, caminho in mutaveis:
-            destino = Path(temporario) / f"{chave}_mutado.py"
-            destino.write_text(fonte_mutada(caminho, chave, substituicoes), encoding="utf-8")
-            anteriores[modulo] = sys.modules.get(modulo)
-            sys.modules[modulo] = carrega_modulo(f"{chave}_mutado", destino)
-
         try:
+            # O REGISTRO ENTROU NO `try`, e a diferenca nao e de estilo.
+            #
+            # Ele ficava FORA: se um mutavel fosse registrado e o SEGUINTE
+            # levantasse — o que `fonte_mutada` faz de proposito quando a linha
+            # alvo muda de forma —, os ja registrados nunca eram restaurados. Os
+            # modulos mutados sobreviviam em `sys.modules` pelo resto do
+            # processo, e toda a suite seguinte rodava contra CODIGO MUTADO,
+            # com as falhas aparecendo longe da causa.
+            #
+            # Achado pelo `test_procedencia_dos_pacotes` da peca 0 desta fase, que
+            # e literalmente a pergunta "de onde veio o modulo que executou?" —
+            # ele acusou `pack_loader` vindo de um arquivo temporario. A P3-4
+            # fechava a divergencia entre ARVORES; esta e a mesma pergunta dentro
+            # de um processo so.
+            for chave, modulo, caminho in mutaveis:
+                destino = Path(temporario) / f"{chave}_mutado.py"
+                destino.write_text(
+                    fonte_mutada(caminho, chave, substituicoes), encoding="utf-8"
+                )
+                anteriores[modulo] = sys.modules.get(modulo)
+                sys.modules[modulo] = carrega_modulo(f"{chave}_mutado", destino)
+
             suite_modulo = carrega_modulo(f"suite_contra_{tests_path.stem}", tests_path)
             suite = unittest.defaultTestLoader.loadTestsFromModule(suite_modulo)
             resultado = unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)

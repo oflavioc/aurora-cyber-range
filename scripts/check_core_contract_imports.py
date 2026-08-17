@@ -89,6 +89,12 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         frozenset({"contracts.generated.events"}),
         "mesma razao — o engine emite os tipos do catalogo",
     ),
+    "clock/restauracao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a restauracao acha o `exercise_started` para achar T0 e le "
+        "o par pausa/retomada. O CLOCK continua sem este import: ele recebe cinco "
+        "numeros ja derivados, e por isso nao depende do catalogo para existir",
+    ),
     "api/projecoes.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — a timeline rotula por `event_type` e a plateia acha o "
