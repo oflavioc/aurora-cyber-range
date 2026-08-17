@@ -94,9 +94,15 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
+import redis
+
 from range_core.determinism import derive_seed
 from range_core.events.store import EventStore
-from range_core.state.cache import SimulationStateCache, current
+from range_core.state.cache import (
+    RedisProjectionCache,
+    SimulationStateCache,
+    current,
+)
 from range_core.state.simulation_state import Declarations, SimulationState
 
 from domains.academus.api.surface import Degradacao, RotaDeclarada, Superficie
@@ -152,6 +158,22 @@ class LeituraDeEstado:
 
     def estado(self) -> SimulationState:
         return current(self.store, self.declarations, self.cache)
+
+
+def cache_do_ambiente(url: str) -> SimulationStateCache:
+    """O cache de projecao, montado a partir da URL. **Mora AQUI de proposito.**
+
+    `check_api_surface.py` reprova qualquer modulo de `domains/academus/api/`
+    que importe `range_core.state`, **menos este** — e a regra existe porque
+    estado ao alcance do handler e um `if flag:` esperando para acontecer.
+
+    A raiz de composicao da peca 7 (`processo.py`) precisava do cache e o
+    importou direto. **O gate reprovou, e estava certo**: a excecao e para o
+    modulo que aplica a degradacao, e nao para quem por acaso monta o processo.
+    A construcao vem para ca, e `processo.py` volta a nao ter `range_core.state`
+    ao alcance.
+    """
+    return RedisProjectionCache(redis.from_url(url))
 
 
 def fracao_do_sujeito(seed: int, rota: str, flag: str, sujeito: str) -> float:

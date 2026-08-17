@@ -1,6 +1,7 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0 a 6 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — as sete peças fechadas; falta a auditoria de checkpoint.**
+A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -695,6 +696,84 @@ acrescenta um serviço à peça 7 para não responder a pergunta. *Emitir o toke
 linha de comando e colar no console* já foi recusado na D5, e pelo motivo que
 continua valendo: o item 1 da DoD é literalmente *"sem intervenção manual"*.
 
+### D20 — a sala tem **dois** destinos, e a participant-view não é telão — **DECIDIDA na peça 7**
+
+A D18 adiou a montagem física para cá, com destino. Ela vence agora, e a resposta
+mudou de forma ao ser escrita: **a pergunta "uma tela ou duas?" tinha uma
+premissa errada**, e a premissa era que a participant-view é uma tela de sala.
+
+`01` §6 a chama de **participant-view**, e o nome é a resposta: é a projeção *do
+participante*, e o lugar natural dela é o dispositivo de cada um. O wallboard é
+que é o telão — *"sem login, alto contraste, legível a 10 m"*.
+
+| Superfície | Onde | Por quê |
+|---|---|---|
+| `wallboard-shell` | **o telão da sala**, um por sala | o orçamento de 10 m foi calculado para ele inteiro (D16) |
+| `participant-view` | **o dispositivo do participante**, e opcionalmente um segundo telão | é projeção por pessoa; `01` §6 dá a ela a narrativa, e não o estado |
+| `gm-console` | a máquina do facilitador | autenticado, e é o único que opera |
+
+**A decisão não custa nada porque as rotas já são independentes** — foi
+exatamente isso que a D18 protegeu ao recusar escolher por omissão. Se a sala
+tiver dois projetores, `/plateia` ocupa o segundo com o orçamento inteiro; se
+tiver um, o telão fica com o wallboard e a narrativa vai para os dispositivos.
+Nenhum dos dois casos exige tocar em código.
+
+**O que fica declarado como limite:** se alguém decidir pôr as duas numa tela só,
+o orçamento de texto se parte ao meio — e a D16 já é a opção que sobrevive a
+isso, porque o índice e os blocos não dependem do espaço que o texto ocupa.
+
+### D21 — o bind é `0.0.0.0` dentro do container, e a fronteira de `05` §6 é o host — **DECIDIDA na peça 7**
+
+`05` §6 diz *"Bind em `127.0.0.1`"* e *"nenhuma porta publicada diretamente no
+compose de produção"*. Um container que fizesse bind em `127.0.0.1` **dentro do
+próprio namespace de rede** seria inalcançável — nem pelo container vizinho —, e
+a leitura literal produziria uma stack que não sobe.
+
+**A fronteira que a linha protege é a do host**, e ela é observável em dois
+lugares que ficam lado a lado:
+
+| | |
+|---|---|
+| default da **imagem** | `AURORA_BIND_HOST=127.0.0.1` — **fechado** |
+| quem abre | o `docker-compose.yml`, com `0.0.0.0`, na linha imediatamente acima da que publica a porta |
+| o que a porta faz | `127.0.0.1:8000:8000` — loopback do host, e mais lugar nenhum |
+
+**O default fechado é a metade que importa:** quem rodar a imagem sem o compose
+não expõe nada por acidente, e abrir exige escrever `0.0.0.0` ao lado de onde a
+publicação aparece. É a mesma disciplina do `papeis: []` da Fase 3 — o
+desconhecido não é público.
+
+**O compose de produção é outro arquivo, e ele não existe ainda.** Este é o de
+desenvolvimento, e publica no loopback porque alguém precisa abrir o telão. A
+segunda metade de `05` §6 — *"nenhuma porta publicada no compose de produção"* —
+vence quando existir deploy, e não é desta fase.
+
+### D22 — a P3-2 fecha com número, e o número diz onde ela volta — **DECIDIDA na peça 7**
+
+A D11 fixou a ordem: **medir, depois escolher**. Medido com a stack no ar,
+`scripts/mede_cache_frio.py`:
+
+| Configuração | 20 leituras simultâneas, cache frio | Reconstruções |
+|---|---|---|
+| **1 worker** (o do compose) | 20 conexões | **1** |
+| **4 workers** | 20 conexões | **4** |
+
+**A pendência não ocorre como escrita, e a razão não é single-flight.** A rota é
+`async def` com corpo **síncrono**: a corrotina roda até o fim sem ceder o laço,
+então o segundo leitor só começa depois que o primeiro já gravou o cache. Não há
+voo concorrente para unificar.
+
+**E o segundo número é o que redata a pendência com precisão:** o custo é
+limitado pelo número de **workers**, e não pelo de leitores. Com 4 workers são 4
+reconstruções — uma por laço de eventos —, e a 150 mil eventos cada uma custa os
+2,874 s da §3.8 da Fase 2.
+
+**Decisão: nenhum single-flight agora.** Mecanismo sem consumidor custou caro
+duas vezes nesta linhagem, e a medição diz que o consumidor não existe: o deploy
+desta fase tem um worker. O que sobra é a **P4-8**, com a condição escrita e o
+limite medido — e ela carrega junto a face maior do mesmo fato, que é o laço
+bloqueado.
+
 ---
 
 ## 4. Ordem das peças
@@ -708,7 +787,7 @@ continua valendo: o item 1 da DoD é literalmente *"sem intervenção manual"*.
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) ✅ | a latência do item 2 é medida aqui |
 | 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11, P4-1 (D8, D9, D10) ✅ | o adapter deixa de perder estado no reinício |
 | 6 | **as três telas** (D1, D2, D16, D17, D19) + build no CI ✅ | o cliente é o último porque não tem lógica |
-| 7 | **containers, DEMO ponta a ponta, reinício de container** (D12) + medição da P3-2 (D11) | é onde a fase inteira vira uma sequência só |
+| 7 | **containers, DEMO ponta a ponta, reinício de container** (D12) + medição da P3-2 (D11) ✅ | é onde a fase inteira vira uma sequência só |
 
 **A peça 0 vem antes por medida, e não por hierarquia:** sem ela a auditoria
 desta fase mediria com o aparato que ela conserta, e a procedência do núcleo
@@ -1995,6 +2074,219 @@ teria sido escrita sobre a Fase 3 — importando módulos que não existem lá �
 
 ---
 
+## 4.9 A peça 7 — os containers, e a fase virando uma sequência só
+
+`Dockerfile`, `.dockerignore`, os três serviços novos do `docker-compose.yml`,
+`range-core/api/processo.py`, `domains/academus/api/processo.py`,
+`scripts/demo_fase4.py`, `scripts/prova_reinicio_de_container.py` e
+`scripts/mede_cache_frio.py`.
+
+### Uma imagem, dois processos, e o domínio por configuração
+
+`range-api` e `academus-api` são **o mesmo código com raízes de composição
+diferentes**. Duas imagens seriam duas instalações do mesmo `pyproject.toml`, com
+a chance de divergirem em versão — que é o que `constraints.txt` existe para
+impedir nem entre commits.
+
+**A raiz de composição do núcleo não importa `domains/`, e isso decidiu a forma
+do processo.** O invariante 1 vale para `range-core/api/processo.py` como para
+qualquer módulo do core, então o pack e as flags do adapter chegam como
+**caminho**, por `AURORA_PACK` e `AURORA_FLAGS`, e são lidos como dado.
+
+Não é contorno do invariante — é o mesmo desenho de
+`contract_rules.build_registries`, que deixou de ler `domains/*/flags.yaml` do
+disco justamente para receber as flags de quem monta o processo. **A consequência
+é que a mesma imagem serve outro adapter sem uma linha de core mudar**, e é essa
+consequência que mostra que a regra não estava sendo contornada.
+
+**O clock nasce do fluxo.** No boot, o processo lê o store antes de existir
+engine: havendo eventos, o clock é `restaurar(...)` — os cinco valores da peça 3.
+Um processo que subisse com T0 do momento do boot faria o exercício recomeçar a
+cada reinício, com a sala inteira olhando.
+
+### O item 4, atravessando `docker restart` — e a linha que impede o proxy
+
+A §4.4 declarou a divisão em três níveis e recusou chamar de container o teste de
+processo novo. **Esta é a terceira linha**, e ela roda contra o container de
+verdade:
+
+```text
+exercicio PAUSADO em T+3902s
+reiniciado pausado.......... StartedAt 16:36:41 -> 16:37:48
+clock congelado............. T+3902s, o mesmo de antes do reinicio
+exercicio RETOMADO
+reiniciado correndo......... StartedAt 16:37:48 -> 16:37:57
+clock correu................ T+3902s -> T+3911s, com 9s fora do ar
+```
+
+**A asserção que um teste em processo não consegue produzir é o `StartedAt`.**
+`docker inspect --format {{.State.StartedAt}}` antes e depois: se alguém trocar o
+`docker restart` por um reinício de processo — ou por nada —, o carimbo não muda e
+a prova reprova. Sem essa linha, o par de T5 passaria também num processo, e a
+diferença entre peça 3 e peça 7 evaporaria sem ninguém ver.
+
+**O clock é observado pelo carimbo do próximo evento**, porque nenhuma rota expõe
+o clock — e não deve expor: o que a sala precisa é a projeção. Os dois casos
+juntos matam as três implementações erradas plausíveis: subir sempre pausado
+passa no primeiro e falha no segundo; subir sempre correndo faz o inverso; e
+subir com T0 = agora derruba os dois, porque o `exercise_time` voltaria para
+perto de zero.
+
+**E o segundo caso prova `01` §3 de quebra:** o clock andou **9 s**, que é o tempo
+em que o container esteve fora do ar. Restaurar congelado no último evento
+inventaria uma pausa que ninguém declarou.
+
+### O DEMO, contra dois containers
+
+A sequência de `07`, inteira, sem intervenção manual:
+
+```text
+fixture de demonstracao..... seis registros
+telao antes................. saude 100
+matricula antes............. 201
+exercicio iniciado.......... T0 gravado
+telao reagiu................ saude 90, 2 destaques, 47 ms
+plateia..................... "O portal de matricula esta indisponivel. A f..."
+matricula degradada......... 503
+rollback.................... saude 100, epoch 1
+matricula restaurada........ 201 — a mesma requisicao que deu 503
+timeline.................... 3 entradas, rollback anotado, disparo preservado
+```
+
+**O que ele prova além do `demo_fase2.py`** é a montagem: aquele monta objetos em
+memória num processo só; este fala HTTP e WebSocket com **dois containers**,
+através de Postgres e Redis de verdade. E prova uma coisa que nenhum teste em
+processo alcança: **a `academus-api` degrada por causa de um evento que o
+`range-api` gravou** — dois containers, duas raízes de composição, um event
+store.
+
+**A asserção que discrimina é o par em volta do rollback.** A mesma requisição —
+mesmo aluno, mesma turma — dá **503** depois do disparo e **201** depois do
+rollback. Uma API que nunca degradasse passaria na segunda; uma que degradasse
+sempre passaria na primeira. Só as duas juntas dizem que o estado voltou.
+
+**Os 47 ms são de relógio de parede e atravessam dois containers** — entre 47 e
+62 ms em execuções sucessivas. A prova de protocolo — não há espera no caminho do
+frame — continua sendo a da peça 4, por AST. Este número é a ponta a ponta, e o
+orçamento do item 2 é 1 s.
+
+### Dois defeitos meus, os dois achados rodando
+
+| O que | Por que só a execução separa |
+|---|---|
+| o DEMO lia **um** canal depois do `start` | toda rota que move o exercício publica nas **duas** projeções. O frame de `exercise_started` ficava na fila da plateia, e o `recv` seguinte pegava esse — com texto vazio. O DEMO acusava *"a plateia não recebeu texto_para_plateia"* com o servidor inteiramente correto |
+| a prova de reinício lia `entradas[-1]` depois da retomada | o último evento era o próprio `exercise_resumed`, carimbado **antes** do reinício. Ela acusava *"o clock não andou"* medindo um evento que não podia ter andado — o instrumento tem de observar **depois** do que ele julga |
+
+**As duas mensagens apontavam para o lugar errado**, e é isso que as torna caras:
+um instrumento que erra apontando para o servidor faz procurar defeito onde não
+há.
+
+### A P3-2, medida nos dois sentidos
+
+A D22 tem a decisão; o número está aqui porque foi ele que a produziu:
+
+```text
+1 worker    20 leituras simultaneas, cache frio -> 1 reconstrucao
+4 workers   20 leituras simultaneas, cache frio -> 4 reconstrucoes
+```
+
+**A pendência é limitada pelo número de workers, e não pelo de leitores** — uma
+reconstrução por laço de eventos. Com um worker ela não ocorre, e não por
+single-flight: a rota é `async def` com corpo síncrono, e a corrotina roda até o
+fim sem ceder o laço.
+
+**E quase escrevi uma segunda conclusão errada.** Medi também o tempo — 20
+leituras em 1,5× o tempo de uma — e ia registrar isso como prova de serialização.
+**Não é:** a razão mistura conexão e transporte, que correm em paralelo, com o
+corpo do handler, que não corre. Com este pack o fold custa microssegundos, e a
+parte serializada é invisível no relógio. **Quem prova a serialização é a
+contagem de reconstruções, e não o cronômetro** — o número do tempo ficou no
+script dizendo de onde vem o tempo, com essa ressalva escrita ao lado.
+
+### O gate de imagem ganhou uma segunda forma sintática
+
+`FROM`. O `Dockerfile` é o quarto arquivo de `check_pinned_images.py`, e a razão é
+a P3-1 exata com outra sintaxe: o estágio de Node da imagem poderia apontar para
+um digest **diferente** do que o `web-build` usa, e o build do container e o da
+máquina de quem desenvolve deixariam de ser o mesmo.
+
+**O eixo 3 ganhou uma isenção, e ela é de uma pergunta e não de um arquivo.**
+*"Esta imagem é um serviço que alguém consegue subir localmente?"* não se aplica a
+imagem-base de build: `python:3.12.7-slim` existe só no `Dockerfile`. Exigir que
+ele aparecesse no compose obrigaria a inventar um serviço que ninguém roda — ou a
+escrever a linha num comentário para enganar a varredura. **O eixo 2 continua
+valendo para ele**, e é o que importa: `node` está nos dois arquivos e os dois
+digests têm de ser iguais.
+
+**A primeira versão da isenção pulava o laço inteiro e levava o eixo 2 junto** —
+isto é, desligava exatamente a razão de o `Dockerfile` estar na lista. Quem
+mostrou foi o probe da isenção, e por isso ele existe.
+
+**E o probe do `FROM` achou outro comportamento antes de eu escrever a afirmação
+errada sobre ele:** `# FROM ...` comentado **é capturado**, porque a varredura
+tira o `#` antes de olhar a marca — como já fazia com `image:`. O comportamento
+fica: ela é conservadora na direção que importa, e pode cobrar digest de uma
+linha comentada, mas não perde uma declaração de verdade. **A consequência para
+quem escreve `Dockerfile` ficou dita no probe:** comentário em prosa não começa
+com `FROM`. São **12 eixos**, eram 8.
+
+### O que fica fora do alcance do auditor, e a decisão está aqui
+
+Os três scripts desta peça — DEMO, prova de reinício e medição — **não entram na
+allowlist do auditor**, e isso é decisão, não esquecimento (a lição do B1 da Fase
+2 é que "nada novo entra" também precisa ser decidido).
+
+Os três exigem **docker e uma stack no ar**, e a P2-19 recusou pôr rede na
+allowlist do julgador. Rodá-los sem stack produziria *connection refused* — um
+**FAIL falso**, que é pior que não rodar.
+
+> **Isto diverge da letra da D12, e a divergência é declarada.** A D12 foi
+> aprovada com a exigência de *"fechar as duas pontas no mesmo commit: CI e stack
+> efêmera da auditoria"*, e o motivo dela era preciso: **um teste que pula na
+> auditoria é lido como verde**.
+>
+> **A implementação removeu a condição em vez de atendê-la.** Estes não são
+> testes que pulam: são passos de CI, na forma que a Fase 2 fixou para o DEMO.
+> Um passo de CI que falha reprova o job — não há pulo silencioso a evitar.
+> Acrescentar os dois serviços ao `docker-compose.audit.yml` custaria uma
+> construção de imagem por rodada de auditoria (Node + `pip install`, minutos) e
+> **não daria ao auditor a capacidade de rodá-los**, porque `docker` continua
+> fora da allowlist.
+>
+> **O que o auditor pode verificar por leitura**, e é o que sustenta a decisão:
+> que os passos existem no workflow, que nenhum deles tem `continue-on-error`,
+> `|| true` ou `if: always()`, e que o `Dockerfile` e o compose dizem o que os
+> scripts supõem. **A decisão de não acrescentar o serviço é do operador**, e
+> está aqui para ser revertida se ele preferir a letra.
+
+### O gate da superfície pegou a raiz de composição do adapter
+
+`check_api_surface.py` reprovou `domains/academus/api/processo.py` por importar
+`range_core.state` — *"e só `degradacao.py` pode"*. **Estava certo, e a regra é a
+que importa:** estado ao alcance do handler é um `if flag:` esperando para
+acontecer, e a exceção existe para o módulo que **aplica** a degradação, não para
+quem por acaso monta o processo.
+
+A construção do cache virou `degradacao.cache_do_ambiente`, e `processo.py`
+voltou a não ter `range_core.state` ao alcance. **Quarta vez nesta fase que um
+gate aponta para o desenho certo** — e a primeira em que o apontamento vem do
+verificador de superfície, e não do hook.
+
+### Limites declarados desta peça
+
+- **O compose de produção não existe.** Este é o de desenvolvimento e publica no
+  loopback do host; a segunda metade de `05` §6 vence quando existir deploy.
+- **O cliente é construído duas vezes no CI** — uma pelo `web-build`, para o gate
+  e a prova negativa, e outra dentro da imagem. São perguntas diferentes, e a
+  duplicação é deliberada.
+- **`--workers 1`, e agora isso é uma escolha com número atrás** (D22): subir o
+  número traz a P4-8 junto.
+- **O DEMO exige um exercício que ainda não começou.** `exercise_started` já no
+  store faz `engine.start()` recusar — correto, e não defeito. Ele para com a
+  mensagem que diz o que fazer.
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -2019,7 +2311,7 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 
 | Id | O que é | Vence em |
 |---|---|---|
-| P3-2 | cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **peça 7** — medir antes de escolher (D11) |
+| P3-2 | ~~cache frio sem single-flight: leituras concorrentes reconstroem N vezes~~ | ✅ **FECHADA** na peça 7, com número (D22) |
 | P3-4 | ~~no worktree de auditoria, `range_core` vem da árvore principal~~ | ✅ **FECHADA** na peça 0 |
 | P3-5 | ~~business state em dicionários de módulo~~ | ✅ **FECHADA** na peça 5 (D8) |
 | P3-8 | ~~dois falsos bloqueios do hook do auditor~~ | ✅ **FECHADA** na peça 0 |
@@ -2032,6 +2324,7 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-5 | `grades.student_id` não tem FK nem validação: nota de aluno inexistente é aceita | **Fase 5** — ver abaixo |
 | P4-6 | o `effect_ui` da flag de queda de sessão diz "por minuto", e a função não tem cadência | **Fase 8** — ver abaixo |
 | P4-7 | três avisos de `npm audit` no toolchain do cliente, todos em dependência de desenvolvimento | **condição** — ver abaixo |
+| P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume | **condição** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -2045,6 +2338,18 @@ reconstrução custa o que a §3.8 da Fase 2 mediu — 2,874 s em 150 mil evento
 **A condição que a pendência descreve ocorre nesta fase**, e desta vez pelo nome
 e não por proxy: o primeiro processo que serve requisições concorrentes é o
 container da peça 7. Ver a **D11** — a ordem é medir, depois escolher.
+
+> **✅ FECHADA na peça 7, com número — e o número corrigiu a pergunta.** Medido
+> com a stack no ar: **20 leituras simultâneas sobre cache frio produzem 1
+> reconstrução** com o worker único do compose, e **4** com quatro workers. A
+> pendência não ocorre como escrita, e a razão não é single-flight: a rota é
+> `async def` com corpo síncrono, e a corrotina roda até o fim sem ceder o laço —
+> não há voo concorrente para unificar.
+>
+> **O custo é limitado pelo número de workers, e não pelo de leitores.** É por
+> isso que a pendência fecha em vez de ser redatada: a pergunta que ela fazia
+> está respondida com medição, e o que sobra é outro fato — o caminho de leitura
+> síncrono —, que tem nome próprio na **P4-8**. Ver a **D22** e a §4.9.
 
 #### P3-4 — no worktree de auditoria, o core vem da árvore principal
 
@@ -2346,6 +2651,41 @@ e essa é a regra que `00` §8 fixa.
 primeiro consumidor de `vite dev` (que põe o servidor de desenvolvimento em uso e
 torna o aviso do `esbuild` sujeito), ou a primeira subida deliberada do toolchain
 do cliente, que `07` Fase 8 traz junto com o `academus-web` completo.
+
+---
+
+#### P4-8 — o caminho de leitura é síncrono dentro do laço de eventos
+
+**Aberta medindo a P3-2**, e ela é o que sobrou depois que a medição respondeu a
+pergunta original. `GET /wallboard/state` é `async def` com corpo **síncrono**: a
+corrotina roda até o fim sem ceder o laço de eventos.
+
+O fato tem **duas faces**, e a primeira é benigna hoje:
+
+| | |
+|---|---|
+| **serializa** | é por isso que 20 leituras simultâneas sobre cache frio produzem **1** reconstrução, e não 20 — o que fecha a P3-2 |
+| **bloqueia** | a mesma síncrona segura o laço inteiro durante a reconstrução: a 150 mil eventos são **2,874 s** (§3.8 da Fase 2) em que nenhuma outra rota responde, **inclusive os dois canais de WebSocket** |
+
+**A segunda face é a que importa e ainda não foi medida em volume.** Ela é
+raciocinada a partir do código e do número da Fase 2, e está dita assim de
+propósito: um telão que congela por quase três segundos durante o pico do
+exercício é exatamente o defeito que o item 2 da DoD existe para impedir, e o
+teste de protocolo da peça 4 não o alcança — ele prova que **não há espera** no
+caminho do frame, e não que o laço está livre para entregá-lo.
+
+**A saída não é single-flight.** Com um worker não há voo concorrente; com N
+workers, single-flight dentro do processo não resolve nada entre processos. As
+saídas reais são outras duas, e a escolha é da fase que tiver o consumidor:
+tirar a reconstrução do laço (executor separado), ou tornar o fold incremental —
+que a §4.5 já registrou como **não sendo desta fase**, porque exigiria uma porta
+que aceita estado pronto, e é justamente o que a peça 3 da Fase 3 removeu.
+
+**Vencimento: condição, e não marco** — *a primeira das duas que ocorrer*: um
+deploy com mais de um worker (a P3-2 volta, limitada por eles), ou o primeiro
+volume de eventos em que a reconstrução passe de uma fração do orçamento de 1 s.
+`scripts/mede_cache_frio.py` e `scripts/bench_reconstruction.py` são os dois
+instrumentos, e os dois já existem.
 
 ---
 

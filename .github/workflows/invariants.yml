@@ -237,6 +237,18 @@ jobs:
           # mudanca normativa exigira dois PRs — o de spec-change e o que
           # atualiza o CLAUDE.md. Mesmo custo ja aceito para tools/.
           #
+          # Dockerfile e .dockerignore entram pelo criterio "ser mecanismo que
+          # aplica a spec", e nao por serem arquivos de docker. O primeiro assa
+          # no ARTEFATO o default fechado de bind (05 secao 6), o usuario nao
+          # root e as imagens-base pinadas (00 secao 8); o segundo e o que
+          # impede `.env` e `secrets/` de entrarem numa camada — o analogo
+          # exato do que ja poe `.gitignore` neste conjunto.
+          #
+          # O `docker-compose.yml` continua DESCRITIVO, e a diferenca nao e
+          # descuido: ele e COMPOSICAO local, parametrizada por ambiente a cada
+          # maquina, e os digests dele ja tem guarda propria em
+          # check_pinned_images.py. O Dockerfile e o que a imagem E, e ela viaja.
+          #
           # .gitattributes entra pelo mesmo criterio que .gitignore, e o caso e
           # concreto: ele forca `*.sh` a chegar ao disco com LF. Sem isso, com
           # `core.autocrlf=true` no Windows, o `sh` do container do cliente
@@ -277,7 +289,8 @@ jobs:
             range-core/ domains/ contracts/ \
             tools/ scripts/ .claude/ .github/ user-scope/ \
             docs/process/ ':(exclude)docs/process/PHASE_0_CHECKLIST.md' \
-            CLAUDE.md .gitignore .gitattributes ':(glob)*.sh' | wc -l)
+            CLAUDE.md .gitignore .gitattributes Dockerfile .dockerignore \
+            ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
@@ -509,6 +522,63 @@ jobs:
       # parasse de produzir `dist/`.
       - name: o bundle construido nao carrega vocabulario
         run: python scripts/check_telas_sem_vocabulario.py --exige-bundle
+
+      # ---------------------------------------------------------------------
+      # A STACK DE CONTAINERS — peca 7. Daqui para baixo o que roda nao e mais
+      # a suite: sao os DOIS containers, com Postgres e Redis proprios.
+      #
+      # AS PORTAS SAO OUTRAS de proposito. O `services:` do runner ja ocupa
+      # 5432 e 6379 para a suite, e duas coisas na mesma porta derrubam o
+      # `docker compose up` inteiro. O default do compose continua sendo o de
+      # sempre; quem muda e este job.
+      #
+      # `--build` reconstroi o cliente dentro da imagem, depois de o passo do
+      # `web-build` ja o ter construido para o gate. A duplicacao e deliberada:
+      # aquele prova que o build REPROVA o que tem de reprovar, este produz o
+      # artefato que a imagem carrega. Sao perguntas diferentes.
+      #
+      # `--wait` espera os healthchecks — sem ele o passo seguinte comecaria
+      # contra um processo que ainda esta subindo, e a falha apareceria como
+      # "conexao recusada" longe da causa.
+      #
+      # NAO HA PASSO DE LIMPEZA, e isso e decisao: o runner e descartavel, e um
+      # `docker compose down` com `if: always()` poria o primeiro `always()`
+      # deste workflow — a propriedade "nenhum passo aqui mascara falha" vale
+      # mais que uma limpeza que ninguem precisa.
+      # ---------------------------------------------------------------------
+      - name: a stack de containers sobe, com as duas APIs
+        env:
+          AURORA_PG_PORT: "15432"
+          AURORA_REDIS_PORT: "16379"
+          AURORA_GM_PASSWORD: credencial-efemera-do-job-de-ci
+          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci
+          RANDOM_SEED: "20260817"
+        run: docker compose up -d --build --wait range-api academus-api
+
+      # ITEM 1 DA DoD: *"a sequencia do DEMO roda ponta a ponta sem intervencao
+      # manual"*. Aqui ela roda contra dois containers, e prova a unica coisa
+      # que nenhum teste em processo alcanca: que a `academus-api` degrada por
+      # causa de um evento que o `range-api` gravou.
+      - name: DEMO da Fase 4 ponta a ponta, contra os containers
+        env:
+          DATABASE_URL: postgresql+psycopg://aurora:efemero-do-job-de-ci@127.0.0.1:15432/aurora
+          AURORA_GM_PASSWORD: credencial-efemera-do-job-de-ci
+          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci
+        run: python scripts/demo_fase4.py
+
+      # ITEM 4 DA DoD E O PAR DE T5, atravessando `docker restart` — e nao um
+      # processo novo, que e o que a peca 3 ja provava e a §4.4 recusou chamar
+      # de container.
+      - name: reinicio de CONTAINER restaura o exercicio
+        env:
+          AURORA_GM_PASSWORD: credencial-efemera-do-job-de-ci
+        run: python scripts/prova_reinicio_de_container.py
+
+      # P3-2, A MEDICAO — D11: medir antes de escolher. O numero fica no log de
+      # cada rodada, entao a decisao da §4.9 continua conferivel em vez de
+      # virar uma frase de registro.
+      - name: P3-2 medida com o container no ar
+        run: python scripts/mede_cache_frio.py 20
 
       # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
       # sem instalacao — verificado com `python -S`. Sem este passo, a entrada

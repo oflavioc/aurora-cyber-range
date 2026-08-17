@@ -38,7 +38,11 @@ services:
       # Ausente, o compose falha em vez de subir com valor previsivel.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      # A PORTA DO HOST E VARIAVEL, e a do container nao. O CI ja sobe um
+      # Postgres de `services:` do runner em 5432 para a suite; a stack de
+      # containers da peca 7 sobe ao lado dela, e duas coisas na mesma porta do
+      # host derrubam o `docker compose up` inteiro. O default e o de sempre.
+      - "127.0.0.1:${AURORA_PG_PORT:-5432}:5432"
     volumes:
       - aurora_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -57,12 +61,157 @@ services:
     # o mesmo estado seria pior que ter uma.
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${AURORA_REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # -------------------------------------------------------------------------
+  # O ESQUEMA, ANTES DOS PROCESSOS — peca 7.
+  #
+  # Servico de UMA VEZ: sobe, roda `alembic upgrade head`, sai. As duas APIs
+  # dependem dele por `service_completed_successfully`, entao `docker compose
+  # up` e auto-suficiente — uma API sobre um banco sem tabela produziria erro no
+  # primeiro request, durante a sala.
+  #
+  # NAO usa `image:`, e sim `build:`: `image:` aqui seria o nome da imagem
+  # CONSTRUIDA, e `scripts/check_pinned_images.py` cobraria digest de uma coisa
+  # que nao e puxada de registro nenhum. As imagens-base pinadas estao no
+  # `Dockerfile`, e o gate as le de la.
+  # -------------------------------------------------------------------------
+  migrations:
+    build:
+      context: .
+    container_name: aurora-migrations
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # O `range-api` — o container do item 4 da DoD.
+  #
+  # `05` §6 pede bind em `127.0.0.1`, e o `AURORA_BIND_HOST` daqui e `0.0.0.0`.
+  # NAO E FLEXIBILIZACAO, e a D21 do registro tem o argumento inteiro: dentro do
+  # namespace de rede do container, `127.0.0.1` e o loopback DO CONTAINER —
+  # ninguem o alcanca, nem o container vizinho. A fronteira que `05` §6 nomeia e
+  # a do HOST, e ela esta na linha `ports` logo abaixo: `127.0.0.1:8000:8000`
+  # publica no loopback da maquina, e em mais lugar nenhum. O default da IMAGEM
+  # e o fechado; quem abre e este arquivo, ao lado de onde a porta aparece.
+  #
+  # AS VARIAVEIS DE SEGREDO NAO USAM `:?`, e a assimetria com `POSTGRES_PASSWORD`
+  # e deliberada: a recusa alta delas ja existe NO PROCESSO e tem teste —
+  # `credencial_do_console` exige 16 caracteres, `jwt_secret` e `random_seed`
+  # levantam na ausencia. Repetir a exigencia aqui poria todo comando de compose
+  # refem de variaveis que ele nao usa: `docker compose run web-build` — que so
+  # constroi o cliente — abortaria por falta da senha do console.
+  # -------------------------------------------------------------------------
+  range-api:
+    build:
+      context: .
+    container_name: aurora-range-api
+    command:
+      - python
+      - -m
+      - uvicorn
+      - range_core.api.processo:criar
+      - --factory
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    environment:
+      AURORA_BIND_HOST: "0.0.0.0"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}
+      REDIS_URL: redis://redis:6379/0
+      # O PACK POR VOLUME, e nao por imagem — D13 e `01` §6 (seletor de pack no
+      # console). Trocar de cenario nao pode exigir reconstruir a imagem.
+      AURORA_PACK: /pack
+      # O `flags.yaml` do adapter, como CAMINHO. O core nao importa `domains/`
+      # (invariante 1), entao o dominio chega por configuracao — e a mesma
+      # imagem serve outro adapter sem uma linha de core mudar.
+      AURORA_FLAGS: /app/domains/academus/flags.yaml
+      AURORA_GM_PASSWORD: ${AURORA_GM_PASSWORD}
+      AURORA_JWT_SECRET: ${AURORA_JWT_SECRET}
+    volumes:
+      - ./tests/fixtures/pack_minimo:/pack:ro
+    ports:
+      - "127.0.0.1:${AURORA_RANGE_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      # A projecao de verdade, e nao um TCP connect: ela atravessa Postgres,
+      # Redis e o fold. Um processo que subisse com o banco fora do ar
+      # responderia ao connect e falharia aqui, que e a diferenca entre "a porta
+      # abriu" e "o exercicio esta servivel".
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/wallboard/state').read()
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # -------------------------------------------------------------------------
+  # A `academus-api` — quem DEGRADA no DEMO. Mesma imagem, outra raiz de
+  # composicao.
+  # -------------------------------------------------------------------------
+  academus-api:
+    build:
+      context: .
+    container_name: aurora-academus-api
+    command:
+      - python
+      - -m
+      - uvicorn
+      - domains.academus.api.processo:criar
+      - --factory
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    environment:
+      AURORA_BIND_HOST: "0.0.0.0"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}
+      REDIS_URL: redis://redis:6379/0
+      AURORA_PACK: /pack
+      AURORA_FLAGS: /app/domains/academus/flags.yaml
+      AURORA_JWT_SECRET: ${AURORA_JWT_SECRET}
+      # `05` §8 e T8: o determinismo do adapter vem daqui, e a queda de sessao da
+      # P3-10 e funcao dele. Sem a variavel o processo RECUSA o boot.
+      RANDOM_SEED: ${RANDOM_SEED}
+    volumes:
+      - ./tests/fixtures/pack_minimo:/pack:ro
+    ports:
+      - "127.0.0.1:${AURORA_ACADEMUS_PORT:-8001}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      # Toda rota da `academus-api` exige token, entao a saude aqui e "o
+      # processo montou e responde HTTP" — 401 e resposta, e nao falha.
+      test:
+        - CMD
+        - python
+        - -c
+        - import socket; socket.create_connection(('127.0.0.1', 8000), 3).close()
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   # -------------------------------------------------------------------------
   # O TOOLCHAIN DO CLIENTE, EM CONTAINER PINADO — Fase 4, peca 6.

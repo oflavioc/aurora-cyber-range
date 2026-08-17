@@ -72,9 +72,34 @@ OUTROS = [
         REPO_ROOT / ".github" / "workflows" / "invariants.yml",
     ),
     ("docker-compose.audit.yml", REPO_ROOT / "docker-compose.audit.yml"),
+    # O QUARTO ARQUIVO — peca 7 da Fase 4. Imagem passou a entrar por uma
+    # segunda forma sintatica: `FROM`, no `Dockerfile`. Sem esta entrada, o
+    # estagio de Node da imagem poderia apontar para um digest DIFERENTE do que
+    # o `web-build` usa, e o build do container e o build da maquina de quem
+    # desenvolve deixariam de ser o mesmo — que e a P3-1 exata, com `FROM` no
+    # lugar de `image:`.
+    ("Dockerfile", REPO_ROOT / "Dockerfile"),
 ]
 
+#: OS ARQUIVOS ISENTOS DO EIXO 3, com o motivo.
+#:
+#: O eixo 3 pergunta *"esta imagem e um servico que alguem consegue subir
+#: localmente?"*, e a resposta para uma imagem-BASE de build e nao — ela nunca
+#: sobe como servico. `python:3.12.7-slim` existe so no `Dockerfile`, e exigir
+#: que ele aparecesse no compose obrigaria a inventar um servico que ninguem
+#: roda, ou a escrever a linha num comentario para enganar a varredura.
+#:
+#: **O eixo 2 continua valendo para ele**, e e o que importa: `node` esta nos
+#: DOIS arquivos, e os dois digests tem de ser iguais. O que a isencao custa e
+#: que o digest do `python` nao tem par — e isso e verdade sobre o mundo, nao
+#: sobre a checagem: ele so e declarado uma vez.
+SEM_ESPELHO = frozenset({"Dockerfile"})
+
 MARCA = "image:"
+#: A segunda forma. `FROM <imagem> AS <estagio>` — o sufixo sai antes da
+#: comparacao, senao `node:...@sha256:... AS cliente` e `node:...@sha256:...`
+#: seriam chaves diferentes e o eixo 2 nunca dispararia.
+MARCA_DOCKERFILE = "FROM "
 DIGEST = "@sha256:"
 
 
@@ -91,9 +116,15 @@ def imagens(caminho: Path) -> dict[str, str]:
 
     for linha in caminho.read_text(encoding="utf-8").splitlines():
         limpa = linha.strip().lstrip("#").strip()
-        if not limpa.startswith(MARCA):
+        if limpa.startswith(MARCA):
+            valor = limpa[len(MARCA):].strip().strip("'\"")
+        elif limpa.startswith(MARCA_DOCKERFILE):
+            valor = limpa[len(MARCA_DOCKERFILE):].strip().strip("'\"")
+            # `FROM <imagem> AS <estagio>` — o estagio nao faz parte do nome.
+            for separador in (" AS ", " as "):
+                valor = valor.split(separador)[0].strip()
+        else:
             continue
-        valor = limpa[len(MARCA):].strip().strip("'\"")
         if not valor:
             continue
         nome, _, digest = valor.partition(DIGEST)
@@ -104,8 +135,12 @@ def imagens(caminho: Path) -> dict[str, str]:
 def verifica(
     do_compose: dict[str, str],
     outros: list[tuple[str, dict[str, str]]],
+    sem_espelho: frozenset[str] = SEM_ESPELHO,
 ) -> list[str]:
-    """Os tres eixos, sobre N arquivos. Tudo por parametro, para o probe injetar."""
+    """Os tres eixos, sobre N arquivos. Tudo por parametro, para o probe injetar.
+
+    `sem_espelho` isenta um arquivo do EIXO 3 — e so dele. Ver `SEM_ESPELHO`.
+    """
     problemas: list[str] = []
     todos = [(COMPOSE[0], do_compose), *outros]
 
@@ -119,7 +154,12 @@ def verifica(
                 )
 
     for rotulo, declaradas in outros:
-        for nome in sorted(set(declaradas) - set(do_compose)):
+        # SO O EIXO 3 e isentado. O `continue` que eu escrevi primeiro pulava o
+        # laco inteiro — e levava o EIXO 2 junto, que e justamente o que a
+        # entrada do `Dockerfile` existe para exercer: `node` esta nos dois
+        # arquivos e os digests tem de ser iguais. A isencao e de uma pergunta,
+        # nao do arquivo.
+        for nome in sorted(() if rotulo in sem_espelho else set(declaradas) - set(do_compose)):
             problemas.append(
                 f"{rotulo}: `{nome}` nao existe em {COMPOSE[0]}.\n"
                 "    O compose e a stack, e os outros existem para espelha-la. "
