@@ -2348,9 +2348,19 @@ clock correu................ T+4s -> T+14s, com 10s fora do ar
 ```
 
 **O que isso muda para a auditoria:** o item 4 da DoD deixa de depender de uma
-execução na máquina de quem implementou. `arquitetura`, `spec_freeze`,
-`seguranca` e `contratos` — os quatro contexts de `WORKFLOW.md` — estão verdes
-sobre o commit que vai ser auditado.
+execução na máquina de quem implementou.
+
+> **A frase que estava aqui era uma atestação, e foi o L1 da primeira
+> auditoria.** Ela dizia que os quatro contexts estavam *"verdes sobre o commit
+> que vai ser auditado"* — e foi escrita **dentro** do commit que ela descrevia,
+> sobre um resultado de CI que só podia ser de um commit **anterior**. Era a
+> única evidência oferecida para o item 4, e afirmava o futuro.
+>
+> **O que se pode afirmar, datado:** a execução verde citada acima é a do commit
+> `32057377` — anterior a este —, e os números do DEMO, do reinício e da medição
+> saem dela. Cada commit posterior tem a sua própria execução, e nenhuma frase
+> aqui pode falar por ela: quem responde é o CI do commit que está sendo
+> auditado, e ele é consultável.
 
 ### Limites declarados desta peça
 
@@ -2364,6 +2374,93 @@ sobre o commit que vai ser auditado.
 - **O DEMO exige um exercício que ainda não começou.** `exercise_started` já no
   store faz `engine.start()` recusar — correto, e não defeito. Ele para com a
   mensagem que diz o que fazer.
+
+---
+
+## 4.10 A primeira auditoria de checkpoint — FAIL, e o que ela achou
+
+**FAIL correto.** As correções abaixo são de mecanismo, e não das linhas que o
+sintoma pedia.
+
+### B1 — `05` §4 não tinha verificador, e a fase entregou três telas sem banner
+
+`05` §4 exige `AMBIENTE SIMULADO — DADOS FICTÍCIOS` *"em toda tela e no rodapé de
+todo artefato gerado"*. **As três telas não o tinham.**
+
+**E o achado não é uma linha esquecida:** `05` §4 **não aparece uma vez** nas
+2.774 linhas deste registro, e **nenhum verificador cobria a seção** —
+`check_security_constraints.py` declara escopo §1, `check_synthetic_data.py`
+cobre §3. A seção inteira estava fora de todo mecanismo, e por isso a ausência
+atravessou sete peças.
+
+**O auditor tem razão no ponto 4:** presença de banner é propriedade do **DOM**,
+não de renderização. Ela caiu no limite declarado da §2.2 — *"renderização,
+contraste e legibilidade a 10 m"* — **por acidente**, e não por decisão: qualquer
+varredura a lê sem navegador. O que continua sem teste é se ele é legível a 10 m.
+
+`scripts/check_banner_de_simulacao.py` tem a forma das duas irmãs, e três eixos:
+
+| Eixo | Por quê |
+|---|---|
+| o texto é **extraído de `05` §4**, e não copiado | texto normativo com segunda fonte diverge, e a que diverge em silêncio é a que ninguém olha — classe P3-1 |
+| cada tela renderiza o componente, na **fonte** | `05` §4 diz TODA tela, sem exceção para tela pequena |
+| cada **bundle** carrega o texto | a fonte pode tê-lo e o artefato servido não — e é o artefato que vai ao navegador |
+
+**A §4 inteira está mapeada, e não só a parte que esta fase produz.** O registro
+de classes é conferido nas duas direções: classe coberta sem alvo no disco
+reprova, porque varredura vazia passa por não ter o que olhar.
+
+| Classe | Estado |
+|---|---|
+| **telas** | coberta aqui — as três de `01` §2, fonte e bundle |
+| evidência | **Fase 8** — `08_EVIDENCE_SIMULATOR.md`; §4 pede comentário na primeira linha, no formato do próprio arquivo |
+| exportação | **Fase 8** — `academus-web`: histórico, diploma, PDF |
+| relatório/AAR | **Fase 9** — `range-core/aar/` |
+
+**O custo no telão está declarado:** o banner ocupa **uma** das 7 a 8 linhas do
+orçamento da D16. Não é negociável — a spec não abre exceção para tela pequena.
+
+**Dez direções de prova negativa, e duas acharam defeito meu no instrumento:** o
+`relative_to` estourando fora da raiz — **terceira vez nesta linhagem**, porque
+escrevi o verificador sem reusar o `rel()` que já existia —, e um
+`spec: Path = SPEC` como default de função, avaliado uma vez na definição, que
+tornava o probe de anti-vacuidade **incapaz de provocar a recusa que ele exigia**.
+
+### H1 — três implementações da mesma propriedade, e o resultado líquido
+
+A sincronia entre fonte versionada e cópia instalada tinha **três** implementações
+em `phase0_negative_tests.py`: uma comparava `splitlines()`, duas comparavam
+`read_bytes()`. **Duas implementações da mesma propriedade divergindo é a classe
+P3-1**, e o líquido era pior que vermelho: **vermelha para quem desenvolve**
+(bytes contra CRLF que o `core.autocrlf` do checkout produz, e que o autor não
+escreveu) e **cega para quem julga** (no CI as três caíam no ramo de aviso e não
+verificavam nada).
+
+**Uma implementação**, comparando por linha — o que se afirma é que o código
+instalado é o mesmo programa, e o fim de linha é decidido pelo checkout.
+
+**O fim de linha do `pre-commit` é relevante, e por isso ganhou asserção
+própria** em vez de continuar escondido dentro da comparação de bytes: ele é
+`#!/bin/sh`, e um CR no shebang o torna inexecutável. **A asserção nova reprovou
+na primeira execução:** o arquivo estava com CRLF na árvore, e `bootstrap.sh` o
+copia assim — o guarda de branch deste clone estava a um `checkout` de parar de
+guardar sem dizer nada. `.gitattributes` passou a forçar `eol=lf` em
+`user-scope/hooks/**`.
+
+**E o pulo virou contagem.** O relatório dizia *"Hooks exercitados: fonte
+versionada, cópia instalada"* mesmo quando **nenhuma** cópia fora conferida.
+Agora ele imprime `Copias instaladas: N conferidas, M AUSENTES` — no CI, onde não
+há escopo de usuário, a ausência aparece como ausência.
+
+### O que fica pendente para o operador
+
+**M1 e o `spec-change`** — a lista de exceção de `05` §8 é fechada pelo
+preâmbulo, e ampliá-la por decisão de fase é o caminho que o `spec-change`
+existe para carregar. Ver a **P4-9**.
+
+**Itens 1 e 4 da DoD ficaram NÃO VERIFICADO por ausência de Docker no auditor**,
+que é o padrão da P2-19. A proposta está na **P4-10**, e ela **não foi
+implementada** — a decisão é do operador.
 
 ---
 
@@ -2405,6 +2502,8 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-6 | o `effect_ui` da flag de queda de sessão diz "por minuto", e a função não tem cadência | **Fase 8** — ver abaixo |
 | P4-7 | três avisos de `npm audit` no toolchain do cliente, todos em dependência de desenvolvimento | **condição** — ver abaixo |
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume | **condição** — ver abaixo |
+| P4-9 | a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change` | **antes do merge da fase** — ver abaixo |
+| P4-10 | itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor | **decisão do operador** — proposta abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -2766,6 +2865,50 @@ deploy com mais de um worker (a P3-2 volta, limitada por eles), ou o primeiro
 volume de eventos em que a reconstrução passe de uma fração do orçamento de 1 s.
 `scripts/mede_cache_frio.py` e `scripts/bench_reconstruction.py` são os dois
 instrumentos, e os dois já existem.
+
+#### P4-9 — a D19 amplia uma lista fechada, e o caminho é `spec-change`
+
+**M1 da primeira auditoria, e o auditor está certo no ponto processual.** O
+argumento da D19 continua valendo — nenhum navegador envia `Authorization` numa
+navegação, e a casca não carrega dado —, e **não é isso que está em questão**: a
+lista de exceção de `05` §8 é **fechada pelo preâmbulo**, e ampliá-la por decisão
+de fase é exatamente o que `spec-change` existe para carregar.
+
+**Aberto como PR próprio**, com o argumento já escrito e sem código junto, na
+ordem que `WORKFLOW.md` §"`spec-change` primeiro" fixa: ele é mergeado antes, a
+branch da fase é rebaseada, e **a âncora é regravada no mesmo commit do rebase**.
+
+**Enquanto ele não for aprovado**, `GET /console` é uma superfície pública que a
+spec não isenta. A alternativa — não servir a casca pelo `range-api` — está
+descrita na D19 e recusada com motivo.
+
+#### P4-10 — itens 1 e 4 NÃO VERIFICADO: a proposta, e ela não está implementada
+
+O auditor não pôde executar o DEMO nem a prova de reinício: os dois exigem Docker
+e uma stack no ar, e `docker` está fora da allowlist pelo argumento da P2-19 —
+**rede na mão do julgador é superfície permanente para resolver um problema de
+uma vez**. O resultado é que os dois itens de DoD mais caros da fase chegam ao
+veredito como NÃO VERIFICADO.
+
+**É o mesmo padrão que a P2-19 resolveu uma vez**, e a forma da solução de lá é a
+que esta proposta copia: **o que exige rede acontece no LANÇADOR, antes da
+sessão, e o resultado chega pronto.**
+
+| Opção | O que faz | Custo | Risco |
+|---|---|---|---|
+| **A — o lançador sobe a stack e roda as provas**, gravando a saída num arquivo que o auditor LÊ | o auditor julga uma execução real, feita na máquina do operador, sobre o commit auditado | ~3 min por rodada (build da imagem) | o auditor passa a **confiar num arquivo**: ele não viu rodar. É atestação com procedência melhor, mas ainda atestação |
+| **B — `docker compose` e `docker inspect` entram na allowlist do auditor**, sem `run` arbitrário | o auditor executa as provas | zero | põe **rede e execução de container** na mão do julgador — o que a P2-19 recusou explicitamente |
+| **C — nada muda**; os dois itens ficam NÃO VERIFICADO, sustentados pelo CI | honesto e barato | zero | o veredito da fase mais importante do projeto não cobre dois itens de DoD |
+
+**Minha recomendação é a A, com uma condição que a torna diferente de
+atestação:** o arquivo que o lançador grava carrega o **SHA do commit** e a saída
+íntegra dos scripts, e o auditor **reprova** se o SHA não for o do worktree que
+ele está julgando. Isso não faz o auditor ver a execução, mas amarra a evidência
+ao objeto — que é a diferença entre "alguém rodou" e "rodou nisto".
+
+**Não implementei.** A P2-19 é decisão de arquitetura de auditoria, e a lição do
+B1 da Fase 2 é que "nada novo entra" também precisa ser decidido — por quem
+decide.
 
 ---
 

@@ -19,6 +19,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BannerDeSimulacao } from "../src/banner";
 import { useCanal } from "../src/canal";
 import { type Plateia } from "../src/payload";
 import "../src/estilo.css";
@@ -28,7 +29,9 @@ function Sala() {
   const texto = estado === null ? "" : estado.texto;
 
   return (
-    <div className="flex h-full items-center justify-center bg-slate-950 p-[6vw]">
+    <div className="flex h-full flex-col bg-slate-950">
+      <BannerDeSimulacao />
+      <div className="flex flex-1 items-center justify-center p-[6vw]">
       {texto ? (
         <p className="max-w-[80vw] text-center text-[4.5vw] font-semibold leading-tight text-slate-100">
           {texto}
@@ -38,6 +41,7 @@ function Sala() {
         // o exercicio esta calmo, que e outra coisa.
         <p className="text-[2.5vw] text-slate-600">Universidade Aurora</p>
       )}
+      </div>
     </div>
   );
 }

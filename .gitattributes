@@ -14,3 +14,16 @@
 # de um checkout — exatamente a classe que este projeto ja pagou com o teste de
 # existencia de caminho `/c/...` da peca 0.
 *.sh text eol=lf
+
+# `user-scope/hooks/pre-commit` NAO tem extensao, entao a linha acima nao o
+# alcanca — e ele e `#!/bin/sh`. **Isto nao e hipotese:** a assercao
+# `sem_carriage_return`, escrita ao consertar o H1 da primeira auditoria da Fase
+# 4, reprovou contra este arquivo na PRIMEIRA execucao. Ele estava com CRLF na
+# arvore de trabalho, e `bootstrap.sh` o copia assim para `.git/hooks/` — onde um
+# CR no shebang produz "bad interpreter", e o guarda de branch para de guardar
+# sem dizer nada.
+#
+# O diretorio inteiro entra: os outros dois hooks sao Python, para os quais o CR
+# e inofensivo, e uma regra por arquivo deixaria o proximo hook de shell nascer
+# quebrado do mesmo jeito.
+user-scope/hooks/** text eol=lf

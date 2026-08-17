@@ -24,6 +24,7 @@
 import { StrictMode, useCallback, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
 
+import { BannerDeSimulacao } from "../src/banner";
 import { useCanal } from "../src/canal";
 import { corDa, type Wallboard } from "../src/payload";
 import { type Inject, type ListaDeInjects, type Timeline } from "./tipos";
@@ -280,7 +281,15 @@ function Console({ token }: { token: string }) {
 
 function Aplicacao() {
   const [token, setToken] = useState<string | null>(null);
-  return token === null ? <Entrada token={setToken} /> : <Console token={token} />;
+  // `05` §4 vale para o console tambem: ele e tela, e a casca dele e publica
+  // (D19). Fica ACIMA do formulario de credencial, porque a primeira coisa que
+  // alguem faz nesta tela e digitar uma senha.
+  return (
+    <div className="min-h-screen bg-slate-900">
+      <BannerDeSimulacao />
+      {token === null ? <Entrada token={setToken} /> : <Console token={token} />}
+    </div>
+  );
 }
 
 createRoot(document.getElementById("raiz") as HTMLElement).render(
