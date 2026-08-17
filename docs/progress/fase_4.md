@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0 a 4 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0 a 5 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -438,6 +438,78 @@ propriedades vão para teste: nenhuma flag fora do default dá **100**; peso mai
 baixa mais; e o número é reprodutível a partir de `flags.yaml` mais o estado —
 sem nada guardado em lugar nenhum.
 
+### D15 — a corrida da árvore compartilhada ganha impedimento, e não convenção — **PROPOSTA**
+
+**Nada implementado. Esta seção é a proposta, e ela aguarda o operador.**
+
+A corrida de `WORKFLOW.md` §"Árvore de trabalho compartilhada" ocorreu **três
+vezes**, e as três foram pegas por alguém lembrar de conferir. Detecção por
+memória não é detecção — é a mesma distinção entre regra e propriedade que a §1.6
+da Fase 1 estabelece, e que já motivou mecanizar o guarda de branch uma vez.
+
+**Por que o guarda de branch não alcança.** Ele é `pre-commit`: olha para onde o
+commit vai cair. A corrida acontece **antes de existir commit** — `HEAD` se move
+durante uma *leitura*, e o dano se torna durável na **escrita** que vem depois
+dela, com base numa árvore que já não é aquela. Entre a leitura e o commit há uma
+janela inteira que hoje não tem nada.
+
+**A proposta move a guarda da hora do commit para a hora da escrita**, que é o
+primeiro instante em que o dano é observável e ainda reversível. São três pernas,
+e a segunda é a que teria pego a terceira ocorrência.
+
+| | Quando | O que faz | Severidade |
+|---|---|---|---|
+| **1** | `SessionStart` | grava `<branch>` e `<sha>` num sentinela da sessão, em `.git/` | — |
+| **2** | `PreToolUse` de `Write`/`Edit` | se `HEAD` está na branch **default**, **recusa** | bloqueio |
+| **3** | `PreToolUse` de `Write`/`Edit` | se a branch **mudou** desde o sentinela, **recusa**, nomeando as duas | bloqueio |
+
+**A perna 2 é a que fecha a terceira ocorrência, e ela não é a perna 3.** Naquele
+caso a árvore **já estava** em `main` quando a sessão começou: um sentinela que
+só comparasse "mudou desde o início" teria gravado `main` como âncora e não
+diria nada. A perna 2 não compara com nada — ela afirma uma propriedade do
+projeto: *`CLAUDE.md` diz uma fase = uma branch, então escrita de trabalho nunca
+nasce na default.* É o `pre-commit` existente, adiantado da hora do commit para a
+hora da primeira escrita, e nesse ponto ele custa **um arquivo** em vez de uma
+sessão inteira.
+
+**A perna 3 exige re-ancoragem explícita**, e é isso que a torna mecanismo: depois
+de uma troca de branch legítima, alguém roda o comando que atualiza o sentinela.
+Enquanto não rodar, as escritas continuam recusadas. Sem esse passo explícito, a
+guarda viraria um aviso que se aprende a ignorar.
+
+**Mudança de SHA na mesma branch NÃO bloqueia, e a assimetria é deliberada.**
+Commit do operador na mesma branch é normal; `pull` reescrevendo arquivo sob uma
+leitura é a segunda ocorrência registrada — e essa metade **já tem cobertura**: o
+próprio harness recusa `Edit` de arquivo que mudou em disco desde o `Read`, e ele
+recusou duas vezes durante a peça 5. Acrescentar bloqueio por SHA seria ruído
+sobre uma propriedade que já existe. Onde não se sabe, **bloqueia**; onde se sabe
+que é normal, não.
+
+**O que ela não faz, e está dito porque não faz:**
+
+- **Não previne a corrida** — detecta antes de a escrita se tornar durável. A
+  leitura já feita continua velha, e a mensagem diz para reler. Nenhum mecanismo
+  alcança a leitura que já aconteceu.
+- **Não alcança o lado do operador.** Ele edita por fora do harness, e hook de
+  ferramenta não vê isso.
+- **É guarda local, não gate**, com o mesmo estatuto do guarda de branch: quem
+  clonar sem `bootstrap.sh` não a tem, e escrita por outro caminho a contorna. A
+  proteção real de `main` continua sendo a branch protection.
+
+**Duas alternativas recusadas, e o motivo de cada uma.** *Worktree separado para
+o agente* — já recusado em `WORKFLOW.md`, porque `start_checkpoint_audit.sh` fixa
+um caminho e a confiança de workspace do Claude Code é por caminho; nada mudou
+nisso. *`git checkout` automático de volta* — um agente que move `HEAD` para
+consertar corrida de `HEAD` é um agente que move `HEAD`: piora o problema
+compartilhado e pode atropelar uma troca deliberada do operador.
+
+**Custo:** um `git symbolic-ref` por `Write`/`Edit`, na casa de milissegundos.
+
+**Onde moraria:** `user-scope/hooks/`, instalado por `bootstrap.sh`, como o guarda
+de branch — e com harness nas três direções em `scripts/phase0_negative_tests.py`,
+que é onde as provas dos dois hooks já vivem: bloqueia na default, libera na
+branch de trabalho, e bloqueia depois de troca sem re-ancoragem.
+
 ---
 
 ## 4. Ordem das peças
@@ -449,7 +521,7 @@ sem nada guardado em lugar nenhum.
 | 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) ✅ | funções puras, testadas sem servidor |
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa ✅ | é o item 4 da DoD e T5, e não depende de HTTP |
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) ✅ | a latência do item 2 é medida aqui |
-| 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11 (D8, D9, D10) | o adapter deixa de perder estado no reinício |
+| 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11, P4-1 (D8, D9, D10) ✅ | o adapter deixa de perder estado no reinício |
 | 6 | **as três telas** (D1, D2) + build no CI | o cliente é o último porque não tem lógica |
 | 7 | **containers, DEMO ponta a ponta, reinício de container** (D12) + medição da P3-2 (D11) | é onde a fase inteira vira uma sequência só |
 
@@ -1101,18 +1173,229 @@ Registrada como **P4-3**, com destino.
 
 ---
 
-## 4.6 A peça 5 — o que ela recebe pronto, e o que já foi medido
+## 4.6 A peça 5 — a `academus-api` sobre Postgres, e as quatro pendências
 
-**Não aberta.** A sessão que fechou as peças 0 a 4 parou aqui por contexto, e
-esta seção existe para que a próxima não redescubra nada. É a mesma razão da §0:
-conversa não é fonte versionada.
+`alembic/versions/0002_business_state.py`, `domains/academus/models/registros.py`,
+`domains/academus/api/repositorio.py`, `degradacao.py`, `app.py` e
+`domains/academus/seed/demonstracao.py`. **Quatro pendências fechadas na mesma
+volta** — P3-5, P3-10, P3-11 e P4-1 —, e elas vieram juntas porque tocam o mesmo
+arquivo: separá-las seriam quatro edições do `repositorio.py` e quatro passagens
+pelos mesmos testes.
 
-### O que a peça 5 fecha
+**320 testes, zero pulos com a stack efêmera no ar** (eram 286).
 
-Quatro pendências: **P3-5** (business state em Postgres), **P3-10** (a `Cota`),
-**P3-11** (guarda de boot do adapter) e **P4-1** (idioma dos caminhos).
+### O que a peça 5 recebeu pronto, e o que a medição corrigiu
 
-### As decisões já tomadas, com a fonte conferida
+As decisões abaixo estavam tomadas antes da peça — D8, D9, D10 e a leitura de
+idioma da P4-1 —, e a implementação **mudou duas delas**. As duas mudanças estão
+nomeadas onde ocorrem, e nenhuma foi silenciosa.
+
+### A P3-5: quatro tabelas, e a D8 dizia três
+
+**A D8 escreveu "as três tabelas"** lendo as três entidades que `07` Fase 3
+nomeia — Aluno, Turma, Nota. **A pendência nomeia quatro dicionários de módulo**,
+e `MATRICULAS` é um deles. Deixá-lo em memória fecharia três quartos da pendência
+e manteria o defeito no caminho do item 1 da DoD, que é justamente
+`POST /enrollment`. São `students`, `classes`, `grades` e `enrollments`.
+
+**O par atravessa PROCESSO, e essa era a exigência.** Reabrir a sessão do
+SQLAlchemy no mesmo processo não discrimina: os dicionários de módulo
+sobreviveriam a isso e o teste passaria com a implementação errada. O pai escreve
+pela rota HTTP de verdade; `tests/_le_business_state_em_outro_processo.py` lê num
+interpretador novo, com a tabela como única coisa compartilhada. É a forma que a
+peça 3 fixou para o event store, aplicada à camada de baixo de `01` §4.
+
+**Medido, uma mutação por vez** (`tests/test_business_state_probes.py`):
+
+| Mutação plantada | Testes vermelhos |
+|---|---|
+| a nota volta para um dicionário de módulo | **2** — o de processo novo, e o do diário |
+| a matrícula é escrita e **não commitada** | **1** — o de processo novo da matrícula |
+
+A segunda existe porque ela é a vizinha invisível da primeira: dentro do processo
+as duas produzem 201 e um objeto válido. Só quem está fora vê a diferença.
+
+**O repositório devolve `dict`, e não instância de modelo.** Objeto ORM fora da
+sessão levanta `DetachedInstanceError` no primeiro atributo, e a saída usual —
+`expire_on_commit=False` mais confiar em que os atributos já foram carregados —
+põe corrida entre o handler e o ciclo de vida da sessão. Serializar **dentro** da
+sessão a elimina, e preserva a forma do handler: ele continua escrevendo
+`if registro is None` e mais nada.
+
+**Uma sessão por chamada pública, e não por requisição.** Sessão por requisição
+traria transação atravessando `autoriza`, `degrada` e o handler — e a degradação
+por `latencia` seguraria uma conexão aberta por 2,5 s **por requisição
+degradada**, numa rota que o exercício existe para martelar. É o pool acabando
+durante a sala.
+
+**Os seis registros entram por caminho nomeado como tal**, `seed/demonstracao.py`,
+e não pela migration — migration que insere dado de demonstração afirma que
+aquelas linhas fazem parte do esquema. `enrollments` nasce **vazia** de propósito:
+o caminho feliz do item 1 é a matrícula acontecendo, e uma tabela pré-carregada
+tornaria "matriculou" indistinguível de "já estava lá".
+
+**O que estes testes passaram a custar, dito:** `test_api_rbac.py` e
+`test_api_degradacao.py` rodavam sem stack nenhuma e agora **pulam** sem
+`AURORA_TEST_DATABASE_URL`. É piora local e nenhuma piora onde se julga — CI e o
+lançador da auditoria sobem Postgres e rodam `alembic upgrade head`. A
+alternativa, um repositório em memória ao lado do de Postgres só para a suíte,
+seria o duplo que testa a si mesmo, e reintroduziria **como duplo** exatamente o
+dicionário de módulo que a P3-5 removeu.
+
+### A P3-10: a cota saiu, e as três propriedades foram medidas com mutação
+
+A função é `h(RANDOM_SEED, rota, flag, sujeito) < taxa`, sobre `derive_seed` —
+que já existe e já é SHA-256. Uma segunda derivação ao lado seria a classe D4.
+
+**Medido, uma mutação por vez** (`tests/test_queda_de_sessao_probes.py`):
+
+| Mutação plantada | Testes vermelhos |
+|---|---|
+| **o acumulador da Fase 3 volta** | **4** — monótona, rollback, ordem, e o reinício |
+| **`hash()` no lugar de `derive_seed`** | **1** — e é o do subprocesso |
+| **o sujeito sai da derivação** | **4** — a fração, o reinício, a ordem, e o par flag/rota |
+
+**Três coisas apareceram só rodando, e duas delas eu não previa.**
+
+**1. `test_a_FRACAO_observada_segue_a_taxa` não acusa o acumulador, e está
+certo.** A cota dava `floor(n·taxa)` recusas exatas — a fração era a declarada. O
+que ela não dava era o mesmo **conjunto**. Uma suíte que só contasse quantos caem
+teria aprovado a implementação que a P3-10 existe para remover, e é por isso que
+todas as asserções deste conjunto são sobre conjuntos.
+
+**2. O acumulador derruba o teste de reinício, e eu não previa.** Ele é estado de
+módulo, então o que uma classe deixa nele atravessa para a seguinte: o pai
+calcula com o contador sujo e o filho, num processo novo, com ele zerado. É
+"estável no reinício" sendo violada pelo mecanismo mais literal possível.
+
+**3. A mutação do `hash()` derruba exatamente um teste — o do subprocesso.** Se
+derrubasse mais, o subprocesso seria redundante. `hash()` de string é salgado por
+`PYTHONHASHSEED` e é **estável dentro de um processo**: a suíte inteira ficaria
+verde, e o defeito apareceria como *"o conjunto de participantes fora do ar mudou
+depois do reinício do container"* — no dia do exercício.
+
+**O rollback é medido com rollback de verdade**, e não com um `set` reescrevendo
+a taxa: `ROLLBACK_PERFORMED` no store real, ancorado num evento real, com o fold
+recalculando as flags. Sessenta sujeitos passam pelo HTTP, e o par que impede o
+teste de passar sozinho está lá: `antes < depois` estrito antes de rebobinar —
+sem ele, uma API que nunca degrada "devolveria" o conjunto vazio perfeitamente.
+
+**Dois limites, e o segundo abre pendência.**
+
+`floor(n·taxa)` exato deixa de valer: o que passa a valer é a fração sobre o
+conjunto de **sujeitos**, granulada pelo tamanho do conjunto — com poucos
+participantes, do mesmo jeito que uma moeda em três lançamentos não dá metade.
+
+E **a citação da D9 estava incompleta**. Ela cita `flags.yaml` como *"fração de
+sessões de prova em andamento derrubadas"*; o texto real termina em **"por
+minuto"**. Esta função não implementa cadência: quem cai, cai o exercício
+inteiro. Implementá-la exigiria tempo como entrada, que é exatamente o estado que
+a P3-10 tirou daqui — e o consumidor que dá sentido à cadência é o Modo "Prova em
+andamento" de `07` Fase 8. Virou a **P4-6**, com dono, em vez de ficar como
+divergência entre o que a flag promete e o que a rota faz.
+
+### A P3-11: a guarda de boot, com o par e com uma segunda condição
+
+Flag citada em `api_surface.yaml` e ausente do estado corrente **recusa o boot**,
+com mensagem nomeando a flag e o arquivo — a forma que `06` T2 exige do loader do
+engine. A guarda roda em `montar`, e só quando há degradador: sem ele nenhuma
+flag é lida, então não há no-op a impedir.
+
+**O par que discrimina está no mesmo arquivo:** a superfície real, contra o
+`flags.yaml` real, **sobe**. Uma guarda que sempre recusasse passaria em metade do
+teste — e o teste usa os dois arquivos de verdade, não uma fixture que os imite.
+
+**E há uma segunda condição, que não é a primeira dita de outro jeito:** rota
+**pública** que declara `proporcional` também recusa o boot. A flag existe, está
+declarada, e ainda assim a queda nunca aconteceria — o sujeito vem do `sub` do
+token, e rota pública não tem token. Em tempo de requisição isso apareceria como
+"ninguém cai", indistinguível de taxa zero; só o boot pode decidir. O par dela
+está junto: `ligada` em rota pública **não** recusa, porque não precisa de
+sujeito — a regra "pública não degrada" seria mais forte que o problema.
+
+### A P4-1: os cinco caminhos, e `/plateia` como exceção com fonte
+
+```text
+/alunos/{aluno_id}          ->  /students/{student_id}
+/turmas/{turma_id}          ->  /classes/{class_id}
+/turmas/{turma_id}/diario   ->  /classes/{class_id}/gradebook
+/turmas/{turma_id}/notas    ->  /classes/{class_id}/grades
+/matricula                  ->  /enrollment
+```
+
+Os campos do corpo acompanharam — `aluno_id → student_id`, `turma_id → class_id`,
+`valor → value` —, e as tabelas e colunas nascem em inglês pelo mesmo argumento.
+
+**O que continua em português, e não é sobra:** os **valores** de papel
+(`aluno`, `professor`, `secretaria`, `financeiro`) são vocabulário de persona,
+que `03` §6 e §7 escrevem assim; e as `mensagem` de degradação, que são o texto
+que o participante lê — interface está na lista do português.
+
+**O limite, declarado para não parecer inconsistência restante:** nomes de
+**módulo e de função interna** continuam em português — `registros`,
+`repositorio`, `degradacao`, `superficie`, `restauracao`. Mudá-los é edição em
+todo módulo do projeto, nenhum item de DoD os cobre, e a P4-1 é sobre **endpoint**,
+que é o que atravessa o fio. O que mudou de idioma foi o que cruza a fronteira: o
+caminho, a tabela, a coluna e as classes que mapeiam tabela.
+
+**E a nota do núcleo mudou de força, e a diferença importa.**
+`range-core/api_surface.yaml` dizia *"`domains/academus/api_surface.yaml` diverge
+disto e não é tocado por esta peça"*. Agora não diverge: `/plateia` deixou de ser
+"a exceção entre inconsistências" e passou a ser **a única exceção do projeto**,
+com fonte normativa em `01` §6. Exceção com fonte se defende; inconsistência
+restante ensina que a convenção é opcional, e a próxima rota nasce em português.
+
+### Três afirmações de fase que esta peça tornou falsas — e corrigiu
+
+A regra da D7 aplicada na entrada da peça, e não no fim:
+
+| Onde | O que dizia | Por que era falsa |
+|---|---|---|
+| `models/registros.py` | *"tabela, SQLAlchemy e migration: **Fase 5**"* | a migration é desta peça |
+| `alembic/env.py` | *"os modelos chegam na Fase 5"* | chegaram agora |
+| `api/app.py` | *"cinco rotas... `/matricula`, `/turmas`"* | os caminhos mudaram |
+
+O caso do `env.py` é o mais interessante dos três, porque **o valor não mudou e a
+razão sim**. `target_metadata` continua `None`, agora porque a metadata existente
+cobre **quatro** das cinco tabelas: `event_store` é do core, é lida por `psycopg`
+cru e não tem modelo declarativo — e `autogenerate` contra metadata parcial não
+acusaria a ausência, ele proporia `DROP TABLE event_store`. Ligar
+`target_metadata` ao `Base` do adapter poria o esquema do event store sob a
+metadata de um domain, que é a direção que o invariante 1 existe para impedir,
+para ganhar um gerador que ninguém usa.
+
+### Um defeito de INSTRUMENTO, pego pela própria prova negativa
+
+Na primeira execução, as **três** mutações da P3-10 derrubavam
+`test_montar_com_flag_ausente_RECUSA` — e nenhuma delas tem relação com a guarda
+de boot.
+
+A causa: o módulo mutado define uma classe `FlagNaoDeclarada` **nova**. `app.py`,
+já importado, seguia levantando a original, e o `assertRaises` do teste — que
+resolve pelo módulo mutado — não a reconhecia. **Falha do instrumento lida como
+detecção**, que é a única coisa que uma prova negativa não pode ter.
+
+Corrigido recarregando `app.py` junto, sem mutação, pela ordem de dependência que
+o harness já oferece. É o mesmo eixo do vazamento que a peça 3 achou no harness —
+*"de onde veio o módulo que executou?"* —, desta vez do lado da identidade de
+classe em vez do lado da procedência de arquivo.
+
+### O que esta peça NÃO liga, e tem data
+
+**Nenhum processo monta a `academus-api` ainda.** `engine_do_ambiente` existe e
+tem consumidor — a suíte e o leitor de processo novo —, mas quem sobe o adapter
+com `uvicorn`, `DATABASE_URL` e `RANDOM_SEED` do ambiente é o **container da peça
+7**. Dizer isso aqui é a §7.2 aplicada: mecanismo sem consumidor custou caro duas
+vezes nesta linhagem, e o consumidor deste tem data e nome.
+
+---
+
+## 4.6.1 As decisões que a peça 5 recebeu prontas, com a fonte conferida
+
+**Escrito antes da peça, e mantido como escrito.** É registro do que estava
+decidido quando ela abriu, e não pauta: o que a implementação mudou está na §4.6,
+nomeado onde muda — as quatro tabelas em vez de três, e a citação incompleta de
+`flags.yaml` que virou a P4-6.
 
 **Nomes de tabela e de identificador: inglês. Nomes de entidade na prosa:
 português — e não é contradição.** `02` §1 lista *"Aluno, Professor, Curso,
@@ -1190,6 +1473,12 @@ sete commits —, mas a árvore de trabalho mostrava o conteúdo da Fase 3.
 terceira ocorrência registrada. **O guarda de branch não a alcança**: ele olha
 para onde o commit vai cair, e aqui `HEAD` se moveu durante uma leitura.
 
+**A proposta de mecanismo é a D15**, e ela está aberta como `PROPOSTA` — nada
+implementado. A perna que fecha **esta** ocorrência é a que recusa escrita com
+`HEAD` na branch default, e não a que compara com o início da sessão: aqui a
+árvore **já estava** em `main` quando a sessão abriu, e um sentinela de "mudou
+desde o início" teria gravado `main` como âncora e ficado calado.
+
 **O que a pegou foi a convenção, e não um mecanismo:** *"na dúvida, verificar
 `git branch --show-current` e `git status` antes de agir"*. Sem isso, a peça 5
 teria sido escrita sobre a Fase 3 — importando módulos que não existem lá —, e o
@@ -1216,21 +1505,23 @@ três:
 
 ## 6. Pendências
 
-Nenhuma aberta nesta fase ainda. As seis abaixo são **recebidas da Fase 3**, com
-a peça que as vence.
+Quatro fechadas na peça 5. As **recebidas da Fase 3** estão marcadas com o
+prefixo `P3-`; as abertas nesta fase, com `P4-`.
 
 | Id | O que é | Vence em |
 |---|---|---|
 | P3-2 | cache frio sem single-flight: leituras concorrentes reconstroem N vezes | **peça 7** — medir antes de escolher (D11) |
 | P3-4 | ~~no worktree de auditoria, `range_core` vem da árvore principal~~ | ✅ **FECHADA** na peça 0 |
-| P3-5 | business state em dicionários de módulo | **peça 5** (D8) |
+| P3-5 | ~~business state em dicionários de módulo~~ | ✅ **FECHADA** na peça 5 (D8) |
 | P3-8 | ~~dois falsos bloqueios do hook do auditor~~ | ✅ **FECHADA** na peça 0 |
-| P3-10 | `Cota` é estado mutável fora das cinco camadas de `01` §4 | **peça 5** (D9) |
-| P3-11 | flag declarada e ausente do estado vira no-op silencioso | **peça 5** (D10) |
-| P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **peça 5** — ver abaixo |
+| P3-10 | ~~`Cota` é estado mutável fora das cinco camadas de `01` §4~~ | ✅ **FECHADA** na peça 5 (D9) |
+| P3-11 | ~~flag declarada e ausente do estado vira no-op silencioso~~ | ✅ **FECHADA** na peça 5 (D10) |
+| P4-1 | ~~os caminhos da `academus-api` estão em português~~ | ✅ **FECHADA** na peça 5 |
 | P4-2 | a família `eventos` não roda no perfil de domínio, e emitir sem declarar não tem guarda em lugar nenhum | **Fase 5** — ver abaixo |
 | P4-3 | a página crua de `/sala` é provisória e a peça 6 a substitui | **peça 6** — ver abaixo |
 | P4-4 | oito flags declaram `academus-api` como consumidora e nenhuma rota as consome | **Fase 8** — ver abaixo |
+| P4-5 | `grades.student_id` não tem FK nem validação: nota de aluno inexistente é aceita | **Fase 5** — ver abaixo |
+| P4-6 | o `effect_ui` da flag de queda de sessão diz "por minuto", e a função não tem cadência | **Fase 8** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -1271,6 +1562,12 @@ Postgres, com a linha *"não reversível por rollback; só por reset total"*.
 **A linha passa a ser falsa nesta fase**, porque é a primeira em que existe um
 container que reinicia — e reinício não é reset total. Ver a **D8**.
 
+> **✅ FECHADA na peça 5**, com **quatro** tabelas e não três — a D8 lia as três
+> entidades de `07`, e a pendência nomeia quatro dicionários de módulo. O par
+> atravessa **processo**, e a mutação que prova está medida: com a escrita
+> voltando para dicionário de módulo, dois testes ficam vermelhos; com a
+> matrícula escrita e não commitada, um. Ver a §4.6.
+
 #### P3-8 — dois falsos bloqueios do hook do auditor
 
 `->` dentro de string citada lido como redirecionamento, e *path* de URL lido
@@ -1297,6 +1594,14 @@ devolve a flag e não devolve o acumulador.
 Ver a **D9**: a decisão é **eliminar** o estado, e não realocá-lo — e a forma
 nova é mais fiel ao que `flags.yaml` declara sobre a flag.
 
+> **✅ FECHADA na peça 5.** As três propriedades foram medidas com mutação
+> plantada, e a medição corrigiu duas expectativas minhas: a fração observada
+> **não** acusa o acumulador — a cota dava a fração certa e o conjunto errado —, e
+> o acumulador **derruba** o teste de reinício, porque estado de módulo atravessa
+> classes de teste. A frase *"mais fiel ao que `flags.yaml` declara"* ficou pela
+> metade: o `effect_ui` termina em "por minuto", e a função não tem cadência. É a
+> **P4-6**. Ver a §4.6.
+
 #### P3-11 — flag declarada e ausente do estado vira no-op silencioso
 
 `estado.flags.get(entrada.flag)` devolve `None` para flag que o estado corrente
@@ -1305,6 +1610,12 @@ e nada avisa. O gate protege o repositório; não protege o exercício em curso.
 
 Ver a **D10**: a guarda de boot só tem sentido onde há boot, e o boot é desta
 fase.
+
+> **✅ FECHADA na peça 5**, com o par que discrimina e com **uma segunda
+> condição** que a D10 não previa: rota **pública** que declara `proporcional`
+> também recusa o boot, porque o sujeito vem do `sub` do token e rota pública não
+> tem token — a queda nunca aconteceria, e em tempo de requisição isso seria
+> indistinguível de taxa zero. Ver a §4.6.
 
 ---
 
@@ -1334,6 +1645,13 @@ misturaria a correção com a superfície nova, e a peça deixaria de ter uma vo
 **Vencimento: a peça 5**, que é quando a `academus-api` é reaberta para a P3-5 —
 o `repositorio.py` inteiro muda de forma ali, e os testes já vão ser tocados.
 Renomear junto é uma edição; renomear à parte é duas.
+
+> **✅ FECHADA na peça 5.** As cinco rotas e os campos de corpo em inglês, e as
+> tabelas nascendo assim. `/plateia` deixou de ser "a exceção entre
+> inconsistências" e passou a ser **a única exceção do projeto**, com fonte
+> normativa — a nota do `range-core/api_surface.yaml` foi reescrita para dizer
+> isso. O limite ficou declarado: nomes de **módulo e de função interna** seguem
+> em português, e a razão está na §4.6.
 
 #### P4-2 — a família `eventos` não roda no perfil de domínio
 
@@ -1423,6 +1741,61 @@ aplicada a `consumers` fecharia esta.
 
 **Vencimento: Fase 8**, e o gatilho é a condição, não o marco — *o primeiro
 commit em que a `academus-api` passa a consumir flag de continuidade*.
+
+#### P4-5 — nota lançada para aluno inexistente é aceita
+
+**Aberta escrevendo a migration da P3-5**, ao decidir onde ficavam as chaves
+estrangeiras. Três das quatro estão onde a rota **já garante** a relação:
+`grades.class_id`, `enrollments.student_id` e `enrollments.class_id` — os três
+caminhos falham antes de escrever quando o alvo não existe, então a FK documenta
+no esquema o que o código já faz, sem mudar comportamento nenhum.
+
+**`grades.student_id` não tem FK, e a assimetria é deliberada.** A rota não
+confere se o aluno existe: `repositorio.lancar_nota` passa pela **turma** e mais
+nada. Pôr FK ali faria `POST /classes/{class_id}/grades` com `student_id`
+inventado passar de **201** a erro de integridade — mudança de comportamento de
+uma rota que a Fase 3 entregou e auditou, entrando por efeito colateral de
+migration. Esta peça não faz isso.
+
+**A ausência é medida, e não só escrita:**
+`test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje` afirma o comportamento atual.
+Isso serve a duas coisas: a pendência deixa de depender de alguém lembrar, e o
+dia em que ela for fechada tem um teste **vermelho** anunciando a mudança, em vez
+de um verde silencioso.
+
+**Vencimento: Fase 5**, e o gatilho é a condição: *o commit em que a trilha de
+`02` §4.1 nascer*. Ela registra o aluno da alteração de nota — `06` T7 e a DoD
+daquela fase —, e trilha que registra um aluno inexistente é pior que a ausência
+de FK: ela produz evidência plausível e falsa, que é a camada 2 mentindo sobre a
+camada 1.
+
+#### P4-6 — o `effect_ui` promete cadência, e a função não tem
+
+**Aberta implementando a P3-10, ao reler a fonte que a D9 cita.** A D9 justifica
+a função determinista citando `flags.yaml` como *"fração de **sessões** de prova
+em andamento derrubadas"*. O texto real do `effect_ui` de
+`academus.lms_session_drop_rate` termina em **"por minuto"** — a citação da
+decisão estava incompleta, e a diferença não é de estilo: "fração de sessões" é
+um corte estável, "por minuto" é uma taxa que acumula no tempo.
+
+**A função implementa a primeira metade.** Quem cai, cai o exercício inteiro;
+não há um punhado novo a cada minuto. Implementar a cadência exigiria **tempo
+como entrada**, que é exatamente o estado que a P3-10 acabou de tirar daqui — e o
+resultado seria uma terceira variante do mesmo defeito: memória fora das cinco
+camadas de `01` §4, agora com relógio junto.
+
+**Nem o texto nem a função estão errados sozinhos.** O que não pode ficar é a
+divergência sem dono: o facilitador lê o `effect_ui` para prever o efeito, e um
+texto que promete cadência sobre uma flag que não a tem é a mesma classe de
+defeito que `05`/`02` §9 produzem quando a spec promete serviço que não existe.
+
+**Vencimento: Fase 8**, e o gatilho é a condição, não o marco — *o primeiro
+consumidor com semântica de sessão*. `07` Fase 8 tem o item de DoD *"Modo 'Prova
+em andamento' perde sessões conforme `lms_session_drop_rate`"*, e é lá que existe
+uma sessão de prova com duração, com cronômetro e com autosave — os três
+ingredientes que "por minuto" pressupõe. **A resolução pode ser nas duas
+direções**, e é decisão daquela fase: implementar a cadência onde há sessão, ou
+corrigir o `effect_ui` para o que a flag de fato faz.
 
 ---
 

@@ -22,6 +22,21 @@ nada — nao ha repositorio ao alcance dela. Entao a propriedade e estrutural, e
 comparando as duas respostas byte a byte.
 
 Fechada essa porta, o codigo de status segue `06` T6, que fixa **403**.
+
+ESTES TESTES PASSARAM A EXIGIR BANCO — P3-5, peca 5 da Fase 4
+---------------------------------------------------------------
+Ate a peca 4 desta fase o business state eram dicionarios de modulo, e este
+arquivo rodava sem stack nenhuma. Agora ele le e escreve Postgres, e PULA sem
+`AURORA_TEST_DATABASE_URL` — com a razao impressa, para que o pulo nao seja
+confundido com verde. Ver `tests/_academus_banco.py`.
+
+E OS CAMINHOS MUDARAM DE IDIOMA — P4-1
+----------------------------------------
+`/alunos` -> `/students`, `/turmas` -> `/classes`, `/diario` -> `/gradebook`,
+`/notas` -> `/grades`, `/matricula` -> `/enrollment`. Os campos do corpo
+acompanharam: `aluno_id` -> `student_id`, `turma_id` -> `class_id`, `valor` ->
+`value`. Os VALORES de papel continuam em portugues — sao persona, e nao
+identificador.
 """
 
 from __future__ import annotations
@@ -35,6 +50,8 @@ from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao, autoriza
 from domains.academus.api.surface import carregar
 
+from _academus_banco import exige_banco, repositorio_limpo
+
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 
 ALUNO_QUE_EXISTE = "A-1001"
@@ -47,10 +64,11 @@ TITULAR = "P-3001"
 OUTRO_PROFESSOR = "P-3002"
 
 
+@exige_banco
 class RBAC(unittest.TestCase):
     def setUp(self) -> None:
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao))
+        self.cliente = TestClient(montar(self.autenticacao, repositorio_limpo()))
 
     def _cabecalho(self, papel: str, sub: str = "U-1") -> dict[str, str]:
         token = self.autenticacao.emitir_token(sub, papel)
@@ -62,16 +80,16 @@ class RBAC(unittest.TestCase):
         for papel in ("aluno", "secretaria"):
             with self.subTest(papel=papel):
                 resposta = self.cliente.get(
-                    f"/alunos/{ALUNO_QUE_EXISTE}",
+                    f"/students/{ALUNO_QUE_EXISTE}",
                     # O SUJEITO IMPORTA DESDE A PECA 5: um `aluno` so le a si
-                    # mesmo, entao o `sub` dele e o proprio `aluno_id`. A
+                    # mesmo, entao o `sub` dele e o proprio `student_id`. A
                     # `secretaria` nao tem regra de escopo e le qualquer um.
                     headers=self._cabecalho(
                         papel, ALUNO_QUE_EXISTE if papel == "aluno" else "S-1"
                     ),
                 )
                 self.assertEqual(resposta.status_code, 200)
-                self.assertEqual(resposta.json()["aluno_id"], ALUNO_QUE_EXISTE)
+                self.assertEqual(resposta.json()["student_id"], ALUNO_QUE_EXISTE)
 
     def test_ACESSO_CRUZADO_e_negado_nas_duas_direcoes(self):
         """Professor nao le aluno, e aluno nao le turma.
@@ -81,24 +99,24 @@ class RBAC(unittest.TestCase):
         reinicio pausado/correndo de `06` T5.
         """
         negado = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("professor")
+            f"/students/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("professor")
         )
         self.assertEqual(negado.status_code, 403)
 
         tambem_negado = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("aluno")
+            f"/classes/{TURMA_QUE_EXISTE}", headers=self._cabecalho("aluno")
         )
         self.assertEqual(tambem_negado.status_code, 403)
 
         permitido = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
+            f"/classes/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
         )
         self.assertEqual(permitido.status_code, 200)
 
     # -- 401 x 403 x 404 ---------------------------------------------------
 
     def test_sem_token_e_401_com_www_authenticate(self):
-        resposta = self.cliente.get(f"/alunos/{ALUNO_QUE_EXISTE}")
+        resposta = self.cliente.get(f"/students/{ALUNO_QUE_EXISTE}")
         self.assertEqual(resposta.status_code, 401)
         self.assertEqual(resposta.headers.get("WWW-Authenticate"), "Bearer")
 
@@ -107,14 +125,14 @@ class RBAC(unittest.TestCase):
         outra = Autenticacao(superficie=carregar(), segredo="outro" * 10)
         alheio = outra.emitir_token("U-1", "secretaria")
         resposta = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_EXISTE}", headers={"Authorization": f"Bearer {alheio}"}
+            f"/students/{ALUNO_QUE_EXISTE}", headers={"Authorization": f"Bearer {alheio}"}
         )
         self.assertEqual(resposta.status_code, 401)
 
     def test_quem_TEM_direito_recebe_404_de_recurso_ausente(self):
         """404 e informacao, e vai para quem pode te-la."""
         resposta = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_NAO_EXISTE}", headers=self._cabecalho("secretaria")
+            f"/students/{ALUNO_QUE_NAO_EXISTE}", headers=self._cabecalho("secretaria")
         )
         self.assertEqual(resposta.status_code, 404)
 
@@ -127,9 +145,9 @@ class RBAC(unittest.TestCase):
         porque `autoriza` nao tem o repositorio ao alcance.
         """
         cabecalho = self._cabecalho("professor")
-        existe = self.cliente.get(f"/alunos/{ALUNO_QUE_EXISTE}", headers=cabecalho)
+        existe = self.cliente.get(f"/students/{ALUNO_QUE_EXISTE}", headers=cabecalho)
         nao_existe = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_NAO_EXISTE}", headers=cabecalho
+            f"/students/{ALUNO_QUE_NAO_EXISTE}", headers=cabecalho
         )
 
         self.assertEqual(existe.status_code, nao_existe.status_code)
@@ -138,11 +156,12 @@ class RBAC(unittest.TestCase):
     def test_o_corpo_da_negacao_nao_repete_o_recurso_pedido(self):
         """Mensagem que ecoa o id devolve pela resposta o que a negacao esconde."""
         resposta = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("professor")
+            f"/students/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("professor")
         )
         self.assertNotIn(ALUNO_QUE_EXISTE, resposta.text)
 
 
+@exige_banco
 class EscopoDeObjeto(unittest.TestCase):
     """P3-3 — a regra de objeto, e por que ela nao contradiz a peca 4.
 
@@ -151,7 +170,7 @@ class EscopoDeObjeto(unittest.TestCase):
     respondida lendo o recurso.
 
     A saida nao e negar depois de achar: e fazer **"nao e sua" e "nao existe"
-    virarem o mesmo caminho de codigo**. `repositorio.turma(id, escopo)` devolve
+    virarem o mesmo caminho de codigo**. `Repositorio.turma(id, escopo)` devolve
     `None` nos dois casos, e o handler, que so sabe tratar `None`, responde 404
     sem nunca aprender a diferenca.
 
@@ -162,30 +181,30 @@ class EscopoDeObjeto(unittest.TestCase):
 
     def setUp(self) -> None:
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao))
+        self.cliente = TestClient(montar(self.autenticacao, repositorio_limpo()))
 
     def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
 
     def test_proprio_o_aluno_le_a_si_mesmo_e_nao_ao_colega(self):
         meu = self.cliente.get(
-            f"/alunos/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
+            f"/students/{ALUNO_QUE_EXISTE}", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
         )
         self.assertEqual(meu.status_code, 200)
 
         alheio = self.cliente.get(
-            "/alunos/A-1002", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
+            "/students/A-1002", headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE)
         )
         self.assertEqual(alheio.status_code, 404)
 
     def test_titular_o_professor_le_a_turma_dele_e_nao_a_do_colega(self):
         minha = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
+            f"/classes/{TURMA_QUE_EXISTE}", headers=self._cabecalho("professor", TITULAR)
         )
         self.assertEqual(minha.status_code, 200)
 
         alheia = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}",
+            f"/classes/{TURMA_QUE_EXISTE}",
             headers=self._cabecalho("professor", OUTRO_PROFESSOR),
         )
         self.assertEqual(alheia.status_code, 404)
@@ -193,7 +212,7 @@ class EscopoDeObjeto(unittest.TestCase):
     def test_papel_SEM_regra_de_escopo_ve_tudo(self):
         """A `secretaria` nao esta no mapa, e isso e desenho e nao esquecimento."""
         resposta = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}", headers=self._cabecalho("secretaria", "S-1")
+            f"/classes/{TURMA_QUE_EXISTE}", headers=self._cabecalho("secretaria", "S-1")
         )
         self.assertEqual(resposta.status_code, 200)
 
@@ -205,8 +224,8 @@ class EscopoDeObjeto(unittest.TestCase):
         quais turmas existem sem poder ver nenhuma delas.
         """
         cabecalho = self._cabecalho("professor", OUTRO_PROFESSOR)
-        alheia = self.cliente.get(f"/turmas/{TURMA_QUE_EXISTE}", headers=cabecalho)
-        inexistente = self.cliente.get("/turmas/T-9999", headers=cabecalho)
+        alheia = self.cliente.get(f"/classes/{TURMA_QUE_EXISTE}", headers=cabecalho)
+        inexistente = self.cliente.get("/classes/T-9999", headers=cabecalho)
 
         self.assertEqual(alheia.status_code, inexistente.status_code)
         self.assertEqual(alheia.content, inexistente.content)
@@ -218,13 +237,13 @@ class EscopoDeObjeto(unittest.TestCase):
         classe D4. O teste afirma que a heranca acontece, em vez de confiar nela.
         """
         alheio = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}/diario",
+            f"/classes/{TURMA_QUE_EXISTE}/gradebook",
             headers=self._cabecalho("professor", OUTRO_PROFESSOR),
         )
         self.assertEqual(alheio.status_code, 404)
 
         meu = self.cliente.get(
-            f"/turmas/{TURMA_QUE_EXISTE}/diario",
+            f"/classes/{TURMA_QUE_EXISTE}/gradebook",
             headers=self._cabecalho("professor", TITULAR),
         )
         self.assertEqual(meu.status_code, 200)
@@ -236,15 +255,15 @@ class EscopoDeObjeto(unittest.TestCase):
         a metade que costuma ser esquecida porque ninguem consulta para testar.
         """
         alheia = self.cliente.post(
-            "/matricula",
-            json={"aluno_id": "A-1002", "turma_id": TURMA_QUE_EXISTE},
+            "/enrollment",
+            json={"student_id": "A-1002", "class_id": TURMA_QUE_EXISTE},
             headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE),
         )
         self.assertEqual(alheia.status_code, 404)
 
         minha = self.cliente.post(
-            "/matricula",
-            json={"aluno_id": ALUNO_QUE_EXISTE, "turma_id": TURMA_QUE_EXISTE},
+            "/enrollment",
+            json={"student_id": ALUNO_QUE_EXISTE, "class_id": TURMA_QUE_EXISTE},
             headers=self._cabecalho("aluno", ALUNO_QUE_EXISTE),
         )
         self.assertEqual(minha.status_code, 201)
@@ -253,7 +272,7 @@ class EscopoDeObjeto(unittest.TestCase):
         """A escrita mais sensivel do dominio, e ela estava sem assercao.
 
         A classe prometia *"a escrita tambem passa pelo escopo"* e exercitava a
-        matricula — a nota, nao. `POST /turmas/{turma_id}/notas` declara
+        matricula — a nota, nao. `POST /classes/{class_id}/grades` declara
         `escopo: professor: titular` em `api_surface.yaml`, e ate aqui todas as
         chamadas de nota da suite usavam o TITULAR: o caminho negado nunca era
         percorrido. Foi o L2 da quarta auditoria da Fase 3, e a P3-3 estava
@@ -267,8 +286,8 @@ class EscopoDeObjeto(unittest.TestCase):
         pelo mesmo caminho de codigo, sem que o handler aprenda a diferenca.
         """
         alheia = self.cliente.post(
-            f"/turmas/{TURMA_QUE_EXISTE}/notas",
-            json={"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0},
+            f"/classes/{TURMA_QUE_EXISTE}/grades",
+            json={"student_id": ALUNO_QUE_EXISTE, "value": 9.0},
             headers=self._cabecalho("professor", OUTRO_PROFESSOR),
         )
         self.assertEqual(alheia.status_code, 404)
@@ -276,8 +295,8 @@ class EscopoDeObjeto(unittest.TestCase):
         # E O PAR QUE DISCRIMINA: sem ele, uma rota que recusasse SEMPRE passaria
         # na assercao acima. E a mesma forma do teste de latencia depois do H1.
         minha = self.cliente.post(
-            f"/turmas/{TURMA_QUE_EXISTE}/notas",
-            json={"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0},
+            f"/classes/{TURMA_QUE_EXISTE}/grades",
+            json={"student_id": ALUNO_QUE_EXISTE, "value": 9.0},
             headers=self._cabecalho("professor", TITULAR),
         )
         self.assertEqual(minha.status_code, 201)
@@ -290,12 +309,12 @@ class EscopoDeObjeto(unittest.TestCase):
         pela porta dos fundos.
         """
         cabecalho = self._cabecalho("professor", OUTRO_PROFESSOR)
-        corpo = {"aluno_id": ALUNO_QUE_EXISTE, "valor": 9.0}
+        corpo = {"student_id": ALUNO_QUE_EXISTE, "value": 9.0}
 
         alheia = self.cliente.post(
-            f"/turmas/{TURMA_QUE_EXISTE}/notas", json=corpo, headers=cabecalho
+            f"/classes/{TURMA_QUE_EXISTE}/grades", json=corpo, headers=cabecalho
         )
-        inexistente = self.cliente.post("/turmas/T-9999/notas", json=corpo, headers=cabecalho)
+        inexistente = self.cliente.post("/classes/T-9999/grades", json=corpo, headers=cabecalho)
 
         self.assertEqual(alheia.status_code, inexistente.status_code)
         self.assertEqual(alheia.content, inexistente.content)

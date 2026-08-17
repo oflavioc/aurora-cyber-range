@@ -455,4 +455,4 @@ jobs:
         run: |
           python -c "import range_core.state.simulation_state, contracts.generated.events"
           python -c "from range_core.engine.loader import contract_source; assert len(contract_source.read_contracts()) == 6"
-          python -c "from domains.academus.api.surface import carregar; assert carregar().rota('GET', '/alunos/{aluno_id}').papeis"
+          python -c "from domains.academus.api.surface import carregar; assert carregar().rota('GET', '/students/{student_id}').papeis"

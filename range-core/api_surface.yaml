@@ -84,8 +84,14 @@
 # assim, literalmente. Documento normativo prevalece sobre a convencao, e a
 # excecao fica dita aqui em vez de parecer descuido.
 #
-# `domains/academus/api_surface.yaml` diverge disto e nao e tocado por esta
-# peca — ver a P4-1 no registro da fase.
+# `domains/academus/api_surface.yaml` divergia disto quando esta peca foi
+# escrita, e a P4-1 registrou a divergencia com vencimento na peca 5 — que a
+# fechou renomeando as cinco rotas da Fase 3 para o ingles.
+#
+# ENTAO A FRASE ACIMA MUDOU DE FORCA, e a diferenca importa: `/plateia` nao e
+# mais "a excecao entre inconsistencias" — e a UNICA excecao do projeto, com
+# fonte normativa. Uma excecao com fonte se defende; uma inconsistencia restante
+# ensina que a convencao e opcional, e a proxima rota nasce em portugues.
 
 papeis_de_exercicio:
   - facilitador

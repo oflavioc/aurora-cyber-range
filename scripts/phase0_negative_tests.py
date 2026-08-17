@@ -254,10 +254,10 @@ LEITURA_LEGITIMA = [
     # buscas mais rotineiras que existem numa fase de API.
     # ------------------------------------------------------------------
     ("path de URL em padrao de busca",
-     'grep -n "/turmas/{turma_id}/diario" domains/academus/api_surface.yaml'),
-    ("path de URL sem chaves", 'grep -rn "/matricula" domains/academus'),
-    ("path de URL com rg", 'rg -n "/alunos/\\{aluno_id\\}" domains'),
-    ("path de URL depois de pipe", 'git ls-files | grep "/turmas"'),
+     'grep -n "/classes/{class_id}/gradebook" domains/academus/api_surface.yaml'),
+    ("path de URL sem chaves", 'grep -rn "/enrollment" domains/academus'),
+    ("path de URL com rg", 'rg -n "/students/\\{student_id\\}" domains'),
+    ("path de URL depois de pipe", 'git ls-files | grep "/classes"'),
 ]
 
 #: REINTERPRETACAO DE SHELL — a direcao adversarial da correcao do `>` citado.
@@ -376,7 +376,7 @@ FALSOS_BLOQUEIOS_CONHECIDOS = [
     # NENHUMA forma de escrita, e afrouxar isso para caber uma busca comoda e
     # como os furos deste arquivo sempre entraram. A leitura continua obtenivel
     # por `grep`, que esta liberado.
-    ("path de URL em argumento de git log -S", 'git log -S "/turmas/{turma_id}" --oneline'),
+    ("path de URL em argumento de git log -S", 'git log -S "/classes/{class_id}" --oneline'),
     # (M2) `git branch` foi removido dos subcomandos na 11a auditoria, porque
     # muta o ref store compartilhado por -m/-M/-f/-c/-d/-D. Listar ramos passou
     # a ser feito com `git for-each-ref`, que nao tem forma que mute e esta em

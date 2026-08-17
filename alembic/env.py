@@ -3,9 +3,24 @@
 A URL do banco vem de DATABASE_URL no ambiente, nunca de arquivo versionado:
 credencial em arquivo versionado violaria 05_SECURITY_REQUIREMENTS.md secao 6.
 
-`target_metadata` fica None nesta fase. Os modelos chegam na Fase 5
-(02_DOMAIN_ACADEMUS.md); apontar para metadata inexistente agora produziria
-autogenerate vazio que pareceria funcionar.
+`target_metadata` FICA None, E A RAZAO MUDOU — Fase 4, peca 5
+--------------------------------------------------------------
+A frase anterior dizia *"os modelos chegam na Fase 5; apontar para metadata
+inexistente agora produziria autogenerate vazio que pareceria funcionar"*. Era
+verdadeira quando escrita e deixou de ser: `domains/academus/models/registros.py`
+tem os quatro modelos declarativos desde a P3-5, e eles chegaram na Fase 4.
+
+O valor continua `None`, agora por um motivo diferente e mais forte: a metadata
+existente cobre **quatro** das cinco tabelas. `event_store` e do core, tem
+migration propria e e lida por `psycopg` cru, sem modelo declarativo — e um
+`autogenerate` contra metadata parcial nao acusaria a ausencia: ele proporia
+`DROP TABLE event_store`, porque e assim que ele le "tabela no banco e nao na
+metadata".
+
+As migrations deste projeto sao escritas a mao, e essa e a decisao. Ligar
+`target_metadata` a `Base.metadata` do adapter poria o esquema do event store
+sob a metadata de um domain — a direcao que o invariante 1 existe para nao
+deixar acontecer — para ganhar um gerador que ninguem usa.
 """
 from __future__ import annotations
 

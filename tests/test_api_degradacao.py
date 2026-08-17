@@ -2,10 +2,10 @@
 
 O QUE ESTA SUITE PROVA, e o que ela recusa provar
 --------------------------------------------------
-- **Item 1:** `enrollment_offline` ligada faz `POST /matricula` responder **503**.
+- **Item 1:** `enrollment_offline` ligada faz `POST /enrollment` responder **503**.
 - **Item 2:** `grades_readonly` ligada bloqueia `POST` de nota **com mensagem de
   negocio** — 409, e o texto diz ao professor o que fazer.
-- **O terceiro endpoint** que `07` exige: `GET /turmas/{turma_id}/diario`, com a
+- **O terceiro endpoint** que `07` exige: `GET /classes/{class_id}/gradebook`, com a
   unica flag `number` da fase.
 - **A degradacao e observavel sem se explicar.** Varredura sobre a resposta
   inteira — corpo e cabecalhos —, na forma que `06` T6 fixa para isolamento de
@@ -25,6 +25,20 @@ A UNICA COSTURA E O TEMPO, e ela ja existia no projeto: `Degradador.dormir` e
 parametro pelo mesmo motivo que `now` e parametro no relogio e no token. Esperar
 2,5 s de verdade para afirmar que a latencia declarada foi aplicada seria pagar
 o tempo do exercicio dentro da suite.
+
+O QUE A PECA 5 DA FASE 4 MUDOU AQUI
+-------------------------------------
+**Banco.** O business state saiu dos dicionarios de modulo (P3-5), entao este
+arquivo PULA sem `AURORA_TEST_DATABASE_URL` — ver `tests/_academus_banco.py`.
+
+**Caminhos em ingles** (P4-1), e os campos do corpo junto.
+
+**`proporcional` deixou de ter memoria** (P3-10). A classe `Proporcional` abaixo
+mudou de objeto: ela afirmava `floor(n*taxa)` recusas em `n` REQUISICOES, com a
+sequencia exata `[200, 503, 200, 503, ...]` de um acumulador rampeando. Agora a
+fracao e sobre o conjunto de **sujeitos**, e a mesma sessao recebe sempre a
+mesma resposta — as tres propriedades da D9 estao em
+`tests/test_queda_de_sessao.py`, onde ha sujeitos suficientes para medi-las.
 """
 
 from __future__ import annotations
@@ -39,7 +53,7 @@ from fastapi.testclient import TestClient
 from contracts.generated.events import EXERCISE_STARTED, INJECT_FIRED
 from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao
-from domains.academus.api.degradacao import Degradador, LeituraDeEstado
+from domains.academus.api.degradacao import Degradador, LeituraDeEstado, cai
 from domains.academus.api.surface import carregar
 from domains.academus.generated.flags import (
     ACADEMUS_ENROLLMENT_OFFLINE,
@@ -60,10 +74,18 @@ from range_core.state.simulation_state import (
     Declarations,
 )
 
+from _academus_banco import exige_banco, repositorio_limpo
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLAGS_YAML = REPO_ROOT / "domains" / "academus" / "flags.yaml"
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
+
+#: O `RANDOM_SEED` da suite, FIXO E PASSADO, e nao lido do ambiente. `00` §8 o
+#: exige fixo; aqui ele e argumento porque um teste que dependesse da variavel de
+#: ambiente mudaria de resultado com o `.env` de quem roda — que e o oposto do
+#: que a P3-10 acabou de comprar.
+SEED = 20260816
 
 #: O professor de `T-2001` em `registros.py`. A regra `titular` compara com isto.
 TITULAR = "P-3001"
@@ -135,9 +157,13 @@ class Cenario:
                 declarations=self.declaracoes,
                 cache=InMemoryProjectionCache(),
             ),
+            seed=SEED,
             dormir=dormir,
         )
-        self.cliente = TestClient(montar(self.autenticacao, self.degradador))
+        self.repositorio = repositorio_limpo()
+        self.cliente = TestClient(
+            montar(self.autenticacao, self.repositorio, self.degradador)
+        )
 
     def dispara(self, inject_id: str) -> None:
         """Um `inject_fired` de verdade. O efeito vem do fold, nao de um `set`."""
@@ -154,6 +180,7 @@ class Cenario:
         return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
 
 
+@exige_banco
 class ItensDaDoD(unittest.TestCase):
     def setUp(self) -> None:
         self.c = Cenario()
@@ -162,15 +189,15 @@ class ItensDaDoD(unittest.TestCase):
 
     def _matricula(self):
         return self.c.cliente.post(
-            "/matricula",
-            json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+            "/enrollment",
+            json={"student_id": "A-1001", "class_id": "T-2001"},
             headers=self.secretaria,
         )
 
     def _nota(self):
         return self.c.cliente.post(
-            "/turmas/T-2001/notas",
-            json={"aluno_id": "A-1001", "valor": 9.0},
+            "/classes/T-2001/grades",
+            json={"student_id": "A-1001", "value": 9.0},
             headers=self.professor,
         )
 
@@ -202,22 +229,23 @@ class ItensDaDoD(unittest.TestCase):
         e o que faz o exercicio ser sobre integridade e nao sobre queda.
         """
         self.c.dispara("NOTAS_CONGELADAS")
-        diario = self.c.cliente.get("/turmas/T-2001/diario", headers=self.professor)
+        diario = self.c.cliente.get("/classes/T-2001/gradebook", headers=self.professor)
         self.assertEqual(diario.status_code, 200)
 
     def test_o_terceiro_endpoint_fica_lento_e_depois_derruba(self):
         """A ordem declarada e a ordem vivida: lento primeiro, queda depois."""
         self.c.dispara("AVA_LENTO")
-        lento = self.c.cliente.get("/turmas/T-2001/diario", headers=self.professor)
+        lento = self.c.cliente.get("/classes/T-2001/gradebook", headers=self.professor)
         self.assertEqual(lento.status_code, 200)
         self.assertEqual(self.c.dormidas, [2.5])
 
         self.c.dispara("TODAS_AS_SESSOES")
-        derrubada = self.c.cliente.get("/turmas/T-2001/diario", headers=self.professor)
+        derrubada = self.c.cliente.get("/classes/T-2001/gradebook", headers=self.professor)
         self.assertEqual(derrubada.status_code, 503)
         self.assertEqual(self.c.dormidas, [2.5, 2.5])
 
 
+@exige_banco
 class SemFlagNadaMuda(unittest.TestCase):
     """A metade que impede a outra de virar superstição."""
 
@@ -229,16 +257,16 @@ class SemFlagNadaMuda(unittest.TestCase):
         secretaria = self.c.cabecalho("secretaria", "S-1")
         respostas = [
             self.c.cliente.post(
-                "/matricula",
-                json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+                "/enrollment",
+                json={"student_id": "A-1001", "class_id": "T-2001"},
                 headers=secretaria,
             ),
             self.c.cliente.post(
-                "/turmas/T-2001/notas",
-                json={"aluno_id": "A-1001", "valor": 9.0},
+                "/classes/T-2001/grades",
+                json={"student_id": "A-1001", "value": 9.0},
                 headers=self.professor,
             ),
-            self.c.cliente.get("/turmas/T-2001/diario", headers=self.professor),
+            self.c.cliente.get("/classes/T-2001/gradebook", headers=self.professor),
         ]
         self.assertEqual([r.status_code for r in respostas], [201, 201, 200])
         self.assertEqual(self.c.dormidas, [])
@@ -249,16 +277,17 @@ class SemFlagNadaMuda(unittest.TestCase):
         Esquecer o wiring nao pode produzir excecao no meio de um exercicio, e
         tambem nao pode produzir degradacao silenciosa.
         """
-        cliente = TestClient(montar(self.c.autenticacao, None))
+        cliente = TestClient(montar(self.c.autenticacao, self.c.repositorio, None))
         self.c.dispara("MATRICULA_FORA")
         resposta = cliente.post(
-            "/matricula",
-            json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+            "/enrollment",
+            json={"student_id": "A-1001", "class_id": "T-2001"},
             headers=self.c.cabecalho("secretaria", "S-1"),
         )
         self.assertEqual(resposta.status_code, 201)
 
 
+@exige_banco
 class Proporcional(unittest.TestCase):
     """A unica flag `number` da fase, e o unico efeito que nao e liga-desliga."""
 
@@ -266,39 +295,86 @@ class Proporcional(unittest.TestCase):
         self.c = Cenario()
         self.professor = self.c.cabecalho("professor", TITULAR)
 
-    def _tenta(self, vezes: int) -> list[int]:
+    ROTA = "/classes/{class_id}/gradebook"
+
+    def _tenta(self, vezes: int, sub: str = TITULAR, papel: str = "professor") -> list[int]:
+        cabecalho = self.c.cabecalho(papel, sub)
         return [
-            self.c.cliente.get("/turmas/T-2001/diario", headers=self.professor).status_code
+            self.c.cliente.get("/classes/T-2001/gradebook", headers=cabecalho).status_code
             for _ in range(vezes)
         ]
+
+    def _partidos(self, taxa: float) -> tuple[str, str]:
+        """Um sujeito que cai e um que nao cai, NESTA taxa. Calculados, nao fixados.
+
+        O par vem da propria funcao pura, e isso e deliberado: o que este arquivo
+        prova e o **wiring** — que a rota consulta a flag certa, com o caminho
+        certo e com o `sub` do token —, e nao a distribuicao, que
+        `test_queda_de_sessao.py` mede sobre sujeitos suficientes.
+
+        Fixar dois identificadores literais aqui seria escrever o digest de
+        SHA-256 no teste: verde enquanto ninguem mexe, e vermelho por um motivo
+        ilegivel no dia em que a derivacao mudar de forma legitimamente.
+        """
+        cai_, nao_cai = None, None
+        for n in range(200):
+            sub = f"S-{n}"
+            if cai(SEED, self.ROTA, ACADEMUS_LMS_SESSION_DROP_RATE, sub, taxa):
+                cai_ = cai_ or sub
+            else:
+                nao_cai = nao_cai or sub
+            if cai_ and nao_cai:
+                return cai_, nao_cai
+        raise AssertionError(f"taxa {taxa} nao partiu 200 sujeitos — a funcao nao discrimina")
 
     def test_taxa_zero_nunca_derruba(self):
         """O default da flag e `0`. Uma condicao `ligada` aqui derrubaria SEMPRE."""
         self.assertEqual(set(self._tenta(6)), {200})
 
-    def test_taxa_meia_derruba_exatamente_metade_e_sem_sorteio(self):
-        """Cota deterministica: `floor(n * taxa)` recusas, distribuidas por igual.
+    def test_a_MESMA_sessao_recebe_sempre_a_mesma_resposta(self):
+        """A P3-10 em uma assercao: nao ha memoria, entao nao ha intermitencia.
 
-        Um sorteio por request seria o primeiro consumidor do `RANDOM_SEED`
-        dependente de ORDEM — e `range-core/determinism.py` foi escrito com
-        escopo justamente para que ordem deixasse de ser variavel. Aqui o numero
-        e exato, e o facilitador consegue prever o efeito.
+        Era isto que a cota acumulada NAO dava. Com ela, `taxa 0,5` produzia
+        `[200, 503, 200, 503, ...]` para o mesmo participante — a sessao dele
+        caia, voltava, caia de novo. `flags.yaml` fala em *"fracao de sessoes
+        derrubadas"*, e derrubar a mesma sessao alternadamente nao e isso: e um
+        servico piscando, que na sala se le como instabilidade e nao como queda.
+
+        Seis requisicoes, uma resposta so. O valor dela nao esta fixado aqui de
+        proposito — qual sujeito cai e o objeto dos dois testes seguintes.
         """
         self.c.dispara("SESSOES_CAINDO")
-        codigos = self._tenta(6)
-        self.assertEqual(codigos.count(503), 3)
-        # A SEQUENCIA EXATA, e ela e observada e nao adivinhada: a primeira
-        # versao deste teste afirmava `[503, 200, ...]` e ficou vermelha. O
-        # acumulador comeca em zero, entao a taxa de 0,5 so vence na SEGUNDA
-        # requisicao — o efeito entra rampeando, que e mais parecido com um
-        # servico degradando do que com um interruptor.
-        self.assertEqual(codigos, [200, 503, 200, 503, 200, 503])
+        self.assertEqual(len(set(self._tenta(6))), 1)
+
+    def test_quem_cai_e_decidido_pelo_SUJEITO_do_token(self):
+        """O par que discrimina, na mesma rota e com a mesma taxa.
+
+        Um degradador que ignorasse o sujeito daria a mesma resposta aos dois, e
+        e por isso que sao dois: a assercao de que alguem cai passaria sozinha
+        com "derruba sempre", e a de que alguem nao cai passaria sozinha com
+        "nunca derruba".
+        """
+        self.c.dispara("SESSOES_CAINDO")
+        derrubado, poupado = self._partidos(0.5)
+
+        self.assertEqual(
+            self._tenta(1, sub=derrubado, papel="secretaria"), [503]
+        )
+        self.assertEqual(
+            self._tenta(1, sub=poupado, papel="secretaria"), [200]
+        )
 
     def test_taxa_um_derruba_sempre(self):
         self.c.dispara("TODAS_AS_SESSOES")
         self.assertEqual(set(self._tenta(4)), {503})
+        # E TAMBEM QUEM ERA POUPADO EM 0,5: a monotonicidade chegando ate a rota,
+        # e nao so ate a funcao. Sem esta linha, um degradador que caisse por
+        # sujeito mas trocasse o conjunto ao subir a taxa passaria.
+        _, poupado_em_meio = self._partidos(0.5)
+        self.assertEqual(self._tenta(1, sub=poupado_em_meio, papel="secretaria"), [503])
 
 
+@exige_banco
 class AutorizaAntesDeDegradar(unittest.TestCase):
     """M2 da auditoria da Fase 3 — a ordem que era argumento e nao era teste.
 
@@ -325,15 +401,15 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
     def _sem_token(self, metodo: str, caminho: str):
         chamada = getattr(self.c.cliente, metodo)
         if metodo == "post":
-            return chamada(caminho, json={"aluno_id": "A-1001", "turma_id": "T-2001", "valor": 9.0})
+            return chamada(caminho, json={"student_id": "A-1001", "class_id": "T-2001", "value": 9.0})
         return chamada(caminho)
 
     def test_sem_token_as_tres_rotas_degradadas_respondem_401_e_nao_503(self):
         """As TRES, com as flags ligadas. Uma so nao discriminaria a ordem."""
         rotas = [
-            ("post", "/matricula"),
-            ("post", "/turmas/T-2001/notas"),
-            ("get", "/turmas/T-2001/diario"),
+            ("post", "/enrollment"),
+            ("post", "/classes/T-2001/grades"),
+            ("get", "/classes/T-2001/gradebook"),
         ]
         for metodo, caminho in rotas:
             with self.subTest(rota=f"{metodo.upper()} {caminho}"):
@@ -368,7 +444,7 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
         self.c.dispara("AVA_LENTO")
 
         com_token = self.c.cliente.get(
-            "/turmas/T-2001/diario", headers=self.c.cabecalho("professor", TITULAR)
+            "/classes/T-2001/gradebook", headers=self.c.cabecalho("professor", TITULAR)
         )
         self.assertEqual(com_token.status_code, 503)
         self.assertEqual(
@@ -379,7 +455,7 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
         )
 
         self.c.dormidas.clear()
-        resposta = self._sem_token("get", "/turmas/T-2001/diario")
+        resposta = self._sem_token("get", "/classes/T-2001/gradebook")
         # A ESPERA ANTES DO STATUS, de proposito: e a assercao que so este teste
         # faz. Com a ordem invertida o status tambem sai errado, e o teste acima
         # ja o cobre nas tres rotas — deixar o status primeiro faria o canal de
@@ -399,22 +475,22 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
 
         self.assertEqual(
             self.c.cliente.post(
-                "/matricula",
-                json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+                "/enrollment",
+                json={"student_id": "A-1001", "class_id": "T-2001"},
                 headers=secretaria,
             ).status_code,
             503,
         )
         self.assertEqual(
             self.c.cliente.post(
-                "/turmas/T-2001/notas",
-                json={"aluno_id": "A-1001", "valor": 9.0},
+                "/classes/T-2001/grades",
+                json={"student_id": "A-1001", "value": 9.0},
                 headers=professor,
             ).status_code,
             409,
         )
         self.assertEqual(
-            self.c.cliente.get("/turmas/T-2001/diario", headers=professor).status_code,
+            self.c.cliente.get("/classes/T-2001/gradebook", headers=professor).status_code,
             503,
         )
 
@@ -433,6 +509,7 @@ class AutorizaAntesDeDegradar(unittest.TestCase):
         self.assertEqual(chamadas, [autoriza, degrada])
 
 
+@exige_banco
 class NaoSeExplica(unittest.TestCase):
     """A degradacao e observavel SEM ser explicada. Varredura sobre a resposta."""
 
@@ -453,8 +530,8 @@ class NaoSeExplica(unittest.TestCase):
         self.c.dispara("MATRICULA_FORA")
         self._varre(
             self.c.cliente.post(
-                "/matricula",
-                json={"aluno_id": "A-1001", "turma_id": "T-2001"},
+                "/enrollment",
+                json={"student_id": "A-1001", "class_id": "T-2001"},
                 headers=self.c.cabecalho("secretaria", "S-1"),
             )
         )
@@ -463,8 +540,8 @@ class NaoSeExplica(unittest.TestCase):
         self.c.dispara("NOTAS_CONGELADAS")
         self._varre(
             self.c.cliente.post(
-                "/turmas/T-2001/notas",
-                json={"aluno_id": "A-1001", "valor": 9.0},
+                "/classes/T-2001/grades",
+                json={"student_id": "A-1001", "value": 9.0},
                 headers=self.c.cabecalho("professor", TITULAR),
             )
         )
@@ -473,7 +550,7 @@ class NaoSeExplica(unittest.TestCase):
         self.c.dispara("TODAS_AS_SESSOES")
         self._varre(
             self.c.cliente.get(
-                "/turmas/T-2001/diario", headers=self.c.cabecalho("professor", TITULAR)
+                "/classes/T-2001/gradebook", headers=self.c.cabecalho("professor", TITULAR)
             )
         )
 
