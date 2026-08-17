@@ -2298,6 +2298,60 @@ voltou a não ter `range_core.state` ao alcance. **Quarta vez nesta fase que um
 gate aponta para o desenho certo** — e a primeira em que o apontamento vem do
 verificador de superfície, e não do hook.
 
+### O CI rodou antes da auditoria, e achou um defeito na primeira volta
+
+**Exigência do operador, e ela estava certa:** *"'verifiquei localmente' é a
+forma de atestação que esta fase recusou em todos os outros lugares"*. Os quatro
+passos novos nunca tinham rodado num runner, e o **item 4 da DoD depende deles**.
+
+**O workflow não dispara em push de branch** — `on: push: branches: [main]` e
+`pull_request` —, então exercitar o CI exigiu abrir o PR **em draft**. Ele não
+merge e não move a âncora; a ordem de `WORKFLOW.md`, com a auditoria antes do
+PR de merge, continua valendo.
+
+**Primeira volta, vermelha, e no passo previsto:**
+
+```text
+SecretUnavailable: AURORA_JWT_SECRET tem 28 caracteres, e o minimo e 32.
+Chave curta e quebrada offline a partir de um unico token capturado.
+```
+
+**O valor que usei na minha máquina tinha 39 caracteres; o que escrevi no
+workflow tinha 28.** A stack subia aqui e não lá — a atestação exata que a
+exigência do operador existia para pegar, e ela apareceu na primeira execução
+real. **A guarda de boot estava certa e o CI estava certo**: o defeito era meu,
+e o mecanismo funcionou como desenhado — recusa alta, no boot, com a mensagem
+nomeando o motivo.
+
+**E a primeira volta também mostrou um buraco de diagnóstico.** O runner é
+descartável: `container aurora-range-api exited (1)` foi tudo o que sobrou, e o
+traceback foi embora com a máquina. Um passo `if: failure()` passou a despejar
+`docker compose ps --all` e os logs — **e `failure()` não é `always()`**: ele só
+roda quando alguma coisa já falhou, e não pode transformar vermelho em verde. Ele
+fica no **fim** do job, porque passo que falha pula os seguintes e no meio ele
+cobriria só o passo anterior.
+
+**Segunda volta, os quatro jobs verdes, e os números agora são do runner:**
+
+```text
+as tres telas construidas, o gate provado reprovando
+telao reagiu................ saude 90, 2 destaques, 64 ms
+matricula degradada......... 503
+rollback.................... saude 100, epoch 1
+matricula restaurada........ 201 — a mesma requisicao que deu 503
+timeline.................... 3 entradas, rollback anotado, disparo preservado
+reiniciado pausado.......... StartedAt 18:56:37 -> 18:56:44
+clock congelado............. T+4s, o mesmo de antes do reinicio
+reiniciado correndo......... StartedAt 18:56:44 -> 18:56:54
+clock correu................ T+4s -> T+14s, com 10s fora do ar
+20 leituras simultaneas .... 1 reconstrucao
+```
+
+**O que isso muda para a auditoria:** o item 4 da DoD deixa de depender de uma
+execução na máquina de quem implementou. `arquitetura`, `spec_freeze`,
+`seguranca` e `contratos` — os quatro contexts de `WORKFLOW.md` — estão verdes
+sobre o commit que vai ser auditado.
+
 ### Limites declarados desta peça
 
 - **O compose de produção não existe.** Este é o de desenvolvimento e publica no
