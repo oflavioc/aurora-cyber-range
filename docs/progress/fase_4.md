@@ -2566,10 +2566,13 @@ terceiro:
 | a raiz vem do `__file__`, e não do `cwd` | quem chama não escolhe contra qual árvore comparar |
 | o verificador não morre no que imprime | verificador que morre não diz "reprovou" — não diz nada |
 
-**O par é o que impede os outros doze de virarem superstição:** um verificador que
-recusasse sempre passaria em onze deles. E ele afirma duas coisas, não uma — que
-aprova, e que **a saída íntegra aparece**. Aprovar em silêncio trocaria um NÃO
-VERIFICADO por *"confie na minha checagem"*, que não é o que a opção A comprou.
+**O par é o que impede os outros de virarem superstição:** **dez dos treze exigem
+recusa**, e um verificador que negasse sempre passaria nesses dez sem provar nada.
+Os que exigem aprovação são **três**, contados na fonte: a evidência legítima, a
+raiz vinda do `__file__`, e a saída que não mata quem imprime. E o principal
+afirma duas coisas, não uma — que aprova, e que **a saída íntegra aparece**.
+Aprovar em silêncio trocaria um NÃO VERIFICADO por *"confie na minha checagem"*,
+que não é o que a opção A comprou.
 
 **Medido, uma mutação por vez** — porque probe que nunca foi visto detectando é
 um script que sai com zero:
@@ -2656,6 +2659,23 @@ forma, e a próxima não vai ser a codificação.
 
 São **treze eixos**, e os dois últimos não estavam na lista escrita antes de
 rodar.
+
+**E houve uma terceira ocorrência, pega pelo CI — dentro do eixo escrito para a
+segunda.** O eixo (m) força `PYTHONIOENCODING=cp1252` no processo filho, que é o
+que ele precisa fazer; a primeira versão dele lia a saída desse filho com
+`text=True`, que decodifica em UTF-8. **No runner Linux o travessão derrubou o
+probe**, com o verificador funcionando perfeitamente — doze eixos verdes e o
+décimo terceiro morrendo por conta própria.
+
+O conserto é o que a terceira repetição ensina: **o pai lê bytes**. O que o eixo
+afirma é o `rc` e a ausência de um traceback, e nenhum dos dois precisa de texto —
+decodificar era uma suposição que ele não tinha por que fazer.
+
+**A leitura de processo, e não a do defeito:** foi o CI que pegou, e não a minha
+máquina, porque o probe passava aqui — o Windows onde ele nasceu é justamente
+onde `cp1252` decodifica. É a mesma exigência do operador que achou o segredo de
+28 caracteres na peça 7: *"verifiquei localmente" é a forma de atestação que esta
+fase recusa em todos os outros lugares.*
 
 ### Visto rodando, contra dois containers e com a stack de desenvolvimento no ar
 

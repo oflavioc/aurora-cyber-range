@@ -70,7 +70,8 @@ do PROPRIO ARQUIVO, e nao do diretorio de onde ele foi chamado: o objeto da
 auditoria e o checkout que contem este script, e deixar a raiz depender do `cwd`
 daria ao chamador como apontar a checagem para outra arvore.
 
-Exercido por `scripts/check_provas_de_container_probes.py` em dez eixos.
+Exercido por `scripts/check_provas_de_container_probes.py` em TREZE eixos — dez
+que exigem recusa e tres que exigem aprovacao.
 """
 
 from __future__ import annotations
