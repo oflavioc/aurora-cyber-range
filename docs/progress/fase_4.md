@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0 a 3 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0 a 4 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -448,7 +448,7 @@ sem nada guardado em lugar nenhum.
 | 1 | **superfície do range-api** declarada + o verificador generalizado (D4, D6) ✅ | antes de existir rota, como na Fase 3 |
 | 2 | **projeções de sala**: painéis por taxonomia, índice de saúde, timeline, frame total (D2, D3, D14) ✅ | funções puras, testadas sem servidor |
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa ✅ | é o item 4 da DoD e T5, e não depende de HTTP |
-| 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) | a latência do item 2 é medida aqui |
+| 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) ✅ | a latência do item 2 é medida aqui |
 | 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11 (D8, D9, D10) | o adapter deixa de perder estado no reinício |
 | 6 | **as três telas** (D1, D2) + build no CI | o cliente é o último porque não tem lógica |
 | 7 | **containers, DEMO ponta a ponta, reinício de container** (D12) + medição da P3-2 (D11) | é onde a fase inteira vira uma sequência só |
@@ -962,6 +962,145 @@ verdade quando escrita, e esta peça é quem a torna falsa. É a §1.6 da Fase 1
 
 ---
 
+## 4.5 A peça 4 — o `range-api`, e a primeira vez que dá para ver
+
+`range-core/api/app.py`, `hub.py`, `superficie.py`: **18 rotas implementadas**,
+todas declaradas antes na peça 1. O verificador cobrou a promoção de `planejada`
+para `implementada` no mesmo commit, que era o desenho.
+
+### A igualdade mudou de objeto — e a medição derrubou uma frase minha
+
+Até a peça 2 a igualdade era sobre a **função**. Aqui é sobre as **duas rotas**,
+e o que se compara é **o que trafega**: `response.content` de um lado,
+`receive_bytes()` do outro.
+
+Eu escrevi que o defeito que isso pega é trocar `Response(content=...)` por
+`JSONResponse`. **Plantei, e não pega — zero testes vermelhos.** O
+`JSONResponse` do FastAPI usa `separators=(",", ":")` e `ensure_ascii=False`, que
+são as mesmas opções do serializador da peça 2, e como aquele já emite as chaves
+**ordenadas**, um `loads`/`dumps` devolve os mesmos bytes.
+
+**Isso não é buraco — é a forma canônica da peça 2 funcionando**, e muda o
+argumento para melhor: a igualdade é verdadeira **pela forma canônica**, e não
+pela linha que escolhe `Response`. O que a linha acrescenta é não depender de as
+opções do framework coincidirem com as nossas.
+
+**As cinco formas, plantadas e contadas:**
+
+| Divergência plantada | Vermelhos |
+|---|---|
+| `JSONResponse` (re-serializa com as mesmas opções) | **0** — e está certo |
+| re-serialização com separadores padrão | 2 |
+| re-serialização com `ensure_ascii` (acento vira escape) | 2 |
+| chaves em ordem invertida | 2 |
+| **canal mandando texto em vez de bytes** | 4 |
+
+A frase errada está corrigida nos dois lugares onde seria lida — o docstring de
+`_json` e o do arquivo de teste. **O teste afirma a propriedade, e não o
+mecanismo**: quando o mecanismo muda e a propriedade se mantém, verde é a
+resposta certa.
+
+### "< 1 s" sem cronômetro
+
+Número de relógio oscila com a máquina. A forma é a do `EXPLAIN` sem `Seq Scan`
+do `_head()`: afirmar a propriedade que produz o desempenho. Aqui são duas, e as
+duas são contáveis:
+
+1. **Não há espera.** O frame é produzido na mesma chamada que gravou o evento —
+   sem polling, sem intervalo, sem tarefa de fundo. Afirmado por AST: os módulos
+   do caminho do frame não importam `time`, `threading` nem `sched`.
+2. **Um frame por evento, e não um por cliente.** Com três telas conectadas, um
+   disparo custa **uma** reconstrução. Contado por um store instrumentado — que
+   não é duplo, é a mesma classe com um contador.
+
+**O limite, com número:** o custo de um frame é o de uma reconstrução, porque a
+cabeça do fluxo mudou. A §3.8 da Fase 2 mediu **2,874 s em 150 mil eventos** —
+então o orçamento de 1 s vale enquanto o volume couber nele. Fold incremental
+seria a saída e **não é desta fase**: exigiria uma porta que aceita estado
+pronto, que é o que a peça 3 da Fase 3 tirou do desenho.
+
+**Observado, e como observação e não como critério:** num servidor uvicorn real,
+**2 ms** do `POST /injects/A01/fire` até os dois frames chegarem a dois clientes
+WebSocket. Máquina do operador, Windows 11, Python 3.12.
+
+### Toda rota que move o exercício publica — e isso é verificado
+
+Esquecer o `publicar` numa rota nova produz o pior defeito desta fase: **o
+exercício anda e a sala não vê**. Nenhum teste de comportamento cobre a rota que
+ainda não existe — mas a **declaração** já diz quais movem o exercício, e por AST
+dá para exigir que todas publiquem. É a coluna `efeito` da peça 1 ganhando o
+segundo consumidor.
+
+### Autenticação por middleware, e não por dependência
+
+A `academus-api` usa dependência global e lá basta. Aqui não: **o WebSocket não
+passa pelo sistema de dependências do FastAPI da mesma forma**, e uma guarda que
+não cobre o canal deixaria de fora justamente a rota que empurra o estado da
+simulação. O middleware ASGI vê `http` e `websocket` com o mesmo código.
+
+Falha fechada: a lista é de **isentos**, e caminho que ninguém declarou público
+exige token — mesmo argumento do `papeis: []` da Fase 3. Há teste para
+`/rota-que-nao-existe` respondendo 401. E `/docs`, `/redoc` e `/openapi.json`
+desligados, pela lição da peça 5 da Fase 3 — aqui seria pior, porque esta é a
+API que opera o exercício.
+
+**Limite declarado:** canal autenticado não existe. Os dois canais são públicos
+por `05` §8, e o navegador não envia `Authorization` no handshake — resolver
+exigiria token em query string ou subprotocolo, e nenhum tem consumidor aqui.
+
+### Um teste meu estava errado, e o engine não
+
+A primeira versão do teste de rollback rebobinava para o **próprio**
+`inject_fired` e exigia que o wallboard mudasse. Não muda, e está certo: o corte
+é **naquele** evento, então o efeito dele sobrevive — `09` §3 desenha a epoch
+nova começando depois da âncora, e o registro da Fase 2 diz o mesmo em prosa.
+
+Para a sala ver a projeção voltar, o corte tem de ser anterior ao disparo. O
+teste corrigido rebobina para o `exercise_started` e afirma que a projeção volta
+a ser **byte a byte** a de antes do disparo.
+
+E a rota responde a epoch **nova**, enquanto o evento carrega a **abandonada** —
+as duas certas, e a diferença é de `09` §3. A linha está comentada onde alguém
+vai estranhar.
+
+### A página crua — e por que ela não é dívida real
+
+Pedido do operador, fora do plano, e aceito. `range-core/web/sala.html`: HTML
+cru, sem build, sem dependência, consumindo os dois canais.
+
+**O que a torna descartável de verdade não é a intenção — são três decisões:**
+
+| | |
+|---|---|
+| **ela não opera o exercício** | não dispara, não rebobina, não pede token. Há teste varrendo o corpo por `/injects/`, `/exercise/`, `/session` e `Authorization` |
+| **ela consome só o que já existe** | os dois canais públicos. Não há endpoint que exista *para* ela |
+| **a rota fica, o conteúdo muda** | `GET /sala` está na superfície; a peça 6 troca o arquivo pelo bundle e a rota continua |
+
+Se ela criasse endpoint próprio, ou lesse token, ou tivesse estado local, seria
+dívida — porque a peça 6 teria de desfazer alguma coisa. Como ela é uma função
+do frame total, jogar fora é apagar um arquivo.
+
+**O que ela paga:** `uvicorn` e `websockets` entram como dependência pinada
+(T15), e entram nesta peça de qualquer forma — o container da peça 7 precisa dos
+dois, e `websockets` **não** é fecho automático: sem ela o uvicorn recusa o
+upgrade com *"Unsupported upgrade request"*, e o canal é o item 2 da DoD.
+
+**Visto rodando, num servidor de verdade e com cliente WebSocket de verdade:**
+
+```text
+antes do disparo ..... saude 100
+depois do disparo .... saude 90
+ativos ............... fracao de sessoes derrubadas, portal de matricula em 503
+plateia .............. "O portal de matricula esta indisponivel. A fila..."
+observado ............ 2 ms do POST ate os dois frames
+```
+
+Registrada como **P4-3**, com destino.
+
+**286 testes, zero pulos com a stack efêmera no ar** (eram 267).
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -994,6 +1133,7 @@ a peça que as vence.
 | P3-11 | flag declarada e ausente do estado vira no-op silencioso | **peça 5** (D10) |
 | P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **peça 5** — ver abaixo |
 | P4-2 | a família `eventos` não roda no perfil de domínio, e emitir sem declarar não tem guarda em lugar nenhum | **Fase 5** — ver abaixo |
+| P4-3 | a página crua de `/sala` é provisória e a peça 6 a substitui | **peça 6** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -1137,6 +1277,29 @@ A afirmação verdadeira é mais estreita e é a que vale: **nenhum módulo de `
 chama `append`**. Enquanto isso for verdade, a metade sem guarda não tem sujeito
 — e é ela que a Fase 5 recebe, no commit em que o primeiro `append` do adapter
 nascer.
+
+#### P4-3 — a página crua de `/sala`
+
+**Pedido do operador, fora do plano, e aceito com o argumento dele:** a Fase 4 é
+o marco que existe para ser visto, e ver cedo tem valor próprio.
+`range-core/web/sala.html` prova a cadeia inteira — disparo, evento, projeção,
+canal, navegador — três peças antes do fim.
+
+**Ela não é dívida real, e isso é consequência de três decisões, não de
+intenção:** não opera o exercício (não dispara, não rebobina, não pede token, e
+há teste varrendo o corpo); consome só os dois canais que já existem, sem
+endpoint próprio; e ocupa uma rota que **fica** — a peça 6 troca o arquivo pelo
+bundle e `GET /sala` continua servindo.
+
+**O que fecha a pendência:** a peça 6 substitui o arquivo pelo bundle de
+`range-core/web/` — React 18 + Vite + Tailwind, que `00` §8 fixa —, atualiza a
+entrada de `package-data` do `pyproject.toml` e apaga este HTML. Nada mais
+precisa ser desfeito.
+
+**O risco de ela virar permanente é real e tem antídoto barato:** ela não
+implementa o que `01` §6 exige do wallboard — alto contraste, legível a 10 m,
+painéis por convenção com codificação visual por `category`. Enquanto isso não
+existir, o item de OUTPUTS da fase não está entregue, e é a DoD que cobra.
 
 ---
 

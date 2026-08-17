@@ -99,6 +99,19 @@ dependencies = [
     #
     # FECHO TRANSITIVO VAZIO, conferido por `pip download`.
     "pyjwt==2.13.0",
+
+    # O SERVIDOR. Ate a Fase 3 `app` era um objeto ASGI sem quem o servisse, e o
+    # cabecalho de `domains/academus/api/app.py` dizia isso: "nao ha servidor;
+    # subi-lo com uvicorn e da Fase 4". E esta.
+    #
+    # `websockets` NAO e fecho automatico: `uvicorn` sem extras nao fala
+    # WebSocket, e recusa o upgrade com "Unsupported upgrade request". O canal e
+    # o item 2 da DoD, entao a implementacao do protocolo e dependencia direta e
+    # declarada — e nao o extra `[standard]`, que traria `httptools`,
+    # `python-dotenv`, `pyyaml`, `uvloop` e `watchfiles` para resolver um
+    # problema que este projeto nao tem.
+    "uvicorn==0.52.3",
+    "websockets==17.0.1",
 ]
 
 # DEPENDENCIA DE TESTE, e separada por isso mesmo.
@@ -210,6 +223,20 @@ range_core = "range-core"
 # mediu.
 [tool.setuptools.package-data]
 contracts = ["*.yaml"]
+
+# A SUPERFICIE DO NUCLEO E A PAGINA DA SALA SAO DADO DE EXECUCAO — Fase 4.
+#
+# `range_core/api/superficie.py` le `api_surface.yaml` no boot para saber quais
+# caminhos sao publicos: e a MESMA declaracao que o gate confere, e nao uma
+# segunda lista no codigo. Sem esta entrada, a instalacao levaria os `.py` e
+# deixaria o YAML para tras — na arvore e na instalacao editavel nada quebraria,
+# e o container subiria com uma superficie vazia, que por falha fechada
+# responderia 401 a sala inteira.
+#
+# `web/sala.html` e a pagina crua da peca 4, servida por `GET /sala`. Ela e
+# DESCARTAVEL (P4-3): a peca 6 substitui o arquivo pelo bundle, e esta linha
+# passa a apontar para ele.
+range_core = ["*.yaml", "web/*.html"]
 
 # `api_surface.yaml` E DADO DE EXECUCAO desde a peca 4, e nao so declaracao lida
 # pelo gate: `domains/academus/api/surface.py` o le no boot para saber quais
