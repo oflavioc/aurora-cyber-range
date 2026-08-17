@@ -71,9 +71,22 @@ PAPEL_DO_CONSOLE = "facilitador"
 WALLBOARD = "wallboard"
 PLATEIA = "plateia"
 
-#: A pagina crua da peca 4. **Descartavel por decisao**, e a P4-3 registra o
-#: destino: a peca 6 a substitui pelo bundle e esta rota passa a servir aquele.
-PAGINA_DA_SALA = "sala.html"
+#: AS TRES TELAS — `01` §2 as poe em `range-core/web/`, e a peca 6 as construiu.
+#:
+#: Cada uma e UM arquivo: `vite-plugin-singlefile` inlina JS e CSS dentro do
+#: HTML, entao nao existe rota de asset estatico neste processo — e nao existe a
+#: superficie de path traversal que ela traria, num processo cujas outras rotas
+#: operam o exercicio. Ver `range-core/web/vite.config.ts`.
+#:
+#: A P4-3 fecha aqui: `GET /sala` continua, e o que ela serve mudou de
+#: `sala.html` para o bundle do `wallboard-shell`.
+TELA_DO_TELAO = "wallboard-shell"
+TELA_DA_PLATEIA = "participant-view"
+TELA_DO_CONSOLE = "gm-console"
+
+#: O comando que produz o bundle. Fica na mensagem de 503 porque o erro
+#: "arquivo nao encontrado" nao diz o que fazer, e este diz.
+COMO_CONSTRUIR = "docker compose --profile build run --rm web-build"
 
 
 class ConfiguracaoError(Exception):
@@ -387,16 +400,68 @@ async def _serve_canal(websocket: WebSocket, projecao: str) -> None:
         hub.cancelar(projecao, fila)
 
 
-@app.get("/sala", response_class=HTMLResponse)
-async def pagina_da_sala() -> HTMLResponse:
-    """A pagina crua da peca 4 — **descartavel, e com destino registrado**.
+def diretorio_das_telas() -> Path:
+    """`range_core/web/dist/`, resolvido pelo `__path__` DO PACOTE.
 
-    Ela existe para que a cadeia inteira seja VISTA antes de as telas existirem,
-    e a Fase 4 e o marco que existe para ser visto. A peca 6 a substitui pelo
-    bundle de `range-core/web/`, e esta rota passa a servir aquele — ver a P4-3.
+    Nao por `Path.cwd()` nem por caminho relativo ao arquivo: o container da
+    peca 7 roda com outro CWD, e o `package-data` do `pyproject.toml` e quem
+    leva o bundle para a instalacao. E a mesma disciplina que `api_surface.yaml`
+    ja usa, e o passo `pacotes importaveis fora da raiz` do CI existe por ela.
     """
-    caminho = Path(next(iter(__import__("range_core").__path__))) / "web" / PAGINA_DA_SALA
+    return Path(next(iter(__import__("range_core").__path__))) / "web" / "dist"
+
+
+def _tela(nome: str) -> HTMLResponse:
+    """Uma tela construida, ou 503 ALTO com o comando que a constroi.
+
+    **Nao ha degradacao para a pagina crua.** Servir "alguma coisa" quando o
+    bundle falta e a forma de o telao da sala mostrar, por meses, a tela que o
+    projeto ja decidiu jogar fora — sem nada acusar. Ausencia grita, e diz o que
+    fazer.
+    """
+    caminho = diretorio_das_telas() / nome / "index.html"
+    if not caminho.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"a tela `{nome}` nao foi construida: {caminho} nao existe. "
+                f"Rode `{COMO_CONSTRUIR}` — o toolchain de Node vive num "
+                "container pinado por digest, e nao no host."
+            ),
+        )
     return HTMLResponse(caminho.read_text(encoding="utf-8"))
+
+
+@app.get("/sala", response_class=HTMLResponse)
+async def pagina_do_telao() -> HTMLResponse:
+    """O wallboard-shell — `01` §6: sem login, alto contraste, legivel a 10 m.
+
+    O caminho e `/sala` desde a peca 4 e **continua**: a P4-3 prometia que o
+    conteudo mudaria e a rota ficaria, e e isto.
+    """
+    return _tela(TELA_DO_TELAO)
+
+
+@app.get("/plateia", response_class=HTMLResponse)
+async def pagina_da_plateia() -> HTMLResponse:
+    """A participant-view. `01` §6 escreve este caminho literalmente."""
+    return _tela(TELA_DA_PLATEIA)
+
+
+@app.get("/console", response_class=HTMLResponse)
+async def pagina_do_console() -> HTMLResponse:
+    """A CASCA do gm-console — publica, e o dado atras dela nao e (D19).
+
+    Nenhum navegador envia `Authorization` numa navegacao, entao a casca de um
+    console de browser e necessariamente publica — pela mesma razao que
+    `POST /session` ja e publica desde a peca 4. O que `05` §8 protege e
+    servico exposto sem autenticacao, e o que esta rota expoe e HTML, CSS e
+    JavaScript: nenhum inject, nenhum texto de plateia, nenhuma credencial.
+
+    As duas metades tem teste em `tests/test_telas.py`: a casca nao carrega dado
+    de exercicio, e toda rota que ela chama exige token.
+    """
+    return _tela(TELA_DO_CONSOLE)
 
 
 def montar(exercicio: Exercicio | None) -> FastAPI:

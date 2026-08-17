@@ -335,9 +335,26 @@ class FalhaFechada(BaseDaApi):
 
     def test_as_rotas_da_sala_respondem_SEM_token(self) -> None:
         """A metade que impede a de cima de ser 'bloqueia tudo e passa no teste'."""
-        for caminho in ("/wallboard/state", "/plateia/state", "/sala"):
+        for caminho in ("/wallboard/state", "/plateia/state"):
             with self.subTest(rota=caminho):
                 self.assertEqual(self.cliente.get(caminho).status_code, 200)
+
+    def test_as_tres_telas_passam_pelo_middleware_SEM_token(self) -> None:
+        """As paginas sao publicas — e o que se afirma aqui e o MIDDLEWARE.
+
+        `200` nao serve como asserção nesta suite: as telas sao artefato de
+        build, e `dist/` nao existe numa arvore recem-clonada nem no worktree da
+        auditoria. Exigir 200 aqui faria a suite depender do `npm`, e a saida
+        usual — pular quando o bundle falta — e pulo silencioso lido como verde,
+        que e o que a P2-19 atacou.
+
+        Entao o que se mede e o que este teste existe para medir: sem token, a
+        resposta NAO e 401. Que a tela existe de verdade e prova de outro nivel —
+        `tests/test_telas.py` com o diretorio apontado, e o passo de build do CI.
+        """
+        for caminho in ("/sala", "/plateia", "/console"):
+            with self.subTest(rota=caminho):
+                self.assertNotEqual(self.cliente.get(caminho).status_code, 401)
 
     def test_rota_nao_declarada_publica_exige_token(self) -> None:
         """Falha fechada: o desconhecido nao e publico.
@@ -364,7 +381,7 @@ class SuperficiePublica(unittest.TestCase):
         self.assertEqual(
             publicas,
             {"/session", "/wallboard/state", "/plateia/state", "/ws/wallboard",
-             "/ws/plateia", "/sala"},
+             "/ws/plateia", "/sala", "/plateia", "/console"},
         )
 
 
@@ -445,24 +462,10 @@ class RollbackPelaRota(BaseDaApi):
         self.assertEqual(anotadas[0]["rollback"]["motivo"], "facilitation")
 
 
-class PaginaDaSala(BaseDaApi):
-    """A pagina crua — descartavel, e por isso o teste dela e curto.
-
-    O que se afirma e o que a P4-3 promete: ela existe, e ela nao opera o
-    exercicio. Renderizacao e limite declarado da fase.
-    """
-
-    def test_a_pagina_consome_os_dois_canais_e_nao_dispara_nada(self) -> None:
-        corpo = self.cliente.get("/sala").text
-        self.assertIn("/ws/wallboard", corpo)
-        self.assertIn("/ws/plateia", corpo)
-        for proibido in ("/injects/", "/exercise/", "/session", "Authorization"):
-            with self.subTest(termo=proibido):
-                self.assertNotIn(
-                    proibido, corpo,
-                    "a pagina publica alcanca o console: uma tela sem token com "
-                    "botao de disparo poria o console na rede",
-                )
+# A pagina crua de `/sala` foi substituida pelo bundle na peca 6 — a P4-3
+# fechada —, e o teste que a varria mudou de casa junto com ela:
+# `tests/test_telas.py` varre a FONTE das tres telas, que e o que existe sem
+# `npm`, e o passo de build do CI varre o artefato construido.
 
 
 if __name__ == "__main__":

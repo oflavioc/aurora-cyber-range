@@ -374,6 +374,12 @@ def timeline(eventos: Sequence[Event]) -> bytes:
     entradas = []
     for evento in eventos:
         entrada = {
+            # O ALVO DO ROLLBACK. `POST /exercise/rollback` exige `to_event_id`,
+            # e sem este campo o console teria de pedir ao facilitador que
+            # DIGITASSE um ULID — num comando que descarta o estado corrente.
+            # A timeline e autenticada (`facilitador`, `03` §7), entao aqui nao
+            # ha o que esconder: quem a le ja pode disparar e rebobinar.
+            "event_id": evento.event_id,
             "epoch": evento.simulation_epoch,
             "exercise_time": evento.exercise_time,
             "tipo": evento.event_type,

@@ -1,6 +1,6 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — peças 0 a 5 de 7 fechadas.** A branch nasceu em `6efca2e` — a
+**Status: EM CURSO — peças 0 a 6 de 7 fechadas.** A branch nasceu em `6efca2e` — a
 âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
 do procedimento novo, não formalidade.
 
@@ -639,6 +639,39 @@ o índice e os blocos não dependem do espaço que o texto ocupa.
 que só faça sentido dentro da outra, e descobrir na peça 7 que a sala tem dois
 projetores. Duas rotas independentes é a decisão que não fecha porta nenhuma.
 
+### D19 — a casca do console é pública; o dado atrás dela não é — **DECIDIDA na peça 6**
+
+`05` §8 isenta de autenticação **wallboard e participant-view**, e `GET /console`
+é uma terceira rota pública. **A decisão está aqui, e não numa linha de YAML**,
+porque `CLAUDE.md` diz que `05` não admite flexibilização *silenciosa* — e o
+oposto de silenciosa é esta seção.
+
+**O fato mecânico:** nenhum navegador envia `Authorization` numa navegação. A
+casca de um console de browser é necessariamente alcançável sem token, e é por
+isso que `POST /session` **já é pública desde a peça 4** — a superfície já
+aceitou um ponto de entrada sem credencial para o mesmo console.
+
+**O que `05` §8 protege é serviço exposto, e o serviço é o dado.** O que esta
+rota entrega é HTML, CSS e JavaScript: nenhum inject, nenhum
+`texto_para_plateia`, nenhuma credencial. Injects, timeline e os quatro comandos
+continuam exigindo token pelo middleware, que **falha fechado** — caminho que
+ninguém declarou público exige token, e há teste para `/rota-que-nao-existe`
+respondendo 401.
+
+**As duas metades são teste, e não argumento:**
+
+| | Onde |
+|---|---|
+| a casca não carrega dado de exercício, e as duas telas públicas não conhecem o console | `tests/test_telas.py`, na fonte, e `prova_do_build.sh`, no artefato |
+| toda rota que o console chama responde 401 sem token | `tests/test_range_api.py`, desde a peça 4 |
+
+**As alternativas, e por que nenhuma serve.** *Autenticar `GET /console`* torna a
+tela inalcançável por navegação — não é mais seguro, é inoperante. *Não servir o
+console pelo `range-api`* só muda o processo que entrega o mesmo arquivo, e
+acrescenta um serviço à peça 7 para não responder a pergunta. *Emitir o token por
+linha de comando e colar no console* já foi recusado na D5, e pelo motivo que
+continua valendo: o item 1 da DoD é literalmente *"sem intervenção manual"*.
+
 ---
 
 ## 4. Ordem das peças
@@ -651,7 +684,7 @@ projetores. Duas rotas independentes é a decisão que não fecha porta nenhuma.
 | 3 | **reconstrução do exercício** a partir do store: T0, acumulado, multiplicador, origem de epoch, pausa ✅ | é o item 4 da DoD e T5, e não depende de HTTP |
 | 4 | **o range-api**: HTTP + WebSocket + autenticação do gm-console (D5) ✅ | a latência do item 2 é medida aqui |
 | 5 | **`academus-api` sobre Postgres**: P3-5, P3-10, P3-11, P4-1 (D8, D9, D10) ✅ | o adapter deixa de perder estado no reinício |
-| 6 | **as três telas** (D1, D2) + build no CI | o cliente é o último porque não tem lógica |
+| 6 | **as três telas** (D1, D2, D16, D17, D19) + build no CI ✅ | o cliente é o último porque não tem lógica |
 | 7 | **containers, DEMO ponta a ponta, reinício de container** (D12) + medição da P3-2 (D11) | é onde a fase inteira vira uma sequência só |
 
 **A peça 0 vem antes por medida, e não por hierarquia:** sem ela a auditoria
@@ -1592,11 +1625,11 @@ medição, não de argumento:
 
 ---
 
-## 4.7 A peça 6 — o telão, e o corte que virou payload
+## 4.7 A peça 6 — o telão, o corte que virou payload, e as três telas
 
-**Em curso. A metade de servidor está fechada; o cliente não.** Esta seção
-registra o estado, porque conversa não é fonte versionada e a peça atravessa mais
-de uma sessão.
+**Fechada.** A peça atravessou três sessões — a metade de servidor, a guarda do
+cliente, e o cliente —, e esta seção registra as três porque conversa não é fonte
+versionada.
 
 ### O que fechou
 
@@ -1631,6 +1664,11 @@ mesma promessa de `01` §5.3 divergiriam na primeira correção.
 `test_range_api.py`, cujo teste de latência lia `painel["itens"]` — a pergunta
 dele não mudou, a evidência sim.
 
+> **`web/sala.html` não existe mais** — a metade de cliente desta mesma peça o
+> substituiu pelo bundle, e a P4-3 fechou. O parágrafo acima fica como está
+> porque descreve o commit em que foi escrito; o que ele afirmava era verdadeiro
+> então, e é a §1.6 que manda dizer isto aqui em vez de reescrever.
+
 ### A guarda do cliente nasceu antes do cliente
 
 `scripts/check_web_sem_derivacao.py`, na forma da peça 1: o que se declara antes
@@ -1652,6 +1690,11 @@ reimplementa no cliente.
 verificador que passasse por não ter o que olhar seria a §7.3, e há **probe
 exigindo reprovação** com o diretório vazio e com o diretório ausente.
 
+> **A anti-vacuidade deixou de depender do `sala.html`**: com ele apagado, quem
+> o verificador varre são as três telas — **12 arquivos**. O probe do diretório
+> vazio continua sendo o que garante isso, e não a existência de um arquivo em
+> particular.
+
 **A prova negativa achou dois defeitos, e os dois eram meus:**
 
 | O que | Por que só a execução separa |
@@ -1668,48 +1711,190 @@ indevido também é defeito.
 lado, e no job `arquitetura`, que não instala nada. O harness passou de 56 para
 **58** leituras legítimas.
 
-### O bloqueio que parou a peça aqui: não há Node nesta máquina
+### O toolchain entrou por container, e a decisão não foi contorno de ambiente
 
-`node` e `npm` **não existem no host**. Isso não é inconveniência — é a §7.3.1:
-escrever um build React/Vite/Tailwind que eu não consigo executar entrega código
-que nunca rodou, e essa é exatamente a classe que custou o `pip install -e
-"$WT[test]"` da peça 0, uma linha correta em intenção, em aspas e em variável,
-que o pip recusava.
+`node` e `npm` **não existem no host**, e a sessão anterior parou aqui de
+propósito: escrever um build React/Vite/Tailwind que não se consegue executar
+entrega código que nunca rodou — a classe que custou o `pip install -e
+"$WT[test]"` da peça 0.
 
-**A saída existe e é do próprio projeto: Docker está disponível**, e o
-repositório já pina imagens por digest com `scripts/check_pinned_images.py`
-guardando a igualdade entre o compose e o workflow. Rodar `npm ci` e o build
-dentro de um `node:<versão>@sha256:...` não instala nada no host, é reproduzível,
-e põe o toolchain sob a mesma regra de pinagem que T15 já exige.
+**A decisão do operador foi Node em container pinado por digest, e o argumento
+dele é mais forte que "não dá para instalar":** instalar no host resolveria
+**uma** máquina. O CI continuaria com a versão que o runner trouxesse, e
+passariam a existir duas versões possíveis do toolchain sem nada garantindo que
+são a mesma. O container põe o toolchain sob a T15 como qualquer outra
+dependência, e o `package-lock.json` fixa o fecho transitivo do mesmo jeito que
+`constraints.txt`.
 
-**Isso é decisão do operador e não de implementação**, porque toca duas coisas
-que a fase já fixou: a lista de imagens pinadas e o job `contratos`.
+**E a igualdade entre CI e host não precisou de verificador, porque não há duas
+declarações.** A imagem é declarada **uma vez**, no serviço `web-build` do
+`docker-compose.yml`, e o CI roda o próprio compose:
 
-### O gate do build, respondido — e o risco real não é o que parece
+```yaml
+- name: as tres telas compilam, e o gate do build reprova
+  run: docker compose --profile build run --rm web-build
+```
 
-**A pergunta mecânica:** um `run:` que falha reprova o job. Conferido — não há
-`continue-on-error`, `|| true` nem `if: always()` em nenhum lugar de
-`invariants.yml`, e todas as actions estão pinadas por SHA.
+`check_pinned_images.py` continua cobrando o eixo 1 — digest, e não tag — sobre
+essa linha. O eixo 2, a igualdade entre arquivos, **não tem par para comparar
+aqui, e isso é construção e não esquecimento**: é a forma da peça 2 outra vez —
+em vez de detectar a divergência, retirar o material com que ela se escreve.
 
-**O risco real é outro, e é específico de frontend: `vite build` não checa
-tipos.** Ele transpila e sai **0** com o TypeScript quebrado. O passo rodaria,
-ficaria verde, e o gate seria exatamente a §7.3 — a verificação que parece
-existir, no lugar mais fácil de acontecer.
+**Um custo mecânico apareceu e está pago:** o compose interpola o arquivo
+**inteiro** antes de escolher o serviço, e `POSTGRES_PASSWORD` é declarada com
+`:?` — sem default, porque `05` §8 proíbe senha trivial reutilizável. Sem a
+variável, **qualquer** comando de compose aborta, inclusive um que só roda o
+`web-build`. O job passa um valor efêmero que não chega a serviço nenhum, e o
+comentário no workflow diz por quê.
 
-**Então o passo é `tsc --noEmit && vite build`, e ele tem prova negativa:** um
-erro de tipo plantado precisa deixar o job **vermelho**. Sem essa prova, "o build
-entra no CI" é atestação — e foi assim que o DEMO da Fase 1 ficou inexecutável
-sem nada acusar.
+### As três telas, e o que o arquivo único retira
 
-### O que falta da peça 6
+| Tela | Rota | O que consome |
+|---|---|---|
+| `wallboard-shell` | `GET /sala` | `/ws/wallboard` |
+| `participant-view` | `GET /plateia` | `/ws/plateia` |
+| `gm-console` | `GET /console` | `/session`, `/injects`, `/timeline`, os comandos, e o `/ws/wallboard` **público** |
 
-1. **A decisão do toolchain** — Node por container pinado, acima.
-2. As três telas em React 18 + Vite + Tailwind sob `range-core/web/` (D1),
-   consumindo o payload como ele vem — a guarda já está armada.
-3. O build no job `contratos` como `tsc --noEmit && vite build`, com o erro de
-   tipo plantado provando que ele reprova.
-4. A P4-3 fecha quando o bundle substituir o HTML cru, e a rota `GET /sala`
-   continua.
+**Cada tela é UM arquivo** — `vite-plugin-singlefile` inlina JS e CSS dentro do
+HTML —, e o que isso retira não é peso: é **a rota de asset estático**. Servir
+`dist/assets/*` seria superfície de path traversal num processo cujas outras
+rotas disparam inject e rebobinam exercício. Sem assets, cada tela é uma rota
+declarada em `api_surface.yaml` e mais nada. Medido: **156, 154 e 159 kB**.
+
+**O console não ganhou projeção própria de estado.** Ele lê o mesmo
+`/ws/wallboard` que o telão: duas projeções do mesmo fato divergem, e a que
+diverge em silêncio é sempre a que ninguém está olhando — a D4 da Fase 3, que
+esta fase já aplicou duas vezes.
+
+**A confirmação está onde a superfície pede, e só onde ela pede.** START, FIRE e
+ROLLBACK confirmam porque a declaração diz `confirmacao: true`; PAUSAR e
+CONTINUAR não, porque são `reversivel`. É o segundo consumidor da coluna
+`efeito` da peça 1, e o primeiro que a sala vê.
+
+### A guarda do cliente, exercida contra o cliente de verdade
+
+Ela nasceu na sessão anterior, antes de existir tela. **Plantado um `.sort()` na
+lista de destaques do wallboard, as duas regras dispararam** — a de método
+proibido e a de coleção do payload, que se sobrepõem de propósito:
+
+```text
+range-core/web/wallboard-shell/main.tsx:96
+    `.sort(` seleciona, ordena ou agrega - e o cliente PINTA.
+range-core/web/wallboard-shell/main.tsx:96
+    `destaques.sort(` - as colecoes do payload so sao consumidas por `.map(`.
+```
+
+Revertido, **12 arquivos varridos e verde**. O verificador deixou de depender do
+`sala.html` para não ser vácuo: agora ele olha o cliente que a fase entrega.
+
+### O gate do build, MEDIDO — e ele roda em toda execução, não uma vez
+
+O risco era específico de frontend e está confirmado: **`vite build` não checa
+tipos**. Ele transpila com esbuild e sai **0** com o TypeScript quebrado.
+
+**Medido, com um erro de tipo plantado em código que entra no bundle:**
+
+| Comando | TypeScript quebrado | Saída |
+|---|---|---|
+| `vite build` sozinho | sim | **0** — o risco, reproduzido |
+| `tsc --noEmit && vite build` | sim | **≠ 0** — o gate reprova |
+| `tsc --noEmit && vite build` | não | **0** — e não reprova sempre |
+
+A terceira linha não é formalidade: um gate que reprovasse tudo passaria na
+segunda e seria inútil.
+
+**E a medição não ficou numa mensagem de commit.** `range-core/web/prova_do_build.sh`
+é o comando do serviço `web-build`: ele planta, mede as três saídas, desplanta,
+confere a restauração contra a cópia intacta e só então constrói. **Roda no CI e
+na máquina de quem desenvolve, em toda execução** — porque "medi uma vez" é
+exatamente a atestação que o DEMO da Fase 1 foi.
+
+Duas direções de falha de instrumento estão escritas: se `vite build` passar a
+**reprovar** o erro plantado, o script para e diz que a premissa mudou, em vez de
+seguir verde por um motivo diferente do que ele acredita.
+
+**E ele achou um defeito meu no caminho da limpeza:** a conferência da
+restauração era `cmp -s "$ALVO" "$ALVO"` — um arquivo comparado consigo mesmo, e
+portanto verdadeira sempre. **Verificação vácua no caminho de limpeza é a que
+ninguém vê falhar**: ela só importaria no dia em que a restauração não
+acontecesse, que é o dia em que a fonte plantada ficaria na árvore. Corrigida
+para comparar contra uma cópia intacta.
+
+Depois do build, o mesmo script varre o artefato **construído**: nenhum
+`<script src>` — se o bundle deixasse de ser inlinado, `GET /sala` serviria um
+HTML pedindo assets por uma rota que não existe, e a tela abriria em branco na
+sala sem nenhum teste de payload ver — e nenhum `/injects/`, `/exercise/`,
+`/session` ou `Authorization` nas duas telas públicas.
+
+### O `event_id` da timeline, e por que ele é desta peça
+
+`POST /exercise/rollback` exige `to_event_id`, e a timeline não o carregava. Sem
+o campo, o console pediria ao facilitador que **digitasse um ULID** — no comando
+que descarta o estado corrente. A entrada passou a levá-lo, e a timeline é
+autenticada (`facilitador`, `03` §7): quem a lê já pode disparar e rebobinar,
+então não há o que esconder ali.
+
+### O que a suíte prova sem `npm`, e o que só o CI prova
+
+`dist/` é artefato de build e está no `.gitignore` — não existe num clone limpo
+nem no worktree da auditoria. Exigir o bundle na suíte faria a suíte depender do
+`npm`, e a saída usual — **pular** quando o artefato falta — é pulo silencioso
+lido como verde, que é o que a P2-19 atacou.
+
+Então a divisão é explícita, e cada nível prova o que só ele pode:
+
+| Nível | O que prova | Onde |
+|---|---|---|
+| **fonte** | as telas públicas não conhecem o console; cada uma consome o seu canal | `tests/test_telas.py`, sem `npm` |
+| **rota** | cada caminho serve **a sua** tela, com conteúdos distintos; tela ausente **recusa alto** e diz como construir | `tests/test_telas.py`, com o diretório apontado |
+| **artefato** | as três compilam; o bundle é arquivo único; as públicas não carregam vocabulário de console | `prova_do_build.sh`, no CI |
+| **gate** | `tsc --noEmit` reprova o que `vite build` deixa passar | `prova_do_build.sh`, no CI |
+| **caminho** | o bundle real é servido por `GET /sala` com o CWD **fora** da raiz | passo `pacotes importaveis`, no CI |
+
+A varredura de fonte tem o **par que a impede de passar procurando errado**: os
+mesmos termos proibidos nas telas públicas são **exigidos** no `gm-console`. Um
+erro de digitação em `VOCABULARIO_DO_CONSOLE` deixaria a primeira metade verde
+para sempre.
+
+**`_tela` não degrada.** Bundle ausente responde **503** com o comando que o
+constrói, e não a página crua: servir "alguma coisa" é como um telão mostra por
+meses a tela que o projeto já decidiu jogar fora, sem nada acusar.
+
+### Visto rodando, contra o servidor de verdade
+
+```text
+/sala      200   156.285 bytes        saude antes ....... 100
+/plateia   200   154.418 bytes        saude depois ......  90
+/console   200   159.563 bytes        destaques 2, omitidos 0
+plateia .... "O portal de matricula esta indisponivel. A fila..."
+timeline ... exercise_started / inject disparado, com event_id
+rollback ... 200, simulation_epoch 1, e a saude volta a 100
+```
+
+O `rollback` foi disparado com **o payload exato que o console monta** —
+`to_event_id` da entrada da timeline, `reason: facilitation`.
+
+### Os limites desta peça, declarados
+
+- **Renderização e legibilidade a 10 m continuam sem teste**, como a §2.2 fixou:
+  não há driver de browser nesta fase, e a D17 já encolheu esse limite ao levar o
+  corte para o payload. O que resta é a pergunta física.
+- **A `participant-view` não tem os dois cronômetros** de `01` §6. Nenhum dos
+  dois está no payload, e inventá-los no cliente seria pior que não tê-los: um
+  relógio que o servidor não conhece mostra à plateia um prazo que o exercício
+  não está contando.
+- **O console entrega o que os OUTPUTS da fase pedem** — *"gm-console mínimo
+  (autenticado, lista de injects, botão de disparo, rollback)"* — e não a lista
+  inteira de `01` §6. Seletor de pack, disparo agendado, RESET (D7), registro e
+  AAR são de outras fases, e três papéis é NON-GOAL declarado.
+- **O token vive na memória da aba.** Recarregar pede a credencial de novo, e
+  isso é o comportamento desejado: persistir trocaria um incômodo de facilitador
+  por uma credencial de exercício esquecida no navegador da sala.
+- **Três avisos de `npm audit`, todos em dependência de desenvolvimento.** O
+  fecho de produção — o que vai ao bundle — tem **zero**, medido com
+  `npm audit --omit=dev`. É a **P4-7**.
+
+**335 testes, zero pulos com a stack no ar** (eram 328).
 
 ---
 
@@ -1769,10 +1954,11 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P3-11 | ~~flag declarada e ausente do estado vira no-op silencioso~~ | ✅ **FECHADA** na peça 5 (D10) |
 | P4-1 | ~~os caminhos da `academus-api` estão em português~~ | ✅ **FECHADA** na peça 5 |
 | P4-2 | a família `eventos` não roda no perfil de domínio, e emitir sem declarar não tem guarda em lugar nenhum | **Fase 5** — ver abaixo |
-| P4-3 | a página crua de `/sala` é provisória e a peça 6 a substitui | **peça 6** — ver abaixo |
+| P4-3 | ~~a página crua de `/sala` é provisória e a peça 6 a substitui~~ | ✅ **FECHADA** na peça 6 |
 | P4-4 | oito flags declaram `academus-api` como consumidora e nenhuma rota as consome | **Fase 8** — ver abaixo |
 | P4-5 | `grades.student_id` não tem FK nem validação: nota de aluno inexistente é aceita | **Fase 5** — ver abaixo |
 | P4-6 | o `effect_ui` da flag de queda de sessão diz "por minuto", e a função não tem cadência | **Fase 8** — ver abaixo |
+| P4-7 | três avisos de `npm audit` no toolchain do cliente, todos em dependência de desenvolvimento | **condição** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -1967,6 +2153,19 @@ implementa o que `01` §6 exige do wallboard — alto contraste, legível a 10 m
 painéis por convenção com codificação visual por `category`. Enquanto isso não
 existir, o item de OUTPUTS da fase não está entregue, e é a DoD que cobra.
 
+> **✅ FECHADA na peça 6, e o custo de desfazer foi o que a pendência previa:
+> apagar um arquivo.** `GET /sala` continua e passou a servir o bundle do
+> `wallboard-shell`; `web/sala.html` saiu; a entrada de `package-data` do
+> `pyproject.toml` aponta para `web/dist/*/index.html`. Nenhum endpoint precisou
+> ser removido, porque ela nunca teve endpoint próprio — as três decisões que a
+> tornavam descartável eram, de fato, o que a tornava descartável.
+>
+> **A consequência da entrada nova tem dono e está escrita:** as telas são
+> artefato de build, então **a imagem da peça 7 constrói o cliente antes do
+> `pip install`**. Sem isso a instalação leva os `.py` e deixa as telas para
+> trás — e `GET /sala` responde 503 no telão da sala, que é exatamente o que o
+> 503 de `_tela` existe para dizer em voz alta. Ver a §4.7.
+
 #### P4-4 — flag que declara consumidor que não a consome
 
 **Medido ao responder a pergunta da P3-11 sobre a direção simétrica:** doze flags
@@ -2047,6 +2246,33 @@ uma sessão de prova com duração, com cronômetro e com autosave — os três
 ingredientes que "por minuto" pressupõe. **A resolução pode ser nas duas
 direções**, e é decisão daquela fase: implementar a cadência onde há sessão, ou
 corrigir o `effect_ui` para o que a flag de fato faz.
+
+#### P4-7 — três avisos no toolchain do cliente, todos de desenvolvimento
+
+**Medido ao gerar o `package-lock.json`**, e registrado com o número dos dois
+lados porque só um deles importa:
+
+```text
+npm audit              3 avisos (1 moderado, 2 altos)
+npm audit --omit=dev   0
+```
+
+**Os avisos não alcançam o que vai à sala.** Um é do servidor de desenvolvimento
+do `esbuild` (GHSA-67mh-4wv8-2f99) — e este projeto **não roda `vite dev`**: o
+único comando é `vite build`, dentro de um container que sai ao terminar. Os
+outros são do `postcss`, sobre CSS controlado pelo atacante; a entrada de CSS
+aqui é o próprio Tailwind da árvore.
+
+**Por que não corrigir agora.** O `npm audit fix` exige `--force`, que sobe
+*major* de `vite` — trocar a versão do toolchain que acabou de ser pinada, por
+avisos que não tocam o fecho de produção, é a mudança que se faz olhando, e não
+de passagem. Pinar existe para que atualizar seja **mudança explícita de commit**,
+e essa é a regra que `00` §8 fixa.
+
+**Vencimento: condição, e não marco** — *a primeira das duas que ocorrer*: o
+primeiro consumidor de `vite dev` (que põe o servidor de desenvolvimento em uso e
+torna o aviso do `esbuild` sujeito), ou a primeira subida deliberada do toolchain
+do cliente, que `07` Fase 8 traz junto com o `academus-web` completo.
 
 ---
 
