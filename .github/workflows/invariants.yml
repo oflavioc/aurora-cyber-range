@@ -187,6 +187,18 @@ jobs:
       - name: teste negativo da guarda de base da auditoria
         run: python scripts/check_audit_base_probes.py
 
+      # P4-10. SO OS PROBES, e pelo mesmo motivo da guarda de base logo acima:
+      # `check_provas_de_container.py` pergunta "a evidencia e DESTE checkout?",
+      # que e uma pergunta do worktree de auditoria e nao do PR. Aqui ele
+      # reprovaria sempre, por ausencia — o runner nao tem, nem deve ter, o
+      # arquivo que o lancador escreve na maquina do operador.
+      #
+      # O que o CI garante e que o predicado continua sabendo RECUSAR: ausencia,
+      # SHA divergente e vacuidade. As duas primeiras sao as direcoes que a
+      # P4-10 exige por nome.
+      - name: teste negativo do verificador das provas de container
+        run: python scripts/check_provas_de_container_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 

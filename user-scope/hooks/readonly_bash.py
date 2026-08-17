@@ -196,6 +196,34 @@ ALLOWED = [
     # A prova negativa entra junto, e aqui ela carrega o eixo que mais importa:
     # a fonte pode ter o banner e o BUNDLE nao.
     rf"|check_banner_de_simulacao|check_banner_de_simulacao_probes"
+    # `check_provas_de_container` — P4-10, opcao A. E o unico caminho pelo qual
+    # os itens 1 e 4 da DoD da Fase 4 deixam de ser NAO VERIFICADO, e ele ENTRA
+    # NO MESMO COMMIT que cria o mecanismo, que e a regra escrita acima.
+    #
+    # O criterio de admissao e o mesmo dos tres anteriores — o auditor nao
+    # consegue responder isto por leitura —, e aqui ele e literal: a evidencia e
+    # um arquivo que o LANCADOR escreveu, e a pergunta "ela e deste commit?" e
+    # uma comparacao entre o SHA gravado e o `HEAD` deste checkout. Ler o arquivo
+    # com `cat` mostraria o SHA declarado e nada mais; quem confere e ele.
+    #
+    # ELE NAO EXECUTA NADA. Le um JSON, chama `git rev-parse` e `git ls-files`, e
+    # imprime. Nenhum container sobe por este caminho.
+    #
+    # A prova negativa entra junto pelo motivo de sempre, e aqui ela carrega as
+    # DUAS direcoes que a P4-10 nomeia: SHA divergente reprova, e arquivo ausente
+    # reprova. Sem ela, o auditor teria de aceitar da palavra de quem escreveu
+    # que a checagem nao degrada para "ok" — que e exatamente a propriedade em
+    # questao.
+    rf"|check_provas_de_container|check_provas_de_container_probes"
+    # `grava_provas_de_container` FICA DE FORA, e a exclusao e a propria
+    # propriedade — nao esquecimento. Ele constroi imagem, sobe container e
+    # derruba stack: admiti-lo poria rede E execucao de container na mao do
+    # julgador, que e o que a P2-19 recusou explicitamente ao negar `gh`.
+    #
+    # A separacao e a mesma que faz o auditor nao ter `Write`: quem prepara o
+    # ambiente e quem emite o veredito sao papeis diferentes. O lancador roda o
+    # gravador antes da sessao, e o auditor recebe o arquivo pronto — que e a
+    # forma que a P2-19 e a P3-4 ja estabeleceram para stack efemera e venv.
     # SENTINELA DE BRANCH — D15, Fase 4. A DECISAO DE ADMISSAO ESTA AQUI, NO
     # COMMIT QUE CRIA O MECANISMO, e o resultado dela e "nada novo entra".
     #

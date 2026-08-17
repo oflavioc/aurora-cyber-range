@@ -25,11 +25,29 @@
 # humano nenhum qual versao esta rodando. O digest e que manda — se os dois
 # divergirem, o Docker usa o digest.
 
+# O PREFIXO DE NOME E O NOME DO VOLUME SAO VARIAVEIS — P4-10, e o argumento e o
+# mesmo que ja escolheu `${AURORA_PG_PORT:-5432}` logo abaixo: duas coisas com o
+# mesmo nome derrubam o `docker compose up` inteiro.
+#
+# `container_name` e GLOBAL NO DAEMON: `-p outro-projeto` nao basta, porque o
+# nome nao passa pelo projeto. E `volumes.name` fixo faria uma segunda stack
+# escrever no `aurora_pgdata` de quem desenvolve — que e exatamente o que o
+# `docker-compose.audit.yml` existe para nao fazer.
+#
+# Os defaults sao os de sempre, entao `docker compose up` continua identico. Quem
+# os troca e `scripts/grava_provas_de_container.py`, que roda o DEMO e a prova de
+# reinicio DESTE arquivo, a partir do worktree auditado, com a stack de
+# desenvolvimento possivelmente no ar ao lado.
+#
+# A PROVA RODA CONTRA ESTE COMPOSE, e nao contra uma copia dele. Um segundo
+# arquivo descrevendo os mesmos servicos seria duas declaracoes do mesmo fato, e
+# a que diverge em silencio e sempre a que ninguem esta olhando.
+
 services:
 
   postgres:
     image: postgres:16.4-alpine@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c
-    container_name: aurora-postgres
+    container_name: ${AURORA_STACK_PREFIX:-aurora}-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aurora}
@@ -53,7 +71,7 @@ services:
 
   redis:
     image: redis:7.4.1-alpine@sha256:c1e88455c85225310bbea54816e9c3f4b5295815e6dbf80c34d40afc6df28275
-    container_name: aurora-redis
+    container_name: ${AURORA_STACK_PREFIX:-aurora}-redis
     restart: unless-stopped
     # Redis guarda a PROJECAO de simulation_state (01 secao 4), que e
     # reconstruivel do event store. Persistencia desligada de proposito: se o
@@ -84,7 +102,7 @@ services:
   migrations:
     build:
       context: .
-    container_name: aurora-migrations
+    container_name: ${AURORA_STACK_PREFIX:-aurora}-migrations
     command: ["python", "-m", "alembic", "upgrade", "head"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}
@@ -113,7 +131,7 @@ services:
   range-api:
     build:
       context: .
-    container_name: aurora-range-api
+    container_name: ${AURORA_STACK_PREFIX:-aurora}-range-api
     command:
       - python
       - -m
@@ -169,7 +187,7 @@ services:
   academus-api:
     build:
       context: .
-    container_name: aurora-academus-api
+    container_name: ${AURORA_STACK_PREFIX:-aurora}-academus-api
     command:
       - python
       - -m
@@ -245,4 +263,4 @@ services:
 
 volumes:
   aurora_pgdata:
-    name: aurora_pgdata
+    name: ${AURORA_PGDATA_VOLUME:-aurora_pgdata}

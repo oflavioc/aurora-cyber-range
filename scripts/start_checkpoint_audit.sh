@@ -311,6 +311,49 @@ else
   echo "AVISO: Docker nao encontrado; a auditoria roda sem os servicos." >&2
 fi
 
+# ---------------------------------------------------------------------------
+# P4-10 — AS PROVAS DE CONTAINER, RODADAS AQUI PORQUE O AUDITOR NAO PODE RODA-LAS.
+#
+# Itens 1 e 4 da DoD da Fase 4 — o DEMO ponta a ponta e o reinicio do CONTAINER
+# do engine. Os dois exigem Docker e uma stack no ar, e `docker` esta fora da
+# allowlist do julgador pelo argumento da P2-19. Na primeira auditoria desta fase
+# os dois chegaram ao veredito como NAO VERIFICADO.
+#
+# E a MESMA saida que a P2-19 ja escolheu uma vez, e a que a P3-4 seguiu depois:
+# o que exige rede acontece AQUI, antes da sessao, e o resultado chega pronto.
+#
+# O QUE SEPARA ISTO DE ATESTACAO E O SHA. O arquivo gravado carrega o commit, e
+# `scripts/check_provas_de_container.py` — que o auditor roda, e que esta na
+# allowlist — REPROVA se ele nao for o do worktree que se julga. O auditor
+# continua nao tendo visto rodar; o que muda e que a evidencia esta amarrada ao
+# objeto. A condicao e forte por mecanica e nao por confianca: um commit nao
+# contem o proprio SHA, entao evidencia versionada junto com o codigo nao tem
+# como carregar o hash do commit que a contem.
+#
+# FALHA BAIXO, AO CONTRARIO DO VENV. A P3-4 para a auditoria porque sem o venv o
+# veredito sairia sobre OUTRO nucleo — errado, e nao incompleto. Aqui, sem as
+# provas os itens 1 e 4 voltam a ser NAO VERIFICADO, que e a opcao C da P4-10 e e
+# honesto. Derrubar a auditoria inteira por falta de Docker trocaria um veredito
+# parcial por nenhum.
+#
+# O PYTHON E O DO VENV: as provas importam `websockets` e falam com o Postgres
+# do commit auditado. Rodar com o interpretador do ambiente reintroduziria a
+# P3-4 pela porta das provas.
+# ---------------------------------------------------------------------------
+echo "Rodando as provas de container do commit auditado (P4-10)..."
+set +e
+PROVAS_SAIDA=$("$VENV_BIN/python" "$WT/scripts/grava_provas_de_container.py" \
+               --worktree "$WT" --python "$VENV_BIN/python" 2>&1)
+PROVAS_RC=$?
+set -e
+if [ "$PROVAS_RC" = "0" ]; then
+  PROVAS="GRAVADAS e VERDES sobre $HEAD_SHA. Rode 'python scripts/check_provas_de_container.py' — ele confere o SHA e imprime a saida integra das duas provas."
+else
+  echo "$PROVAS_SAIDA" >&2
+  echo "AVISO: as provas de container nao passaram (rc=$PROVAS_RC)." >&2
+  PROVAS="NAO PASSARAM (rc=$PROVAS_RC). Rode 'python scripts/check_provas_de_container.py': ele recusa e imprime o motivo. Enquanto ele recusar, os itens 1 e 4 da DoD sao NAO VERIFICADO — nunca PASS por silencio."
+fi
+
 RAW=""
 if [ "$MODE" = headless ]; then
   RAW=$(mktemp)
@@ -351,6 +394,7 @@ trap capturar EXIT INT TERM
 echo "Auditoria Fase $PHASE — commit $HEAD_SHA"
 echo "Base de comparacao: $BASE_SHA ($BASE_REF)"
 echo "Servicos: $SERVICOS"
+echo "Provas de container: $PROVAS"
 echo "Worktree de auditoria: $WT"
 if [ "$MODE" = headless ]; then
   echo "Modo: HEADLESS (-p). NENHUMA sessao interativa vai abrir; isto e esperado."
@@ -385,6 +429,9 @@ echo
 # BLOCKER significa, e na terceira rodada o auditor teve de DEDUZIR qual era —
 # pela ausencia do bloco de aviso, que nunca chegava ate aqui.
 PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEAD_SHA. Compare contra a base $BASE_SHA ($BASE_REF, atualizado agora pelo lancador) — nao resolva 'main' por conta propria, os refs locais deste worktree podem estar atras. Servicos: $SERVICOS
+
+PROVAS DE CONTAINER (P4-10): $PROVAS
+O lancador as rodou na maquina do operador, porque exigem Docker e a allowlist nao o tem. Voce NAO as viu rodar — o que amarra a evidencia a este commit e o SHA que o arquivo carrega, e o verificador reprova se ele divergir. Ausencia tambem reprova: ele nao sai 0 por nao saber.
 
 VEREDITO DA GUARDA DE BASE, verbatim do lancador. Porta ou laudo esta DITO aqui, e nao deve ser deduzido do que o prompt deixa de conter:
 $GUARDA_SAIDA
