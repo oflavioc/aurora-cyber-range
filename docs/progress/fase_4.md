@@ -658,12 +658,35 @@ continuam exigindo token pelo middleware, que **falha fechado** — caminho que
 ninguém declarou público exige token, e há teste para `/rota-que-nao-existe`
 respondendo 401.
 
-**As duas metades são teste, e não argumento:**
+**As três metades são teste, e não argumento:**
 
 | | Onde |
 |---|---|
-| a casca não carrega dado de exercício, e as duas telas públicas não conhecem o console | `tests/test_telas.py`, na fonte, e `prova_do_build.sh`, no artefato |
+| as duas telas públicas não conhecem o console | `tests/test_telas.py`, na fonte, e `prova_do_build.sh`, no artefato |
+| **nenhuma tela carrega nome de flag, id de inject ou texto de cenário — fonte e bundle** | `scripts/check_telas_sem_vocabulario.py`, nos dois jobs |
 | toda rota que o console chama responde 401 sem token | `tests/test_range_api.py`, desde a peça 4 |
+
+> **A linha do meio não existia quando esta decisão foi escrita, e a tabela dizia
+> que existia.** A versão original tinha duas linhas, e a primeira afirmava *"a
+> casca não carrega dado de exercício"* com `tests/test_telas.py` como prova. **O
+> que aquele teste prova é a direção inversa** — que as telas públicas não
+> mencionam o console. Ninguém olhava para vocabulário de exercício dentro do
+> cliente.
+>
+> **Achado por uma pergunta do operador**, e a pergunta é a certa: casca pública
+> que vaza vocabulário é o canal lateral que o `403 × 404` da peça 1 da Fase 3
+> fechou — não é o dado que vaza, é a **existência** dele. Medido antes de
+> corrigir:
+>
+> | | Estado antes |
+> |---|---|
+> | nome de flag em fonte `.ts`/`.tsx` | **coberto** — invariante 2, `check_contract_literals.py` |
+> | nome de flag no **bundle** `.html` | **coberto por nada** — `.html` não está em `WEB_SUFFIXES` |
+> | id de inject, título, texto de plateia | **coberto por nada, em lugar nenhum** |
+>
+> A correção é a §4.7 — *"O verificador que a pergunta do operador exigiu"*.
+> Registrar isto aqui, e não só lá, é a §1.6: a afirmação errada morava **nesta
+> tabela**, e é aqui que alguém a leria como fonte.
 
 **As alternativas, e por que nenhuma serve.** *Autenticar `GET /console`* torna a
 tela inalcançável por navegação — não é mais seguro, é inoperante. *Não servir o
@@ -1859,6 +1882,56 @@ para sempre.
 **`_tela` não degrada.** Bundle ausente responde **503** com o comando que o
 constrói, e não a página crua: servir "alguma coisa" é como um telão mostra por
 meses a tela que o projeto já decidiu jogar fora, sem nada acusar.
+
+### O verificador que a pergunta do operador exigiu
+
+**A pergunta:** *"o teste do lado negativo varre o HTML da casca por nome de
+flag, nome de inject e qualquer texto de cenário?"*
+
+**Não varria. E a tabela da D19 dizia que sim** — a afirmação está corrigida lá,
+com o estado medido antes de consertar. O buraco tinha três camadas, e só a
+primeira estava fechada: nome de flag em fonte `.ts`/`.tsx` já é o invariante 2;
+no **bundle** `.html`, nada, porque `.html` não está em `WEB_SUFFIXES`; e id de
+inject, `titulo_operacional`, `descricao_facilitador` e `texto_para_plateia`, em
+lugar nenhum do cliente.
+
+`scripts/check_telas_sem_vocabulario.py` fecha as três. **O vocabulário sai das
+fontes reais** — `domains/*/flags.yaml` e **todo diretório com `injects.yaml`**,
+por descoberta e não por lista: o pack real é entregável da Fase 7 (D13), e uma
+lista escrita hoje não o incluiria — e ninguém descobriria, porque a varredura
+continuaria verde.
+
+**Três classes de termo, e a segunda existe porque bloqueio indevido também é
+defeito:**
+
+| Tamanho | Como se procura | Por quê |
+|---|---|---|
+| ≥ 6 caracteres | substring direto | específico o bastante |
+| 2 a 5 | **só entre aspas** | `A01` solto casaria com hash de asset dentro de 156 kB de JS minificado |
+| 1 | **ignorado, e a contagem é impressa** | `linha: A` do fixture: vazar "A" não conta nada a ninguém |
+
+**O limite, declarado:** id curto montado por concatenação escapa da segunda
+classe — o mesmo limite de varredura léxica que `01` §2 admite. E o que sustenta
+a propriedade não é a varredura: é não haver pack ao alcance do build.
+
+**Doze direções de prova negativa**, e as três que valem nomeadas são as do outro
+lado: id curto **sem** aspas não bloqueia, termo de um caractere não entra, e o
+vocabulário vazio **recusa** com `rc=2` em vez de imprimir "nenhum problema".
+
+**O hook recusou a primeira versão do probe** — invariante 2, literal de flag no
+código —, e recusou com razão: o probe exercita o **mecanismo de casamento**, que
+recebe o vocabulário por parâmetro. Usar um nome real não acrescentaria nada e
+poria no repositório exatamente a string que o invariante existe para manter
+fora. **Terceira vez nesta fase** que o hook aponta para o desenho certo.
+
+Entrou na allowlist do auditor no mesmo commit, com a prova negativa ao lado — o
+harness passou de **58 para 60** leituras legítimas —, e roda nos dois jobs: em
+`arquitetura` sobre a fonte, e em `contratos` **depois do build** com
+`--exige-bundle`, que recusa se as três telas não estiverem construídas. Sem essa
+guarda o passo varreria a fonte outra vez e diria que varreu o bundle.
+
+**Medido na árvore real:** 16 arquivos de cliente varridos (**3 do bundle**), 45
+termos, 4 procurados só entre aspas, 1 ignorado por ter um caractere.
 
 ### Visto rodando, contra o servidor de verdade
 

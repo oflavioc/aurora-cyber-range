@@ -177,6 +177,17 @@ ALLOWED = [
     # o renderizador precisa fazer. Gate de cliente que bloqueia `map` seria
     # abandonado na primeira tela.
     rf"|check_web_sem_derivacao|check_web_sem_derivacao_probes"
+    # `check_telas_sem_vocabulario` — Fase 4, peca 6, e a admissao segue o mesmo
+    # criterio: ele responde uma pergunta que o auditor NAO consegue responder
+    # por leitura. A varredura cruza o vocabulario real — `flags.yaml` mais todo
+    # pack do repositorio — com todo arquivo de cliente, FONTE E BUNDLE. Ler um
+    # HTML minificado de 156 kB procurando nome de flag a olho nao e auditoria,
+    # e a casca do console e servida sem token (D19).
+    #
+    # A prova negativa entra junto, e aqui ela carrega o limite: id curto SEM
+    # aspas nao bloqueia, e termo de um caractere nao entra. Sem ela o auditor
+    # nao teria como distinguir "nao vazou" de "nao procurou".
+    rf"|check_telas_sem_vocabulario|check_telas_sem_vocabulario_probes"
     # SENTINELA DE BRANCH — D15, Fase 4. A DECISAO DE ADMISSAO ESTA AQUI, NO
     # COMMIT QUE CRIA O MECANISMO, e o resultado dela e "nada novo entra".
     #
