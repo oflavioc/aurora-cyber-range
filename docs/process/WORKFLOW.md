@@ -140,6 +140,39 @@ O agente não recebe ferramentas `Write`/`Edit`. Bash passa por allowlist textua
 
 **Bloqueio indevido também é defeito.** Um auditor que não consegue rodar a prova central audita por inferência de leitura de código, e continua emitindo veredito enquanto isso — foi a lição do H4 da primeira auditoria da Fase 0. Por isso o item 4(e) trata falso bloqueio novo como finding, e não como inconveniência.
 
+### `--headless` existe, tem código, e NUNCA rodou — limite declarado
+
+`start_checkpoint_audit.sh` aceita `--headless`, que troca a sessão interativa por
+`claude -p`. **O caminho existe, está escrito, e não tem uma única execução
+registrada.** Contado em `docs/progress/audit_log.jsonl`, não lembrado: das 71
+linhas, **26 são `interactive`**, 3 são `subagent`, 42 são anteriores ao campo —
+e **nenhuma é `headless`**.
+
+**Caminho que existe e nunca rodou é atestação esperando acontecer.** Ele *parece*
+uma capacidade: alguém lê a flag, lê o `--help` do script, e conclui que a
+auditoria roda sem janela. Ninguém viu. É a mesma forma que este projeto já
+recusou no DEMO da Fase 1 — roteiro que ninguém executa apodrece igual a
+comentário que ninguém lê — e no `pip install -e "$WT[test]"` da Fase 4, que
+estava correto em intenção, em aspas e em variável, e o pip recusava.
+
+**Se um dia for preciso, a primeira execução não pode ser numa rodada que decide
+fase.** Estrear o modo no checkpoint que fecha uma fase troca duas variáveis ao
+mesmo tempo: um FAIL passa a ter duas leituras — a fase, ou o modo — e nenhuma
+das duas é separável depois. A primeira execução tem de ser sobre um commit cujo
+veredito já se conhece.
+
+**E há uma segunda razão, que é do lado da árvore compartilhada.** Em interativa,
+quem implementou entrega o terminal e **para**. Em headless, o processo que pediu
+a auditoria **continua vivo enquanto o auditor mede** — e a corrida da
+§"Árvore de trabalho compartilhada" volta a existir exatamente na janela em que
+ninguém está olhando. O worktree está fixado em `HEAD_SHA` e o venv da P3-4 fecha
+a procedência dos pacotes, então o auditor não mediria outro commit; o que se
+perde é mais simples e não tem mecanismo: `HEAD` da árvore principal se movendo
+sob uma auditoria em curso.
+
+Enquanto isso não for exercido, **a convenção é a de sempre: o operador lança, e
+o agente fica parado até o relatório sair.**
+
 ### Onde passa a linha da rede: o lançador tem, o auditor não
 
 **A regra:** tudo o que exige rede acontece **antes da sessão**, no lançador, na
