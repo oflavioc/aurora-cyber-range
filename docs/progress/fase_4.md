@@ -1,6 +1,9 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
-**Status: EM CURSO — as sete peças fechadas; falta a auditoria de checkpoint.**
+**Status: CONCLUÍDA — as sete peças, os seis itens da DoD com prova, e PASS
+integral na terceira auditoria de checkpoint (`ee5ebee`), com 335 testes e zero
+pulos.** O fechamento item a item está na §7; as lições, na §8.
+
 A branch nasceu em `6efca2e` e foi **rebaseada sobre `486df18`** quando o
 `spec-change` da P4-9 entrou em `main` — a âncora está gravada em
 `docs/process/phase_anchors.tsv` e foi **regravada no mesmo passo**, que é o item
@@ -2717,6 +2720,143 @@ nada acusar. O harness passou de **60 para 64** leituras legítimas e de **40 pa
 
 ---
 
+## 4.12 A segunda auditoria do candidato — PASS, e a rodada que mediu 22% menos
+
+**PASS sobre `3a5ee71`**, sem BLOCKER, HIGH nem MEDIUM. Os seis itens da DoD com
+evidência executável, o par de T5 provado nos dois casos atravessando
+`docker restart`, e um LOW — a P4-11 acima.
+
+**A P4-10 entregou exatamente o que ela comprou, e o relatório é a prova.** Nas
+palavras do auditor: *"eu julgo o mecanismo e o vínculo, não a execução"*. Os
+itens 1 e 4, NÃO VERIFICADO na primeira rodada, voltaram PASS com o SHA conferido
+contra o `HEAD` dele — e ele checou os treze eixos do verificador antes de aceitar
+o arquivo, em vez de aceitá-lo por existir.
+
+### O que não estava certo: a rodada foi degradada
+
+**73 dos 335 testes pularam** — 22% da suíte —, porque a stack efêmera falhou no
+`alembic upgrade head`. Com a stack no ar a suíte tem **zero** pulos. A rodada
+que decidiria a fase mais importante do projeto mediu menos que uma rodada
+normal.
+
+**O auditor agiu certo:** declarou o fato em *"o que eu não consegui verificar"*.
+O mecanismo da P2-19 funcionou na metade que é dele — o pulo foi **declarado**, e
+não lido como verde.
+
+**O defeito estava no lançador**, e ele é o buraco de diagnóstico que a peça 7 já
+fechou uma vez no CI:
+
+| | |
+|---|---|
+| as duas etapas mandavam a saída para `/dev/null` | a causa morria no descarte |
+| o ramo de falha chamava `derruba_stack` em seguida | e morria de novo, com os containers que a explicariam |
+
+Sobrou a frase *"migration falhou"*. É a mesma lição do `container aurora-range-api exited (1)`
+sem log, **com o preço maior**: lá custava um job vermelho que se reroda; aqui
+custa uma rodada degradada que **ainda assim emite veredito**.
+
+### E ela não foi reproduzível — que é o dado que justifica o mecanismo
+
+Depois da rodada, a stack foi subida e a migration rodada **duas vezes** — da
+árvore principal e de dentro do worktree, com o python do venv da auditoria —, e
+as duas saíram `rc=0`, aplicando as duas revisões. **Não reproduzível com a
+informação que sobrou.**
+
+Isto está escrito porque sem ele a correção lê como precaução, e ela é
+**consequência**: sem a saída daquele momento não há como distinguir corrida de
+porta, bind transitório e defeito de verdade — e cada hipótese custa uma rodada
+de auditoria inteira.
+
+**Não foi a mudança da P4-10, e isso é dito com a evidência e não com a
+afirmação:** a migration é a linha 296 do lançador e o bloco das provas de
+container é a 343. A falha ocorreu antes de aquele código rodar.
+
+### A correção, exercida nas duas direções
+
+`diagnostica_stack` grava em `.aurora-worktrees/stack.log` — fora do worktree,
+pelo mesmo motivo do `pip.log` do venv — e tem duas propriedades, cada uma
+fechando um caminho pelo qual a causa morreria assim mesmo:
+
+1. **imprime antes de `derruba_stack`.** Invertida a ordem, `ps` e `logs` medem
+   containers que já não existem, e o resultado é um arquivo vazio;
+2. **aparece quando o lançador SEGUE**, e não só quando aborta — esta falha é de
+   severidade baixa por decisão, então o caminho em que ela aparece é sempre o de
+   seguir.
+
+**E a primeira execução do bloco corrigiu a própria correção.** Medido: o arquivo
+tinha **205 linhas com a causa na 133**, e o `tail -30` na tela mostrava boot de
+Postgres. O diagnóstico existia e não chegava a quem lê, que é a mesma perda com
+mais passos — a terceira ocorrência dessa forma nesta linhagem. A causa passou a
+ir para a tela **antes** de `ps` e `logs` serem anexados; o estado dos containers
+fica no arquivo.
+
+**As duas direções, rodadas contra o bloco real extraído do arquivo entregue:**
+
+| Direção | Resultado |
+|---|---|
+| a stack sobe e a migration aplica | `ATIVOS`, e nada é impresso |
+| a migration aponta para porta sem serviço | `sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired` **na tela**, `ps` e `logs` no arquivo, e o lançador segue com `rc=0` |
+
+### A decisão: rodada extra, e o motivo não é o risco
+
+**O risco material é baixo e está medido:** os 73 testes que o auditor não pôde
+rodar **rodaram verdes sobre este mesmo SHA** no job `contratos`, com Postgres e
+Redis reais — `Ran 335 tests / OK`, sem pulo, run `32071519577`. Isso é
+consultável **fora do commit**, que é a distinção que o L1 da primeira auditoria
+cobrou.
+
+**A decisão do operador foi rodar de novo assim mesmo, e o argumento é de
+método:** este projeto passou três fases recusando *"provavelmente está certo"*
+como fecho, e a P2-19 existiu exatamente para que pulo não fosse lido como verde.
+Fechar a fase mais importante com a degradação declarada no relatório, **tendo a
+correção ao alcance**, seria a exceção que o resto do método não admitiu.
+
+**E o ganho é concreto, e não simbólico:** com o diagnóstico fechado antes, a
+rodada extra ou passa com a suíte inteira — PASS integral —, ou falha e a saída
+da migration diz por quê. Nos dois casos ela produz informação que a de hoje não
+produziu.
+
+---
+
+## 4.13 A terceira auditoria — PASS integral, e o que a rodada extra comprou
+
+**PASS sobre `ee5ebee`, com a suíte inteira: 335 testes, `OK`, ZERO pulos.** Um
+único finding, LOW, e ele já estava aberto como **P4-11** pelo próprio commit que
+o auditor julgava.
+
+**O que esta rodada tem que a anterior não tinha é quem executou.** Os 73 testes
+que a rodada degradada não rodou — business state em Postgres, restauração
+cross-process, cache de projeção, queda de sessão em outro processo — foram
+exercitados aqui **por quem não os escreveu**. O CI já os tinha rodado verdes
+sobre o mesmo SHA, e isso continua sendo verdade e continua sendo evidência; mas
+é evidência produzida pelo pipeline que quem implementou configurou.
+
+**Essa distinção não estava escrita antes desta fase.** A "ordem de defesa" de
+`WORKFLOW.md` dava ao auditor o papel de *"verificar se o teste realmente prova o
+requisito"* — leitura crítica sobre execução alheia. O que a rodada extra mostra
+é um terceiro papel, e ele é de **execução**: o auditor rodando a suíte é a única
+camada em que o teste é executado por quem não tem interesse no resultado. Hook,
+CI e auditor deixam de ser três intensidades da mesma coisa.
+
+### Os dois limites que o auditor declarou, e os dois são de desenho
+
+1. **Ele não viu as provas de container rodarem** — e aceitou a evidência *"nesses
+   termos, e não por atestação"*, depois de executar as treze direções do
+   verificador, nomeando `[a] ausência` e `[b] SHA divergente`. É exatamente o que
+   a opção A da P4-10 comprou, nem mais nem menos.
+2. **O bundle não foi varrido aqui** — não há Node no worktree, então
+   `check_telas_sem_vocabulario` viu *"14 arquivos de cliente (0 do bundle)"* e o
+   banner foi conferido só na fonte. A direção fonte-verde/bundle-vermelho tem
+   probe e roda no CI com `--exige-bundle`.
+
+**O segundo é o mais interessante dos dois, e fica registrado como tal:** ele é a
+mesma forma da P4-10 um nível acima — uma prova que só o CI executa, e que o
+auditor julga por leitura do workflow. A P4-10 resolveu isso para os itens 1 e 4
+porque eles eram **itens de DoD**; o bundle não é, e por isso não recebeu o mesmo
+mecanismo. Se um dia receber, a forma já existe.
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -2758,10 +2898,55 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-9 | ~~a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change`~~ | ✅ **FECHADA** pelo `spec-change` mergeado em `486df18` |
 | P4-10 | ~~itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor~~ | ✅ **FECHADA** com a opção A (§4.11) |
 | P4-11 | o hook que restringe o auditor é sincronizado a partir da árvore que ele audita | **condição** — ver abaixo |
+| P4-12 | três seções de `05` não são nomeadas por verificador nenhum, e nada declara se isso é decisão | **Fase 5** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
 registro da Fase 3 §2 tem a correção.
+
+### 6.1 O inventário do fechamento — por destinatário
+
+**Dez fechadas nesta fase, oito abertas, e nenhuma das abertas é item de DoD da
+Fase 4** — o auditor conferiu isso na terceira rodada. Os dois números foram
+contados na tabela acima, e não de memória: a primeira versão desta frase dizia
+*"sete e seis"*, e o erro foi cometido **dentro do commit que escreve a §8.2** —
+ver a nota lá.
+
+O que importa aqui não é o número: é que **toda pendência aberta tem destinatário
+e gatilho**, e nenhuma está datada por marco quando a condição é o que a decide.
+
+| Fechadas nesta fase | Onde |
+|---|---|
+| P3-2, P3-4, P3-5, P3-8, P3-10, P3-11 | recebidas da Fase 3 — peças 0, 5 e 7 |
+| P4-1, P4-3, P4-9, P4-10 | abertas e fechadas dentro da fase |
+
+**Abertas, e para quem elas vão:**
+
+| Destinatário | Id | O que ela cobra | Gatilho |
+|---|---|---|---|
+| **Fase 5** | P4-2 | emitir evento sem declarar `emite` não tem guarda em lugar nenhum | o **primeiro `append`** fora do `inject-engine` — a trilha de `06` T7 |
+| **Fase 5** | P4-5 | `grades.student_id` aceita aluno inexistente | o commit em que a **trilha de `02` §4.1 nascer** — trilha que registra aluno inexistente é a camada 2 mentindo sobre a camada 1 |
+| **Fase 5** | P4-12 | três seções de `05` sem verificador e sem declaração de que é decisão | o commit da trilha, que é quando a **§7 sai de "plausivelmente futura"** |
+| **Fase 8** | P4-4 | oito flags declaram `academus-api` e nenhuma rota as consome | o primeiro commit em que a `academus-api` **consumir flag de continuidade** |
+| **Fase 8** | P4-6 | o `effect_ui` promete cadência ("por minuto") e a função não tem | o primeiro consumidor com **semântica de sessão** — o Modo "Prova em andamento" |
+| **condição, sem fase** | P4-7 | três avisos de `npm audit`, todos em dependência de desenvolvimento | o primeiro consumidor de `vite dev`, **ou** a primeira subida deliberada do toolchain |
+| **condição, sem fase** | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos | um deploy com **mais de um worker**, ou o primeiro volume em que a reconstrução passe de uma fração do orçamento de 1 s |
+| **condição, sem fase** | P4-11 | o hook que restringe o auditor vem da árvore auditada | o primeiro commit de fase que alterar `readonly_bash.py` em direção **que não seja estritamente aditiva** |
+
+**A P2-6** segue datada para a Fase 8, com a premissa original já corrigida no
+registro da Fase 3.
+
+**Três das seis abertas não têm fase, e isso é desenho.** A §7.2 do registro da
+Fase 3 existe porque prazo apoiado em *proxy* vence sem que a condição ocorra — foi
+o que a P3-2 fez. Datar por condição custa que ninguém as veja "vencer" num
+calendário; o que se ganha é que elas vençam quando o problema existir, e não
+quando um marco passar.
+
+**E duas delas carregam instrumento junto**, o que é o que as separa de intenção:
+a P4-8 nomeia `scripts/mede_cache_frio.py` e `scripts/bench_reconstruction.py`,
+que já existem; a P4-5 tem `test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje`
+afirmando o comportamento atual — no dia em que for fechada, um teste **vermelho**
+anuncia a mudança em vez de um verde silencioso.
 
 #### P3-2 — cache frio sem single-flight
 
@@ -3243,106 +3428,251 @@ do commit contra a da âncora** dentro do próprio lançador, recusando reduçã
 declaração; ou **pinar a cópia instalada** à da branch default em vez de à do
 commit candidato. As duas têm custo e nenhuma foi medida.
 
+#### P4-12 — seção normativa sem verificador, e sem nada dizendo que é decisão
+
+**Aberta ao escrever a lição da §8.1**, e ela é a generalização do B1 da primeira
+auditoria em vez da repetição dele.
+
+`05` §4 atravessou sete peças sem ser lida porque **nada apontava para ela**. Isso
+foi consertado para as telas. O que não foi consertado é a propriedade: contado na
+fonte, `05` tem **oito** seções, e **cinco** são nomeadas como escopo por algum
+verificador — §1, §3, §4, §6 e §8. As outras **três** não são:
+
+| Seção | Estado |
+|---|---|
+| §2 Evidências sintéticas | nenhum verificador a nomeia. Plausivelmente **Fase 8**, e isso não está escrito |
+| §5 Identificação de fornecedores e atores de ameaça | nenhum verificador a nomeia. Plausivelmente **Fase 7**, com o pack, e isso não está escrito |
+| §7 Integridade da trilha de auditoria | nenhum verificador a nomeia. Plausivelmente **Fase 5**, e isso não está escrito |
+
+**"Plausivelmente" é a palavra que a pendência existe para eliminar.** As três
+estão hoje exatamente no estado em que a §4 estava até a primeira auditoria: sem
+gate, sem gatilho de leitura, e **sem nada declarando que a ausência é
+deliberada**. A única coisa que distinguiu a §4 foi uma fase ter produzido o
+artefato que ela governa e um auditor ter olhado.
+
+**A forma sugerida já existe no repositório, duas vezes.** O
+`check_banner_de_simulacao.py` mantém um registro de classes — telas / evidência /
+exportação / relatório — conferido **nas duas direções**: classe coberta sem alvo
+no disco reprova. E `domains/flags_pendentes.yaml` faz o mesmo para flags citadas
+na spec sem serviço que as traga, com **quem a trará** por entrada. Um registro
+seção→verificador com a mesma disciplina fecharia esta: seção sem entrada reprova,
+entrada que a spec deixou de ter também.
+
+**O que ela NÃO deve virar:** um gate que exija verificador para toda seção. Três
+das oito têm consumidor em fases futuras, e cobrar mecanismo antes do artefato é
+o erro que a §7.3 da Fase 3 nomeia. O que se cobra é a **declaração**, não o
+mecanismo.
+
+**Vencimento: Fase 5**, e o gatilho é a condição — *o commit em que a trilha de
+auditoria de `02` §4.1 nascer*, que é quando a §7 sai de "plausivelmente futura"
+para "é agora". As outras duas entram no mesmo registro nessa passagem.
+
 ---
 
-## 4.12 A segunda auditoria do candidato — PASS, e a rodada que mediu 22% menos
+## 7. O fechamento — a DoD com prova, item a item
 
-**PASS sobre `3a5ee71`**, sem BLOCKER, HIGH nem MEDIUM. Os seis itens da DoD com
-evidência executável, o par de T5 provado nos dois casos atravessando
-`docker restart`, e um LOW — a P4-11 acima.
+**A Fase 4 está concluída.** `CLAUDE.md` diz que uma fase só fecha quando **todos**
+os itens da Definition of Done passam, e o quadro abaixo é o de `07` Fase 4 com a
+prova de cada um — não a afirmação de que passou.
 
-**A P4-10 entregou exatamente o que ela comprou, e o relatório é a prova.** Nas
-palavras do auditor: *"eu julgo o mecanismo e o vínculo, não a execução"*. Os
-itens 1 e 4, NÃO VERIFICADO na primeira rodada, voltaram PASS com o SHA conferido
-contra o `HEAD` dele — e ele checou os treze eixos do verificador antes de aceitar
-o arquivo, em vez de aceitá-lo por existir.
+**A coluna que importa é a terceira.** Ela diz *como isto ficaria vermelho*, e é a
+única que distingue um item fechado de um item declarado.
 
-### O que não estava certo: a rodada foi degradada
+| | Item da DoD | Prova, e o que a torna vermelha |
+|---|---|---|
+| **1** | a sequência do DEMO roda ponta a ponta sem intervenção manual | `scripts/demo_fase4.py` contra **dois containers**, Postgres e Redis reais, com `_exige` abortando em cada passo. O par que discrimina é o rollback: a **mesma** requisição de matrícula dá `503` depois do disparo e `201` depois do rollback — uma API que nunca degradasse passaria na segunda, uma que sempre degradasse passaria na primeira. Passo de CI, e evidência amarrada ao SHA pela P4-10 |
+| **2** | wallboard atualiza em < 1 s via WebSocket | **Duas provas independentes, e nenhuma substitui a outra.** Estrutural: o frame é produzido na mesma chamada que gravou o evento, afirmado por AST (nenhum `time`/`threading`/`sched` no caminho), e **um** frame por evento com três telas conectadas, contado por store instrumentado. Medida: `ORCAMENTO_DO_FRAME = 1.0` asserido ponta a ponta no DEMO — **47 ms** observados |
+| **3** | refresh no wallboard e na participant-view recupera o estado corrente | Propriedade do **protocolo**, e não disciplina do cliente: o frame é estado **total** (D3), então não há o que acumular. Conexão nova sem histórico recebe o estado completo, com o par — antes do disparo, texto vazio; depois, o texto da plateia. E `check_web_sem_derivacao.py` impede o cliente de derivar, sobre 13 arquivos |
+| **4** | reinício do container do engine restaura o exercício a partir do event store | `docker restart` de verdade, com `StartedAt` **antes e depois** — a asserção que um teste em processo não consegue produzir. Trocar o restart por um reinício de processo, ou por nada, e o carimbo não muda: a prova reprova. Os dois casos de T5 no mesmo script |
+| **5** | rollback aparece anotado na timeline | `{"motivo", "para"}` na entrada, com o **par negativo**: o disparo **não** é anotado. No container, a timeline sai com três entradas, rollback anotado e **disparo preservado** — que é `00` §5.5 medido, e não citado |
+| **6** | índice de saúde calculado a partir dos `severity_weight` ativos | Função pura sobre `flags.yaml` + estado, com o eixo de **sinal** fixado pelo par: duas flags de mesmo peso e defaults opostos pioram o índice na mesma magnitude. Com `esta_ativa` lido como `valor is True`, **seis testes ficam vermelhos** — medido, e revertido |
 
-**73 dos 335 testes pularam** — 22% da suíte —, porque a stack efêmera falhou no
-`alembic upgrade head`. Com a stack no ar a suíte tem **zero** pulos. A rodada
-que decidiria a fase mais importante do projeto mediu menos que uma rodada
-normal.
-
-**O auditor agiu certo:** declarou o fato em *"o que eu não consegui verificar"*.
-O mecanismo da P2-19 funcionou na metade que é dele — o pulo foi **declarado**, e
-não lido como verde.
-
-**O defeito estava no lançador**, e ele é o buraco de diagnóstico que a peça 7 já
-fechou uma vez no CI:
+**Os critérios de `06` que a fase carrega:**
 
 | | |
 |---|---|
-| as duas etapas mandavam a saída para `/dev/null` | a causa morria no descarte |
-| o ramo de falha chamava `derruba_stack` em seguida | e morria de novo, com os containers que a explicariam |
+| **T5** | os dois casos, no container e em processo novo sobre Postgres. A heurística que pareceria salvar o caso — *evento posterior implica retomada* — tem teste próprio afirmando que é **falsa** |
+| **T6** (a metade das superfícies públicas) | varredura recursiva de chaves **e valores** sobre o payload serializado, e a garantia da plateia é de **tipo**: `Inject` não carrega `linha`, `descricao_facilitador` nem `titulo`. Vazar exigiria mudar o chamador |
+| **T15** | três imagens por digest, sem divergência entre quatro arquivos, e o `package-lock.json` fixando o fecho transitivo do cliente |
 
-Sobrou a frase *"migration falhou"*. É a mesma lição do `container aurora-range-api exited (1)`
-sem log, **com o preço maior**: lá custava um job vermelho que se reroda; aqui
-custa uma rodada degradada que **ainda assim emite veredito**.
+**Os OUTPUTS de `07`**, conferidos contra o texto e não contra a memória:
+gm-console autenticado com lista de injects, disparo e rollback; wallboard com
+painéis derivados **por convenção** — probe que planta flag em grupo inexistente
+exige painel novo — mais o índice; participant-view com `texto_para_plateia` e
+nada além.
 
-### E ela não foi reproduzível — que é o dado que justifica o mecanismo
+**E as três coisas que a fase não podia ter feito, e não fez:**
 
-Depois da rodada, a stack foi subida e a migration rodada **duas vezes** — da
-árvore principal e de dentro do worktree, com o python do venv da auditoria —, e
-as duas saíram `rc=0`, aplicando as duas revisões. **Não reproduzível com a
-informação que sobrou.**
-
-Isto está escrito porque sem ele a correção lê como precaução, e ela é
-**consequência**: sem a saída daquele momento não há como distinguir corrida de
-porta, bind transitório e defeito de verdade — e cada hipótese custa uma rodada
-de auditoria inteira.
-
-**Não foi a mudança da P4-10, e isso é dito com a evidência e não com a
-afirmação:** a migration é a linha 296 do lançador e o bloco das provas de
-container é a 343. A falha ocorreu antes de aquele código rodar.
-
-### A correção, exercida nas duas direções
-
-`diagnostica_stack` grava em `.aurora-worktrees/stack.log` — fora do worktree,
-pelo mesmo motivo do `pip.log` do venv — e tem duas propriedades, cada uma
-fechando um caminho pelo qual a causa morreria assim mesmo:
-
-1. **imprime antes de `derruba_stack`.** Invertida a ordem, `ps` e `logs` medem
-   containers que já não existem, e o resultado é um arquivo vazio;
-2. **aparece quando o lançador SEGUE**, e não só quando aborta — esta falha é de
-   severidade baixa por decisão, então o caminho em que ela aparece é sempre o de
-   seguir.
-
-**E a primeira execução do bloco corrigiu a própria correção.** Medido: o arquivo
-tinha **205 linhas com a causa na 133**, e o `tail -30` na tela mostrava boot de
-Postgres. O diagnóstico existia e não chegava a quem lê, que é a mesma perda com
-mais passos — a terceira ocorrência dessa forma nesta linhagem. A causa passou a
-ir para a tela **antes** de `ps` e `logs` serem anexados; o estado dos containers
-fica no arquivo.
-
-**As duas direções, rodadas contra o bloco real extraído do arquivo entregue:**
-
-| Direção | Resultado |
+| | |
 |---|---|
-| a stack sobe e a migration aplica | `ATIVOS`, e nada é impresso |
-| a migration aponta para porta sem serviço | `sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired` **na tela**, `ps` e `logs` no arquivo, e o lançador segue com `rc=0` |
-
-### A decisão: rodada extra, e o motivo não é o risco
-
-**O risco material é baixo e está medido:** os 73 testes que o auditor não pôde
-rodar **rodaram verdes sobre este mesmo SHA** no job `contratos`, com Postgres e
-Redis reais — `Ran 335 tests / OK`, sem pulo, run `32071519577`. Isso é
-consultável **fora do commit**, que é a distinção que o L1 da primeira auditoria
-cobrou.
-
-**A decisão do operador foi rodar de novo assim mesmo, e o argumento é de
-método:** este projeto passou três fases recusando *"provavelmente está certo"*
-como fecho, e a P2-19 existiu exatamente para que pulo não fosse lido como verde.
-Fechar a fase mais importante com a degradação declarada no relatório, **tendo a
-correção ao alcance**, seria a exceção que o resto do método não admitiu.
-
-**E o ganho é concreto, e não simbólico:** com o diagnóstico fechado antes, a
-rodada extra ou passa com a suíte inteira — PASS integral —, ou falha e a saída
-da migration diz por quê. Nos dois casos ela produz informação que a de hoje não
-produziu.
+| spec imutável durante a implementação | `git diff 486df18..HEAD -- docs/spec/ contracts/` **vazio**. A mudança normativa que a fase precisou (P4-9) entrou por `spec-change` próprio, mergeado **antes**, e a âncora foi regravada no mesmo passo |
+| os quatro invariantes arquiteturais | seis verificadores em `rc=0` **e todos reprovando contra violação plantada** |
+| `05` §6 e §8 | bind em `127.0.0.1` em toda porta publicada; middleware ASGI **falha fechado** cobrindo `http` **e** `websocket`; públicas são exatamente as quatro que `05` §8 isenta |
 
 ---
 
-## 7. Próxima fase
+## 8. O que a fase aprendeu sobre o próprio método
+
+### 8.1 A leitura de entrada filtra duas vezes, e as duas tinham o mesmo ponto cego
+
+`05` §4 exige o banner *"em toda tela e no rodapé de todo artefato gerado"*. **As
+três telas da fase não o tinham**, e a ausência atravessou sete peças. A pergunta
+que interessa não é por que alguém esqueceu — é **por que nada apontava para lá**.
+
+A resposta é mecânica, e são dois filtros em série:
+
+| Filtro | O que ele fez |
+|---|---|
+| **o gatilho**, em `CLAUDE.md` | *"Leia `05` sempre que a fase tocar execução, dados, evidências, telemetria, autenticação ou deploy."* São **seis** frentes, e **nenhuma é "produz tela"** |
+| **a leitura**, na §1 deste registro | `05` foi lida — e lida *"por três frentes ao mesmo tempo: §8, §6 e T15"*. Por **seção**, e as seções foram as que o gatilho apontava |
+
+A fase leu `05` três vezes e nunca leu a §4. **Não houve descuido em nenhum dos
+dois passos**: cada um fez exatamente o que estava escrito, e o que estava escrito
+tinha um buraco do tamanho de uma seção.
+
+**A lição não é "ler a spec inteira".** Ler `05` inteiro em toda fase é a
+prescrição que a disciplina de leitura de `CLAUDE.md` existe para evitar — e é a
+que se abandona na terceira fase. A lição é que **um gatilho enumerado envelhece
+contra um documento que também é enumerado**, e ninguém percebe porque os dois
+parecem completos.
+
+O que ficou fechado é a §4 para telas, com verificador. O que **não** ficou
+fechado é a propriedade — três das oito seções de `05` seguem sem verificador que
+as nomeie e **sem nada declarando que a ausência é deliberada**, que é exatamente
+o estado em que a §4 estava. É a **P4-12**.
+
+### 8.2 Afirmação que nasce falsa não é a §1.6 — e esta fase repetiu a classe três vezes
+
+`WORKFLOW.md` dizia *"falha de rede no lançador falha ALTO; nenhum dos três
+degrada para 'segue sem'"*. Contado agora na fonte: **uma** das quatro etapas
+aborta e **três** seguem. E a frase **já era falsa quando foi escrita** — a stack
+efêmera degrada para `AUSENTES` desde a própria P2-19 que a criou.
+
+**A distinção com a §1.6 é o valor desta lição, e ela é operacional.** A §1.6
+trata de afirmação que *era verdadeira e envelheceu*: o antídoto é reler no
+momento em que a coisa muda, e ele funciona. Esta é outra: **nunca foi
+verdadeira**, e por isso reler não a pega — reler confirma que ela continua
+dizendo o que dizia. O que a pega é **contar**.
+
+E ela sobreviveu por um caminho específico que vale nomear: **foi propagada ao
+ser estendida.** Quem acrescentou a quarta linha à tabela não reexaminou as três —
+converteu *"nenhum dos três"* em *"três dos quatro"*, herdando a asserção sem
+conferi-la. Estender é o momento em que uma afirmação parece mais confiável do que
+nunca, porque já está escrita.
+
+**Esta classe ocorreu três vezes nesta fase, e a regra já existia:** o L1 da
+terceira auditoria da Fase 3 diz que *número afirmado diz de que conjunto é, e é
+contado na fonte dele no momento em que se escreve*.
+
+| | Onde | O erro |
+|---|---|---|
+| 1 | D8 — *"as três tabelas"* | contado na lista de entidades; a pendência nomeava **quatro** |
+| 2 | os probes da P4-10 — *"onze eixos"*, *"nove destes dez"* | não recontados quando dois eixos novos entraram |
+| 3 | `WORKFLOW.md` — a severidade das quatro etapas | nunca contado, e propagado ao ser estendido |
+| 4 | a §6.1 — *"sete fechadas, seis abertas"* | são **dez e oito**. Escrito **neste commit**, na frase que abre o inventário do fechamento |
+
+**A quarta merece ficar, e não ser apagada.** Ela foi cometida dentro do commit
+que escreve esta seção, por quem acabara de enumerar as três anteriores — e foi
+pega do único jeito que pega: contando na tabela, com um script, em vez de
+relendo a frase. Reler não pegaria nenhuma das quatro; releitura confirma que a
+frase continua dizendo o que dizia.
+
+**Quatro ocorrências de uma regra que está escrita significam que ela é regra, e
+não impedimento** — a distinção da §1.6 da Fase 1. Não vira gate: um verificador
+que cruzasse número em prosa com o conjunto que ele descreve teria de decidir o
+que uma frase em português afirma, e o custo de errar é falso bloqueio em
+comentário. O que dá para fazer é mais barato e cabe no procedimento, em duas
+linhas:
+
+- **quando um número afirmado for estendido, o conjunto inteiro é recontado** — e
+  não só o item novo, que foi como a terceira sobreviveu;
+- **número que descreve um conjunto que o repositório contém é contado pelo
+  repositório** — a quarta levou um `re.match` sobre a própria tabela, e nenhuma
+  das quatro teria passado por isso.
+
+### 8.3 O diagnóstico corrigiu a própria correção
+
+O lançador descartava a saída das duas etapas da stack e derrubava os containers
+logo depois: a causa morria duas vezes. A correção grava tudo em `stack.log` e
+imprime **antes** da derrubada.
+
+**E a primeira execução dela mostrou que ela não entregava o que prometia.**
+Medido: **205 linhas no arquivo, com a causa na 133**, e o `tail -30` na tela
+mostrando boot de Postgres. O `ps` e o `logs` anexados pelo próprio diagnóstico
+empurraram o traceback para fora da janela.
+
+**Isto é a §7.3.2 da Fase 3 — o caminho que se vai entregar, rodado antes de
+entregar — acontecendo dentro do mecanismo escrito para consertar diagnóstico.** E
+essa é a parte que merece registro: o defeito não é ter escrito o `tail` errado; é
+que **um mecanismo de diagnóstico é exatamente o tipo de coisa que se acredita
+correta por leitura**, porque o que ele produz é texto, e texto parece autoevidente.
+Diagnóstico que existe e não chega a quem lê é a mesma perda, com mais passos.
+
+Ele foi pego por ser rodado nas duas direções contra o bloco real extraído do
+arquivo entregue — e não por revisão.
+
+### 8.4 A mesma fronteira mordeu três vezes, nos dois lados e no teste
+
+Codificação de texto entre processos, na P4-10:
+
+| | |
+|---|---|
+| o **gravador** não decodificava a saída do compose | e no Windows a exceção morre na thread leitora: `subprocess.run` devolvia **saída vazia com `rc=0`**. Uma prova verde e **muda**, que o verificador aprovava |
+| o **verificador** não codificava a evidência de volta | `UnicodeEncodeError` e `rc=1` **sobre evidência legítima**. Verificador que morre não diz "reprovou" — não diz nada |
+| o **eixo escrito para a segunda** herdou a mesma suposição | o probe forçava `cp1252` no filho e lia como UTF-8; passava no Windows e **morria no runner Linux** |
+
+**As três são a mesma classe, e nenhuma foi vista por leitura.** A primeira é a
+pior: ela transformaria um NÃO VERIFICADO honesto num verde que *parece* ter
+evidência.
+
+Duas coisas ficam disso. **A primeira**: quando um defeito atravessa uma fronteira
+de serialização, procure-o **nos dois lados e no teste** — a suposição que errou
+de um lado é a mesma que se escreve do outro. **A segunda**: a terceira só apareceu
+porque o CI roda em outra plataforma. *"Verifiquei localmente"* não é
+insuficiente por desleixo aqui — é insuficiente **estruturalmente**, porque o
+Windows é justamente onde `cp1252` decodifica.
+
+**E os eixos ficaram nos probes depois de as causas serem corrigidas**, porque o
+que se verifica não é a causa: é que a evidência tenha conteúdo e que quem julga
+consiga imprimi-la. Perder a saída tem mais de uma forma, e a próxima não vai ser
+a codificação.
+
+### 8.5 O auditor é a única camada que executa sem interesse no resultado
+
+A rodada degradada mediu **22% menos** — 73 dos 335 testes pularam. O risco
+material era baixo e estava medido: os mesmos 73 rodaram verdes no CI, **sobre o
+mesmo SHA**, e isso é consultável fora do commit.
+
+**A rodada extra foi feita assim mesmo, e o motivo não era o risco.** Era que este
+projeto passou três fases recusando *"provavelmente está certo"* como fecho, e a
+P2-19 existiu exatamente para que pulo não fosse lido como verde. Fechar a fase
+mais importante com a degradação declarada no relatório, **tendo a correção ao
+alcance**, seria a exceção que o resto do método não admitiu.
+
+**E ela comprou uma coisa que o CI não vende.** A "ordem de defesa" de
+`WORKFLOW.md` dava ao auditor o papel de *verificar se o teste prova o requisito* —
+leitura crítica sobre execução alheia. O que esta rodada mostra é um terceiro
+papel, de **execução**: os 73 foram exercitados por **quem não os escreveu**, num
+ambiente que quem implementou não configurou. Verde de CI é evidência real, e é
+evidência produzida pelo pipeline de quem implementou.
+
+Hook, CI e auditor deixam de ser três intensidades da mesma coisa: o hook impede,
+o CI mede o que foi declarado, e o auditor é a única camada onde o teste roda sem
+que ninguém tenha interesse no resultado.
+
+### 8.6 O que se decidiu não fazer, e por que isso é parte do método
+
+Três mecanismos foram **recusados** nesta fase, cada um com o motivo escrito no
+commit que os recusou — e a recusa registrada vale tanto quanto a adoção:
+
+| | Recusado | Motivo |
+|---|---|---|
+| **P4-10 opção B** | `docker` na allowlist do auditor | poria rede e execução de container na mão do julgador — a P2-19 exatamente, e ela não mudou de fundamento |
+| **allowlist** | `grava_provas_de_container` | ele sobe container. A exclusão é **provada por probe**, e não escrita em comentário |
+| **single-flight** (D22) | cache frio | medido: com um worker, 20 leituras simultâneas dão **1** reconstrução. Mecanismo sem consumidor custou caro duas vezes nesta linhagem |
+
+---
+
+## 9. Próxima fase
 
 `07` Fase 5 — **Dados e auditoria ⏸**. ENTRY: Fase 4 completa.
