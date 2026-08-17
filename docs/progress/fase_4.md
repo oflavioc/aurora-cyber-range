@@ -2624,6 +2624,16 @@ decide com ela é a terceira ocorrência desta forma nesta linhagem.
   o dele. A procedência é melhor que a de uma frase de registro — há SHA, há
   saída íntegra, e o texto é o dos próprios scripts —, e continua sendo leitura.
   Está impresso no caminho de aprovação, e não só aqui.
+- **`--headless` do lançador nunca rodou, e isso passou a ser limite escrito.**
+  Contado em `audit_log.jsonl` e não lembrado: 26 rodadas `interactive`, 3
+  `subagent`, 42 anteriores ao campo, **zero `headless`**. Caminho que existe e
+  nunca rodou é atestação esperando acontecer, e a regra que sai disso é que a
+  primeira execução dele **não pode ser numa rodada que decide fase** — estrear o
+  modo no checkpoint de fechamento troca duas variáveis de uma vez, e um FAIL
+  passaria a ter duas leituras não separáveis. `WORKFLOW.md` §"`--headless`
+  existe, tem código, e NUNCA rodou" tem a forma inteira, com a segunda razão:
+  em headless quem implementou continua vivo enquanto o auditor mede, e a corrida
+  da árvore compartilhada volta justamente na janela em que ninguém olha.
 - **A saída é dos scripts, e os scripts podem estar errados.** Isso não muda: eles
   são código do commit auditado e o auditor pode lê-los, que é o mesmo estatuto
   do `demo_fase2.py` desde a Fase 2.
