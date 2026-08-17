@@ -2757,6 +2757,7 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume | **condição** — ver abaixo |
 | P4-9 | ~~a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change`~~ | ✅ **FECHADA** pelo `spec-change` mergeado em `486df18` |
 | P4-10 | ~~itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor~~ | ✅ **FECHADA** com a opção A (§4.11) |
+| P4-11 | o hook que restringe o auditor é sincronizado a partir da árvore que ele audita | **condição** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -3203,6 +3204,142 @@ decide.
 > **O gravador ficou FORA da allowlist, e a exclusão é provada e não escrita.**
 > É a mesma forma da D15: a decisão de admissão acontece no commit que cria o
 > mecanismo, e o resultado dela pode ser "não".
+
+#### P4-11 — o hook que restringe o auditor vem da árvore que ele audita
+
+**L1 da segunda auditoria, e o auditor está certo no ponto estrutural.**
+`CLAUDE.md` tira a definição do subagente do repositório com uma frase explícita
+— *"um auditor definido pelo commit que ele audita pode ser enfraquecido por esse
+mesmo commit"*. A definição saiu; **o hook não**. `readonly_bash.py` é versionado
+em `user-scope/hooks/`, `bootstrap.sh` o copia para `~/.claude/hooks/`, e o
+próprio harness prova que as duas cópias são **idênticas**. Ou seja: o commit sob
+auditoria alterou, de fato, a regra que constrangeu aquela sessão.
+
+**Por que é LOW e não mais, e a nota está certa:** a direção da mudança é de
+**ampliação de verificação** — entraram dois verificadores read-only —, nenhuma
+escrita escapou (`phase0_negative_tests` fecha em *"0 escritas nao bloqueadas"*),
+e cada exclusão é **provada por probe** e não afirmada em comentário: o gravador
+da P4-10 e o `reancorar_sessao` são exercidos bloqueados. O auditor confirmou
+empiricamente, e a confirmação vale mais que o argumento: o `2>tests_verbose.txt`
+dele foi recusado durante a própria sessão.
+
+**O que fica aberto é a estrutura, e não este commit.** Enquanto o hook morar na
+árvore auditada, a propriedade que `CLAUDE.md` nomeia vale por **disciplina da
+direção da mudança**, e não por mecanismo — e disciplina é regra, não
+impedimento, que é a distinção da §1.6 da Fase 1.
+
+**Vencimento: condição, e não marco** — *o primeiro commit de fase que alterar
+`user-scope/hooks/readonly_bash.py` em direção que não seja estritamente
+aditiva*. Aditivo é entrada nova de verificador read-only, com prova negativa ao
+lado. Não é aditivo: remover regra de `DENIED_ANYWHERE`, afrouxar
+`_alvo_nao_contido`, admitir comando com forma de escrita, ou alargar a
+ancoragem de um padrão existente.
+
+**A saída não é óbvia, e por isso a pendência não a prescreve.** Tirar o hook do
+repositório o poria fora de revisão de PR e fora do CI — o inverso do problema, e
+pior: a allowlist deixaria de ser auditável por quem lê o diff. As formas que
+merecem exame quando a condição ocorrer são outras duas: **comparar a allowlist
+do commit contra a da âncora** dentro do próprio lançador, recusando redução sem
+declaração; ou **pinar a cópia instalada** à da branch default em vez de à do
+commit candidato. As duas têm custo e nenhuma foi medida.
+
+---
+
+## 4.12 A segunda auditoria do candidato — PASS, e a rodada que mediu 22% menos
+
+**PASS sobre `3a5ee71`**, sem BLOCKER, HIGH nem MEDIUM. Os seis itens da DoD com
+evidência executável, o par de T5 provado nos dois casos atravessando
+`docker restart`, e um LOW — a P4-11 acima.
+
+**A P4-10 entregou exatamente o que ela comprou, e o relatório é a prova.** Nas
+palavras do auditor: *"eu julgo o mecanismo e o vínculo, não a execução"*. Os
+itens 1 e 4, NÃO VERIFICADO na primeira rodada, voltaram PASS com o SHA conferido
+contra o `HEAD` dele — e ele checou os treze eixos do verificador antes de aceitar
+o arquivo, em vez de aceitá-lo por existir.
+
+### O que não estava certo: a rodada foi degradada
+
+**73 dos 335 testes pularam** — 22% da suíte —, porque a stack efêmera falhou no
+`alembic upgrade head`. Com a stack no ar a suíte tem **zero** pulos. A rodada
+que decidiria a fase mais importante do projeto mediu menos que uma rodada
+normal.
+
+**O auditor agiu certo:** declarou o fato em *"o que eu não consegui verificar"*.
+O mecanismo da P2-19 funcionou na metade que é dele — o pulo foi **declarado**, e
+não lido como verde.
+
+**O defeito estava no lançador**, e ele é o buraco de diagnóstico que a peça 7 já
+fechou uma vez no CI:
+
+| | |
+|---|---|
+| as duas etapas mandavam a saída para `/dev/null` | a causa morria no descarte |
+| o ramo de falha chamava `derruba_stack` em seguida | e morria de novo, com os containers que a explicariam |
+
+Sobrou a frase *"migration falhou"*. É a mesma lição do `container aurora-range-api exited (1)`
+sem log, **com o preço maior**: lá custava um job vermelho que se reroda; aqui
+custa uma rodada degradada que **ainda assim emite veredito**.
+
+### E ela não foi reproduzível — que é o dado que justifica o mecanismo
+
+Depois da rodada, a stack foi subida e a migration rodada **duas vezes** — da
+árvore principal e de dentro do worktree, com o python do venv da auditoria —, e
+as duas saíram `rc=0`, aplicando as duas revisões. **Não reproduzível com a
+informação que sobrou.**
+
+Isto está escrito porque sem ele a correção lê como precaução, e ela é
+**consequência**: sem a saída daquele momento não há como distinguir corrida de
+porta, bind transitório e defeito de verdade — e cada hipótese custa uma rodada
+de auditoria inteira.
+
+**Não foi a mudança da P4-10, e isso é dito com a evidência e não com a
+afirmação:** a migration é a linha 296 do lançador e o bloco das provas de
+container é a 343. A falha ocorreu antes de aquele código rodar.
+
+### A correção, exercida nas duas direções
+
+`diagnostica_stack` grava em `.aurora-worktrees/stack.log` — fora do worktree,
+pelo mesmo motivo do `pip.log` do venv — e tem duas propriedades, cada uma
+fechando um caminho pelo qual a causa morreria assim mesmo:
+
+1. **imprime antes de `derruba_stack`.** Invertida a ordem, `ps` e `logs` medem
+   containers que já não existem, e o resultado é um arquivo vazio;
+2. **aparece quando o lançador SEGUE**, e não só quando aborta — esta falha é de
+   severidade baixa por decisão, então o caminho em que ela aparece é sempre o de
+   seguir.
+
+**E a primeira execução do bloco corrigiu a própria correção.** Medido: o arquivo
+tinha **205 linhas com a causa na 133**, e o `tail -30` na tela mostrava boot de
+Postgres. O diagnóstico existia e não chegava a quem lê, que é a mesma perda com
+mais passos — a terceira ocorrência dessa forma nesta linhagem. A causa passou a
+ir para a tela **antes** de `ps` e `logs` serem anexados; o estado dos containers
+fica no arquivo.
+
+**As duas direções, rodadas contra o bloco real extraído do arquivo entregue:**
+
+| Direção | Resultado |
+|---|---|
+| a stack sobe e a migration aplica | `ATIVOS`, e nada é impresso |
+| a migration aponta para porta sem serviço | `sqlalchemy.exc.OperationalError: (psycopg.errors.ConnectionTimeout) connection timeout expired` **na tela**, `ps` e `logs` no arquivo, e o lançador segue com `rc=0` |
+
+### A decisão: rodada extra, e o motivo não é o risco
+
+**O risco material é baixo e está medido:** os 73 testes que o auditor não pôde
+rodar **rodaram verdes sobre este mesmo SHA** no job `contratos`, com Postgres e
+Redis reais — `Ran 335 tests / OK`, sem pulo, run `32071519577`. Isso é
+consultável **fora do commit**, que é a distinção que o L1 da primeira auditoria
+cobrou.
+
+**A decisão do operador foi rodar de novo assim mesmo, e o argumento é de
+método:** este projeto passou três fases recusando *"provavelmente está certo"*
+como fecho, e a P2-19 existiu exatamente para que pulo não fosse lido como verde.
+Fechar a fase mais importante com a degradação declarada no relatório, **tendo a
+correção ao alcance**, seria a exceção que o resto do método não admitiu.
+
+**E o ganho é concreto, e não simbólico:** com o diagnóstico fechado antes, a
+rodada extra ou passa com a suíte inteira — PASS integral —, ou falha e a saída
+da migration diz por quê. Nos dois casos ela produz informação que a de hoje não
+produziu.
 
 ---
 

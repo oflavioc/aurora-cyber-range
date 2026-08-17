@@ -195,17 +195,69 @@ de uma vez. A saída foi o lançador subir a stack efêmera.
 | `pip install -e <worktree>` num venv próprio | sem ele, `range_core` resolve pela árvore principal — P3-4, abaixo |
 | **as provas de container do commit auditado** | o DEMO ponta a ponta e o reinício de container exigem Docker, e o auditor não o tem — P4-10, abaixo |
 
-**Falha de rede no lançador falha ALTO — em três dos quatro.** O caso da P3-4 é o
-mais direto: auditoria que roda contra o núcleo da árvore principal porque o `pip`
-falhou em silêncio é pior que auditoria que não roda — ela produz veredito, e o
-veredito é sobre outro commit.
+**O critério de severidade é um só, e ele decide as quatro:** *falha ALTO o que
+faria o veredito **falar de outra coisa**; falha BAIXO o que faria o veredito
+**dizer menos**.* A primeira é um veredito errado com cara de certo; a segunda é
+um veredito incompleto que se declara incompleto.
 
-**A quarta falha BAIXO, e a assimetria é decisão e não descuido.** Sem as provas
-de container, os dois itens de DoD que elas sustentam voltam a ser NÃO
-VERIFICADO — incompleto, e não errado. Derrubar a auditoria inteira por falta de
-Docker trocaria um veredito parcial por nenhum. A diferença entre as duas
-severidades é essa, e ela é o critério: **falha alto o que faria o veredito falar
-de outra coisa; falha baixo o que faria o veredito dizer menos.**
+Contadas no código, e não lembradas — **uma** aborta e **três** seguem:
+
+| Etapa | Falha | Consequência declarada |
+|---|---|---|
+| `pip install -e <worktree>` | **ALTO** — `exit 1` | sem o venv, os testes rodam contra o núcleo da árvore principal: o veredito seria **sobre outro commit** |
+| `git fetch origin main` | segue, com aviso | a base pode estar desatualizada; o SHA dela vai no prompt e o auditor sabe contra o que compara |
+| `docker compose up` da stack efêmera | segue, `SERVICOS=AUSENTES` | os testes de serviço **pulam**, e o prompt diz isso ao auditor para que o pulo não seja lido como verde |
+| as provas de container | segue, com aviso | os itens 1 e 4 voltam a **NÃO VERIFICADO** |
+
+> **A frase que estava aqui dizia *"falha de rede no lançador falha ALTO — nenhum
+> dos três degrada para 'segue sem'"*, e ela era falsa quando escrita.** A stack
+> efêmera degrada para `AUSENTES` desde a própria P2-19 que a criou, e o `git
+> fetch` sempre avisou e seguiu. A frase descrevia o caso da P3-4 e generalizava
+> para os outros dois sem contá-los — e a versão seguinte, ao acrescentar a
+> quarta linha, propagou o erro como *"três dos quatro"*.
+>
+> É a §1.6 e o L1 da terceira auditoria da Fase 3 na mesma linha: **número
+> afirmado diz de que conjunto é, e é contado na fonte dele no momento em que se
+> escreve.** O que estava certo o tempo todo era o critério; o que faltava era
+> tê-lo aplicado às quatro etapas em vez de a uma.
+
+### Falha que degrada precisa dizer POR QUÊ — e as três degradam
+
+**Degradar é decisão; degradar em silêncio é defeito.** As três linhas que seguem
+acima entregam ao auditor um veredito que diz menos — e ele só é honesto se o
+operador puder saber *por quê* a rodada mediu menos.
+
+Foi a rodada de **17/08/2026**: a stack subiu, `alembic upgrade head` falhou, e
+**73 dos 335 testes pularam** — 22% da suíte, na rodada que decidia a Fase 4. As
+duas etapas mandavam a saída para `/dev/null`, e o ramo de falha chamava
+`derruba_stack` logo depois: **a causa morria duas vezes**, no descarte e na
+remoção dos containers que a explicariam. Sobrou a frase *"migration falhou"*.
+
+**E ela não foi reproduzível com o que sobrou** — a stack foi subida e a migration
+rodada duas vezes depois, das duas árvores, `rc=0` nas duas. É esse fato que
+justifica o mecanismo em vez de precaução: sem a saída daquele momento não há como
+distinguir corrida de porta, bind transitório e defeito de verdade, e **cada
+hipótese custa uma rodada de auditoria inteira**.
+
+É a mesma lição que a peça 7 da Fase 4 já aprendeu no CI — *"falha de container
+sem log é falha que só se diagnostica por adivinhação"* —, com o preço maior: lá
+custava um job vermelho que se reroda; aqui custa uma rodada degradada que **ainda
+assim emite veredito**.
+
+`diagnostica_stack` grava em `.aurora-worktrees/stack.log`, fora do worktree pelo
+mesmo motivo do `pip.log`, e tem duas propriedades que não são a mesma:
+
+1. **imprime ANTES de `derruba_stack`** — invertida a ordem, `ps` e `logs` medem
+   containers que já não existem, e a causa morre pelo caminho que o mecanismo
+   existe para fechar;
+2. **aparece quando o lançador SEGUE**, e não só quando aborta — as três etapas
+   que degradam seguem por desenho, então esse é o único caminho em que ela
+   aparece.
+
+**A primeira execução do bloco corrigiu a própria correção:** medido, o arquivo
+tinha 205 linhas com a causa na 133, e o `tail` na tela mostrava boot de Postgres.
+Diagnóstico que existe e não chega a quem lê é a mesma perda com mais passos. A
+causa passou a ir para a tela **antes** de `ps` e `logs` serem anexados.
 
 ### As provas de container, e por que elas não são atestação — P4-10
 

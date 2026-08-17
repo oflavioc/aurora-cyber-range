@@ -284,27 +284,97 @@ derruba_stack() {
   docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" down --remove-orphans >/dev/null 2>&1 || true
 }
 
+# ---------------------------------------------------------------------------
+# O DIAGNOSTICO DA STACK, E POR QUE ELE EXISTE — a rodada de 17/08/2026.
+#
+# A auditoria do commit `3a5ee71` rodou com `alembic upgrade head` falhando: a
+# stack subiu, a migration nao, e 73 dos 335 testes PULARAM — 22% da suite, na
+# rodada que decidia a fase mais importante do projeto. O auditor declarou o
+# fato e emitiu PASS, que e o comportamento certo dele.
+#
+# O DEFEITO ESTAVA AQUI. As duas etapas mandavam a saida para `/dev/null`, e o
+# ramo de falha chamava `derruba_stack` logo em seguida: a causa morria duas
+# vezes — uma no descarte, outra na remocao dos containers que a explicariam.
+# Tudo o que sobrou foi a frase "migration falhou".
+#
+# E ELA NAO FOI REPRODUZIVEL. Depois da rodada, a stack foi subida e a migration
+# rodada DUAS vezes — da arvore principal e de dentro do worktree, com o python
+# do venv da auditoria —, e as duas saiam `rc=0`, aplicando as duas revisoes.
+# **Nao reproduzivel com a informacao que sobrou** e o dado que justifica este
+# bloco: sem ele, nao ha como distinguir corrida de porta, bind transitorio e
+# defeito de verdade, e cada hipotese custa uma rodada de auditoria inteira.
+#
+# E A MESMA LICAO QUE A PECA 7 JA APRENDEU NO CI, com o preco maior aqui: la, o
+# `container aurora-range-api exited (1)` sem log custava um job vermelho que se
+# reroda; aqui custa uma rodada DEGRADADA que ainda assim emite veredito.
+#
+# DUAS PROPRIEDADES, e as duas foram exigidas pelo operador porque cada uma
+# fecha um caminho pelo qual a causa morreria assim mesmo:
+#
+#   1. IMPRIME ANTES DE `derruba_stack`. Invertida a ordem, o `ps` e o `logs`
+#      medem containers que ja nao existem, e o resultado e um arquivo vazio —
+#      a mesma perda por outro caminho.
+#   2. APARECE QUANDO O LANCADOR SEGUE, e nao so quando ele aborta. Esta falha
+#      e de severidade BAIXA por decisao (WORKFLOW.md: falha alto o que faria o
+#      veredito falar de outra coisa; falha baixo o que faria o veredito dizer
+#      menos) — entao o caminho em que ela aparece e, sempre, o de seguir.
+#
+# O arquivo fica em `.aurora-worktrees/`, FORA do worktree e ja ignorado pelo
+# Git, pelo mesmo motivo do `pip.log` do venv: o worktree e o objeto da
+# auditoria, e um log dentro dele apareceria em toda listagem do auditor.
+# ---------------------------------------------------------------------------
+STACK_LOG="$ROOT/.aurora-worktrees/stack.log"
+rm -f "$STACK_LOG"
+
+diagnostica_stack() {
+  MOTIVO="$1"
+  # A CAUSA VAI PARA A TELA PRIMEIRO, e ela e o que JA esta no log: a saida do
+  # comando que falhou. Anexar `ps` e `logs` antes de imprimir empurraria o
+  # traceback para fora da janela do `tail` — MEDIDO na primeira execucao deste
+  # bloco: 205 linhas no arquivo, com a causa na 133, e o `tail -30` mostrando
+  # boot de Postgres. Diagnostico que existe e nao chega a quem le e a mesma
+  # perda, com mais passos.
+  echo "AVISO: $MOTIVO. A auditoria SEGUE, e os testes de servico vao PULAR." >&2
+  echo "       A causa, do proprio comando que falhou:" >&2
+  echo "       ---------------------------------------------------------------" >&2
+  tail -n 25 "$STACK_LOG" >&2 || true
+  echo "       ---------------------------------------------------------------" >&2
+  # O ESTADO DOS CONTAINERS vai para o arquivo, e ANTES de `derruba_stack`:
+  # depois dela, `ps` e `logs` medem containers que ja nao existem.
+  {
+    echo "=== $MOTIVO"
+    echo "--- docker compose ps --all"
+    docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" ps --all 2>&1 || true
+    echo "--- docker compose logs --tail 60"
+    docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" logs --no-color --tail 60 2>&1 || true
+  } >>"$STACK_LOG" 2>&1 || true
+  echo "       Estado dos containers e log completo em: $STACK_LOG" >&2
+}
+
 # `--wait` exige compose v2.1.1+. Versao antiga cai no ramo "AUSENTES",
 # que e o comportamento certo: melhor declarar que nao subiu do que
 # seguir com servico ainda subindo e colher falha intermitente.
 if docker compose version >/dev/null 2>&1 && [ -f "$COMPOSE_AUDIT" ]; then
   echo "Subindo a stack efemera da auditoria (Postgres + Redis)..."
-  if docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" up -d --wait >/dev/null 2>&1; then
+  if docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" up -d --wait >>"$STACK_LOG" 2>&1; then
     STACK_ATIVA=1
     # A migration le `DATABASE_URL`; os testes leem `AURORA_TEST_*`. Sao duas
     # variaveis de proposito, e o CI faz exatamente isto.
-    if DATABASE_URL="$AURORA_AUDIT_DB" python -m alembic upgrade head >/dev/null 2>&1; then
+    if DATABASE_URL="$AURORA_AUDIT_DB" python -m alembic upgrade head >>"$STACK_LOG" 2>&1; then
       export AURORA_TEST_DATABASE_URL="$AURORA_AUDIT_DB"
       export AURORA_TEST_REDIS_URL="redis://127.0.0.1:16379/1"
       SERVICOS="ATIVOS — Postgres e Redis efemeros no ar, migration aplicada. Os testes que dependem de servico VAO RODAR; skip aqui e defeito, nao ausencia de ambiente."
     else
+      # O DIAGNOSTICO VEM ANTES DA DERRUBADA. Invertido, o `logs` mede
+      # containers removidos e a causa morre pelo caminho que este bloco
+      # existe para fechar.
+      diagnostica_stack "a stack subiu e 'alembic upgrade head' FALHOU"
       derruba_stack
-      SERVICOS="AUSENTES — a stack subiu e 'alembic upgrade head' falhou. Os testes de Postgres e Redis vao PULAR."
-      echo "AVISO: migration falhou; seguindo sem servicos." >&2
+      SERVICOS="AUSENTES — a stack subiu e 'alembic upgrade head' falhou. Os testes de Postgres e Redis vao PULAR. Diagnostico em $STACK_LOG."
     fi
   else
-    SERVICOS="AUSENTES — 'docker compose up' falhou. Os testes de Postgres e Redis vao PULAR."
-    echo "AVISO: nao foi possivel subir a stack efemera; seguindo sem ela." >&2
+    diagnostica_stack "'docker compose up --wait' FALHOU"
+    SERVICOS="AUSENTES — 'docker compose up' falhou. Os testes de Postgres e Redis vao PULAR. Diagnostico em $STACK_LOG."
   fi
 else
   SERVICOS="AUSENTES — nao ha Docker nesta maquina. Os testes de Postgres e Redis vao PULAR."
