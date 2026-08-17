@@ -546,12 +546,22 @@ jobs:
       # deste workflow — a propriedade "nenhum passo aqui mascara falha" vale
       # mais que uma limpeza que ninguem precisa.
       # ---------------------------------------------------------------------
+      # OS DOIS SEGREDOS SAO EFEMEROS E TEM TAMANHO MINIMO, e o minimo nao e
+      # decoracao: a primeira execucao real deste job morreu aqui, com
+      # `AURORA_JWT_SECRET tem 28 caracteres, e o minimo e 32`. O valor local de
+      # quem escreveu tinha 39, e por isso a stack subia na maquina dele e nao no
+      # runner — a forma exata de atestacao que esta fase recusa em todo lugar.
+      #
+      # A guarda estava certa e o CI estava certo: chave curta e quebrada offline
+      # a partir de um unico token capturado. Sao valores descartaveis que nao
+      # saem deste job, como a senha do Postgres de servico — `05` §8 proibe
+      # senha trivial REUTILIZAVEL, e estas nao servem para mais nada.
       - name: a stack de containers sobe, com as duas APIs
         env:
           AURORA_PG_PORT: "15432"
           AURORA_REDIS_PORT: "16379"
           AURORA_GM_PASSWORD: credencial-efemera-do-job-de-ci
-          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci
+          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci-nao-reutilizavel
           RANDOM_SEED: "20260817"
         run: docker compose up -d --build --wait range-api academus-api
 
@@ -563,7 +573,7 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://aurora:efemero-do-job-de-ci@127.0.0.1:15432/aurora
           AURORA_GM_PASSWORD: credencial-efemera-do-job-de-ci
-          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci
+          AURORA_JWT_SECRET: segredo-efemero-do-job-de-ci-nao-reutilizavel
         run: python scripts/demo_fase4.py
 
       # ITEM 4 DA DoD E O PAR DE T5, atravessando `docker restart` — e nao um
