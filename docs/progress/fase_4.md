@@ -322,6 +322,14 @@ reinicia**, e esse momento é esta fase. Fase que torna uma linha normativa fals
 Escopo: as três tabelas e a migration. **Sem seed** — `07` Fase 5 é dona do
 *"seed em escala com bulk insert"* e do determinismo por `RANDOM_SEED` (T8).
 
+> **"As três tabelas" estava errado, e são quatro — corrigido na peça 5.** O
+> número veio das três entidades que `07` Fase 3 nomeia, e a P3-5 nomeia
+> **quatro** dicionários de módulo: `MATRICULAS` é um deles. **A decisão foi
+> escrita assim e ratificada assim**, pelas duas partes, sem conferir contra a
+> pendência que ela fechava — e é a mesma classe do L1 daquela auditoria: *número
+> afirmado diz de que conjunto é, e é contado na fonte dele no momento em que se
+> escreve*. Aqui a fonte era a pendência, e não a lista de entidades.
+
 **Os seis registros do DEMO não são seed, e a distinção precisa ser dita**
 porque ela vai parecer arbitrária: seed é dataset em escala, determinista e
 verificável por T8; seis linhas para que a matrícula tenha o que matricular são
@@ -438,9 +446,7 @@ propriedades vão para teste: nenhuma flag fora do default dá **100**; peso mai
 baixa mais; e o número é reprodutível a partir de `flags.yaml` mais o estado —
 sem nada guardado em lugar nenhum.
 
-### D15 — a corrida da árvore compartilhada ganha impedimento, e não convenção — **PROPOSTA**
-
-**Nada implementado. Esta seção é a proposta, e ela aguarda o operador.**
+### D15 — a corrida da árvore compartilhada ganha impedimento, e não convenção — **APROVADA, e implementada**
 
 A corrida de `WORKFLOW.md` §"Árvore de trabalho compartilhada" ocorreu **três
 vezes**, e as três foram pegas por alguém lembrar de conferir. Detecção por
@@ -505,10 +511,48 @@ compartilhado e pode atropelar uma troca deliberada do operador.
 
 **Custo:** um `git symbolic-ref` por `Write`/`Edit`, na casa de milissegundos.
 
-**Onde moraria:** `user-scope/hooks/`, instalado por `bootstrap.sh`, como o guarda
-de branch — e com harness nas três direções em `scripts/phase0_negative_tests.py`,
-que é onde as provas dos dois hooks já vivem: bloqueia na default, libera na
-branch de trabalho, e bloqueia depois de troca sem re-ancoragem.
+**Onde mora:** `user-scope/hooks/sentinela_de_branch.py`, instalado por
+`bootstrap.sh` em `~/.claude/hooks/` e ligado em `~/.claude/settings.json` por
+merge idempotente.
+
+**Fora da árvore, e o argumento ficou mais forte ao implementar.** A proposta
+dizia "como o guarda de branch"; ao escrever, o motivo se mostrou uma variante
+direta do que tira o auditor daqui: **um guarda que mora na árvore que ele guarda
+desaparece com ela.** Em `.claude/hooks/`, um `checkout` para um commit anterior
+a D15 levaria junto o hook **e** a configuração dele — exatamente na situação
+para a qual ele existe. `check_architecture.py` pode morar lá porque ele julga o
+*conteúdo* do que se escreve; este julga *onde* se escreve, e a resposta depende
+de o guarda existir depois de `HEAD` se mover.
+
+**O custo disso, e o que o paga:** hook de escopo de usuário vale para toda a
+máquina, e recusar escrita em `main` seria errado na maioria dos projetos. Ele se
+auto-escopa por `docs/spec/00_MASTER_SPEC.md` na raiz do repositório e sai calado
+fora daqui — e há probe para essa direção.
+
+**Falha aberta na infraestrutura, fechada na propriedade.** Entrada ilegível,
+`git` ausente, alvo fora de repositório, `HEAD` destacado, projeto que não é este:
+**sai 0**, porque são os casos em que o hook não sabe — e um hook global que
+derrubasse a sessão por não saber seria pior que o problema. As duas condições que
+ele conhece saem **2**. A lista de "sai 0" é explícita em vez de ser o `except` do
+fim, porque `WORKFLOW.md` classifica bloqueio indevido como defeito.
+
+**A re-ancoragem exige o nome digitado**, e a mensagem de recusa **não** traz o
+comando pronto para colar — o nome aparece no diagnóstico, e quem re-ancora o
+compõe. `scripts/reancorar_sessao.py` recusa nome que não bate com `HEAD` e recusa
+a branch default, que é o que mantém a perna 2 incondicional.
+
+**Dez direções em `scripts/phase0_negative_tests.py`**, e as seis últimas são os
+limites: as três pernas; re-ancoragem legítima libera; re-ancoragem com nome
+errado recusa; re-ancoragem para a default recusa; escrita fora da árvore não
+bloqueia; repositório que não é o AURORA não bloqueia; `HEAD` destacado não
+bloqueia; e a cópia instalada é idêntica à fonte.
+
+**A allowlist do auditor foi decidida no mesmo commit, e a decisão é "nada novo
+entra"** — que é diferente de não ter decidido, e é a lição do B1 da Fase 2.
+`phase0_negative_tests` já estava na lista e é ele que prova as três pernas;
+`reancorar_sessao` fica **fora** porque escreve, e dar ao julgador uma operação de
+escrita é a separação de papéis que o auditor não ter `Write` existe para manter.
+Os três motivos estão escritos dentro do `readonly_bash.py`.
 
 ---
 
@@ -1473,11 +1517,12 @@ sete commits —, mas a árvore de trabalho mostrava o conteúdo da Fase 3.
 terceira ocorrência registrada. **O guarda de branch não a alcança**: ele olha
 para onde o commit vai cair, e aqui `HEAD` se moveu durante uma leitura.
 
-**A proposta de mecanismo é a D15**, e ela está aberta como `PROPOSTA` — nada
-implementado. A perna que fecha **esta** ocorrência é a que recusa escrita com
-`HEAD` na branch default, e não a que compara com o início da sessão: aqui a
-árvore **já estava** em `main` quando a sessão abriu, e um sentinela de "mudou
-desde o início" teria gravado `main` como âncora e ficado calado.
+**Esta ocorrência é o que motivou a D15, e ela está implementada.** A perna que
+fecha **este** caso é a que recusa escrita com `HEAD` na branch default, e não a
+que compara com o início da sessão: aqui a árvore **já estava** em `main` quando
+a sessão abriu, e um sentinela de "mudou desde o início" teria gravado `main`
+como âncora e ficado calado. `WORKFLOW.md` §"O sentinela de branch" tem a forma
+final; a §3 D15 tem o porquê de cada decisão.
 
 **O que a pegou foi a convenção, e não um mecanismo:** *"na dúvida, verificar
 `git branch --show-current` e `git status` antes de agir"*. Sem isso, a peça 5

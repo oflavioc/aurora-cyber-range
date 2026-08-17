@@ -166,6 +166,30 @@ ALLOWED = [
     # exatamente assim. Os probes rodam sem argumento e provam os oito eixos,
     # que e o que o M5 cobra.
     rf"|check_audit_base_probes"
+    # SENTINELA DE BRANCH — D15, Fase 4. A DECISAO DE ADMISSAO ESTA AQUI, NO
+    # COMMIT QUE CRIA O MECANISMO, e o resultado dela e "nada novo entra".
+    #
+    # Isso e diferente de nao ter decidido, que foi o B1 da Fase 2: la a fase
+    # criou a primeira suite real e nao acrescentou uma linha, o auditor nao
+    # executou NADA e sete itens da DoD ficaram NAO VERIFICADO. A regra que saiu
+    # de la — "script novo que precise ser executado pelo auditor entra aqui por
+    # nome, no commit que o cria" — foi aplicada, e a resposta e negativa por
+    # motivo, nao por esquecimento:
+    #
+    #   `phase0_negative_tests` JA ESTA na lista acima, e e ele que prova as tres
+    #     pernas do sentinela, em repositorio temporario. O caminho pelo qual o
+    #     auditor julga a D15 ja esta aberto.
+    #
+    #   `reancorar_sessao` FICA DE FORA, e a exclusao e a propria propriedade:
+    #     ele ESCREVE o sentinela em `.git/`. Admiti-lo daria ao julgador uma
+    #     operacao de escrita, que e a separacao de papeis que o auditor nao ter
+    #     `Write` existe para manter. E o auditor nao tem por que re-ancorar
+    #     sessao nenhuma: ele nao escreve nada que o sentinela guarde.
+    #
+    #   O HOOK EM SI nao entra pela regra de `.claude/hooks/` abaixo, e nao
+    #     deveria: ele mora em `~/.claude/hooks/`, fora da arvore, pelo motivo
+    #     escrito no cabecalho dele. Exercita-lo direto exigiria `printf` em
+    #     ALLOWED, e o harness ja o exercita nas nove direcoes.
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
