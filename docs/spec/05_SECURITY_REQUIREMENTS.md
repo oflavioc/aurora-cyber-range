@@ -115,6 +115,11 @@ Requisito de segurança, não de funcionalidade. Implementação obrigatória em
 
 ## 8. Autenticação
 
-Nenhum serviço exposto sem autenticação, exceto `wallboard` e `participant-view`, que são projeções de sala e devem estar em rede isolada do exercício.
+Nenhum serviço exposto sem autenticação, exceto:
+
+- `wallboard` e `participant-view` — projeções de sala, que devem estar em rede isolada do exercício;
+- a **casca estática** do `gm-console` e a rota que troca credencial por token — o HTML, CSS e JavaScript que o navegador carrega **antes de existir token**, e o endpoint de autenticação em si.
+
+A segunda exceção é da **casca**, e não do serviço: nenhum dado de exercício trafega por ela. Injects, timeline, estado de simulação e os comandos de facilitação exigem token, e um caminho não declarado como público exige token por falha fechada.
 
 Senhas de seed nunca são valores triviais reutilizáveis; são geradas a partir do `RANDOM_SEED` e impressas apenas no log de seed local.
