@@ -222,6 +222,12 @@ jobs:
           # mudanca normativa exigira dois PRs — o de spec-change e o que
           # atualiza o CLAUDE.md. Mesmo custo ja aceito para tools/.
           #
+          # .gitattributes entra pelo mesmo criterio que .gitignore, e o caso e
+          # concreto: ele forca `*.sh` a chegar ao disco com LF. Sem isso, com
+          # `core.autocrlf=true` no Windows, o `sh` do container do cliente
+          # recusa o `\r` — e um PR podia alterar a spec e, no mesmo commit,
+          # remover a linha que faz os scripts do processo serem executaveis.
+          #
           # .gitignore entra porque e mecanismo, nao descricao: e ele que
           # executa 05_SECURITY_REQUIREMENTS.md secao 6 e CLAUDE.md secao
           # "Nunca commitar", e e o objeto exclusivo do item 6 da DoD
@@ -256,7 +262,7 @@ jobs:
             range-core/ domains/ contracts/ \
             tools/ scripts/ .claude/ .github/ user-scope/ \
             docs/process/ ':(exclude)docs/process/PHASE_0_CHECKLIST.md' \
-            CLAUDE.md .gitignore ':(glob)*.sh' | wc -l)
+            CLAUDE.md .gitignore .gitattributes ':(glob)*.sh' | wc -l)
 
           if [ "$SPEC" -gt 0 ] && [ "$CODE" -gt 0 ]; then
             echo "PR altera spec e codigo no mesmo PR. Separe as mudancas."
@@ -359,6 +365,16 @@ jobs:
       # e APAGAM a chave da projecao. Apontar para `REDIS_URL` faria um
       # `unittest` distraido limpar a projecao de quem tivesse o `.env` carregado.
       AURORA_TEST_REDIS_URL: redis://127.0.0.1:6379/1
+      # NAO E USADA POR NADA NESTE JOB, e esta aqui por uma razao mecanica: o
+      # passo do build do cliente chama `docker compose`, e o compose interpola
+      # o arquivo INTEIRO antes de escolher o servico. `POSTGRES_PASSWORD` e
+      # declarada com `:?` la — sem default, de proposito, porque senha trivial
+      # reutilizavel e proibida por `05` §8 — entao a ausencia dela aborta
+      # qualquer comando de compose, inclusive um que so roda o `web-build`.
+      #
+      # O valor e efemero e nao chega a servico nenhum: este job nao sobe o
+      # Postgres do compose, e sim o `services:` do proprio runner.
+      POSTGRES_PASSWORD: efemero-do-job-de-ci
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
@@ -438,6 +454,39 @@ jobs:
       - name: DEMO da fase executavel
         run: python scripts/demo_fase2.py
 
+      # AS TRES TELAS — Fase 4, peca 6. `01` §2 as poe em `range-core/web/` e
+      # `00` §8 fixa React 18 + Vite + Tailwind.
+      #
+      # POR QUE `docker compose`, E NAO `actions/setup-node`
+      # -----------------------------------------------------
+      # Nao ha `node` na maquina do operador, e instala-lo la resolveria UMA
+      # maquina: aqui o runner traria a versao dele, e passariam a existir duas
+      # versoes possiveis do toolchain sem nada garantindo que sao a mesma. Com
+      # o compose, o CI roda a MESMA imagem pinada por digest que roda no host —
+      # e nao ha duas declaracoes que possam divergir, porque a declaracao e uma
+      # so, em `docker-compose.yml`. O toolchain entra sob `00` §8 e `06` T15
+      # como qualquer outra dependencia, e o lockfile fixa o fecho transitivo do
+      # mesmo jeito que `constraints.txt`.
+      #
+      # ESTE PASSO NAO E `npm run build`, E A DIFERENCA E O GATE
+      # ---------------------------------------------------------
+      # `vite build` NAO checa tipos: ele transpila com esbuild e sai 0 com o
+      # TypeScript quebrado — medido. Um passo que so o chamasse ficaria verde
+      # sobre um cliente que nao compila, que e a §7.3 desta linhagem: a
+      # verificacao que PARECE existir.
+      #
+      # `prova_do_build.sh` planta um erro de tipo em codigo que entra no
+      # bundle, exige que `vite build` sozinho saia 0, exige que
+      # `tsc --noEmit && vite build` saia != 0, desplanta e constroi de verdade.
+      # Um gate que nunca foi visto reprovando e atestacao — foi assim que o
+      # DEMO da Fase 1 ficou inexecutavel sem nada acusar.
+      #
+      # Fica no job `contratos` e nao em job novo: job novo e context novo, e
+      # context exigido antes de existir em `main` trava todo PR que nao o
+      # produza — foi a P1-18.
+      - name: as tres telas compilam, e o gate do build reprova
+        run: docker compose --profile build run --rm web-build
+
       # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
       # sem instalacao — verificado com `python -S`. Sem este passo, a entrada
       # `contracts` de `package-dir` ficaria SEM PROVA, e ela existe justamente
@@ -466,3 +515,10 @@ jobs:
           python -c "import range_core.state.simulation_state, contracts.generated.events"
           python -c "from range_core.engine.loader import contract_source; assert len(contract_source.read_contracts()) == 6"
           python -c "from domains.academus.api.surface import carregar; assert carregar().rota('GET', '/students/{student_id}').papeis"
+          # A QUARTA LINHA e da peca 6, e so pode existir DEPOIS do passo de
+          # build: ela serve o bundle DE VERDADE pela rota de verdade, com o CWD
+          # fora da raiz. A suite nao faz isso — `dist/` e artefato de build e
+          # nao existe num clone limpo, e exigir 200 la faria a suite depender do
+          # `npm`. Aqui existe, entao aqui se afirma: `diretorio_das_telas()`
+          # resolve pelo `__path__` do pacote, e nao pelo diretorio corrente.
+          python -c "from fastapi.testclient import TestClient; from range_core.api.app import montar; r = TestClient(montar(None)).get('/sala'); assert r.status_code == 200, r.status_code; assert 'raiz' in r.text"

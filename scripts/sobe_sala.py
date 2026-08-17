@@ -80,9 +80,12 @@ def main() -> int:
     porta = int(os.environ.get("AURORA_BIND_PORT", "8000"))
     aplicacao = montar(monta_exercicio())
 
-    print(f"  sala ......... http://{host}:{porta}/sala")
+    # AS TRES TELAS DA PECA 6. Se alguma responder 503, o bundle nao foi
+    # construido — `docker compose --profile build run --rm web-build`.
+    print(f"  telao ........ http://{host}:{porta}/sala")
+    print(f"  plateia ...... http://{host}:{porta}/plateia")
+    print(f"  console ...... http://{host}:{porta}/console  (credencial de AURORA_GM_PASSWORD)")
     print(f"  wallboard .... http://{host}:{porta}/wallboard/state")
-    print("  console ...... POST /session com a credencial de AURORA_GM_PASSWORD")
     print("\n  Ctrl+C para encerrar.\n")
     uvicorn.run(aplicacao, host=host, port=porta, log_level="warning")
     return 0

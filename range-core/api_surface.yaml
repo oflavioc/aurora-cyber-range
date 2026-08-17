@@ -241,19 +241,49 @@ rotas:
     status: implementada
 
   # -------------------------------------------------------------------------
-  # A PAGINA CRUA DA PECA 4 — declarada porque toda rota implementada tem de
-  # estar aqui, e registrada como DESCARTAVEL na P4-3.
+  # AS TRES TELAS — peca 6. Cada uma e UM arquivo HTML com o bundle inlinado,
+  # servido por UMA rota; nao ha rota de asset estatico neste processo, e por
+  # isso nao ha superficie de path traversal num servico que opera o exercicio.
   #
-  # Ela existe para que a cadeia inteira seja VISTA antes de as telas existirem.
-  # A peca 6 substitui o arquivo pelo bundle de `range-core/web/`, e esta rota
-  # passa a servir aquele — o caminho fica, o conteudo muda.
+  # `GET /sala` e a MESMA rota da peca 4: o que mudou foi o conteudo — de
+  # `sala.html` para o bundle do `wallboard-shell`. E o que a P4-3 prometia.
   #
-  # Publica pelo mesmo motivo das outras duas da sala: e a projecao do telao, e
-  # `05` secao 8 isenta wallboard e participant-view. Ela NAO opera o exercicio,
-  # e nao carrega token nenhum.
+  # `/plateia` e da spec, como `/plateia/state`: `01` secao 6 escreve o caminho
+  # da participant-view assim, literalmente.
   # -------------------------------------------------------------------------
   - method: GET
     path: /sala
+    publica: true
+    efeito: nenhum
+    status: implementada
+
+  - method: GET
+    path: /plateia
+    publica: true
+    efeito: nenhum
+    status: implementada
+
+  # -------------------------------------------------------------------------
+  # A CASCA DO CONSOLE — publica, e a decisao esta declarada como D19 no
+  # registro da fase, e nao escondida nesta linha.
+  #
+  # `05` secao 8 isenta de autenticacao apenas wallboard e participant-view, e
+  # esta e a terceira superficie publica. O argumento e o mesmo que ja vale para
+  # `POST /session`, declarada publica desde a peca 4: **nenhum navegador envia
+  # `Authorization` numa navegacao**, entao a casca de um console de browser e
+  # necessariamente alcancavel sem token — e o que ela contem e HTML, CSS e
+  # JavaScript.
+  #
+  # O que `05` secao 8 protege e SERVICO exposto, e o servico e o dado: injects,
+  # timeline e os comandos continuam exigindo token pelo middleware, que falha
+  # fechado. As duas metades tem teste em `tests/test_telas.py` — a casca nao
+  # carrega dado de exercicio, e toda rota que ela chama responde 401 sem token.
+  #
+  # `efeito: nenhum` e literal: esta rota devolve um arquivo. Quem move o
+  # exercicio sao as rotas que ela chama DEPOIS de trocar credencial por token.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /console
     publica: true
     efeito: nenhum
     status: implementada

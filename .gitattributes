@@ -1,0 +1,16 @@
+# FIM DE LINHA DE SCRIPT DE SHELL — LF, sempre.
+#
+# `core.autocrlf` esta em `true` na maquina do operador (Windows), e sem esta
+# linha um checkout entregaria `*.sh` com CRLF. Isso quebra os dois lugares onde
+# esses scripts rodam:
+#
+#   - Git Bash, onde `bootstrap.sh` e `start_checkpoint_audit.sh` sao executados;
+#   - o container `node:*-alpine` da peca 6 da Fase 4, cujo `sh` recusa o `\r`
+#     com "command not found" — erro que NAO nomeia a causa, e que apareceria
+#     como "o build do cliente quebrou" muito longe do motivo.
+#
+# O caso nao aparece no CI, que roda em Linux com `autocrlf` desligado: e um
+# defeito que so morde na maquina de quem desenvolve, depois de um clone novo ou
+# de um checkout — exatamente a classe que este projeto ja pagou com o teste de
+# existencia de caminho `/c/...` da peca 0.
+*.sh text eol=lf

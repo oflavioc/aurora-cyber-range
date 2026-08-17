@@ -233,10 +233,18 @@ contracts = ["*.yaml"]
 # e o container subiria com uma superficie vazia, que por falha fechada
 # responderia 401 a sala inteira.
 #
-# `web/sala.html` e a pagina crua da peca 4, servida por `GET /sala`. Ela e
-# DESCARTAVEL (P4-3): a peca 6 substitui o arquivo pelo bundle, e esta linha
-# passa a apontar para ele.
-range_core = ["*.yaml", "web/*.html"]
+# `web/dist/<tela>/index.html` sao AS TRES TELAS, servidas por `GET /sala`,
+# `GET /plateia` e `GET /console`. A linha dizia `web/*.html` e apontava para a
+# pagina crua da peca 4; a peca 6 a substituiu pelo bundle, como a P4-3
+# prometia, e a entrada acompanhou.
+#
+# SAO ARTEFATO DE BUILD, e nao fonte versionada: `dist/` esta no `.gitignore`, e
+# quem os produz e `docker compose --profile build run --rm web-build`. A
+# consequencia tem dono: **a imagem da peca 7 constroi o cliente ANTES do
+# `pip install`**, senao a instalacao leva os `.py` e deixa as telas para tras —
+# e `GET /sala` responde 503 no telao da sala, que e o que o 503 de `_tela`
+# existe para dizer em voz alta.
+range_core = ["*.yaml", "web/dist/*/index.html"]
 
 # `api_surface.yaml` E DADO DE EXECUCAO desde a peca 4, e nao so declaracao lida
 # pelo gate: `domains/academus/api/surface.py` o le no boot para saber quais

@@ -64,6 +64,36 @@ services:
       timeout: 3s
       retries: 10
 
+  # -------------------------------------------------------------------------
+  # O TOOLCHAIN DO CLIENTE, EM CONTAINER PINADO — Fase 4, peca 6.
+  #
+  # POR QUE CONTAINER, E NAO `node` NO HOST
+  # ----------------------------------------
+  # Nao ha `node` nem `npm` nesta maquina, e instalar no host resolveria UMA
+  # maquina: o CI continuaria com a versao que o runner tiver, e passariam a
+  # existir duas versoes possiveis do toolchain sem nada garantindo que sao a
+  # mesma. Com a imagem pinada por digest, o build que roda aqui e o MESMO que
+  # roda no CI, e o toolchain entra sob a regra de `00` secao 8 / `06` T15 como
+  # qualquer outra dependencia — `scripts/check_pinned_images.py` ja cobra
+  # digest e igualdade entre este arquivo e o workflow.
+  #
+  # `profiles` mantem o servico FORA do `docker compose up`: ele nao e parte da
+  # stack, e sim uma ferramenta que roda e sai.
+  #
+  #     docker compose --profile build run --rm web-build
+  #
+  # O comando e a PROVA NEGATIVA do proprio gate, e nao `npm run build` — ver o
+  # cabecalho de `range-core/web/prova_do_build.sh`: `vite build` sai 0 com o
+  # TypeScript quebrado, e um gate que nunca foi visto reprovando e atestacao.
+  # -------------------------------------------------------------------------
+  web-build:
+    profiles: ["build"]
+    image: node:22.11.0-alpine@sha256:b64ced2e7cd0a4816699fe308ce6e8a08ccba463c757c00c14cd372e3d2c763e
+    working_dir: /web
+    volumes:
+      - ./range-core/web:/web
+    command: ["sh", "prova_do_build.sh"]
+
 volumes:
   aurora_pgdata:
     name: aurora_pgdata
