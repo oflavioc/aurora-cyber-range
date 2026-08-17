@@ -580,6 +580,25 @@ jobs:
       - name: P3-2 medida com o container no ar
         run: python scripts/mede_cache_frio.py 20
 
+      # O DIAGNOSTICO, e `if: failure()` NAO E `if: always()`.
+      #
+      # A diferenca e a que importa para a propriedade declarada na §4.9: um
+      # `always()` faria o passo rodar tambem no caminho verde, e o perigo dele
+      # e mascarar — um passo que sempre roda e sempre passa vira ruido que
+      # esconde. `failure()` so roda quando ALGUMA COISA JA FALHOU, e nao muda a
+      # conclusao do job: ele nao pode transformar vermelho em verde.
+      #
+      # POR QUE ELE EXISTE: a primeira execucao real deste job no runner morreu
+      # em `container aurora-range-api exited (1)` — e o runner e descartavel,
+      # entao o log do processo foi embora com ele. Falha de container sem log e
+      # falha que so se diagnostica por adivinhacao, e adivinhacao custa uma
+      # rodada de CI por hipotese.
+      - name: logs da stack, quando um passo de container falha
+        if: failure()
+        run: |
+          docker compose ps --all
+          docker compose logs --no-color --tail 120
+
       # A suite acima roda na RAIZ, e ali `contracts` resolve pela ARVORE mesmo
       # sem instalacao — verificado com `python -S`. Sem este passo, a entrada
       # `contracts` de `package-dir` ficaria SEM PROVA, e ela existe justamente
