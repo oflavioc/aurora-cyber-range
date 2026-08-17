@@ -1064,6 +1064,212 @@ def guarda_copias_em_sincronia() -> None:
     print("OK: fonte versionada e copia instalada do guarda de branch identicas")
 
 
+# --------------------------------------------------------------------------
+# SENTINELA DE BRANCH — a D15, nas tres pernas e nos limites declarados.
+#
+# O guarda de branch acima e `pre-commit`: olha para onde o commit vai cair. Este
+# e `PreToolUse` de escrita, e cobre a janela que ficava vazia entre a leitura e
+# o commit — tres ocorrencias registradas em `WORKFLOW.md`, todas pegas por
+# alguem lembrar de conferir.
+#
+# Mesmo padrao do guarda: repositorio TEMPORARIO. O probe precisa de uma arvore
+# em `main` e de uma troca de branch no meio, e fazer isso aqui seria exatamente
+# o que o sentinela existe para impedir.
+#
+# O MARCADOR ENTRA NO REPOSITORIO TEMPORARIO de proposito: o hook se auto-escopa
+# por `docs/spec/00_MASTER_SPEC.md`, e um probe sem ele mediria o caminho do
+# "nao e este projeto" achando que media o bloqueio.
+#
+# OS PROBES RODAM CONTRA A FONTE VERSIONADA, e a copia instalada e conferida por
+# `sentinela_copias_em_sincronia`. E o desenho do guarda de branch acima, e nao o
+# do `readonly_bash.py`, que executa as DUAS: la o H4 da decima auditoria mostrou
+# que probes so contra a fonte podiam passar verdes com o hook EM EXECUCAO
+# alterado, e a checagem de sincronia fecha exatamente esse buraco. Com ela,
+# executar as duas seria dobrar o tempo para provar o que a igualdade de bytes
+# ja garante.
+# --------------------------------------------------------------------------
+
+SENTINELA_FONTE = ROOT / "user-scope" / "hooks" / "sentinela_de_branch.py"
+REANCORA = ROOT / "scripts" / "reancorar_sessao.py"
+
+SESSAO_DE_PROVA = "sessao-de-probe-0001"
+
+
+@contextmanager
+def repo_do_sentinela(com_marcador: bool = True):
+    """Repositorio git descartavel, em `main`, com o marcador do AURORA."""
+    with tempfile.TemporaryDirectory() as tmp:
+        d = Path(tmp)
+        for cmd in (
+            ["git", "init", "-b", "main", "-q"],
+            ["git", "config", "user.email", "probe@example.invalid"],
+            ["git", "config", "user.name", "probe"],
+            ["git", "config", "commit.gpgsign", "false"],
+        ):
+            subprocess.run(cmd, cwd=d, check=True, capture_output=True)
+        if com_marcador:
+            marcador = d / "docs" / "spec"
+            marcador.mkdir(parents=True, exist_ok=True)
+            (marcador / "00_MASTER_SPEC.md").write_text("# probe\n", encoding="utf-8")
+        (d / "arquivo.txt").write_text("conteudo\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=d, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "base", "--no-verify", "-q"],
+            cwd=d, check=True, capture_output=True,
+        )
+        yield d
+
+
+def _sentinela(d: Path, evento: str = "PreToolUse", sessao: str = SESSAO_DE_PROVA,
+               alvo: str | None = None):
+    """Roda o hook com um payload de escrita, e devolve o `CompletedProcess`."""
+    if evento == "SessionStart":
+        payload = {"hook_event_name": "SessionStart", "session_id": sessao,
+                   "cwd": str(d)}
+    else:
+        payload = {
+            "hook_event_name": "PreToolUse",
+            "session_id": sessao,
+            "tool_name": "Write",
+            "cwd": str(d),
+            "tool_input": {"file_path": alvo or str(d / "arquivo.txt"),
+                           "content": "x\n"},
+        }
+    return subprocess.run(
+        [sys.executable, str(SENTINELA_FONTE)],
+        input=json.dumps(payload), text=True, capture_output=True, cwd=d,
+    )
+
+
+def _troca_para(d: Path, branch: str) -> None:
+    subprocess.run(["git", "switch", "-c", branch, "-q"], cwd=d,
+                   check=True, capture_output=True)
+
+
+def sentinela_de_branch() -> None:
+    # PERNA 2 — a que decide. Escrita com HEAD na branch default: RECUSA.
+    with repo_do_sentinela() as d:
+        _sentinela(d, evento="SessionStart")
+        r = _sentinela(d)
+        if r.returncode != 2:
+            _reject("sentinela de branch",
+                    "NAO recusou escrita com HEAD na branch default", r.stderr)
+        if "ESCRITA RECUSADA" not in r.stderr:
+            _reject("sentinela de branch", "recusou sem dizer por que", r.stderr)
+        print("OK: sentinela recusou escrita na branch default")
+
+    # O PAR QUE DISCRIMINA. Sem ele, um hook que recusasse SEMPRE passaria acima.
+    with repo_do_sentinela() as d:
+        _troca_para(d, "fase-9-probe")
+        _sentinela(d, evento="SessionStart")
+        r = _sentinela(d)
+        if r.returncode != 0:
+            _reject("sentinela de branch",
+                    "RECUSOU escrita em branch de trabalho", r.stderr)
+        print("OK: sentinela liberou escrita em branch de trabalho")
+
+    # PERNA 3 — a branch trocou depois da ancora.
+    with repo_do_sentinela() as d:
+        _troca_para(d, "fase-9-probe")
+        _sentinela(d, evento="SessionStart")
+        _troca_para(d, "outra-branch")
+        r = _sentinela(d)
+        if r.returncode != 2:
+            _reject("sentinela de branch",
+                    "NAO recusou depois de a branch mudar sob a sessao", r.stderr)
+        if "fase-9-probe" not in r.stderr or "outra-branch" not in r.stderr:
+            _reject("sentinela de branch",
+                    "recusou sem nomear as DUAS branches", r.stderr)
+        print("OK: sentinela recusou escrita depois de a branch mudar")
+
+        # A RE-ANCORAGEM EXPLICITA LIBERA — e a saida existe, com o nome digitado.
+        rr = subprocess.run(
+            [sys.executable, str(REANCORA), "outra-branch"],
+            cwd=d, text=True, capture_output=True,
+        )
+        if rr.returncode != 0:
+            _reject("reancorar_sessao", "recusou re-ancoragem legitima",
+                    rr.stdout + rr.stderr)
+        depois = _sentinela(d)
+        if depois.returncode != 0:
+            _reject("sentinela de branch",
+                    "seguiu recusando DEPOIS da re-ancoragem explicita", depois.stderr)
+        print("OK: re-ancoragem explicita libera, e exige o nome da branch")
+
+        # E ELA RECUSA O NOME QUE NAO BATE COM HEAD.
+        errada = subprocess.run(
+            [sys.executable, str(REANCORA), "fase-9-probe"],
+            cwd=d, text=True, capture_output=True,
+        )
+        if errada.returncode == 0:
+            _reject("reancorar_sessao",
+                    "aceitou re-ancorar para branch em que HEAD nao esta",
+                    errada.stdout + errada.stderr)
+        print("OK: re-ancoragem recusa nome que nao bate com HEAD")
+
+    # A PERNA 2 NAO TEM RE-ANCORAGEM, e isto e o que a mantem incondicional.
+    with repo_do_sentinela() as d:
+        _sentinela(d, evento="SessionStart")
+        r = subprocess.run(
+            [sys.executable, str(REANCORA), "main"],
+            cwd=d, text=True, capture_output=True,
+        )
+        if r.returncode == 0:
+            _reject("reancorar_sessao",
+                    "aceitou re-ancorar para a branch DEFAULT; a perna 2 virou "
+                    "negociavel", r.stdout + r.stderr)
+        print("OK: re-ancoragem para a branch default e recusada")
+
+    # BLOQUEIO INDEVIDO TAMBEM E DEFEITO — WORKFLOW.md. Duas direcoes.
+    with repo_do_sentinela() as d, tempfile.TemporaryDirectory() as fora:
+        _sentinela(d, evento="SessionStart")
+        r = _sentinela(d, alvo=str(Path(fora) / "rascunho.txt"))
+        if r.returncode != 0:
+            _reject("sentinela de branch",
+                    "bloqueou escrita FORA do repositorio (scratchpad)", r.stderr)
+        print("OK: sentinela nao bloqueia escrita fora da arvore")
+
+    with repo_do_sentinela(com_marcador=False) as d:
+        r = _sentinela(d)
+        if r.returncode != 0:
+            _reject("sentinela de branch",
+                    "bloqueou em repositorio que NAO e o AURORA; o auto-escopo "
+                    "falhou e o hook global atrapalha outros projetos", r.stderr)
+        print("OK: sentinela sai calado fora do repositorio do AURORA")
+
+    with repo_do_sentinela() as d:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=d, text=True,
+                             capture_output=True, check=True).stdout.strip()
+        subprocess.run(["git", "checkout", "-q", sha], cwd=d, check=True,
+                       capture_output=True)
+        r = _sentinela(d)
+        if r.returncode != 0:
+            _reject("sentinela de branch",
+                    "bloqueou com HEAD destacado; e assim que o worktree de "
+                    "auditoria roda", r.stderr)
+        print("OK: sentinela sai calado com HEAD destacado")
+
+
+def sentinela_copias_em_sincronia() -> None:
+    """Fonte versionada e copia instalada em `~/.claude/hooks/` sao identicas.
+
+    Mesma checagem que `readonly_bash.py` tem, e pelo mesmo motivo: a copia
+    instalada e a que roda, e divergencia silenciosa e o pior caso — o harness
+    mediria a fonte e o operador viveria com outra coisa.
+    """
+    instalada = Path.home() / ".claude" / "hooks" / "sentinela_de_branch.py"
+    if not instalada.exists():
+        print(
+            "AVISO: ~/.claude/hooks/sentinela_de_branch.py ausente — checagem de "
+            "drift pulada (esperado em CI, onde nao ha escopo de usuario)."
+        )
+        return
+    if instalada.read_bytes() != SENTINELA_FONTE.read_bytes():
+        _reject("sentinela de branch",
+                "fonte versionada e copia instalada DIVERGEM. Rode bootstrap.sh", "")
+    print("OK: fonte versionada e copia instalada do sentinela identicas")
+
+
 def main() -> int:
     with temporary_file("range-core/_phase0_probe_bad.py", "from domains.academus import X\n"):
         expect_fail("check_core_boundary.py", [sys.executable, "tools/check_core_boundary.py"],
@@ -1335,6 +1541,8 @@ def main() -> int:
     hook_copies_in_sync()
     guarda_de_branch()
     guarda_copias_em_sincronia()
+    sentinela_de_branch()
+    sentinela_copias_em_sincronia()
 
     print(
         "\nTodos os seis verificadores falharam contra probes independentes.\n"
@@ -1343,6 +1551,8 @@ def main() -> int:
         f"{len(ESCRITA_POR_ALVO)} formas x {len(GRAFIAS_DE_ALVO)} grafias de alvo "
         f"= {len(ESCRITA_POR_ALVO) * len(GRAFIAS_DE_ALVO)} provas de invariante.\n"
         f"Hooks exercitados: {', '.join(o for o, _ in _hooks_sob_teste())}.\n"
+        "sentinela_de_branch.py: as 3 pernas da D15, mais 6 direcoes de limite "
+        "declarado e a sincronia da copia instalada.\n"
         f"DEFEITOS ABERTOS, afirmados e nao escondidos (P23 reaberto): "
         f"{len(FALSOS_BLOQUEIOS_CONHECIDOS)} leituras legitimas bloqueadas e "
         f"{len(BURACOS_CONHECIDOS)} escritas nao bloqueadas."

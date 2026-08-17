@@ -293,7 +293,7 @@ Depois do primeiro commit e novamente após qualquer alteração em `.claude/`, 
 
 Operador e agente trabalham no **mesmo clone**, e `HEAD` é estado global. Um `gh pr merge --delete-branch` apaga a branch local e troca `HEAD`; um `checkout` ou `pull` reescreve arquivos sob uma leitura em curso. Nenhum dos dois é erro isolado — é corrida.
 
-**Aconteceu duas vezes em 15/08/2026:** um commit do agente foi parar em `main` local porque `HEAD` se moveu durante a operação, e um arquivo apareceu modificado e voltou ao normal segundos depois.
+**Aconteceu duas vezes em 15/08/2026:** um commit do agente foi parar em `main` local porque `HEAD` se moveu durante a operação, e um arquivo apareceu modificado e voltou ao normal segundos depois. **E uma terceira em 16/08/2026** — a árvore em `main` no início de um turno, mostrando o conteúdo da fase anterior. Foi ela que motivou o sentinela abaixo.
 
 ### O guarda de branch
 
@@ -303,9 +303,60 @@ Operador e agente trabalham no **mesmo clone**, e `HEAD` é estado global. Um `g
 
 **O que motivou mecanizar não foi o erro, foi a detecção.** `CLAUDE.md` já instruía a criar branch antes de commitar na default; a instrução existia e não segurou. E o caso só apareceu porque alguém leu `[main d9ec0de]` na saída do `git commit` — detecção por sorte não é detecção. É a mesma distinção entre regra e propriedade que a §1.6 do registro da Fase 1 estabelece: instrução é regra; hook é impedimento.
 
+### O sentinela de branch — a escrita, e não o commit
+
+**Aconteceu uma terceira vez em 16/08/2026**, entre duas peças da Fase 4: a
+árvore estava em `main` e mostrava o conteúdo da Fase 3. As três ocorrências
+foram pegas por alguém lembrar de conferir, e **detecção por memória não é
+detecção** — é a mesma distinção entre regra e propriedade que já motivou
+mecanizar o guarda de branch uma vez.
+
+`user-scope/hooks/sentinela_de_branch.py` é o `pre-commit` **adiantado até a
+primeira escrita**. Entre a leitura e o commit havia uma janela inteira sem nada;
+nesse ponto o erro custa **um arquivo**, e não a sessão.
+
+| Perna | Quando | O que faz |
+|---|---|---|
+| 1 | `SessionStart` | grava o sentinela: sessão, branch e sha |
+| 2 | `PreToolUse` de escrita, `HEAD` na branch **default** | **recusa**, e não há re-ancoragem |
+| 3 | `PreToolUse` de escrita, branch **diferente** do sentinela | **recusa**, nomeando as duas |
+
+**A perna 2 é a que decide, e ela não é a perna 3.** Na terceira ocorrência a
+árvore *já estava* em `main` quando a sessão começou: um sentinela que só
+comparasse "mudou desde o início" teria gravado `main` como âncora e ficado
+calado. A perna 2 não compara com nada — ela afirma que trabalho não nasce na
+default.
+
+**A re-ancoragem é explícita e exige o nome digitado** —
+`python scripts/reancorar_sessao.py <branch>` —, e a mensagem de recusa **não**
+traz o comando pronto para colar. Uma saída de um clique vira o "sim" que se
+aprende a dar, que é o mesmo argumento pelo qual `api_surface.yaml` proíbe
+`confirmacao` em rota que tem volta. O script recusa nome que não bate com `HEAD`
+e recusa a branch default.
+
+**Mudança de sha na mesma branch não bloqueia.** Commit do operador é normal, e
+`pull` sob leitura já tem cobertura: o harness do Claude Code recusa `Edit` de
+arquivo alterado em disco desde o `Read`.
+
+**Ele mora em `~/.claude/hooks/`, fora da árvore, e o motivo é a variante direta
+do que tira o auditor daqui:** um guarda que mora na árvore que ele guarda
+desaparece com ela — um `checkout` para um commit anterior levaria junto o hook e
+a configuração dele, exatamente na situação para a qual ele existe. O custo é que
+hook de escopo de usuário vale para toda a máquina, e por isso ele se auto-escopa
+por `docs/spec/00_MASTER_SPEC.md` e sai calado fora deste projeto.
+
+**Guarda local, não gate**, com o mesmo estatuto do `pre-commit`: escrita por
+fora do harness não passa por ele, e a proteção real de `main` continua sendo a
+branch protection. As dez direções — as três pernas e os limites declarados —
+estão em `scripts/phase0_negative_tests.py`.
+
 ### A convenção de anúncio
 
-**O hook não impede a corrida.** Ele olha para onde o commit vai cair; se `HEAD` se mover no meio de uma *leitura*, ele não vê nada. Mecanismo nenhum alcança essa parte, então ela é convenção:
+**Nenhum dos dois hooks previne a corrida.** O `pre-commit` olha para onde o
+commit vai cair; o sentinela detecta antes de a escrita virar durável, e manda
+reler — mas a leitura que já aconteceu continua velha, e **isso** nenhum
+mecanismo alcança. O lado do operador, que edita fora do harness, também não.
+Então a parte de baixo continua sendo convenção:
 
 - **O agente anuncia antes de commitar** quando o operador pode estar operando a árvore.
 - **O operador avisa antes de `merge`, `checkout`, `pull` ou `switch`** enquanto o agente trabalha.
