@@ -554,6 +554,81 @@ entra"** — que é diferente de não ter decidido, e é a lição do B1 da Fase
 escrita é a separação de papéis que o auditor não ter `Write` existe para manter.
 Os três motivos estão escritos dentro do `readonly_bash.py`.
 
+### D16 — o telão mostra saúde, área e as três piores — **DECIDIDA**
+
+**O número que decidiu, e ele foi calculado antes de escrever tela.** Regra de
+legibilidade confortável — altura de caixa alta ≥ distância/200 — dá, a 10 m,
+~50 mm. Numa tela de 55" 1080p isso é fonte de ~113 px: **7 a 8 linhas na tela
+inteira, ~34 caracteres por linha**. Numa de 75", ~10 linhas e ~46 caracteres.
+
+**O payload de hoje está 2 a 4× acima disso.** Medido em `flags.yaml`: 13 flags,
+**7 painéis, 13 itens**, cada um rotulado pelo `effect_ui` — mediana **59
+caracteres**, máximo 80. No tamanho de telão cada rótulo quebra em duas linhas:
+~26 linhas contra um orçamento de 8. **Não é problema de CSS** — nenhuma escolha
+de fonte resolve 26 linhas em 8.
+
+**E `07` já dizia "dois painéis"**, não sete. A peça 6 renderiza uma **seleção**,
+e a parte que não é óbvia é que a seleção tem de ser **por convenção**: uma lista
+de dois nomes de grupo no código quebraria a promessa de `01` §5.3 (*"adicionar
+flag não exige tocar no wallboard"*) e reprovaria o probe da peça 2, que planta
+uma flag num grupo inexistente e exige o painel novo.
+
+O telão carrega três coisas, e nada mais:
+
+| | O que é | Por quê |
+|---|---|---|
+| **índice de saúde** | um número, dominante | três dígitos a 113 px é a única coisa sem disputa de espaço |
+| **painéis como blocos** | grupo, ativos/total, cor por `category` | responde *onde*, e é `01` §5.3 — derivado, não listado |
+| **os N piores ativos** | `effect_ui` dos de maior `severity_weight` | responde *o quê*, limitado por construção |
+
+**A ordenação por severidade é o que reconcilia as duas fontes.** Ela é
+convenção derivada do próprio `flags.yaml`, então flag nova entra na disputa sem
+ninguém tocar no cliente — e o corte em N mantém o "wallboard mínimo" de `07` sem
+uma lista fixa em lugar nenhum.
+
+**A alternativa recusada foi "só os ativos, texto completo".** Ela distingue
+exatamente o que quebrou, e não tem limite superior: no pico do exercício estoura
+o orçamento, e no início mostra tela vazia — que a sala lê como wallboard
+quebrado, e não como exercício ainda calmo. O índice resolve os dois extremos
+porque **sempre** tem valor.
+
+**O que o telão deixa de distinguir, dito:** o texto integral de tudo o que está
+degradado. Quem precisa disso é o facilitador, e ele tem o gm-console autenticado.
+A plateia recebe a narrativa pela `/plateia`, que `01` §6 já separa para isso.
+
+### D17 — o corte de telão é propriedade do PAYLOAD, e não do CSS — **DECIDIDA**
+
+`wallboard()` passa a emitir o que cabe no telão — blocos, destaques e a
+contagem do resto —, em vez de emitir tudo e deixar o cliente escolher.
+
+**Isso converte metade do limite da §2.2 em teste.** O orçamento vira propriedade
+de servidor: *"nunca mais de N destaques, qualquer que seja o estado"*, com o pior
+caso — todas as flags ativas — exercido. O que sobra como limite declarado é a
+pergunta genuinamente física, e ela deve continuar sem teste: **113 px lê a 10 m
+naquela sala?**
+
+É a D2 aplicada onde ela mais rende: cada pedaço de lógica que descesse para o
+cliente subiria para o limite declarado, e o limite declarado é o único lugar
+onde defeito não fica vermelho.
+
+**Consequência de segurança, e ela é ganho:** o payload público deixa de carregar
+o `effect_ui` de tudo e passa a carregar o de três. A varredura de `06` T6
+continua a mesma, sobre uma superfície menor.
+
+### D18 — as duas superfícies são independentes; a montagem da sala fica para a peça 7 — **DECIDIDA**
+
+Não está decidido se wallboard e `/plateia` ocupam uma tela ou duas, e a peça 6
+**não supõe**: cada rota é legível sozinha, com o orçamento inteiro.
+
+**O custo é uma decisão adiada, e ela tem lugar** — a peça 7, onde container e
+deploy aparecem. Se for uma tela só, o orçamento se parte ao meio e o telão fica
+praticamente sem texto de item; a D16 já é a opção que sobrevive a isso, porque
+o índice e os blocos não dependem do espaço que o texto ocupa.
+
+**O que não pode acontecer é a peça 6 escolher por omissão** — entregar uma rota
+que só faça sentido dentro da outra, e descobrir na peça 7 que a sala tem dois
+projetores. Duas rotas independentes é a decisão que não fecha porta nenhuma.
+
 ---
 
 ## 4. Ordem das peças
@@ -1507,7 +1582,54 @@ medição, não de argumento:
 
 ---
 
-## 4.7 Uma nota de processo: `HEAD` se moveu entre dois turnos
+## 4.7 A peça 6 — o telão, e o corte que virou payload
+
+**Em curso. A metade de servidor está fechada; o cliente não.** Esta seção
+registra o estado, porque conversa não é fonte versionada e a peça atravessa mais
+de uma sessão.
+
+### O que fechou
+
+`range-core/api/projecoes.py`: `wallboard()` deixou de emitir tudo e passou a
+emitir **índice + blocos + os N piores + a contagem do resto** — as D16 e D17,
+com o número calculado antes de existir tela.
+
+**Medido no payload real, com as 13 flags ativas:** 7 blocos, **3 destaques, 10
+omitidos, 1.019 bytes**. Antes eram 13 itens de `effect_ui`, que no tamanho de
+telão são ~26 linhas contra um orçamento de 7 a 8.
+
+**Oito testes novos, e cinco deles são pares:**
+
+| O que fica vermelho | Sem ele |
+|---|---|
+| nunca mais de 3 destaques, **com tudo ativo** | o orçamento estoura no pico, que é quando o telão importa |
+| **e nunca menos de 3, com tudo ativo** | respeitar orçamento devolvendo vazio também "passa" |
+| `destaques + omitidos == ativos` | o corte não se anuncia, e a sala lê "três problemas" onde há treze |
+| a ordem é **severidade × intensidade** | uma flag grave e quase inativa empurra do telão uma menos grave e no máximo |
+| sem nada ativo, o telão **ainda diz alguma coisa** | é o argumento contra "só os ativos": tela vazia lida como wallboard quebrado |
+| os blocos não carregam texto de item | o orçamento estoura pela porta que a contagem de destaques não olha |
+| no máximo 3 `effect_ui` no payload público | a consequência de segurança da D17, medida em vez de afirmada |
+| o bloco pega a cor do **pior** ativo | a 10 m a cor é lida antes do texto, e o painel contaria a coisa errada |
+
+**`paineis()` não foi tocado.** Ele é a derivação por convenção que o probe da
+peça 2 guarda — flag plantada num grupo inexistente exige painel novo —, e
+`blocos()` deriva *dele*, e não de `specs` outra vez. Duas implementações da
+mesma promessa de `01` §5.3 divergiriam na primeira correção.
+
+**Dois consumidores acompanharam no mesmo commit**, e os dois são a §1.6:
+`web/sala.html`, que continua sendo a P4-3 e continua descartável; e
+`test_range_api.py`, cujo teste de latência lia `painel["itens"]` — a pergunta
+dele não mudou, a evidência sim.
+
+### O que falta
+
+O cliente: React 18 + Vite + Tailwind sob `range-core/web/` (D1), as três telas,
+e o build entrando no job `contratos` — job novo é context novo, e foi a P1-18.
+A P4-3 fecha quando o bundle substituir o HTML cru.
+
+---
+
+## 4.8 Uma nota de processo: `HEAD` se moveu entre dois turnos
 
 Entre o fim da peça 4 e a abertura da peça 5, a árvore estava em `main`, e não na
 branch da fase. **Nada se perdeu** — a branch seguia intacta em `a3e5043`, com os

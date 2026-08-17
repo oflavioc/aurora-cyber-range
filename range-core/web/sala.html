@@ -65,23 +65,31 @@
   </header>
 
   <div id="paineis"></div>
+  <ul id="destaques"></ul>
   <div id="plateia"></div>
 
 <script>
 // UMA FUNCAO DO ESTADO PARA A TELA, e nada mais. Sem estado local, sem merge:
 // o frame e total, entao pintar do zero e correto e mais simples que reconciliar.
+// O PAYLOAD MUDOU DE FORMA NA PECA 6 (D16/D17): o telao recebe blocos sem texto
+// de item, os N piores em texto, e a contagem do resto. Esta pagina acompanha
+// porque ela nao pode ficar quebrada enquanto o bundle nao existe — ela continua
+// sendo a P4-3, e continua sendo descartavel.
 function pintaWallboard(estado) {
   document.getElementById("saude").textContent = estado.indice_de_saude;
-  document.getElementById("paineis").innerHTML = estado.paineis.map(function (painel) {
-    var itens = painel.itens.map(function (item) {
-      var extra = item.intensidade !== undefined
-        ? " (" + Math.round(item.intensidade * 100) + "%)"
-        : (item.estado !== undefined ? " (" + item.estado + ")" : "");
-      return '<li class="' + (item.ativa ? "ativa" : "") + '">'
-        + '<span class="marca"></span><span>' + item.rotulo + extra + "</span></li>";
-    }).join("");
-    return "<section><h2>" + painel.grupo + "</h2><ul>" + itens + "</ul></section>";
+  document.getElementById("paineis").innerHTML = estado.paineis.map(function (bloco) {
+    return '<section class="' + (bloco.ativos ? "ativa" : "") + '">'
+      + "<h2>" + bloco.grupo + "</h2>"
+      + "<p>" + bloco.ativos + " / " + bloco.total + "</p></section>";
   }).join("");
+  var linhas = estado.destaques.map(function (item) {
+    return '<li class="ativa"><span class="marca"></span><span>'
+      + item.rotulo + "</span></li>";
+  });
+  if (estado.omitidos > 0) {
+    linhas.push("<li>+ " + estado.omitidos + " outros</li>");
+  }
+  document.getElementById("destaques").innerHTML = linhas.join("");
 }
 
 function pintaPlateia(estado) {
