@@ -117,6 +117,107 @@ def probe_da_varredura() -> bool:
     return True
 
 
+def probe_do_dockerfile() -> bool:
+    """A varredura enxerga `FROM`, tira o ` AS <estagio>` e casa com o compose.
+
+    A peca 7 acrescentou uma SEGUNDA FORMA SINTATICA de declarar imagem. Sem
+    este probe, um erro no corte do sufixo faria `node:...@sha256:X AS cliente`
+    virar uma chave que nunca casa com a do compose — e o eixo 2, que e o unico
+    motivo de o `Dockerfile` estar na lista, ficaria verde sem nunca comparar
+    nada.
+    """
+    conteudo = (
+        f"FROM node:22.11.0-alpine@sha256:{UM} AS cliente\n"
+        "RUN npm ci\n"
+        f"FROM python:3.12.7-slim@sha256:{OUTRO}\n"
+        "ENV FROM_NAO_E_MARCA=1\n"
+    )
+    with tempfile.TemporaryDirectory() as temporario:
+        alvo = Path(temporario) / "Dockerfile"
+        alvo.write_text(conteudo, encoding="utf-8")
+        achadas = imagens(alvo)
+
+    esperadas = {"node:22.11.0-alpine": UM, "python:3.12.7-slim": OUTRO}
+    if achadas != esperadas:
+        print(f"FALHA: a varredura de FROM devolveu {achadas}, esperado {esperadas}")
+        return False
+    print("OK: a varredura enxerga `FROM` e descarta o estagio - arquivo plantado")
+    return True
+
+
+def probe_do_from_comentado() -> bool:
+    """`# FROM ...` E CAPTURADO, e isso e conservador de PROPOSITO.
+
+    **Achado por este probe, e nao por leitura.** A primeira versao do fixture
+    acima trazia um comentario comecando por `# FROM` como prosa, e a varredura
+    o leu como imagem — porque ela tira o `#` antes de olhar a marca, exatamente
+    como ja fazia com `image:`.
+
+    O comportamento fica, e a razao e a que o cabecalho do verificador declara:
+    a varredura e conservadora na direcao que importa. Ela pode cobrar digest de
+    uma linha comentada — e o custo disso e uma justificativa humana —, e o que
+    ela nao faz e PERDER uma declaracao de verdade, que seria o falso negativo.
+    Um `FROM` comentado costuma ser um estagio desativado, e um estagio
+    desativado sem digest volta sem digest.
+
+    **A consequencia para quem escreve `Dockerfile` fica dita aqui:** comentario
+    em prosa nao comeca com `FROM`. E o mesmo contrato que o `docker-compose.yml`
+    ja tinha para `image:`.
+    """
+    conteudo = f"# FROM debian:bookworm@sha256:{UM}\nFROM scratch\n"
+    with tempfile.TemporaryDirectory() as temporario:
+        alvo = Path(temporario) / "Dockerfile"
+        alvo.write_text(conteudo, encoding="utf-8")
+        achadas = imagens(alvo)
+
+    if achadas.get("debian:bookworm") != UM:
+        print(f"FALHA: `# FROM` comentado deixou de ser capturado: {achadas}")
+        return False
+    if achadas.get("scratch") != "":
+        print(f"FALHA: `FROM scratch` sem digest devia entrar sem digest: {achadas}")
+        return False
+    print("OK: `# FROM` comentado e capturado - conservador, e declarado")
+    return True
+
+
+def probe_da_divergencia_no_dockerfile() -> bool:
+    """Digest de Node diferente entre o compose e o `Dockerfile` REPROVA.
+
+    E a P3-1 com `FROM` no lugar de `image:`: o container construiria o cliente
+    com um toolchain e a maquina de quem desenvolve com outro, e os dois diriam
+    "node 22.11.0-alpine".
+    """
+    problemas = verifica(
+        {"node:22.11.0-alpine": UM},
+        [("Dockerfile", {"node:22.11.0-alpine": OUTRO})],
+    )
+    if not any("digests DIFERENTES" in p for p in problemas):
+        print(f"FALHA: divergencia no Dockerfile nao foi acusada: {problemas}")
+        return False
+    print("OK: reprovou digest divergente entre compose e Dockerfile")
+    return True
+
+
+def probe_da_isencao_do_eixo_3() -> bool:
+    """Imagem-base que so existe no `Dockerfile` NAO reprova — e a isencao.
+
+    E a metade que impede a de cima de virar "bloqueia tudo": `python:3.12.7-slim`
+    nunca sobe como servico, e exigir que ele aparecesse no compose obrigaria a
+    inventar um servico que ninguem roda. **A isencao e do eixo 3 e so dele** —
+    a versao anterior desta funcao pulava o laco inteiro e levava o eixo 2
+    junto, e foi este probe que mostrou.
+    """
+    problemas = verifica(
+        {"node:22.11.0-alpine": UM},
+        [("Dockerfile", {"node:22.11.0-alpine": UM, "python:3.12.7-slim": OUTRO})],
+    )
+    if problemas:
+        print(f"FALHA: a imagem-base do Dockerfile foi acusada: {problemas}")
+        return False
+    print("OK: nao acusou imagem-base ausente do compose - a isencao do eixo 3")
+    return True
+
+
 def probe_do_arquivo_ausente() -> bool:
     """Compose que sumiu sai com rc=2, e nao com "0 imagens, tudo certo"."""
     resultado = subprocess.run(
@@ -150,6 +251,10 @@ def main_probes() -> int:
 
     resultados = [roda(*p) for p in PROBES]
     resultados.append(probe_da_varredura())
+    resultados.append(probe_do_dockerfile())
+    resultados.append(probe_do_from_comentado())
+    resultados.append(probe_da_divergencia_no_dockerfile())
+    resultados.append(probe_da_isencao_do_eixo_3())
     resultados.append(probe_do_arquivo_ausente())
 
     print()

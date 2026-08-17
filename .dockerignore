@@ -1,0 +1,44 @@
+# O CONTEXTO DE BUILD E O QUE O `docker build` ENVIA AO DAEMON, e tudo o que
+# entra aqui pode acabar dentro da imagem por um `COPY` distraido.
+#
+# `node_modules` e `dist` sao os dois que importam: os dois existem na maquina de
+# quem desenvolve e sao artefato local. Sem esta lista, um `node_modules` de
+# Windows entraria no estagio de Node e o `npm ci` rodaria sobre binarios de
+# outra plataforma; e um `dist` velho entraria na imagem antes de o estagio
+# `cliente` produzir o novo.
+node_modules/
+range-core/web/dist/
+
+.git/
+.aurora-worktrees/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SEGREDO NUNCA ENTRA EM IMAGEM. `CLAUDE.md` proibe versiona-los; esta linha
+# fecha o outro caminho, que e o build local mandar o `.env` da maquina para
+# dentro de uma camada — de onde ele nao sai mais, mesmo apagado depois.
+.env
+.env.*
+secrets/
+
+# A suite e o registro nao servem ao processo. `tests/fixtures/pack_minimo` e a
+# excecao aparente, e nao e excecao: o pack chega por VOLUME (D13), e nao por
+# imagem.
+tests/
+docs/
+scenarios/
+.github/
+.claude/
+user-scope/
+
+# `alembic/` NAO entra nesta lista, e a ausencia e decisao: o esquema e
+# pre-requisito do processo, e um `docker compose up` que subisse a API sobre um
+# banco sem tabela produziria erro de runtime no primeiro request — durante a
+# sala. O servico `migrations` do compose roda `alembic upgrade head` e os dois
+# processos so sobem depois que ele SAI COM ZERO.
