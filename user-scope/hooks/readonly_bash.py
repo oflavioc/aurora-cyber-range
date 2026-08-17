@@ -166,6 +166,17 @@ ALLOWED = [
     # exatamente assim. Os probes rodam sem argumento e provam os oito eixos,
     # que e o que o M5 cobra.
     rf"|check_audit_base_probes"
+    # `check_web_sem_derivacao` — Fase 4, peca 6. Ele responde "o cliente pinta
+    # ou decide?", que e a metade da D17 que nenhum teste de payload alcanca: um
+    # `.sort()` no TypeScript troca quais tres itens aparecem no telao e o teste
+    # de orcamento continua verde, porque ele mede o PAYLOAD. Sem executa-lo, o
+    # auditor le `.tsx` procurando `sort` a olho — sobre uma arvore que so cresce.
+    #
+    # A prova negativa entra junto pelo motivo de sempre, e aqui ela vale duas
+    # vezes: alem de provar que ele reprova, ela prova que ele NAO reprova o que
+    # o renderizador precisa fazer. Gate de cliente que bloqueia `map` seria
+    # abandonado na primeira tela.
+    rf"|check_web_sem_derivacao|check_web_sem_derivacao_probes"
     # SENTINELA DE BRANCH — D15, Fase 4. A DECISAO DE ADMISSAO ESTA AQUI, NO
     # COMMIT QUE CRIA O MECANISMO, e o resultado dela e "nada novo entra".
     #

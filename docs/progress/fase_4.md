@@ -324,11 +324,21 @@ Escopo: as três tabelas e a migration. **Sem seed** — `07` Fase 5 é dona do
 
 > **"As três tabelas" estava errado, e são quatro — corrigido na peça 5.** O
 > número veio das três entidades que `07` Fase 3 nomeia, e a P3-5 nomeia
-> **quatro** dicionários de módulo: `MATRICULAS` é um deles. **A decisão foi
-> escrita assim e ratificada assim**, pelas duas partes, sem conferir contra a
-> pendência que ela fechava — e é a mesma classe do L1 daquela auditoria: *número
-> afirmado diz de que conjunto é, e é contado na fonte dele no momento em que se
-> escreve*. Aqui a fonte era a pendência, e não a lista de entidades.
+> **quatro** dicionários de módulo: `MATRICULAS` é um deles.
+>
+> **A autoria do erro é das duas partes, e isso está escrito porque a omissão
+> tem leitura própria.** Eu escrevi "as três tabelas" contando a lista de
+> entidades; o operador ratificou a decisão sem conferir contra a P3-5. Nenhum
+> dos dois abriu a pendência que a decisão dizia fechar. Registrar só um lado
+> deixaria a leitura de que foi descuido de quem escreveu — e o defeito não é de
+> redação: é de **procedimento**, e um procedimento que só uma parte executa não
+> tem revisão.
+>
+> É a mesma classe do L1 daquela auditoria: *número afirmado diz de que conjunto
+> é, e é contado na fonte dele no momento em que se escreve*. Aqui a fonte era a
+> pendência, e não a lista de entidades — e a regra que sai disso é barata:
+> **decisão que declara fechar uma pendência é conferida contra o texto dela, e
+> não contra a memória de qual era o escopo.**
 
 **Os seis registros do DEMO não são seed, e a distinção precisa ser dita**
 porque ela vai parecer arbitrária: seed é dataset em escala, determinista e
@@ -1621,11 +1631,85 @@ mesma promessa de `01` §5.3 divergiriam na primeira correção.
 `test_range_api.py`, cujo teste de latência lia `painel["itens"]` — a pergunta
 dele não mudou, a evidência sim.
 
-### O que falta
+### A guarda do cliente nasceu antes do cliente
 
-O cliente: React 18 + Vite + Tailwind sob `range-core/web/` (D1), as três telas,
-e o build entrando no job `contratos` — job novo é context novo, e foi a P1-18.
-A P4-3 fecha quando o bundle substituir o HTML cru.
+`scripts/check_web_sem_derivacao.py`, na forma da peça 1: o que se declara antes
+do código não é a lista, é a **obrigação**. A próxima sessão não consegue
+escrever um cliente que deriva sem que isto reprove.
+
+**O risco que ela fecha é preciso, e nenhum teste de payload o alcança:** um
+`.sort()` no TypeScript troca *quais três* aparecem no telão, e o teste de
+orçamento continua **verde** — ele mede o payload, e o payload continua certo. A
+propriedade passa a viver no cliente, que é o único lugar onde defeito não fica
+vermelho.
+
+Três regras, e a segunda se sobrepõe à primeira de propósito: métodos de
+seleção, ordenação e agregação proibidos; as coleções do payload consumidas **só
+por `.map(`**; `.length` em comparação proibido — é assim que um orçamento se
+reimplementa no cliente.
+
+**E ela não nasce vacua.** `web/sala.html` já é cliente e já é varrido. Um
+verificador que passasse por não ter o que olhar seria a §7.3, e há **probe
+exigindo reprovação** com o diretório vazio e com o diretório ausente.
+
+**A prova negativa achou dois defeitos, e os dois eram meus:**
+
+| O que | Por que só a execução separa |
+|---|---|
+| a regra 2 estava **frouxa no código** e certa no enunciado | ela reusava a whitelist inteira, e `forEach` passava sobre coleção do payload — a regra 2 virava a regra 1 escrita de novo |
+| `_exibe` estourava fora da raiz | `relative_to` levanta, e o probe da vacuidade aponta `WEB` para um temporário: **falha de instrumento no caminho de REPROVAÇÃO**, que só aparece quando o verificador está certo |
+
+Dezesseis direções, e metade delas é o outro lado: `map`, `join`, o agregado
+renderizado a partir do **número** do servidor, `.length` sem comparação. Gate de
+cliente que bloqueasse `map` seria abandonado na primeira tela — e bloqueio
+indevido também é defeito.
+
+**Entrou na allowlist do auditor no mesmo commit** (B1), com a prova negativa ao
+lado, e no job `arquitetura`, que não instala nada. O harness passou de 56 para
+**58** leituras legítimas.
+
+### O bloqueio que parou a peça aqui: não há Node nesta máquina
+
+`node` e `npm` **não existem no host**. Isso não é inconveniência — é a §7.3.1:
+escrever um build React/Vite/Tailwind que eu não consigo executar entrega código
+que nunca rodou, e essa é exatamente a classe que custou o `pip install -e
+"$WT[test]"` da peça 0, uma linha correta em intenção, em aspas e em variável,
+que o pip recusava.
+
+**A saída existe e é do próprio projeto: Docker está disponível**, e o
+repositório já pina imagens por digest com `scripts/check_pinned_images.py`
+guardando a igualdade entre o compose e o workflow. Rodar `npm ci` e o build
+dentro de um `node:<versão>@sha256:...` não instala nada no host, é reproduzível,
+e põe o toolchain sob a mesma regra de pinagem que T15 já exige.
+
+**Isso é decisão do operador e não de implementação**, porque toca duas coisas
+que a fase já fixou: a lista de imagens pinadas e o job `contratos`.
+
+### O gate do build, respondido — e o risco real não é o que parece
+
+**A pergunta mecânica:** um `run:` que falha reprova o job. Conferido — não há
+`continue-on-error`, `|| true` nem `if: always()` em nenhum lugar de
+`invariants.yml`, e todas as actions estão pinadas por SHA.
+
+**O risco real é outro, e é específico de frontend: `vite build` não checa
+tipos.** Ele transpila e sai **0** com o TypeScript quebrado. O passo rodaria,
+ficaria verde, e o gate seria exatamente a §7.3 — a verificação que parece
+existir, no lugar mais fácil de acontecer.
+
+**Então o passo é `tsc --noEmit && vite build`, e ele tem prova negativa:** um
+erro de tipo plantado precisa deixar o job **vermelho**. Sem essa prova, "o build
+entra no CI" é atestação — e foi assim que o DEMO da Fase 1 ficou inexecutável
+sem nada acusar.
+
+### O que falta da peça 6
+
+1. **A decisão do toolchain** — Node por container pinado, acima.
+2. As três telas em React 18 + Vite + Tailwind sob `range-core/web/` (D1),
+   consumindo o payload como ele vem — a guarda já está armada.
+3. O build no job `contratos` como `tsc --noEmit && vite build`, com o erro de
+   tipo plantado provando que ele reprova.
+4. A P4-3 fecha quando o bundle substituir o HTML cru, e a rota `GET /sala`
+   continua.
 
 ---
 

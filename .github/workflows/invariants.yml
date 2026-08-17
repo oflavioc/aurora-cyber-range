@@ -122,6 +122,16 @@ jobs:
       - name: teste negativo da superficie da api
         run: python scripts/check_api_surface_probes.py
 
+      # O CLIENTE PINTA O PAYLOAD — Fase 4, peca 6. A D17 poe o corte de telao no
+      # servidor e o orcamento virou teste; um `.sort()` no TypeScript troca
+      # quais tres aparecem e o teste de orcamento continua VERDE, porque ele
+      # mede o payload. Stdlib pura, entao roda neste job.
+      - name: o cliente nao deriva o que a projecao ja cortou
+        run: python scripts/check_web_sem_derivacao.py
+
+      - name: teste negativo do verificador do cliente
+        run: python scripts/check_web_sem_derivacao_probes.py
+
       # P3-1. Na peca 3 eu inventei o digest do Redis para o servico deste
       # workflow, com o `docker-compose.yml` ja pinando o valor ao lado. Foi
       # pego por `grep`, e nao por mecanismo — entao na rodada seguinte poderia
