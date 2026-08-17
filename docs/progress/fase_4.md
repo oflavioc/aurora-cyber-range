@@ -1101,6 +1101,102 @@ Registrada como **P4-3**, com destino.
 
 ---
 
+## 4.6 A peça 5 — o que ela recebe pronto, e o que já foi medido
+
+**Não aberta.** A sessão que fechou as peças 0 a 4 parou aqui por contexto, e
+esta seção existe para que a próxima não redescubra nada. É a mesma razão da §0:
+conversa não é fonte versionada.
+
+### O que a peça 5 fecha
+
+Quatro pendências: **P3-5** (business state em Postgres), **P3-10** (a `Cota`),
+**P3-11** (guarda de boot do adapter) e **P4-1** (idioma dos caminhos).
+
+### As decisões já tomadas, com a fonte conferida
+
+**Nomes de tabela e de identificador: inglês. Nomes de entidade na prosa:
+português — e não é contradição.** `02` §1 lista *"Aluno, Professor, Curso,
+Disciplina, Turma…"*, e isso é a nomeação **conceitual** do domínio, em texto
+narrativo. `CLAUDE.md` §Idioma põe **identificadores, tabelas, colunas e
+endpoints** em inglês. Os dois valem, e não sobre a mesma coisa.
+
+A exceção real é outra e continua sendo uma só: **`/plateia`**, que `01` §6
+escreve como caminho literal. Documento normativo prevalece sobre a convenção, e
+ela já está declarada no `api_surface.yaml` do núcleo.
+
+**Consequência para a peça 5:** as tabelas e colunas novas nascem em inglês — não
+há por que criá-las em português e renomeá-las depois —, as classes de
+`registros.py` acompanham, e os **valores de papel** (`aluno`, `professor`,
+`secretaria`, `financeiro`) **ficam em português**: são vocabulário de persona,
+que `03` §6 e §7 escrevem assim, e não identificador.
+
+**O par da P3-5 tem de atravessar PROCESSO.** Reabrir a sessão do SQLAlchemy no
+mesmo processo **não discrimina**: os dicionários de módulo de hoje —
+`ALUNOS`, `NOTAS`, `MATRICULAS` — sobreviveriam a isso e o teste passaria com a
+implementação errada. A forma é a de `tests/_restaura_em_outro_processo.py`: o
+pai escreve, um **interpretador novo** lê. E a mutação que prova: com a escrita
+voltando para dicionário de módulo, o filho não encontra a nota.
+
+### A medição que a peça 5 recebe pronta — e ela abre uma pendência
+
+A pergunta do operador sobre a P3-11 era a certa: *flag declarada no adapter e
+ausente da superfície é no-op na outra direção?* **É — e foi medido:**
+
+```text
+flags que declaram `academus-api` em `consumers`:  12
+flags consumidas por alguma rota declarada:         4
+sem rota nenhuma:                                   8
+```
+
+As oito são `anpd_notification_window_open`, `enrollment_service_state`,
+`federated_session_active`, `grade_integrity_suspect`, `research_data_exposed`,
+`student_data_exposed`, `transcript_issuance_blocked` e `vpn_mfa_enforced`.
+
+**A direção simétrica não é "flag sem rota" em geral** — flag consumida só pelo
+wallboard ou pelo `academus-web` é normal. É **flag que declara a `academus-api`
+como consumidora e que nenhuma rota consome**: a declaração afirma um consumo que
+não existe.
+
+**E ela não pode virar gate agora**, porque reprovaria a árvore por um motivo
+legítimo: a API é deliberadamente mínima (`07` Fase 3 põe *"modelo completo"* nos
+NON-GOALS), e as oito têm consumidor previsto na Fase 8. Virou a **P4-4**, com a
+forma sugerida — a mesma de `domains/flags_pendentes.yaml`, que a peça 1 da Fase
+3 criou para exatamente este tipo de promessa datada.
+
+**O que a peça 5 implementa da P3-11 é a direção decidível hoje:** flag citada em
+`api_surface.yaml` e ausente do estado corrente **recusa o boot**, com a mensagem
+nomeando a flag e o arquivo — a forma que `06` T2 já exige do loader do engine.
+
+### A P3-10, e a propriedade que o rollback pode quebrar sem ninguém ver
+
+A decisão da D9 é **eliminar** o acumulador, e as três propriedades precisam de
+medição, não de argumento:
+
+| Propriedade | Como fica vermelha |
+|---|---|
+| estável no reinício | mesma sessão, processo novo, mesmo conjunto de recusas |
+| **estável no rollback** | a taxa volta ao valor anterior e **exatamente as mesmas sessões** voltam a cair — é a que um acumulador quebra em silêncio, porque a flag reverte e a memória não |
+| monótona na taxa | subir a taxa só **acrescenta** sessões; nunca troca o conjunto |
+
+---
+
+## 4.7 Uma nota de processo: `HEAD` se moveu entre dois turnos
+
+Entre o fim da peça 4 e a abertura da peça 5, a árvore estava em `main`, e não na
+branch da fase. **Nada se perdeu** — a branch seguia intacta em `a3e5043`, com os
+sete commits —, mas a árvore de trabalho mostrava o conteúdo da Fase 3.
+
+É a corrida que `WORKFLOW.md` §"Árvore de trabalho compartilhada" descreve, e a
+terceira ocorrência registrada. **O guarda de branch não a alcança**: ele olha
+para onde o commit vai cair, e aqui `HEAD` se moveu durante uma leitura.
+
+**O que a pegou foi a convenção, e não um mecanismo:** *"na dúvida, verificar
+`git branch --show-current` e `git status` antes de agir"*. Sem isso, a peça 5
+teria sido escrita sobre a Fase 3 — importando módulos que não existem lá —, e o
+`pre-commit` só a barraria no fim, depois do trabalho inteiro.
+
+---
+
 ## 5. O procedimento desta fase, e o que muda
 
 **A auditoria vem antes do merge.** É a primeira vez, e as consequências são
@@ -1134,6 +1230,7 @@ a peça que as vence.
 | P4-1 | os caminhos da `academus-api` estão em português, e `CLAUDE.md` põe endpoints em inglês | **peça 5** — ver abaixo |
 | P4-2 | a família `eventos` não roda no perfil de domínio, e emitir sem declarar não tem guarda em lugar nenhum | **Fase 5** — ver abaixo |
 | P4-3 | a página crua de `/sala` é provisória e a peça 6 a substitui | **peça 6** — ver abaixo |
+| P4-4 | oito flags declaram `academus-api` como consumidora e nenhuma rota as consome | **Fase 8** — ver abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
 datada para a **Fase 8**, e não é desta. A premissa original dela era falsa e o
@@ -1300,6 +1397,32 @@ precisa ser desfeito.
 implementa o que `01` §6 exige do wallboard — alto contraste, legível a 10 m,
 painéis por convenção com codificação visual por `category`. Enquanto isso não
 existir, o item de OUTPUTS da fase não está entregue, e é a DoD que cobra.
+
+#### P4-4 — flag que declara consumidor que não a consome
+
+**Medido ao responder a pergunta da P3-11 sobre a direção simétrica:** doze flags
+declaram `academus-api` em `consumers`, quatro são consumidas por alguma rota, e
+**oito não são consumidas por nenhuma**.
+
+**A assimetria é real e é o espelho da P3-11.** Aquela pega *"a rota consome uma
+flag que o estado não tem"*; esta seria *"a flag afirma um consumo que a rota não
+faz"*. Nenhuma das duas é pega hoje pelo mesmo mecanismo: `check_api_surface`
+confere rota → flag, e nada confere flag → rota.
+
+**Por que não vira gate agora:** reprovaria a árvore por um motivo legítimo. A
+`academus-api` é deliberadamente mínima — `07` Fase 3 põe *"modelo completo"* nos
+NON-GOALS —, e as oito têm consumidor previsto: `05`/`02` §9 põem as sete ações
+de continuidade e o `academus-web` completo na **Fase 8**, cujo item de DoD é
+*"as sete ações de continuidade aplicam efeito mecânico e custo"*.
+
+**A forma sugerida já existe no repositório:** `domains/flags_pendentes.yaml`, que
+a peça 1 da Fase 3 criou para flags citadas na spec sem serviço que as traga,
+com **quem a trará** por entrada e cobrança nas duas direções — entrada que
+sobrou reprova, entrada que a fonte deixou de citar também. A mesma forma
+aplicada a `consumers` fecharia esta.
+
+**Vencimento: Fase 8**, e o gatilho é a condição, não o marco — *o primeiro
+commit em que a `academus-api` passa a consumir flag de continuidade*.
 
 ---
 
