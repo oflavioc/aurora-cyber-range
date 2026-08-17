@@ -1,9 +1,13 @@
 # Fase 4 — VERTICAL SLICE ⏸
 
 **Status: EM CURSO — as sete peças fechadas; falta a auditoria de checkpoint.**
-A branch nasceu em `6efca2e` — a
-âncora está gravada em `docs/process/phase_anchors.tsv`, e ela é o primeiro item
-do procedimento novo, não formalidade.
+A branch nasceu em `6efca2e` e foi **rebaseada sobre `486df18`** quando o
+`spec-change` da P4-9 entrou em `main` — a âncora está gravada em
+`docs/process/phase_anchors.tsv` e foi **regravada no mesmo passo**, que é o item
+3 do procedimento de `WORKFLOW.md` §"`spec-change` primeiro". Não é formalidade:
+sem regravar, `check_audit_base.py` recusa a rodada com *"a ancora ficou
+desatualizada"* — e recusa com razão, porque o ponto de bifurcação mudou de
+verdade.
 
 **Um status só**, e ele é o do documento inteiro. Foi o L2 da segunda auditoria
 da Fase 3: um registro com dois cabeçalhos de estado não tem estado.
@@ -674,7 +678,16 @@ o índice e os blocos não dependem do espaço que o texto ocupa.
 que só faça sentido dentro da outra, e descobrir na peça 7 que a sala tem dois
 projetores. Duas rotas independentes é a decisão que não fecha porta nenhuma.
 
-### D19 — a casca do console é pública; o dado atrás dela não é — **DECIDIDA na peça 6**
+### D19 — a casca do console é pública; o dado atrás dela não é — **DECIDIDA na peça 6, e depois com fonte normativa**
+
+> **O texto abaixo é o da peça 6, e a primeira frase dele deixou de ser
+> verdadeira — de propósito.** `05` §8 isentava **duas** superfícies quando esta
+> decisão foi escrita, e hoje isenta **três**: o `spec-change` de `486df18`
+> acrescentou a casca estática do `gm-console` e a rota que troca credencial por
+> token. O parágrafo fica como está porque é a §1.6 — ele descreve o commit em
+> que foi escrito, e reescrevê-lo apagaria justamente o fato de que a decisão
+> viveu um tempo sem fonte. **Foi o M1 da primeira auditoria**, e o que o fechou
+> está na P4-9.
 
 `05` §8 isenta de autenticação **wallboard e participant-view**, e `GET /console`
 é uma terceira rota pública. **A decisão está aqui, e não numa linha de YAML**,
@@ -2458,6 +2471,10 @@ há escopo de usuário, a ausência aparece como ausência.
 preâmbulo, e ampliá-la por decisão de fase é o caminho que o `spec-change`
 existe para carregar. Ver a **P4-9**.
 
+> **Resolvido: o `spec-change` foi mergeado em `486df18`**, a branch foi
+> rebaseada sobre ele e a âncora regravada no mesmo passo. `05` §8 agora isenta a
+> casca estática do `gm-console` e a rota que troca credencial por token.
+
 **Itens 1 e 4 da DoD ficaram NÃO VERIFICADO por ausência de Docker no auditor**,
 que é o padrão da P2-19. A proposta está na **P4-10**, e ela **não foi
 implementada** — a decisão é do operador.
@@ -2502,7 +2519,7 @@ prefixo `P3-`; as abertas nesta fase, com `P4-`.
 | P4-6 | o `effect_ui` da flag de queda de sessão diz "por minuto", e a função não tem cadência | **Fase 8** — ver abaixo |
 | P4-7 | três avisos de `npm audit` no toolchain do cliente, todos em dependência de desenvolvimento | **condição** — ver abaixo |
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume | **condição** — ver abaixo |
-| P4-9 | a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change` | **antes do merge da fase** — ver abaixo |
+| P4-9 | ~~a casca pública do console amplia a lista fechada de `05` §8, e isso exige `spec-change`~~ | ✅ **FECHADA** pelo `spec-change` mergeado em `486df18` |
 | P4-10 | itens 1 e 4 da DoD ficam NÃO VERIFICADO por ausência de Docker no auditor | **decisão do operador** — proposta abaixo |
 
 A **P2-6** — a ligação declarativa de `participant_action` a flag — continua
@@ -2881,6 +2898,25 @@ branch da fase é rebaseada, e **a âncora é regravada no mesmo commit do rebas
 **Enquanto ele não for aprovado**, `GET /console` é uma superfície pública que a
 spec não isenta. A alternativa — não servir a casca pelo `range-api` — está
 descrita na D19 e recusada com motivo.
+
+> **✅ FECHADA pelo `spec-change` mergeado em `486df18`.** `05` §8 passou de uma
+> exceção a uma **lista de duas**, e a segunda é a da casca: *"o HTML, CSS e
+> JavaScript que o navegador carrega **antes de existir token**, e o endpoint de
+> autenticação em si"*, com a linha que separa casca de serviço — *"nenhum dado
+> de exercício trafega por ela"*.
+>
+> **A ordem de `WORKFLOW.md` foi cumprida inteira, e o terceiro passo é o que
+> costuma faltar:** o `spec-change` foi PR próprio, sem código junto, mergeado
+> primeiro; a branch da fase foi rebaseada sobre a `main` que já o contém; e **a
+> âncora foi regravada de `6efca2e` para `486df18` no mesmo passo**. Sem o
+> terceiro, `check_audit_base.py` recusaria esta rodada — o rebase move o ponto
+> de bifurcação de verdade, e o predicado lê isso como âncora desatualizada.
+>
+> **O que a D19 sustentava por argumento passou a ter fonte.** O argumento não
+> mudou e não precisava mudar; o que mudou é quem o carrega: era decisão de fase
+> sobre uma lista que o preâmbulo de `05` fecha, e agora é a própria `05`. Era
+> exatamente isso que o auditor apontou no M1, e ele estava certo no ponto
+> processual.
 
 #### P4-10 — itens 1 e 4 NÃO VERIFICADO: a proposta, e ela não está implementada
 
