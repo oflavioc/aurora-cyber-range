@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **367 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 105 exigem Postgres ou containers e pulam sem a stack no ar |
+| **378 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 116 exigem Postgres ou containers e pulam sem a stack no ar |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -243,7 +243,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 105 dos 367 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 116 dos 378 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 

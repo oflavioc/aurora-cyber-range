@@ -1,6 +1,6 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM ANDAMENTO — peças 1, 2 e 3 de 6 fechadas.** A branch nasceu em
+**Status: EM ANDAMENTO — peças 1 a 4 de 6 fechadas.** A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
 decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
 pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
@@ -88,7 +88,7 @@ produz o insumo da seguinte.
 | **1** ✅ | registro seção → verificador de `05`, com as cinco direções e prova negativa pareada; e a §8.5 virando regra em `WORKFLOW.md` | **P4-12** |
 | **2** ✅ | modelo completo, `CalendarioAcademico`, `AutorizacaoRetificacao`, `access_delegations` (migration, sem dado) | abriu a **P5-2** |
 | **3** ✅ | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
-| **4** | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
+| **4** ✅ | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
 | **5** | `GM_NOTES.md` e a query de referência | depende da **D10** |
 | **6** | fechamento: DoD com prova item a item, registro, auditoria de checkpoint | — |
 
@@ -933,6 +933,132 @@ como superusuário, e a partir daí o `IF NOT EXISTS` a encontra.
 
 **A role da aplicação e a role das migrations são a mesma, e isso limita o que
 `REVOKE` significa hoje** — é a **P5-3**, aberta abaixo.
+
+### 4.4 Peça 4 — o seed em escala, e os seis conjuntos como produto
+
+**Entregue:** `domains/academus/seed/{dataset,carga,linha_b}.py`,
+`scripts/prova_seed_completo.py`, e onze testes — determinismo nas duas direções
+e a partição dos seis conjuntos.
+
+#### Os dois itens da DoD, medidos em escala completa
+
+```text
+maquina  Windows-11-10.0.26200-SP0        python 3.12.10       data 2026-08-18
+escala   28.000 alunos · 1.200 professores · 60 cursos · 8 semestres
+linhas   3.543.783        (1,12 M notas · 1,12 M matriculas · 1,12 M historicos)
+
+  rodada 1   gerar 1,57 s   COPY 148,76 s   dump 4,41 s   seed 150,32 s
+  rodada 2   gerar 2,01 s   COPY 157,37 s   dump 4,61 s   seed 159,39 s
+
+  item 1  seed completo em < 5 min:  PASSA — 159,4 s de 300 s
+  item 2  dataset byte-identico:     PASSA — 20 tabelas, SHA-256 por tabela
+
+  audit_trail  c48adb205c44cf03810010836105b4efb423abbbb68fa54cf12ccb830906bc84
+  students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
+```
+
+Máquina, data e stack ao lado do número — a exigência de forma que `06` T3 fixou
+para a curva da Fase 2, e que vale igual aqui. **Os dois SHAs estão impressos e
+não só comparados:** quem tiver o mesmo seed os reproduz sem confiar nesta saída.
+
+#### As duas direções do determinismo
+
+`test_o_mesmo_seed_produz_o_mesmo_dump` é a metade óbvia. **A que discrimina é a
+outra:** seeds diferentes têm de produzir SHAs diferentes em `students`, `users`,
+`grades` e `audit_trail`. Sem ela, um gerador que ignorasse o `RANDOM_SEED`
+passaria no primeiro teste — "duas execuções iguais" é verdade trivial para quem
+sempre produz a mesma coisa.
+
+E há uma terceira afirmação, na direção oposta: **`academic_calendar` NÃO muda**
+com outro seed. Ele deriva de `ANO_BASE`, e um calendário sorteado poria a janela
+de retificação em data aleatória — `within_window` deixaria de ser comparável
+entre execuções, e a Linha B inteira depende dessa comparação.
+
+**O terceiro teste olha o fonte, e não o resultado:** duas execuções no mesmo
+segundo passariam na igualdade mesmo com `now()` no caminho, e o defeito só
+apareceria na virada do dia. Ele é **por AST**, e a razão foi medida: a primeira
+versão procurava a string `datetime.now(` e reprovou contra o próprio docstring
+do gerador, que cita a chamada para dizer que ela não existe. É a mesma razão
+pela qual `06` T1 exige a fronteira core/adapter verificada por AST, *"não por
+grep"*.
+
+#### Os seis conjuntos são o produto, e "distinguível" virou uma partição
+
+Seis consultas que devolvessem as contagens certas ainda poderiam se sobrepor —
+uma linha contada em dois conjuntos, outra em nenhum. O que os testes provam é
+mais forte:
+
+| | |
+|---|---|
+| **contagem** | 22 · 11 · 34 · 60 · 18 · N — os números de `02` §6.1 |
+| **disjunção** | nenhuma linha aparece em dois conjuntos |
+| **cobertura** | a união é a trilha inteira: 3.145 = 22+11+34+60+18+3.000 |
+
+Sem as duas últimas, dois conjuntos indistinguíveis passariam — o exercício teria
+cinco, e ninguém descobriria até a sala.
+
+**A ligação que faz os ambíguos serem ambíguos.** `02` §6.1 pede *"aprovador que
+também aparece nos indevidos"*, e os indevidos não têm autorização nenhuma — a
+ligação só pode ser pela **conta**: o aprovador das 11 autorizações é a mesma
+conta docente que assina os 22. Sem isso, os 11 seriam apenas "fora da janela com
+autorização", indistinguíveis dos 34.
+
+**E há um teste das assinaturas, não só das contagens:** um gerador que
+produzisse 22 linhas sem as seis características de `02` §6.1 passaria na
+contagem e daria à sala um conjunto que não se parece com o que o `GM_NOTES`
+descreve. O teste confere as seis — IP de laboratório, 22h–02h, sempre elevando,
+sem autorização, fora da janela, conta única — e que os alunos afetados são no
+máximo oito, que é o "mesmo grupo".
+
+**As consultas moram em `domains/academus/seed/linha_b.py` e não no teste**,
+porque são o produto: `02` §6.3 manda o `GM_NOTES.md` trazer a query de
+referência, e escrita dentro do teste ela seria inacessível ao gerador da peça 5
+— ou escrita duas vezes, que é a classe que este projeto já pagou.
+
+#### Dois defeitos meus, e o segundo mudou o desenho
+
+**A carga assumia a role restrita para o banco inteiro**, e a primeira execução
+respondeu `permission denied for table academic_calendar`. **O erro estava
+certo:** `academus_app` tem `INSERT`+`SELECT` em `audit_trail` e nada nas outras
+dezenove — que é exatamente o que `02` §4 item 2 pede. Uma role que pudesse
+semear o banco inteiro não seria a role da trilha. Agora ela é assumida só em
+volta do `COPY` da trilha, com `RESET ROLE` logo depois — porque `SET LOCAL` vale
+até o fim da **transação**, e hoje `audit_trail` é a última do dicionário: sem o
+reset, a dependência de ordem reapareceria no dia em que alguém reordenasse.
+
+**E o hook pegou uma colisão de convenção do core.** `seeded_random("academus.
+alunos")` — a forma que `range_core.determinism` documentava desde a Fase 2 — é
+**inexprimível dentro de `domains/`**: o invariante 2 recusa toda string
+`(academus|prontus|core).algo`, porque é a forma de um nome de flag. Esta peça foi
+o primeiro consumidor real do seed por escopo, e o bloqueio veio na primeira
+escrita. O separador passou a ser `:`, e o core documenta `academus:alunos`.
+Trocar o separador muda os sub-seeds derivados, e isso é inofensivo: não havia
+consumidor antes.
+
+#### O limite da P5-3 saiu da pendência e virou teste
+
+Você pediu que ele ficasse onde quem lê o item da DoD encontre, na forma do
+truncamento da cauda. São duas coisas:
+
+- **`OQueT7NaoProva`**, em `tests/test_trilha_de_auditoria.py`: afirma que a role
+  **que conecta** ainda possui `UPDATE` sobre `audit_trail`, e que `RESET ROLE`
+  a traz de volta. Os dois ficam **vermelhos** no dia em que a segunda credencial
+  existir — e a mensagem de falha diz que isso é a P5-3 fechando;
+- o **cabeçalho do arquivo** passa a dizer o limite, porque é ali que alguém lê
+  "T7 passa": o segundo critério é sobre `academus_app`, e a `academus-api` não
+  conecta como ela.
+
+**Sobre o gatilho caber como item de DoD:** ele não cabe sem `spec-change`.
+`07` não declara fase de deploy — a lista de fases vai de contratos a
+observabilidade, e nenhuma delas produz o deploy que `05` §6 governa. Acrescentar
+item de DoD é editar `07`, que é spec, e isso é PR próprio com aprovação humana.
+O que fiz sem spec-change foi pôr o gatilho **na entrada da §6 do registro de
+seções** — que é CODE, e que a **peça 5 obrigatoriamente toca** para promover
+aquela seção. Assim ele é lido na hora em que alguém está mexendo em deploy e
+exclusão de gabarito, que é o momento certo. Se você quiser o item em `07`
+também, é `spec-change` e eu abro.
+
+---
 
 #### O que fica fora da fase inteira, e contra qual vizinha
 

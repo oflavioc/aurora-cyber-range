@@ -75,6 +75,21 @@ dependencies = [
     # `constraints.txt` ganha uma linha so.
     "redis==8.1.0",
 
+    # `05` §3 nomeia a ferramenta com todas as letras: "todos sinteticos,
+    # gerados com **Faker pt_BR**". A peca 4 da Fase 5 e o primeiro consumidor —
+    # 28 mil alunos e 1.200 professores precisam de nome, e nome inventado a mao
+    # em escala vira lista repetida.
+    #
+    # PINADA POR CAUSA DA T8, e nao so por convencao: `06` T8 exige dataset
+    # BYTE-IDENTICO entre duas execucoes com o mesmo `RANDOM_SEED`. `Faker` e
+    # deterministico por `seed_instance`, mas o mapa seed -> nome muda entre
+    # VERSOES. Com a versao pinada, a promessa de determinismo tem escopo dito;
+    # sem ela, o dataset mudaria numa atualizacao silenciosa de dependencia.
+    #
+    # O fecho dela e `tzdata`, que ja veio pinado com `psycopg[binary]` —
+    # conferido com `importlib.metadata.requires`, e nao suposto.
+    "Faker==37.11.0",
+
     # USADO POR UM SCRIPT SO: scripts/check_spec_examples.py, que valida os
     # blocos de exemplo de `docs/spec/` contra os contratos.
     #

@@ -237,7 +237,13 @@ MECANISMOS: dict[int, Entrada] = {
             "tunel, porta nao publicada, destino syslog) seguem sem verificador, e "
             "isso esta declarado aqui em vez de parecer descuido",
         ),
-        nota="A SECAO QUE A P4-12 CONTOU COMO COBERTA E QUE A MEDICAO DERRUBOU. As "
+        nota="A CLAUSULA DE DEPLOY DESTA SECAO CARREGA O GATILHO DA P5-3, e e por "
+        "isso que ele esta aqui e nao so na pendencia: `07` nao tem fase de "
+        "deploy, entao nao ha item de DoD que o cobre, e prazo que ninguem ve na "
+        "hora vence sozinho. O primeiro deploy destinado a exercicio com "
+        "participante real precisa de credencial propria para a `academus-api` — "
+        "sem ela, `REVOKE` nao alcanca a role que conecta. "
+        "A SECAO QUE A P4-12 CONTOU COMO COBERTA E QUE A MEDICAO DERRUBOU. As "
         "duas citacoes que sustentavam a contagem sao comentarios — um do workflow, "
         "outro de `contracts/ground_truth.schema.yaml` — e nenhum dos dois fica "
         "vermelho quando a secao e violada. `.gitignore` e convencao: `git add -f` "

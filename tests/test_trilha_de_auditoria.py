@@ -6,6 +6,12 @@ Os tres criterios de T7, e cada um exige o banco de verdade:
     a role da aplicacao NAO POSSUI UPDATE, DELETE ou TRUNCATE
     adulteracao induzida faz `GET /audit/verify-chain` reportar a POSICAO EXATA
 
+**O QUE T7 NAO PROVA, e esta aqui porque e aqui que alguem le "T7 passa":** o
+segundo criterio e sobre a role `academus_app`, e a `academus-api` **nao conecta
+como ela**. Enquanto a role de conexao for a mesma das migrations, `REVOKE` nao
+alcanca o caminho da aplicacao — o que segura ali e o trigger e a cadeia. E a
+P5-3, e `OQueT7NaoProva` a exercita em vez de deixa-la so na pendencia.
+
 **Sao dois mecanismos e dois testes, e nao um.** O trigger recusa a todos; o
 `REVOKE` recusa a role. Um teste so — "tentei alterar e falhou" — nao diria qual
 dos dois recusou, e a diferenca importa: o trigger cai se alguem o desabilitar, e
@@ -110,6 +116,56 @@ class TrilhaEhAppendOnly(unittest.TestCase):
                     {"v": verbo},
                 ).scalar()
                 self.assertTrue(tem, f"a role nao pode {verbo}, e a trilha nao escreve")
+
+
+@exige_banco
+class OQueT7NaoProva(unittest.TestCase):
+    """O LIMITE DA P5-3, exercido — e nao apenas escrito na pendencia.
+
+    Mesma forma do `test_truncamento_da_cauda_NAO_e_detectado`: o limite vira
+    afirmacao verificavel, e o dia em que ele deixar de valer tem um teste
+    VERMELHO anunciando.
+
+    **Quem le "T7 passa" conclui que a aplicacao nao pode alterar a trilha, e
+    isso e falso hoje.** T7 prova a propriedade da ROLE `academus_app`; a
+    `academus-api` nao conecta como ela — conecta com a `POSTGRES_USER`, que roda
+    as migrations, e dona da tabela e, na imagem oficial, superusuaria. O
+    `SET LOCAL ROLE` da escrita da trilha torna a restricao operante NO CAMINHO
+    QUE ESCREVE, e `RESET ROLE` continua a um comando de distancia.
+
+    O QUE AINDA SEGURA, e por isso o limite nao e um buraco aberto: o trigger,
+    que recusa `UPDATE` e `DELETE` a todos — inclusive ao dono —, e a cadeia, que
+    torna visivel qualquer reescrita feita por quem desabilitar o trigger.
+
+    QUANDO ESTE TESTE FICAR VERMELHO, a P5-3 fechou: uma segunda credencial no
+    `.env` fara a role de conexao deixar de possuir `UPDATE`.
+    """
+
+    def setUp(self) -> None:
+        self.motor = banco_limpo()
+
+    def test_a_role_QUE_CONECTA_ainda_possui_UPDATE_na_trilha(self) -> None:
+        with Session(self.motor) as sessao:
+            tem = sessao.execute(
+                text("SELECT has_table_privilege(current_user, 'audit_trail', 'UPDATE')")
+            ).scalar()
+        self.assertTrue(
+            tem,
+            "a role que conecta perdeu `UPDATE` sobre `audit_trail`. Se isso veio "
+            "de uma segunda credencial para a `academus-api`, a P5-3 FECHOU: "
+            "apague este teste e atualize a linha do item 3 da DoD, que hoje "
+            "declara o limite.",
+        )
+
+    def test_a_role_que_conecta_pode_voltar_de_SET_ROLE(self) -> None:
+        """A outra metade do limite: `SET LOCAL ROLE` e disciplina, nao barreira."""
+        with self.motor.begin() as conexao:
+            conexao.execute(text("SET LOCAL ROLE academus_app"))
+            restrita = conexao.execute(text("SELECT current_user")).scalar()
+            conexao.execute(text("RESET ROLE"))
+            de_volta = conexao.execute(text("SELECT current_user")).scalar()
+        self.assertEqual("academus_app", restrita)
+        self.assertNotEqual("academus_app", de_volta)
 
 
 @exige_banco

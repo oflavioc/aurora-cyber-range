@@ -77,3 +77,9 @@ tzdata==2026.3
 click==8.4.2
 uvicorn==0.52.3
 websockets==17.0.1
+
+# FASE 5, peca 4 — `05` §3 nomeia o Faker pt_BR para dado sintetico. O fecho
+# dele e `tzdata`, que JA estava pinado como fecho de `psycopg[binary]` e cuja
+# versao BATE — conferido com `importlib.metadata.requires('Faker')`, e nao
+# suposto. Nenhuma linha nova alem desta.
+Faker==37.11.0
