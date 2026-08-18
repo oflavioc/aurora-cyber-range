@@ -32,6 +32,13 @@ SEED = 20260818
 OUTRO_SEED = 987654
 
 
+def _semeia(motor, seed: int) -> str:
+    """Carrega e devolve a `conta_alvo` sorteada — ela e parametro das consultas."""
+    dados = dataset.gerar(dataset.ESCALA_REDUZIDA, seed=seed)
+    carga.carregar(motor, dados)
+    return dados.conta_alvo
+
+
 def _banco_vazio():
     """Trunca tudo, e NAO recarrega a fixture de demonstracao.
 
@@ -133,14 +140,14 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
     def setUpClass(cls) -> None:
         if not hasattr(cls, "_pulado"):
             motor = _banco_vazio()
-            carga.carregar(motor, dataset.gerar(dataset.ESCALA_REDUZIDA, seed=SEED))
+            cls.conta_alvo = _semeia(motor, SEED)
             cls.motor = motor
 
     def _sequencias(self, consulta: str) -> set[int]:
         with self.motor.begin() as conexao:
             return {
                 linha[0]
-                for linha in conexao.execute(text(consulta), linha_b.PARAMETROS)
+                for linha in conexao.execute(text(consulta), linha_b.parametros(self.conta_alvo))
             }
 
     def test_os_volumes_sao_os_de_02_secao_6_1(self) -> None:
@@ -225,7 +232,7 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
                     + linha_b.INDEVIDOS.replace("SELECT sequence FROM", "SELECT sequence FROM")
                     + ")"
                 ),
-                linha_b.PARAMETROS,
+                linha_b.parametros(self.conta_alvo),
             ).all()
 
         self.assertEqual(dataset.INDEVIDOS, len(linhas))
@@ -236,7 +243,7 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
             self.assertGreater(payload["new_value"], payload["previous_value"])
             self.assertIsNone(auth)                                   # sem autorizacao
             self.assertFalse(janela)                                  # fora da janela
-            self.assertEqual(linha_b.CONTA_DOS_INDEVIDOS, ator)       # conta unica
+            self.assertEqual(self.conta_alvo, ator)                   # conta unica
             alunos.add(payload["student_id"])
         # SEMPRE NO MESMO GRUPO DE ALUNOS — a sexta caracteristica.
         self.assertLessEqual(len(alunos), 8)

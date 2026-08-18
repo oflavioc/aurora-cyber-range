@@ -228,14 +228,17 @@ MECANISMOS: dict[int, Entrada] = {
     ),
     6: Entrada(
         titulo="Deploy",
-        mecanismos=(),
+        mecanismos=("scripts/check_gabarito_fora_do_git.py",),
         destinatario=(
-            5,
-            "a clausula de exclusao — `GM_NOTES.md` e `ground_truth.yaml` fora do "
-            "build servido a participantes — ganha sujeito na peca 5 desta fase, "
-            "que e a que produz os dois artefatos. As demais clausulas (bind, "
-            "tunel, porta nao publicada, destino syslog) seguem sem verificador, e "
-            "isso esta declarado aqui em vez de parecer descuido",
+            12,
+            "PROMOVIDA PELA METADE, e a metade que falta esta nomeada. O que a "
+            "peca 5 da Fase 5 cobriu e a clausula de EXCLUSAO — `GM_NOTES.md` e "
+            "`ground_truth.yaml` fora do repositorio e do build de participante. "
+            "As outras quatro clausulas de `05` §6 — bind em `127.0.0.1`, acesso "
+            "por tunel, nenhuma porta publicada em producao, destino syslog "
+            "configuravel — seguem sem verificador, porque nenhuma fase de `07` "
+            "produz o deploy que elas governam. A Fase 12 e a que traz "
+            "observabilidade e documentacao, e e a candidata; a decisao e de la",
         ),
         nota="A CLAUSULA DE DEPLOY DESTA SECAO CARREGA O GATILHO DA P5-3, e e por "
         "isso que ele esta aqui e nao so na pendencia: `07` nao tem fase de "

@@ -213,6 +213,22 @@ jobs:
       - name: teste negativo do verificador da trilha
         run: python scripts/check_trilha_de_auditoria_probes.py
 
+      # `05` secao 6 — a clausula de exclusao do gabarito, e a peca 5 da Fase 5 e
+      # quem a tirou de "sem verificador". `.gitignore` e convencao e `git add -f`
+      # a atravessa; isto reprova o PR.
+      #
+      # A direcao que mais importa nao e o arquivo versionado — e o IDENTIFICADOR
+      # ESCRITO A MAO no template de prosa e nos modulos do gerador, que sao
+      # versionados de proposito. O linter de T8 nao pega isso: ele confere que
+      # todo fato do `GM_NOTES` existe no `ground_truth.yaml`, e um caso escrito a
+      # mao EXISTE la. Foi assim que `linha_b.py` nasceu com a conta comprometida
+      # em constante.
+      - name: gabarito fora do repositorio (05 secao 6)
+        run: python scripts/check_gabarito_fora_do_git.py
+
+      - name: teste negativo do verificador do gabarito
+        run: python scripts/check_gabarito_fora_do_git_probes.py
+
       # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
       # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
       # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na
