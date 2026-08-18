@@ -549,9 +549,10 @@ de seções **reprova**, porque a entrada ainda diz "sem mecanismo — Fase 5" �
 saída vermelha é copiada para o registro → **só então** a entrada é promovida.
 Vale igual para a §6 na peça 5.
 
-### D16 — o mecanismo contra a reincidência da allowlist — `PROPOSTA`
+### D16 — o mecanismo contra a reincidência da allowlist — `DECIDIDA` (operador)
 
-**Não implementada. A forma está aqui para ser vista antes.**
+**Implementada depois das três decisões do operador; o resultado está na §10.5.**
+A forma abaixo é a que foi apresentada antes de qualquer código.
 
 **O problema, medido e não suposto:** a regra *"script novo que precise ser
 executado pelo auditor entra na allowlist por nome, no commit que o cria"* está
@@ -594,19 +595,13 @@ sobe_sala, demo_fase4, audit_report, …   uma linha cada, com o motivo
 **O custo de acrescentar é uma frase de motivo**, e é ele que separa *"decidimos
 que fica de fora"* de *"ninguém olhou"* — que é a distinção inteira.
 
-#### Três coisas que a proposta precisa que você decida
+#### As três decisões, respondidas
 
-1. **O universo cobre `scripts/*.sh`?** `start_checkpoint_audit.sh` é o lançador,
-   e o auditor nunca o roda. Incluí-lo custa uma entrada; excluí-lo por extensão
-   é uma regra a mais para lembrar.
-2. **A extração de `ALLOWED` lê o hook por regex ou por AST?** O hook mora em
-   `user-scope/hooks/` e é versionado; ler por AST é mais estável, e o padrão é
-   uma f-string concatenada — o que torna o AST menos direto do que parece.
-3. **P4-11 vale aqui**, e é preciso dizê-lo: este verificador **mora na árvore
-   que audita** e lê o hook que constrange o auditor. A direção é aditiva
-   (verificador novo, read-only), então a pendência não dispara — mas ele passa a
-   ser mais um mecanismo cuja propriedade depende de a árvore auditada não o
-   enfraquecer.
+1. **`*.sh` fica fora — por classe declarada, e não por omissão do universo.** A
+   exclusão é estrutural: o lançador abre a sessão do auditor.
+2. **Regex**, com a quarta direção cobrindo a fragilidade que ele assume: leitura
+   parcial reprova igual a leitura vazia, cruzada contra o matcher real.
+3. **P4-11 vale, e a ocorrência ficou contada** — é a terceira. Ver a §10.5.
 
 **O que a proposta NÃO resolve:** o item 1 da DoD continua sustentado pelo CI. A
 exclusão de `prova_seed_completo` é decisão, e o mecanismo só a torna **visível e
@@ -1697,4 +1692,69 @@ código**, e não digitados.
 escala reduzida com as duas direções do determinismo; mais a medição registrada
 com contexto na §4.4 e na §4.5. Declarado, e não omitido — como a Fase 4 fez com
 a opção C que recusou.
+
+### 10.5 A D16 implementada — e ela achou a quarta ocorrência na primeira execução
+
+As três decisões do operador, e o que cada uma produziu.
+
+**`*.sh` fica fora por classe declarada, e não por omissão do universo.** Há um
+único — `start_checkpoint_audit.sh` —, e a exclusão é **estrutural**: ele abre a
+sessão do auditor, então rodá-lo de dentro dela seria recursão. A classe está
+escrita no verificador com o motivo, porque *universo que exclui por não incluir
+é a mesma forma de "coberto por nada" que a §4 e a §6 de `05` tiveram* — e as
+duas custaram uma auditoria cada.
+
+**Regex, com a quarta direção cobrindo a fragilidade que ele assume.** A leitura
+textual é cruzada com o **matcher real**: `ALLOWED` é importado do próprio hook, e
+para cada script compara-se "o matcher libera?" com "a leitura encontrou?".
+Divergência reprova **por divergência**, antes de qualquer conclusão sobre
+classificação — a forma do `check_gate_coverage.py`, que confere o próprio
+casamento contra o `git ls-files`.
+
+**E ela disparou duas vezes enquanto o verificador era escrito**, que é o melhor
+argumento a favor dela: primeiro com quatro nomes só no matcher (a primeira
+entrada abre o grupo com `(?:`, e o regex não casava), depois com um (a última
+fecha com `)`). Leitura parcial reprova igual a leitura vazia, e há probe para
+cada uma.
+
+#### O que a primeira execução achou
+
+```text
+`scripts/check_readme_atual.py` nao esta na allowlist e nao esta declarado fora
+`scripts/check_readme_atual_probes.py`  idem
+`scripts/check_volumes_da_linha_b.py`   idem
+`scripts/check_volumes_da_linha_b_probes.py`  idem
+```
+
+**`check_volumes_da_linha_b` foi criado nesta mesma rodada, corrigindo o M1.** É
+a **quarta** ocorrência da regra, cometida enquanto se corrigia a terceira, por
+quem tinha acabado de escrever sobre ela. Se houvesse dúvida de que a regra
+escrita não segurava, ela acaba aqui.
+
+`check_readme_atual` estava fora **desde a Fase 4**, e ninguém havia notado.
+
+Os quatro entraram, mais o próprio `check_allowlist_do_auditor` e sua prova
+negativa. **50 scripts: 40 na allowlist, 10 declarados fora com motivo.**
+
+#### A P4-11 e a terceira ocorrência — a contagem é o ponto
+
+<!-- O título não começa com o identificador de propósito: a seção de detalhe da
+     P4-11 vive em `fase_4.md`, e `check_progress_consistency.py` leria um
+     `#### P4-11 —` aqui como detalhe de pendência desta fase, cobrando linha na
+     tabela-resumo. Ele reprovou exatamente assim, e está certo: nota SOBRE uma
+     pendência herdada não é a pendência. -->
+
+Este é o **terceiro mecanismo que mora na árvore que audita e lê o que constrange
+o auditor** — depois do próprio `readonly_bash.py` e do
+`check_provas_de_container.py`. A direção é **aditiva** (verificador novo,
+somente leitura, com prova negativa ao lado), então a P4-11 **não dispara**: o
+gatilho dela é *alteração de `readonly_bash.py` em direção que não seja
+estritamente aditiva*.
+
+**Mas a contagem importa, e é por isso que ela está registrada.** Pendência com
+condição de vencimento — e não com marco — parece inativa quando está apenas
+esperando a direção errada. Três ocorrências sem disparo é exatamente o padrão
+que faz alguém concluir que a pendência morreu. Ela não morreu: está esperando
+a primeira remoção de regra, o primeiro afrouxamento de `_alvo_nao_contido`, ou o
+primeiro comando com forma de escrita admitido.
 
