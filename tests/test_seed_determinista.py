@@ -272,6 +272,156 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
         # SEMPRE NO MESMO GRUPO DE ALUNOS — a sexta caracteristica.
         self.assertLessEqual(len(alunos), 8)
 
+    def test_a_LINHA_DA_TRILHA_nao_diz_a_que_conjunto_pertence(self) -> None:
+        """B1 da segunda auditoria — o QUARTO vazamento da mesma familia.
+
+        Os tres anteriores estavam no gerador, na posicao e na ordem. Este esta na
+        PROPRIA LINHA: `object_id` trazia `g-ind-`, `g-amb-`, `g-sus-`, `g-mnt-`,
+        `g-del-` e `g-nrm-`, e o prefixo NOMEIA o conjunto.
+
+        **E pior que o terceiro**: aquele exigia ler o repositorio e contar
+        linhas; este basta olhar a coluna. O participante investiga a trilha.
+
+        A LACUNA NAO ERA O PREFIXO, ERA A DIRECAO. A bateria anti-vazamento
+        inteira aponta para o `GM_NOTES` e para o repositorio — nenhum teste
+        perguntava se a LINHA se denuncia. Esta e a pergunta.
+        """
+        with self.motor.begin() as conexao:
+            linhas = conexao.execute(
+                text("SELECT sequence, object_id FROM audit_trail")
+            ).all()
+        por_conjunto = {
+            nome: self._sequencias(consulta)
+            for nome, consulta in linha_b.CONJUNTOS.items()
+        }
+        objeto = {seq: obj for seq, obj in linhas}
+
+        # UM PREFIXO SO PARA TODOS. Se cada conjunto tiver o seu, o prefixo E o
+        # gabarito — e a consulta que o le nao precisa de mais nada.
+        prefixos = {obj.rsplit("-", 1)[0] for obj in objeto.values()}
+        self.assertEqual(
+            1,
+            len(prefixos),
+            f"os `object_id` tem {len(prefixos)} prefixos distintos ({sorted(prefixos)}): "
+            "a linha da trilha diz a que conjunto pertence, e o participante le "
+            "isso na coluna",
+        )
+
+        # E O PREFIXO NAO PODE SER EXCLUSIVO DE NENHUM CONJUNTO, que e a mesma
+        # propriedade dita do outro lado — vale mesmo se alguem trocar a forma.
+        for nome, sequencias in por_conjunto.items():
+            do_conjunto = {objeto[s].rsplit("-", 1)[0] for s in sequencias}
+            dos_outros = {
+                objeto[s].rsplit("-", 1)[0]
+                for outro, seqs in por_conjunto.items()
+                if outro != nome
+                for s in seqs
+            }
+            self.assertTrue(
+                do_conjunto <= dos_outros,
+                f"`{nome}` tem prefixo de `object_id` que nenhum outro conjunto "
+                f"tem: {sorted(do_conjunto - dos_outros)}",
+            )
+
+    def test_o_NUMERO_DE_PROCESSO_nao_diz_a_que_conjunto_pertence(self) -> None:
+        """A QUINTA instancia do B1, achada pelo H1 depois de corrigido.
+
+        `rectification_authorizations` e tabela que o participante LE, e os
+        identificadores traziam infixo de conjunto — a autorizacao dizia se era
+        de ambiguo ou de suspeito antes de qualquer analise. Mesma familia do
+        prefixo de `object_id`, e pelo mesmo caminho: a coluna.
+        """
+        with self.motor.begin() as conexao:
+            autorizacoes = conexao.execute(
+                text(
+                    "SELECT authorization_id, process_number "
+                    "FROM rectification_authorizations"
+                )
+            ).all()
+            delegacoes = conexao.execute(
+                text("SELECT process_number FROM access_delegations")
+            ).all()
+
+        for coluna, valores in (
+            ("authorization_id", [a[0] for a in autorizacoes]),
+            ("process_number", [a[1] for a in autorizacoes] + [d[0] for d in delegacoes]),
+        ):
+            prefixos = {v.rsplit("-", 1)[0] for v in valores}
+            self.assertLessEqual(
+                len(prefixos),
+                1,
+                f"`{coluna}` tem {len(prefixos)} prefixos ({sorted(prefixos)}): o "
+                "identificador diz a que conjunto a autorizacao pertence, e o "
+                "participante le isso na tabela",
+            )
+
+    def test_o_PAR_DE_VALORES_nao_identifica_o_conjunto(self) -> None:
+        """A segunda instancia do B1 — e ela passa por qualquer teste de string.
+
+        Cada conjunto tinha um par FIXO: os ambiguos sempre 5,0 -> 6,5, os
+        suspeitos sempre 5,5 -> 7,0, o ruido sempre 7,0 -> 7,0. Um `GROUP BY
+        previous_value, new_value` devolve o gabarito inteiro, e nenhuma varredura
+        de identificador ve isso.
+
+        O QUE SE EXIGE: que o par nao seja constante por conjunto. Com valores
+        sorteados, exigir que os pares COINCIDAM entre conjuntos seria impossivel
+        — o que se pode exigir e que nenhum conjunto tenha assinatura unica.
+        """
+        with self.motor.begin() as conexao:
+            valores = {
+                linha[0]: (linha[1]["previous_value"], linha[1]["new_value"])
+                for linha in conexao.execute(
+                    text("SELECT sequence, payload FROM audit_trail")
+                )
+            }
+        for nome, consulta in linha_b.CONJUNTOS.items():
+            sequencias = self._sequencias(consulta)
+            if len(sequencias) < 2:
+                continue
+            distintos = {valores[s] for s in sequencias}
+            self.assertGreater(
+                len(distintos),
+                1,
+                f"`{nome}` tem UM par de valores para {len(sequencias)} linhas "
+                f"({distintos}): um `GROUP BY previous_value, new_value` devolve o "
+                "conjunto inteiro, e nenhuma varredura de identificador ve isso",
+            )
+
+    def test_a_VARIACAO_de_nota_nao_separa_os_conjuntos(self) -> None:
+        """A terceira forma da mesma pergunta: o DELTA como assinatura.
+
+        Pares distintos ainda deixariam a faixa de variacao denunciar — se os
+        indevidos sempre somassem exatamente 3,0 e mais ninguem, `new - previous`
+        seria o gabarito. Exige-se que a faixa de cada conjunto CRUZE a de outro.
+        """
+        with self.motor.begin() as conexao:
+            deltas = {
+                linha[0]: round(
+                    linha[1]["new_value"] - linha[1]["previous_value"], 2
+                )
+                for linha in conexao.execute(
+                    text("SELECT sequence, payload FROM audit_trail")
+                )
+            }
+        faixas = {}
+        for nome, consulta in linha_b.CONJUNTOS.items():
+            sequencias = self._sequencias(consulta)
+            if sequencias:
+                seus = [deltas[s] for s in sequencias]
+                faixas[nome] = (min(seus), max(seus))
+
+        for nome, (menor, maior) in faixas.items():
+            cruza = any(
+                outro != nome and not (maior < o_menor or o_maior < menor)
+                for outro, (o_menor, o_maior) in faixas.items()
+            )
+            self.assertTrue(
+                cruza,
+                f"a faixa de variacao de `{nome}` ({menor}..{maior}) nao cruza a "
+                "de nenhum outro conjunto: `new_value - previous_value` separa o "
+                "gabarito sozinho",
+            )
+
     def test_a_trilha_semeada_e_integra(self) -> None:
         """A cadeia calculada em memoria fecha quando lida do banco.
 

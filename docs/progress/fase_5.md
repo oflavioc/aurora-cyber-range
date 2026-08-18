@@ -1,7 +1,7 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: CONCLUÍDA — as seis peças, os seis itens da DoD com prova, e PASS na
-auditoria de checkpoint, com os dois MEDIUM corrigidos na mesma rodada.** O
+**Status: EM REAUDITORIA — as seis peças, os seis itens da DoD com prova, e a
+segunda rodada de checkpoint FAIL com o B1 corrigido.** O
 fechamento item a item está na §7; o inventário de pendências por destinatário na
 §8; as quatro lições na §9; a auditoria e as correções na §10. A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
@@ -266,7 +266,21 @@ provaria a implementação do duplo. O repositório já tem o caminho —
 `tests/_academus_banco.py`, `test_business_state_postgres.py` e o job de
 containers do CI.
 
-### D9 — `POST /auth/token` nasce nesta fase — `DECIDIDA` (operador)
+### D9 — `POST /auth/token` nasce nesta fase — `DECIDIDA (operador) E NÃO EXECUTADA`
+
+> **A rota NÃO nasceu, e a decisão ficou registrada como se tivesse nascido.**
+> Achado ao responder o L1 da segunda auditoria: `api_surface.yaml` ainda traz
+> `/auth/token` como `planejada`, e `app.py` não a tem. A decisão foi tomada
+> antes da peça 2 e se perdeu entre as peças — não havia item de DoD que a
+> cobrasse, e por isso nada ficou vermelho.
+>
+> **Isso é exatamente a classe que este registro existe para não deixar
+> acontecer**: decisão marcada `DECIDIDA` num documento versionado, sem
+> mecanismo que a cobre. A superfície tinha a terceira direção — ela cobra a
+> promoção quando a rota nasce, e não a rota quando a decisão a promete.
+>
+> Vira a **P5-5**, com destinatário e gatilho. O texto abaixo é o da decisão,
+> preservado.
 
 `domains/academus/api_surface.yaml` traz a rota como `planejada` com o motivo
 escrito: *"o que falta é a porta de entrada, e ela chega na Fase 5 com as
@@ -1283,6 +1297,7 @@ Abertas nesta fase. Prefixo `P5-`.
 | P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor | **Fase 6** — ver abaixo |
 | P5-3 | a role da aplicação e a das migrations são a mesma, e `REVOKE` não alcança quem conecta | **operador** — ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores do enum do contrato | **Fase 7** — ver abaixo |
+| P5-5 | a senha de seed de `05` §8 vale por vacuidade, e a D9 não foi executada | **condição** — ver abaixo |
 
 #### P5-1 — caminho citado em docstring apontando para arquivo inexistente
 
@@ -1404,6 +1419,116 @@ aplicação passa a ser alcançável por quem estiver dentro dele.
 **O que eu preparei para essa hora:** a role já existe, os `GRANT`/`REVOKE` já
 estão certos, e o código já assume a role. O que falta é a credencial — uma
 variável, e não uma refatoração.
+
+### 10.6 A segunda rodada — FAIL, e o B1 é o achado da fase
+
+**FAIL correto**, com um BLOCKER, um HIGH, um MEDIUM e dois LOW. Todos fechados
+nesta rodada, menos os dois que ficam declarados.
+
+#### B1 — o quarto vazamento da mesma família, e o pior deles
+
+`object_id` trazia `g-ind-`, `g-amb-`, `g-sus-`, `g-mnt-`, `g-del-` e `g-nrm-`:
+**o prefixo nomeava o conjunto**, na coluna que o participante lê.
+
+**É pior que o terceiro**, e o terceiro tinha o argumento escrito no código:
+aquele exigia ler o repositório e contar linhas; este **basta olhar a coluna**.
+
+**A lacuna não era o prefixo, era a direção.** A bateria anti-vazamento inteira
+apontava para o `GM_NOTES` e para o repositório — três verificadores, dezenas de
+asserções —, e **nenhum teste perguntava se a linha da trilha se denuncia**. A
+pergunta nova é essa, e ela é a correção real.
+
+**Corrigido na ordem: asserção, vermelho medido, e só então o gerador.**
+
+```text
+FAIL  test_a_LINHA_DA_TRILHA_nao_diz_a_que_conjunto_pertence
+      1 != 6 : os `object_id` tem 6 prefixos distintos
+      (['g-amb','g-del','g-ind','g-mnt','g-nrm','g-sus'])
+
+FAIL  test_o_PAR_DE_VALORES_nao_identifica_o_conjunto
+      `ambiguos_legitimos` tem UM par de valores para 11 linhas ({(5.0, 6.5)})
+
+FAIL  test_a_VARIACAO_de_nota_nao_separa_os_conjuntos
+      a faixa de `indevidos_comprovados` (3.0..3.0) nao cruza a de nenhum outro
+```
+
+**As duas instâncias, e a segunda é a que passa por qualquer teste de string.**
+Cada conjunto tinha um par de valores **fixo** — ambíguos sempre 5,0 → 6,5,
+suspeitos 5,5 → 7,0, ruído 7,0 → 7,0. Um `GROUP BY previous_value, new_value`
+devolvia o gabarito inteiro, e **nenhuma varredura de identificador vê isso,
+porque não há string**.
+
+E há uma terceira forma, que escrevi ao ver as duas: o **delta**. Pares distintos
+ainda deixariam a faixa denunciar — se os indevidos sempre somassem 3,0 e mais
+ninguém, `new - previous` seria o gabarito sozinho. O teste exige que a faixa de
+cada conjunto **cruze** a de outro.
+
+**O conserto:** `object_id` passa a ser atribuído **depois do embaralhamento**, em
+ordem de trilha, sem prefixo de conjunto; e os pares de valores passam a ser
+sorteados do fluxo semeado, com faixas que se cruzam. `02` §6.1 exige dos
+indevidos apenas que **sempre elevem** — e elevar não os distingue, porque quase
+todos elevam.
+
+#### H1 — o verificador declarava cobrir o que não via
+
+O comentário do `check_gabarito_fora_do_git.py` nomeava `g-ind-000`; o fonte tem
+`f"g-ind-{i:03d}"`, e o sufixo vem de placeholder. As quinze sondas passavam
+porque **nenhuma plantava identificador construído por f-string**.
+
+**Isso é mais grave que o B1 como classe**, e o auditor está certo: ausência não
+dá falsa garantia; declaração falsa dá.
+
+Corrigido com as sondas primeiro. O sufixo passou a aceitar interpolação, e o
+fecho virou lookahead — com `\b`, a forma interpolada continuava passando mesmo
+depois de o sufixo aceitá-la, porque entre `}` e `"` não há fronteira de palavra.
+
+**E o verificador corrigido achou a QUINTA instância do B1**, que nenhum humano
+tinha visto: `AUT-AMB-`, `AUT-SUS-`, `PR-AMB-`, `PR-SUS-`, `PR-DEL-` — o infixo
+nomeava o conjunto em `rectification_authorizations`, que é tabela que o
+participante lê. Números de processo passaram a ser sequenciais e comuns aos três
+conjuntos.
+
+**A distinção que a correção exigiu**, e ela é o que impede a regra de reprovar o
+gerador inteiro: interpolação só conta onde há **infixo de conjunto**.
+`f"A-{i:06d}"` gera os 28 mil alunos e não aponta caso nenhum; `f"AUT-AMB-{i}"`
+diz que aquela autorização é de ambíguo tão alto quanto `AUT-AMB-000`.
+
+#### M1 — escalado, e a resposta é que o item é desta fase
+
+`06` T8 está rotulado **Fase 5** e exige *"divergência é RECUSADA pelo linter"*.
+Eu tinha comparação de conjuntos num teste, e remeti à Fase 7 no registro. **O
+auditor está certo: ou `06` está errado e é `spec-change`, ou o item é da fase e
+não foi entregue.** É o segundo.
+
+`gabarito.conferir` levanta `GabaritoDivergente` e **roda dentro de `gerar`**: um
+artefato divergente não chega a existir. Se rodasse depois, existiria um arquivo
+inválido no disco entre a escrita e a conferência — e é nessa janela que alguém o
+copia. Há teste por AST provando que a chamada está lá, e as duas direções:
+fato órfão recusa, e `GM_NOTES` sem citação nenhuma **também** recusa, porque
+passaria por vacuidade.
+
+#### L1 — e a D9 estava marcada `DECIDIDA` sem ter sido executada
+
+`05` §8 pede senha derivada do `RANDOM_SEED`; o seed grava `None`. **Conferi se a
+rota nasceu, como o operador pediu: não nasceu.** `/auth/token` continua
+`planejada`, e `app.py` não a tem — então a propriedade vale por vacuidade.
+
+**O achado é maior que a vacuidade.** A D9 decidiu que a rota nasceria nesta fase
+e ela não nasceu, e a decisão ficou no registro como se tivesse. É a classe que
+este registro existe para não deixar acontecer: decisão marcada `DECIDIDA` num
+documento versionado, **sem mecanismo que a cobre**. A terceira direção da
+superfície cobra a promoção quando a rota nasce — não a rota quando a decisão a
+promete.
+
+Virou a **P5-5**, com as duas metades numa pendência só: a vacuidade acaba no
+commit em que a rota nascer, e é aí que `05` §8 passa a ser violado.
+
+#### L2 — fragilidade declarada
+
+Fica como está, e o motivo está na §9.1: é a mesma família das seis ocorrências.
+
+
+---
 
 #### P5-4 — o enum do contrato tem três valores e `02` §6.1 tem seis conjuntos
 
@@ -1561,10 +1686,17 @@ e os três foram achados por teste e não por leitura:
 | **o gerador** | a conta comprometida era constante num módulo versionado |
 | **a posição** | as identidades eram por índice: mesma conta e mesmo grupo com qualquer seed |
 | **a ordem** | os conjuntos gravados em bloco — as 22 primeiras linhas da trilha eram sempre os indevidos |
+| **a própria linha** | `object_id` com prefixo por conjunto, e o par de valores fixo por conjunto — B1 da segunda auditoria |
+| **a tabela vizinha** | o infixo do número de processo, em `rectification_authorizations` — quinta instância, achada pelo verificador depois do H1 |
 
-**O terceiro é o mais grave**, e é o que resume a lição: o gabarito estava
-legível no **artefato que o participante investiga**, por contagem de linhas, sem
-`.env` e sem repositório. Nenhuma regra sobre versionamento alcança isso.
+**O quarto é o mais grave**, e ele chegou depois desta lição ser escrita: o
+prefixo de `object_id` dizia o conjunto **na coluna**. O terceiro exigia contar
+linhas; o quarto bastava olhar. E o quinto estava na tabela vizinha.
+
+O que resume os cinco: o gabarito estava legível no **artefato que o participante
+investiga**, sem `.env` e sem repositório. Nenhuma regra sobre versionamento
+alcança isso — e **a bateria inteira apontava para o repositório**. A lacuna não
+era nenhum dos cinco: era a direção que ninguém tinha testado.
 
 **A generalização:** uma fronteira declarada sobre *onde o arquivo mora* não diz
 nada sobre *o que o conteúdo revela*. As duas perguntas são diferentes, e a
@@ -1758,3 +1890,34 @@ que faz alguém concluir que a pendência morreu. Ela não morreu: está esperan
 a primeira remoção de regra, o primeiro afrouxamento de `_alvo_nao_contido`, ou o
 primeiro comando com forma de escrita admitido.
 
+
+#### P5-5 — a senha de seed vale por vacuidade, e a D9 não foi executada
+
+**Aberta pelo L1 da segunda auditoria, e ela tem duas metades que se sustentam
+uma na outra.**
+
+`05` §8: *"Senhas de seed nunca são valores triviais reutilizáveis; são geradas a
+partir do `RANDOM_SEED` e impressas apenas no log de seed local."* O seed grava
+`password_hash = None` em todos os usuários.
+
+**Hoje a propriedade vale por vacuidade**, e conferi em vez de supor: não há rota
+que troque credencial por token — `POST /auth/token` continua `planejada` na
+superfície, e `app.py` não a implementa. Sem porta de entrada, não há senha a
+proteger, e "nunca trivial" é verdade sobre um conjunto vazio.
+
+**A vacuidade acaba no commit em que a rota nascer**, e é por isso que as duas
+metades são uma pendência só: a D9 decidiu que ela nasceria nesta fase e ela não
+nasceu. Se tivesse nascido, `05` §8 estaria sendo violado agora.
+
+**Destinatário: a fase que implementar `POST /auth/token`.** A D9 a punha aqui;
+como não foi executada, ela volta a ser escopo herdado da superfície, e a
+`api_surface.yaml` continua cobrando a promoção no commit em que a rota existir.
+
+**Gatilho: o primeiro commit que implemente a rota.** No mesmo commit, três
+coisas: a senha derivada do `RANDOM_SEED` por `seeded_random`, o hash gravado em
+`users.password_hash`, e a impressão **apenas no log de seed local** — que é a
+metade de `05` §8 que um `print` distraído viola sem que nada acuse.
+
+**O que já está pronto para essa hora:** a coluna existe, o seed já cria os
+usuários com papel, e `range_core.determinism.seeded_random` já dá o fluxo por
+escopo. O que falta é a rota e três linhas no gerador.

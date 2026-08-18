@@ -167,10 +167,13 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
         },
     }
 
-    return Gabarito(
+    produzido = Gabarito(
         ground_truth=ground_truth,
         gm_notes=_renderiza(pack=pack, seed=seed, contagens=contagens, casos=casos),
     )
+    # O LINTER RECUSA AQUI, e nao depois: artefato divergente nao chega a existir.
+    conferir(produzido)
+    return produzido
 
 
 def _renderiza(*, pack: str, seed: int, contagens: dict[str, int], casos: list) -> str:
@@ -225,6 +228,50 @@ def _renderiza(*, pack: str, seed: int, contagens: dict[str, int], casos: list) 
             "como texto, e o facilitador le `{{N_INDEVIDOS}}` no lugar do numero."
         )
     return template
+
+
+class GabaritoDivergente(Exception):
+    """O `GM_NOTES` cita fato que o `ground_truth` nao tem — `02` §6.3.
+
+    RECUSA ALTA, e e o que `06` T8 exige com todas as letras: *"Divergencia e
+    RECUSADA pelo linter"*. Comparacao de conjuntos num teste satisfaz a leitura
+    e nao satisfaz o verbo: teste compara e relata; linter RECUSA, e recusa no
+    caminho que produz o artefato.
+
+    E por isso que `conferir` roda DENTRO de `gerar`: um `GM_NOTES` divergente
+    nao chega a existir. Se rodasse depois, existiria um artefato invalido no
+    disco entre a escrita e a conferencia — e e nessa janela que alguem o copia.
+    """
+
+
+def conferir(gabarito: "Gabarito") -> None:
+    """O LINTER de `02` §6.3 e `06` T8. Levanta na primeira divergencia.
+
+    *"`GM_NOTES.md` nao pode conter fato ausente do ground truth — o linter
+    compara e recusa divergencia."*
+
+    AS DUAS DIRECOES, e a segunda impede a recusa por vacuidade: fato citado e
+    ausente do ground truth RECUSA; e um `GM_NOTES` que nao cita fato nenhum
+    tambem recusa, porque ele passaria trivialmente e nao seria gabarito de coisa
+    alguma.
+    """
+    citados = fatos_citados(gabarito.gm_notes)
+    declarados = {c["case_id"] for c in gabarito.ground_truth["line_b_cases"]}
+    declarados |= {f["fact_id"] for f in gabarito.ground_truth["facts"]}
+
+    if orfaos := sorted(citados - declarados):
+        raise GabaritoDivergente(
+            f"o `GM_NOTES` cita {orfaos[:5]} e o `ground_truth` nao os tem. "
+            "`02` §6.3: a narrativa explica, e nao inventa — fato ausente do "
+            "ground truth invalida o gabarito inteiro, porque o motor de "
+            "calibracao le um e o facilitador conduz pelo outro."
+        )
+    if not citados:
+        raise GabaritoDivergente(
+            "o `GM_NOTES` nao cita fato nenhum. A conferencia passaria por "
+            "vacuidade, e o documento nao seria gabarito de coisa alguma — "
+            "`02` §6.3 o descreve como o que EXPLICA cada conjunto ao facilitador."
+        )
 
 
 def fatos_citados(gm_notes: str) -> set[str]:

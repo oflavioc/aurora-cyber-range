@@ -108,6 +108,54 @@ class OArtefatoEhProduzidoEJulgado(unittest.TestCase):
         # E O PAR: a citacao nao pode ser vazia, senao o linter passa por vacuidade.
         self.assertGreaterEqual(len(citados), dataset.INDEVIDOS)
 
+    def test_o_LINTER_recusa_fato_ausente_do_ground_truth(self) -> None:
+        """T8, quarto criterio — e o verbo e RECUSAR, nao comparar (M1).
+
+        A versao anterior comparava conjuntos num teste: satisfazia a leitura e
+        nao o verbo. `06` T8 diz *"divergencia e RECUSADA pelo linter"*, e teste
+        compara e relata — quem recusa e `gabarito.conferir`, que roda DENTRO de
+        `gerar`: um artefato divergente nao chega a existir.
+        """
+        adulterado = gabarito.Gabarito(
+            ground_truth=self.gabarito.ground_truth,
+            gm_notes=self.gabarito.gm_notes + "\n\nVer tambem o caso GC-9999.\n",
+        )
+        with self.assertRaises(gabarito.GabaritoDivergente) as capturado:
+            gabarito.conferir(adulterado)
+        self.assertIn("GC-9999", str(capturado.exception))
+
+    def test_o_LINTER_recusa_GM_NOTES_que_nao_cita_fato_nenhum(self) -> None:
+        """A direcao que impede a recusa por vacuidade.
+
+        Um `GM_NOTES` sem citacao nenhuma passaria trivialmente na primeira
+        direcao — e nao seria gabarito de coisa alguma.
+        """
+        vazio = gabarito.Gabarito(
+            ground_truth=self.gabarito.ground_truth,
+            gm_notes="# GM_NOTES\n\nProsa sem identificador nenhum.\n",
+        )
+        with self.assertRaises(gabarito.GabaritoDivergente):
+            gabarito.conferir(vazio)
+
+    def test_o_linter_roda_DENTRO_do_gerador(self) -> None:
+        """Se rodasse depois, existiria artefato invalido no disco na janela.
+
+        Prova por AST: `gerar` chama `conferir` antes de devolver.
+        """
+        import ast
+        from pathlib import Path
+
+        arvore = ast.parse(Path(gabarito.__file__).read_text(encoding="utf-8"))
+        gerar = next(
+            n for n in arvore.body
+            if isinstance(n, ast.FunctionDef) and n.name == "gerar"
+        )
+        chamadas = {
+            no.func.id for no in ast.walk(gerar)
+            if isinstance(no, ast.Call) and isinstance(no.func, ast.Name)
+        }
+        self.assertIn("conferir", chamadas)
+
     def test_o_ground_truth_gerado_valida_contra_o_contrato(self) -> None:
         """Artefato que o proprio contrato do projeto recusaria nao e artefato."""
         import json
