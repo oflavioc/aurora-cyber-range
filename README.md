@@ -100,7 +100,7 @@ Um segundo adapter hospitalar — **Hospital Regional Aurora**, sistema **PRONTU
 
 ## Estado atual
 
-**Fases 0 a 4 concluídas.** Próximo checkpoint: **Fase 5 — Dados e auditoria**. O roadmap tem **12 fases**.
+**Fases 0 a 5 concluídas.** Próximo checkpoint: **Fase 6 — Objetivos, rubricas, métricas**. O roadmap tem **12 fases**.
 
 A Fase 4 é o *vertical slice*: o caminho ponta a ponta mínimo, exigido cedo de propósito, para que a arquitetura falhe antes de haver o que reescrever. O que ele prova, contra dois containers, Postgres e Redis reais:
 
@@ -141,7 +141,7 @@ Derivado da árvore de código, não da especificação. Diretório que existe v
 | academus-api — JWT, RBAC, três entidades, degradação por flag | `domains/academus/api/` | implementado no mínimo da Fase 3 |
 | business state em PostgreSQL | `domains/academus/models/`, `alembic/` | parcial — quatro tabelas e migration, sem seed em escala |
 | adapter hospitalar PRONTUS | `domains/prontus/` | stub declarado — duas flags e um documento |
-| trilha de auditoria com hash encadeado | — | planejado, Fase 5 |
+| trilha de auditoria com hash encadeado | `domains/academus/audit/` | implementado na Fase 5 — `INSERT`-only por role e por trigger, com `GET /audit/verify-chain` |
 | objetivos e binding evento→objetivo | `range-core/objectives/` | planejado, Fase 6 |
 | rubricas BARS versionadas | `range-core/rubrics/` | planejado, Fase 6 |
 | métricas pareadas e calibração | `range-core/metrics/` | planejado, Fase 6 |
@@ -187,7 +187,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 
 **Cada checkpoint de fase é auditado por um agente adversarial**, em contexto isolado, num worktree fixado no commit candidato, sem ferramentas de escrita, emitindo PASS ou FAIL contra a especificação. Ele vive fora deste repositório de propósito: um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 
-**As reprovações não são apagadas.** São **33 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 5, e a maioria é de rodadas que falharam. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
+**As reprovações não são apagadas.** São **34 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 5, e a maioria é de rodadas que falharam. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
 
 ## Estrutura do repositório
 
