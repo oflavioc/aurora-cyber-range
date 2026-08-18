@@ -229,6 +229,20 @@ jobs:
       - name: teste negativo do verificador do gabarito
         run: python scripts/check_gabarito_fora_do_git_probes.py
 
+      # M2 da auditoria de checkpoint da Fase 5. O teste dos volumes lia as
+      # CONSTANTES do gerador — comparava-o consigo mesmo, e trocar
+      # `INDEVIDOS = 22` por `20` mantinha tudo verde. Aqui os cinco numeros de
+      # `02` §6.1 sao cruzados com as constantes, nas duas direcoes.
+      #
+      # E VERIFICADOR E NAO SO TESTE porque os testes do seed EXIGEM Postgres e
+      # PULAM sem ele: esta pergunta — "o gerador ainda promete o que a spec
+      # pede?" — tem de ser respondida sem banco.
+      - name: volumes da Linha B x 02 secao 6.1
+        run: python scripts/check_volumes_da_linha_b.py
+
+      - name: teste negativo dos volumes da Linha B
+        run: python scripts/check_volumes_da_linha_b_probes.py
+
       # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
       # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
       # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na

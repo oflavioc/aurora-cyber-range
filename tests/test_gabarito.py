@@ -153,11 +153,23 @@ class DoisSeedsDiferentes(unittest.TestCase):
             self._volumes(self.primeiro.gm_notes),
             self._volumes(self.segundo.gm_notes),
         )
-        # E OS VOLUMES SAO OS DE `02` §6.1, e nao apenas iguais entre si.
+        # E OS VOLUMES SAO OS DA SPEC, e nao apenas iguais entre si. Lidos de
+        # `02` §6.1 pelo mesmo parser do verificador — M2: aferir contra o
+        # gerador seria compara-lo consigo mesmo.
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        from check_volumes_da_linha_b import SPEC, volumes_da_spec
+
+        da_spec = volumes_da_spec(SPEC.read_text(encoding="utf-8"))
         self.assertEqual(
             [
-                str(dataset.INDEVIDOS), str(dataset.AMBIGUOS), str(dataset.SUSPEITOS),
-                str(dataset.RUIDO), str(dataset.DELEGADAS),
+                da_spec["Indevidos comprovados"],
+                da_spec["Ambíguos legítimos"],
+                da_spec["Legítimos suspeitos à primeira vista"],
+                da_spec["Ruído de manutenção"],
+                da_spec["Credenciais compartilhadas"],
                 str(dataset.ESCALA_REDUZIDA.normais_na_trilha),
             ],
             self._volumes(self.primeiro.gm_notes),
