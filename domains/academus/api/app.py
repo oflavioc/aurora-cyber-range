@@ -54,13 +54,21 @@ flag `number`, e por isso o unico em que o TIPO da flag muda a forma do efeito.
 
 O QUE ESTA API NAO FAZ, e tem data
 -----------------------------------
-Nao emite evento. `audit_query_performed` e de classe `observation` e ja foi
-movido para a **Fase 8**; a trilha de auditoria com hash e `06` T7, **Fase 5**.
-Uma rota que emitisse evento aqui anteciparia as duas — e e a P4-2 que espera
-esse commit, porque e nele que a metade sem guarda ganha sujeito.
+**Continua sem emitir evento**, e a trilha de auditoria da peca 3 nao mudou isso:
+ela e tabela de dominio com cadeia propria (`02` §4), e nao o event store. O
+primeiro `append` do adapter chega com `audit_query_performed`, que e **Fase 6** —
+`07` Fase 6 tem o item de DoD literal *"consultar a trilha com filtro de periodo
+emite `audit_query_performed`"*. O registro da Fase 3 e uma versao anterior deste
+cabecalho diziam **Fase 8**, e a leitura certa e a de `07`.
+
+E por isso a **P4-2** nao vence aqui: o gatilho dela e o primeiro `append` fora do
+`inject-engine`, e nenhum modulo de `api/` chama `append`. Ela foi redatada para
+a Fase 6 com o gatilho intacto.
 """
 
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
@@ -70,7 +78,7 @@ from domains.academus.api.degradacao import (
     confere_flags_declaradas,
     degrada,
 )
-from domains.academus.api.repositorio import Escopo, Repositorio
+from domains.academus.api.repositorio import Contexto, Escopo, Repositorio
 
 app = FastAPI(
     title="academus-api",
@@ -152,19 +160,71 @@ async def ler_diario(
     return {"class_id": class_id, "grades": notas}
 
 
+def contexto_do_pedido(request: Request) -> Contexto:
+    """Usuario, IP, user-agent e instante — `02` §4.1, e so a requisicao os tem.
+
+    `request.client` e `None` quando nao ha peer — ASGI sem transporte, que e o
+    caso de alguns clientes de teste. O fallback e explicito e nomeado em vez de
+    string vazia: IP ausente numa trilha de auditoria e informacao, e uma cadeia
+    string vazia se leria como "veio de lugar nenhum" sem dizer por que.
+    """
+    return Contexto(
+        source_ip=request.client.host if request.client else "sem-peer",
+        user_agent=request.headers.get("user-agent"),
+        occurred_at=datetime.now(timezone.utc),
+    )
+
+
 @app.post("/classes/{class_id}/grades", status_code=201)
 async def lancar_nota(
     class_id: str,
     corpo: dict,
     escopo: Escopo = Depends(escopo_do_pedido),
     repositorio: Repositorio = Depends(repositorio_do_pedido),
+    contexto: Contexto = Depends(contexto_do_pedido),
 ) -> dict:
+    """A P3-6: a nota e a linha de trilha entram na MESMA transacao.
+
+    O 404 cobre agora TRES casos que o handler continua sem distinguir — turma
+    inexistente, turma alheia e **aluno inexistente**, que e a P4-5. A mensagem
+    fica generica pelo motivo de sempre: dizer qual dos tres ocorreu e responder
+    a uma pergunta que quem lanca nota nao fez.
+    """
     registro = repositorio.lancar_nota(
-        class_id, str(corpo["student_id"]), float(corpo["value"]), escopo
+        class_id, str(corpo["student_id"]), float(corpo["value"]), escopo, contexto
     )
     if registro is None:
-        raise HTTPException(status_code=404, detail="turma nao encontrada")
+        raise HTTPException(status_code=404, detail="turma ou aluno nao encontrado")
     return registro
+
+
+@app.get("/audit/verify-chain")
+async def verificar_trilha(
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
+    """`02` §4 item 5 e `06` T7 — percorre a trilha e reporta a PRIMEIRA quebra.
+
+    A RESPOSTA CARREGA A POSICAO E NADA ALEM. `06` T7 exige a posicao exata; `06`
+    T6 varre o corpo de qualquer resposta procurando o que nao pode estar la, e
+    despejar linhas de trilha aqui poria conteudo de investigacao numa rota que
+    existe para responder uma pergunta de integridade.
+    """
+    resultado = repositorio.verificar_trilha()
+    return {
+        "linhas": resultado.linhas,
+        "integra": resultado.integra,
+        # `None` quando integra, e o campo EXISTE nos dois casos: resposta que
+        # muda de forma conforme o resultado obriga o cliente a descobrir a forma
+        # antes de ler o valor.
+        "quebra": (
+            None
+            if resultado.quebra is None
+            else {
+                "sequence": resultado.quebra.sequence,
+                "motivo": resultado.quebra.motivo,
+            }
+        ),
+    }
 
 
 @app.post("/enrollment", status_code=201)

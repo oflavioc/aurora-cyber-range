@@ -302,3 +302,42 @@ rotas:
     flags: []
     degradacao: []
     status: planejada
+
+  # -------------------------------------------------------------------------
+  # A VERIFICACAO DA CADEIA — `02` secao 4 item 5 e `06` T7. Peca 3 da Fase 5.
+  #
+  # DECLARADA ANTES DE EXISTIR, e promovida no mesmo commit em que a rota nasce:
+  # a terceira direcao desta checagem cobra a promocao, e e ela que impede
+  # `planejada` de virar esconderijo.
+  #
+  # AS TRES PERGUNTAS DA DISCIPLINA DA FASE 3, respondidas aqui porque o PERFIL
+  # DE DOMINIO nao tem campo para duas delas:
+  #
+  #   papel exigido  `secretaria`. Nao ha papel de auditor no dominio, e criar um
+  #                  seria por papel de EXERCICIO dentro do adapter — o buraco
+  #                  que a peca 2 da Fase 3 fechou, e que `06` T6 cobra por
+  #                  varredura de payload.
+  #
+  #   efeito         NENHUM sobre o exercicio. Le e conta; nao escreve, nao muda
+  #                  flag, nao emite evento. `efeito` e campo do perfil do
+  #                  NUCLEO — no perfil de dominio ele e proibido, junto de
+  #                  `emite`, `inverso` e `confirmacao`, porque `emite` aqui
+  #                  anteciparia a instrumentacao (P4-2).
+  #
+  #   reversivel     nao se aplica: nao ha o que reverter numa leitura.
+  #
+  # `flags: []` E DECISAO, e nao lista vazia por preguica. Degradar a verificacao
+  # de integridade seria o range mentindo sobre a propria trilha: no meio de um
+  # exercicio em que alguem pergunta "a trilha foi adulterada?", a resposta nao
+  # pode depender de flag.
+  #
+  # A RESPOSTA CARREGA A POSICAO DA QUEBRA E NADA ALEM — sem despejo de linha,
+  # sem payload de auditoria. `06` T7 exige a posicao exata; `06` T6 varre o
+  # corpo procurando o que nao pode estar la.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /audit/verify-chain
+    papeis: [secretaria]
+    flags: []
+    degradacao: []
+    status: implementada

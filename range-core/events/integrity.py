@@ -16,6 +16,19 @@ E deteccao continua util DEPOIS do `REVOKE`, e nao vira redundancia: `REVOKE`
 nao protege contra quem tem privilegio, e migracao, restauracao de backup e
 acesso administrativo continuam existindo.
 
+O `REVOKE` CHEGOU — peca 3 da Fase 5, e a previsao acima se cumpriu
+--------------------------------------------------------------------
+`alembic/versions/0004_trilha_de_auditoria.py` traz a tabela, a role
+`INSERT`-only, o `REVOKE` e o trigger; `domains/academus/audit/trilha.py` escreve
+e verifica. A frase de cima nao envelheceu: os dois mecanismos cobrem coisas
+diferentes, e a tabela da D13 no registro da Fase 5 diz qual cobre o que.
+
+**A duplicacao foi evitada extraindo a primitiva, e nao copiando o modulo.**
+`canonical_json`, `chained_hash` e `verify_hash_chain` sao genericos sobre mapa e
+texto; `canonical_form`, `row_hash` e `verify_chain` continuam sendo a leitura de
+EVENTO e delegam para eles. A trilha usa os tres primeiros e nao conhece
+`Event` — e o adapter importa o core, nunca o contrario.
+
 COMO
 ----
 Encadeamento por hash, mais sequencia sem buracos. Cada linha guarda:
@@ -50,7 +63,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from range_core.events.envelope import Event
 
@@ -72,6 +85,75 @@ class ChainBroken(Exception):
     """
 
 
+def canonical_json(conteudo: Mapping[str, object]) -> str:
+    """A FORMA CANONICA GENERICA: JSON ordenado, sem espaco insignificante.
+
+    Extraida na peca 3 da Fase 5, e a extracao e a D3 daquele registro. A trilha
+    de auditoria de `02` §4 exige `row_hash = SHA256(prev_hash || payload
+    canonico)` — a MESMA construcao que este modulo ja fazia para o event store.
+    Duas implementacoes de encadeamento por hash no mesmo repositorio e a
+    duplicacao de mecanismo que a Fase 1 pagou para desfazer.
+
+    O QUE ATRAVESSA A FRONTEIRA E A PRIMITIVA, e nao a semantica. Esta funcao nao
+    sabe o que e um evento nem o que e uma linha de trilha: recebe um mapa e
+    devolve texto. A tabela, o trigger, a role e os campos de `02` §4.1 sao do
+    adapter, e `domains/` importa `range-core/` — nunca o contrario, que e o
+    invariante 1.
+
+    `ensure_ascii=False` porque o dado e em portugues e o hash e sobre bytes
+    UTF-8: escapar acento mudaria o material hasheado sem mudar o conteudo, e
+    duas serializacoes do mesmo fato produziriam hashes diferentes.
+    """
+    return json.dumps(
+        conteudo, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+
+
+def chained_hash(canonico: str, previous_hash: str) -> str:
+    """SHA-256 de `previous_hash` encadeado a uma forma canonica ja pronta.
+
+    A QUEBRA DE LINHA ENTRE OS DOIS NAO E ENFEITE: sem separador, um
+    `previous_hash` que terminasse com o comeco do canonico produziria o mesmo
+    material que outro par deslocado. Com `\\n` — que nao ocorre no hexadecimal
+    do hash nem no JSON compacto — a concatenacao e inequivoca.
+    """
+    return hashlib.sha256(f"{previous_hash}\n{canonico}".encode("utf-8")).hexdigest()
+
+
+def verify_hash_chain(rows: Sequence[tuple[int, str, str, str]]) -> None:
+    """Confere sequencia, encadeamento e hash sobre formas canonicas.
+
+    `rows` e `(sequence, previous_hash, row_hash, forma_canonica)` na ordem de
+    leitura. Levanta `ChainBroken` na PRIMEIRA divergencia, nomeando a posicao —
+    `06` T7 exige que a verificacao reporte onde a cadeia quebrou, e recusa sem
+    posicao nao e operavel.
+
+    Generica pelo mesmo motivo de `canonical_json`: quem chama sabe o que a linha
+    significa; isto so sabe que ela deveria fechar.
+    """
+    esperado_anterior = GENESIS_HASH
+    esperada_sequencia = FIRST_SEQUENCE
+
+    for sequencia, anterior, gravado, canonico in rows:
+        if sequencia != esperada_sequencia:
+            raise ChainBroken(
+                f"sequencia {sequencia} onde se esperava {esperada_sequencia}: "
+                "ha buraco ou reordenacao, e a tabela nao e mais append-only"
+            )
+        if anterior != esperado_anterior:
+            raise ChainBroken(
+                f"sequencia {sequencia}: `previous_hash` nao aponta para a linha "
+                "anterior — houve remocao ou insercao no meio"
+            )
+        if chained_hash(canonico, anterior) != gravado:
+            raise ChainBroken(
+                f"sequencia {sequencia}: o hash gravado nao corresponde ao "
+                "conteudo — a linha foi modificada depois de escrita"
+            )
+        esperado_anterior = gravado
+        esperada_sequencia += 1
+
+
 def canonical_form(event: Event) -> str:
     """A forma canonica do envelope, para hashear.
 
@@ -80,7 +162,7 @@ def canonical_form(event: Event) -> str:
     sao metadados de ARMAZENAMENTO, e nao do evento — o envelope e o de
     `09` §1.1, e acrescentar campo a ele exigiria mudar o contrato.
     """
-    return json.dumps(
+    return canonical_json(
         {
             "event_id": event.event_id,
             "event_type": event.event_type,
@@ -100,47 +182,26 @@ def canonical_form(event: Event) -> str:
                 "fact_id": event.correlation.fact_id,
             },
             "payload": event.payload,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
+        }
     )
 
 
 def row_hash(event: Event, previous_hash: str) -> str:
     """SHA-256 da forma canonica encadeada ao hash anterior."""
-    material = f"{previous_hash}\n{canonical_form(event)}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+    return chained_hash(canonical_form(event), previous_hash)
 
 
 def verify_chain(rows: Sequence[tuple[int, str, str, Event]]) -> None:
-    """Confere sequencia, encadeamento e hash de cada linha.
+    """Confere a cadeia do EVENT STORE — `(sequence, previous_hash, row_hash, evento)`.
 
-    `rows` e `(sequence, previous_hash, row_hash, event)` na ordem de leitura.
-    Levanta `ChainBroken` na primeira divergencia, nomeando a POSICAO — sem a
-    posicao a recusa nao e operavel, e `06` T7 exige que a verificacao reporte
-    onde a cadeia quebrou.
+    Delega para `verify_hash_chain` depois de reduzir cada evento a sua forma
+    canonica. A reducao e o que este modulo sabe e o generico nao: qual e o
+    envelope de `09` §1.1, e quais dos campos gravados sao metadados de
+    ARMAZENAMENTO e por isso ficam fora do material hasheado.
     """
-    esperado_anterior = GENESIS_HASH
-    esperada_sequencia = FIRST_SEQUENCE
-
-    for sequencia, anterior, gravado, event in rows:
-        if sequencia != esperada_sequencia:
-            raise ChainBroken(
-                f"sequencia {sequencia} onde se esperava {esperada_sequencia}: "
-                "ha buraco ou reordenacao, e a tabela nao e mais append-only"
-            )
-        if anterior != esperado_anterior:
-            raise ChainBroken(
-                f"sequencia {sequencia}: `previous_hash` nao aponta para a linha "
-                "anterior — houve remocao ou insercao no meio"
-            )
-        recomputado = row_hash(event, anterior)
-        if recomputado != gravado:
-            raise ChainBroken(
-                f"sequencia {sequencia}, evento {event.event_id}: o hash gravado "
-                "nao corresponde ao conteudo — a linha foi modificada depois de "
-                "escrita"
-            )
-        esperado_anterior = gravado
-        esperada_sequencia += 1
+    verify_hash_chain(
+        [
+            (seq, anterior, gravado, canonical_form(evento))
+            for seq, anterior, gravado, evento in rows
+        ]
+    )

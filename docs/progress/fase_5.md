@@ -1,6 +1,6 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM ANDAMENTO — peças 1 e 2 de 6 fechadas.** A branch nasceu em
+**Status: EM ANDAMENTO — peças 1, 2 e 3 de 6 fechadas.** A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
 decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
 pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
@@ -87,7 +87,7 @@ produz o insumo da seguinte.
 |---|---|---|
 | **1** ✅ | registro seção → verificador de `05`, com as cinco direções e prova negativa pareada; e a §8.5 virando regra em `WORKFLOW.md` | **P4-12** |
 | **2** ✅ | modelo completo, `CalendarioAcademico`, `AutorizacaoRetificacao`, `access_delegations` (migration, sem dado) | abriu a **P5-2** |
-| **3** | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
+| **3** ✅ | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
 | **4** | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
 | **5** | `GM_NOTES.md` e a query de referência | depende da **D10** |
 | **6** | fechamento: DoD com prova item a item, registro, auditoria de checkpoint | — |
@@ -429,6 +429,123 @@ duas metades que a §8.5 separa:
 assim, com exceção do `PHASE_0_CHECKLIST.md`), então esta edição viaja no PR da
 fase sem tocar a spec — conferido antes de propor, e não assumido.
 
+### D12 — a sequência da trilha é atribuída pela aplicação, como a do event store — `DECIDIDA`
+
+A Fase 2 recusou `BIGSERIAL` no event store com um argumento próprio: sequência
+de banco **consome número em transação que faz rollback**, e o buraco resultante
+seria alarme falso — *"detecção que grita sem defeito é detecção que se aprende a
+ignorar"*.
+
+A trilha tem a mesma pergunta e **podia** ter resposta diferente, porque `REVOKE`
+e trigger mudam o modelo de ameaça. Examinei nessa direção e a resposta é a
+mesma — mas o argumento que a sustenta aqui é outro, e é mais forte:
+
+**1. A cadeia já obriga a serializar, então `BIGSERIAL` não economizaria nada.**
+`previous_hash` é o `row_hash` da linha imediatamente anterior: para escrever,
+é preciso ler a última linha sob trava. A sequência atribuída pela aplicação sai
+de graça dessa trava que já existe. Com `BIGSERIAL` haveria trava **e** buraco.
+
+**2. Com `REVOKE DELETE`, buraco deixa de ter explicação legítima.** No event
+store, um buraco podia ser transação abortada; aqui, se a sequência é da
+aplicação e a role não pode apagar, buraco significa *alguém passou por fora da
+role*. A contiguidade sai de "ruído tolerado" para **sinal**, e é exatamente o
+inverso do que se esperaria de "o REVOKE já cuida disso".
+
+**3. `BIGSERIAL` exigiria `USAGE` na sequência para a role restrita.** Uma
+permissão a mais numa role cujo propósito é ter o mínimo, para um valor que a
+aplicação já sabe calcular.
+
+### D13 — `REVOKE` e trigger, conferidos na fonte, e o que eles NÃO protegem — `DECIDIDA`
+
+Conferido antes de escrever, e não de memória. `02` §4 obriga seis coisas, e a
+Fase 2 recusou antecipar as três primeiras dizendo, no cabeçalho da própria
+`integrity.py`, que são **Fase 5**:
+
+| `02` §4 | O que a peça 3 entrega |
+|---|---|
+| 1. tabela dedicada `audit_trail`, separada das operacionais | migration `0004` |
+| 2. role `academus_app` com `INSERT` apenas; `REVOKE UPDATE, DELETE, TRUNCATE` | role criada na migration, com `GRANT INSERT, SELECT` e `REVOKE` explícito |
+| 3. trigger `BEFORE UPDATE OR DELETE` que levanta exceção incondicionalmente | `fn_audit_trail_imutavel()` |
+| 4. `prev_hash` e `row_hash = SHA256(prev_hash \|\| payload canônico)` | primitiva do core, D3 |
+| 5. `GET /audit/verify-chain` reportando a primeira quebra | D14 |
+| 6. migration controlada | `0004`, versionada |
+
+**O que os dois NÃO protegem, e isso precisa estar dito para ninguém ler
+`REVOKE` como garantia total:**
+
+`REVOKE` não alcança quem não passa pela role — superusuário e **dono da
+tabela**. O dono pode re-conceder privilégio a si mesmo, e pode
+`ALTER TABLE ... DISABLE TRIGGER`; um superusuário pode ainda
+`SET session_replication_role = replica` e o trigger não dispara. Nenhuma das
+duas coisas é defeito da implementação: é o que privilégio de dono significa.
+
+**A relação entre os dois mecanismos, que é o que fecha a leitura errada:**
+
+| | Cobre | Não cobre |
+|---|---|---|
+| `REVOKE` + trigger | **prevenção** no caminho normal — a aplicação e quem tem a credencial dela | quem tem privilégio de dono ou de superusuário |
+| cadeia de hash | **detecção** de quem reescreveu e **não recomputou** a cadeia — acidente, migração malfeita, edição manual, restauração de backup | truncamento da cauda; e adversário com privilégio **e** o código, que recomputa tudo |
+
+Os dois últimos limites já estavam declarados em `integrity.py` desde a Fase 2, e
+**continuam valendo aqui** — são repetidos na trilha em vez de herdados em
+silêncio. `REVOKE` sem cadeia deixaria o caminho privilegiado sem nenhuma
+testemunha; cadeia sem `REVOKE` deixaria o caminho normal sem impedimento. É por
+isso que `02` §4 exige os dois, e não um.
+
+**Uma consequência de ambiente que é do operador, e está dita porque a DoD
+depende dela.** `06` T7 exige que *"a role da aplicação não possua `UPDATE`,
+`DELETE` ou `TRUNCATE`"*. Hoje a `academus-api` conecta com a **mesma role que
+roda as migrations** — a `POSTGRES_USER` do compose, que na imagem oficial é
+superusuário. Com uma role só, `REVOKE` não tem efeito nenhum sobre o caminho da
+aplicação.
+
+O que a peça 3 faz: cria a role `academus_app` sem `LOGIN`, com `INSERT`+`SELECT`
+e `REVOKE` explícito, e **a escrita da trilha faz `SET LOCAL ROLE academus_app`
+dentro da própria transação**. Isso torna a restrição operante no caminho da
+aplicação sem exigir credencial nova, e o teste de T7 prova a ausência do
+privilégio assumindo a role. O que **não** faz: impedir que quem conecta faça
+`RESET ROLE`. A separação definitiva é uma segunda credencial no `.env` para a
+`academus-api`, e ela é do operador — está registrada como pendência, não como
+feito.
+
+### D14 — `GET /audit/verify-chain` entra na superfície antes de existir — `DECIDIDA`
+
+Disciplina da Fase 3, e ela vale aqui: a rota é declarada em
+`domains/academus/api_surface.yaml` no mesmo commit em que nasce, e a terceira
+direção do `check_api_surface.py` cobra a promoção de `planejada` para
+`implementada`.
+
+| | |
+|---|---|
+| **papel exigido** | `secretaria`. Não há papel de auditor no domínio, e criar um seria pôr papel de **exercício** dentro do adapter — o buraco que a peça 2 da Fase 3 fechou e que `06` T6 cobra |
+| **efeito** | **nenhum sobre o exercício**. A rota lê e conta; não escreve, não muda flag, não emite evento |
+| **reversível** | não se aplica — não há o que reverter numa leitura |
+| **flags** | `[]`. Degradar a verificação de integridade seria o range mentindo sobre a própria trilha |
+
+**`efeito` e `inverso` não vão no YAML, e a ausência é do perfil.**
+`check_api_surface.py` tem dois perfis, e os campos `efeito`, `emite`, `inverso` e
+`confirmacao` são do perfil do **núcleo** — no perfil de domínio eles são
+**proibidos**, porque `emite` ali anteciparia a instrumentação (é a P4-2). Então a
+resposta às três perguntas está aqui e no comentário da rota, e o YAML declara o
+que o perfil dele conhece: `papeis`, `escopo`, `flags`, `degradacao`, `status`.
+
+**Ela é a primeira rota que lê a trilha, e é `05` §7 que a governa** — integridade
+da trilha. Por isso a resposta dela carrega a **posição exata da quebra** (`06`
+T7 exige), e nada além: sem despejo de linhas, sem payload de auditoria, sem
+conteúdo que `06` T6 varre.
+
+### D15 — o verificador da §7 entra ANTES da promoção, e o vermelho vai para o registro — `DECIDIDA`
+
+A direção (d) do `check_secoes_de_seguranca.py` é gate **só se reprovar de
+verdade**. Promover a entrada da §7 no mesmo gesto que cria o verificador
+deixaria a direção (d) como prosa: ela nunca teria ficado vermelha, e ninguém
+saberia se funciona.
+
+Ordem: `scripts/check_trilha_de_auditoria.py` nasce citando `05` §7 → a checagem
+de seções **reprova**, porque a entrada ainda diz "sem mecanismo — Fase 5" → a
+saída vermelha é copiada para o registro → **só então** a entrada é promovida.
+Vale igual para a §6 na peça 5.
+
 ---
 
 ## 4. As peças
@@ -699,6 +816,124 @@ Vale registrar porque a classe é a mesma e o custo é diferente: em código, a
 duplicação diverge na primeira edição; em esquema, ela diverge e **fica**, porque
 migration para desfazer tabela já povoada é mais cara que a que a criou.
 
+### 4.3 Peça 3 — a trilha, e a direção (d) exercida pela primeira vez
+
+**Entregue:** migration `0004`, `domains/academus/audit/trilha.py`,
+`GET /audit/verify-chain`, o verificador de `05` §7 com treze eixos de prova
+negativa, e dezoito testes de T7 contra Postgres real.
+
+#### A direção (d) reprovou antes da promoção — medido, e na ordem
+
+Você repetiu a exigência porque se a promoção viesse antes o gate nunca teria
+reprovado. Veio depois, e a saída é esta:
+
+```text
+P4-12 - secao de 05_SECURITY_REQUIREMENTS com mecanismo ou destinatario
+
+  scripts/check_trilha_de_auditoria.py cita `05` §7 e nao esta declarado como
+  mecanismo dela. A entrada diz que a secao espera a Fase 5, e ja ha verificador
+  citando-a: e a promocao que esta faltando. [...]
+
+rc=1
+```
+
+**E ela não reprovou na primeira tentativa, o que revelou um limite.** Com o
+verificador recém-escrito e ainda **não versionado**, a checagem passou verde: o
+universo vem de `git ls-files`, e arquivo fora do índice é invisível. Um
+`git add -N` depois, reprovou.
+
+**Não é defeito a corrigir, é escopo a declarar** — arquivo não versionado não
+roda no CI de ninguém, e tratá-lo como mecanismo faria o registro afirmar
+cobertura que não existe em lugar nenhum. O que muda é o procedimento, e ele está
+escrito no cabeçalho do verificador: quem escreve verificador novo o adiciona ao
+índice antes de rodar a checagem. No commit isso é automático; no CI a árvore já
+está commitada.
+
+**Só depois disso a entrada foi promovida.** `05` §7 sai desta fase com mecanismo
+de verdade, e a §6 continua sendo a única sem — com destinatário na peça 5.
+
+#### O que o verificador da §7 prova, e o que ele não prova
+
+Ele confere que o **mecanismo continua declarado**: tabela dedicada, os três
+verbos revogados **por nome**, trigger incondicional, colunas de cadeia, rota
+implementada, e a ausência de modelo ORM. Que ele **funciona** é o que os testes
+de T7 provam contra Postgres real.
+
+A divisão não é arbitrária: apagar o `REVOKE` de uma migration futura **não
+derruba teste nenhum** que rode sobre base já migrada — a tabela mantém as
+permissões de ontem —, e o defeito viajaria até alguém recriar a base.
+
+**Um probe mediu uma frouxidão minha e ela foi corrigida.** A migration tem
+`REVOKE ALL` **e** o `REVOKE UPDATE, DELETE, TRUNCATE` explícito; o verificador
+aceitava `ALL` como suficiente, então apagar a linha explícita não acusava nada.
+`ALL` revoga os três de fato e **não diz quais** — nomeados, o diff fala a língua
+da spec e a remoção de um deles fica visível em revisão. O verificador passou a
+exigir os três por nome, e há probe para cada metade.
+
+#### T7, os três critérios, e por que são quatro testes
+
+| Critério | Prova |
+|---|---|
+| `UPDATE` e `DELETE` falham **por trigger** | duas tentativas, e a exceção carrega `append-only` |
+| a role **não possui** `UPDATE`/`DELETE`/`TRUNCATE` | `has_table_privilege` — pergunta ao **catálogo**, não ao comportamento: mesmo com o trigger desligado, a role continuaria sem o privilégio |
+| — | e o **par**: a role **possui** `INSERT` e `SELECT`. Sem ele, uma role sem privilégio nenhum passaria nos três `assertFalse` e a trilha seria inescrevível |
+| adulteração induzida reporta a **posição** | quatro adulterações: campo, `payload` (a nota trocada), linha removida do meio, e o **truncamento da cauda que NÃO é detectado** |
+
+**O último é o limite declarado sendo exercido, e não apenas escrito.**
+`integrity.py` diz desde a Fase 2 que apagar as últimas N linhas deixa cadeia
+íntegra e sequência contígua. O teste afirma isso: se ficar vermelho um dia,
+alguém resolveu o problema e o registro precisa parar de dizer que ele existe.
+
+A adulteração é feita **desabilitando o trigger** — que é exatamente o limite que
+a D13 declara. É o ponto: a cadeia enxerga o que a prevenção não impediu.
+
+#### A P4-5 e a P3-6 fechadas, e os dois vermelhos que as anunciaram
+
+Medido na suíte, antes de eu tocar em qualquer um dos dois:
+
+```text
+FAIL: test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje
+FAIL: test_grades_student_id_continua_sem_FK
+```
+
+**Os dois ao mesmo tempo são o que distingue "a P4-5 fechou" de "alguém pôs uma
+FK".** O primeiro é comportamento de rota, o segundo é esquema; a D5 exigiu o
+par, e o par é o que ficou vermelho. Os dois foram reescritos para afirmar o
+estado novo, com o nome antigo citado no corpo — quem ler daqui a três fases
+encontra o que eles diziam antes.
+
+A **P3-6** fecha com a nota e a linha de trilha na mesma transação, e a linha
+carrega os dez campos que `02` §4.1 exige. Há teste para cada um, e um a mais
+para o `within_window`: a fixture põe a janela de retificação em fevereiro de
+2027, o teste roda hoje, e `False` é a resposta certa — um `True` diria que a
+comparação não está olhando a janela que a Linha B inteira depende.
+
+#### A P4-2 não venceu, e agora está medido
+
+O gatilho é *o primeiro `append` fora do `inject-engine`*. Medido nesta peça, e
+não assumido:
+
+```text
+grep de `.append(` em domains/**.py  →  nenhuma chamada a store.append
+EventStore importado em domains/     →  degradacao.py (lê), processo.py (monta)
+```
+
+A trilha **não é o event store** — é tabela de domínio com cadeia própria. A
+condição não ocorreu, e a pendência segue na Fase 6 com o gatilho intacto, como
+redatado. O comentário de `app.py` que dizia "Fase 8" foi corrigido para Fase 6,
+com a fonte.
+
+#### Dois achados operacionais, e o segundo é do operador
+
+**A migration exige `CREATEROLE`.** Medido ao aplicá-la com uma role de migration
+sem esse atributo: `CREATE ROLE academus_app` falha com uma mensagem que não diz o
+que fazer. A migration passou a capturar `insufficient_privilege` e a explicar as
+duas saídas — rodar com role que tenha `CREATEROLE`, ou criar a role **uma vez**
+como superusuário, e a partir daí o `IF NOT EXISTS` a encontra.
+
+**A role da aplicação e a role das migrations são a mesma, e isso limita o que
+`REVOKE` significa hoje** — é a **P5-3**, aberta abaixo.
+
 #### O que fica fora da fase inteira, e contra qual vizinha
 
 | Fora | Onde |
@@ -755,6 +990,7 @@ Abertas nesta fase. Prefixo `P5-`.
 |---|---|---|
 | P5-1 | docstring de `scripts/sobe_sala.py` manda rodar um script que não existe | **condição** — ver abaixo |
 | P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor | **Fase 6** — ver abaixo |
+| P5-3 | a role da aplicação e a das migrations são a mesma, e `REVOKE` não alcança quem conecta | **operador** — ver abaixo |
 
 #### P5-1 — caminho citado em docstring apontando para arquivo inexistente
 
@@ -839,3 +1075,40 @@ acrescentá-la na Fase 6. Isso trocaria uma promessa vazia declarada por uma
 lacuna silenciosa — a trilha passaria a ter quatro categorias e nada diria que a
 quinta é da spec. É a mesma escolha que a P4-4 registrou sobre flags que declaram
 consumidor inexistente, e a resposta lá foi a mesma: declarar com destinatário.
+
+
+#### P5-3 — a role da aplicação e a das migrations são a mesma
+
+**Aberta implementando a D13, e ela é o que separa o mecanismo do efeito dele.**
+
+`06` T7 exige que *"a role da aplicação não possua `UPDATE`, `DELETE` ou
+`TRUNCATE`"*. A `academus_app` da `0004` não possui nenhum dos três, e há teste
+perguntando ao catálogo do Postgres. **Mas a `academus-api` não conecta como
+`academus_app`:** ela conecta com a `POSTGRES_USER` do compose, que é a mesma
+role que roda as migrations e que, na imagem oficial, é **superusuária**.
+
+Com uma role só, `REVOKE` não tem efeito sobre o caminho da aplicação — e ler a
+DoD como "está feito" seria a leitura errada que a D13 existe para impedir.
+
+**O que a peça 3 fez, e é mais que nada:** a escrita da trilha faz
+`SET LOCAL ROLE academus_app` **dentro da transação**. A restrição passa a valer
+no caminho que escreve, sem credencial nova, e `SET LOCAL` volta sozinho no fim
+da transação — sem ele, a conexão voltaria ao pool com a role trocada, e o
+defeito apareceria numa rota sem relação com trilha.
+
+**O que ela não faz:** impedir `RESET ROLE`. Quem conecta continua podendo. Isso
+é disciplina, não impedimento — a distinção da §1.6 da Fase 1.
+
+**A separação definitiva é do operador**, e é por isso que a pendência é sua e
+não minha: exige uma **segunda credencial** para a `academus-api` — role com
+`LOGIN`, senha no `.env`, `DATABASE_URL` própria no compose. Não posso escrever o
+`.env`, e uma senha em arquivo versionado seria pior que o problema.
+
+**Gatilho: o primeiro deploy destinado a exercício com participante real.** Até
+lá, o que existe é uma stack de desenvolvimento onde a distinção não muda risco
+nenhum. A partir dali muda: `05` §6 põe o deploy atrás de túnel, e a role da
+aplicação passa a ser alcançável por quem estiver dentro dele.
+
+**O que eu preparei para essa hora:** a role já existe, os `GRANT`/`REVOKE` já
+estão certos, e o código já assume a role. O que falta é a credencial — uma
+variável, e não uma refatoração.
