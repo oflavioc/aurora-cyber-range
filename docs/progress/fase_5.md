@@ -1921,3 +1921,69 @@ metade de `05` §8 que um `print` distraído viola sem que nada acuse.
 **O que já está pronto para essa hora:** a coluna existe, o seed já cria os
 usuários com papel, e `range_core.determinism.seeded_random` já dá o fluxo por
 escopo. O que falta é a rota e três linhas no gerador.
+
+---
+
+### 10.7 A terceira rodada — a propriedade, e não o sétimo vetor
+
+**FAIL, e o operador estava certo em parar de corrigir vetor.** O sexto vazamento
+— `student_id` por janela de índice disjunta — veio por um caminho que nenhuma
+das cinco correções alcançava.
+
+#### A propriedade que permitia, e onde discordei
+
+O gerador construía **por conjunto**: um laço por conjunto, e todo atributo
+escrito de dentro dele. O conjunto era a **primeira** coisa decidida, então todo
+atributo era função dele — vazar era o caso normal, e não vazar era o acidente. A
+lista do que um laço fixa não é enumerável por inspeção: por isso corrigir vetor
+nunca terminava.
+
+**Onde discordei, e o operador aceitou:** "nada depende do conjunto" destruiria a
+Linha B. `02` §6.1 **exige** a correlação — sem ela os indevidos deixam de ser
+indevidos. A propriedade que fecha é outra:
+
+> a partição dos atributos é **declarada**, e tudo que não está na lista é
+> sorteado por um caminho que não conhece o conjunto.
+
+**Não é o pool que fecha a classe — é o pool mais a lista**, porque é a lista que
+torna a fronteira verificável em vez de intencional.
+
+#### A pergunta aplicada a cada entrada, e três vetores achados antes do teste
+
+*A spec exige a propriedade ou o valor?* Aplicada às nove entradas, ela achou
+três vazamentos **antes de qualquer teste rodar**:
+
+| | |
+|---|---|
+| `lote` no payload | só o ruído tinha a chave — classificador perfeito. `02` §6.1 marca o ruído pelo **usuário**. Saiu |
+| `user_agent` | `batch/1.0` só no ruído. `02` §4.1 exige registrá-lo, não o faz discriminante. Foi para o pool |
+| hora do ruído | fixa em 03h. A faixa noturna é dos indevidos e dos suspeitos; o ruído não tem faixa normativa. Foi para o pool |
+
+E a entrada do grupo de alunos ficou nos termos que o operador exigiu: **o
+discriminante é a concentração, não a identidade**.
+
+#### O teste, e a medição por mutação achou o sétimo
+
+A varredura é por coluna, contra a lista, e **coluna nova entra sozinha**. Mas
+ela não nasceu certa — quatro mutações históricas foram plantadas para medir, e
+só duas reprovavam:
+
+| Correção que a mutação exigiu | O que faltava |
+|---|---|
+| a varredura respeitar `conjuntos` | isentava a coluna **inteira**; a hora do ruído passava porque `hora` está na lista para outros dois conjuntos |
+| separar coluna categórica de coluna de identidade | exclusividade de timestamp é verdade trivial, e reprovava contra o que não é vazamento |
+| comparar entre seeds com **limiar de independência** | `assertNotEqual` sobre conjuntos é satisfeito por um elemento — **o mesmo defeito que o H1 apontou, reproduzido por mim**; e limiar fixo reprovava `minuto`, cuja sobreposição é menor que o acaso prediz |
+
+**E a varredura corrigida achou o sétimo vetor, que nenhuma auditoria viu:**
+`actor_user_id` das contas de ambíguos e suspeitos era **disjunto** das contas
+dos normais — a conta separava "normal" de "ambíguo ou suspeito", e a lista não
+licencia `actor_user_id` para nenhum dos três. As contas não normativas passaram
+a sair de um pool comum.
+
+#### O que mudou de forma, e é isso que fecha a classe
+
+Antes: N asserções contra N vetores conhecidos, e o N+1 sempre existia.
+Agora: uma propriedade sobre **toda coluna que o dataset escreve**, com a lista
+declarada do que pode correlacionar. O vetor de identificador é hoje
+**estruturalmente inexprimível** — `object_id` é atribuído depois do
+embaralhamento, num ponto onde o conjunto já não está em escopo.
