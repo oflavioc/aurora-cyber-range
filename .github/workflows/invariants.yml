@@ -213,6 +213,11 @@ jobs:
       - name: teste negativo do verificador da trilha
         run: python scripts/check_trilha_de_auditoria_probes.py
 
+      # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
+      # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
+      # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na
+      # hora vence sozinho, e foi a licao da §7.2 da Fase 3.
+
       # Sete eixos da guarda de base do lancador (P3-7). So os PROBES rodam no
       # CI: `check_audit_base.py` julga a topologia entre a branch da fase e
       # `main`, que e uma pergunta do LANCADOR e nao do PR — roda-lo aqui

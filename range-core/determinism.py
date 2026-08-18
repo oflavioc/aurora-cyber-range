@@ -182,7 +182,18 @@ def derive_seed(seed: int, escopo: str) -> int:
 def seeded_random(escopo: str, *, seed: int | None = None) -> random.Random:
     """Um `random.Random` proprio do escopo, derivado do `RANDOM_SEED`.
 
-    `escopo` e o nome de quem gera — `academus.alunos`, `evidence.vpn`. Dois
+    O SEPARADOR E `:` E NAO `.`, e a troca foi medida em vez de escolhida. Esta
+    linha dizia `academus.alunos`, e essa forma e **inexprimivel dentro de
+    `domains/`**: o invariante 2 recusa toda string `(academus|prontus|core).algo`
+    fora dos geradores de constante, porque e a forma de um nome de flag. A peca
+    4 da Fase 5 foi o primeiro consumidor real do seed por escopo, e o hook
+    bloqueou na primeira escrita — feedback rapido funcionando como devia.
+
+    Com `:`, o escopo continua dizendo de quem ele e e deixa de colidir. Trocar
+    o separador MUDA os sub-seeds derivados, e isso e inofensivo aqui: nao havia
+    consumidor antes desta peca.
+
+    `escopo` e o nome de quem gera — `academus:alunos`, `evidence:vpn`. Dois
     escopos distintos nunca compartilham fluxo, entao acrescentar um gerador
     novo nao desloca o que os outros produzem.
 
