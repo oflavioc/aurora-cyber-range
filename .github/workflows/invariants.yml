@@ -258,6 +258,16 @@ jobs:
       - name: teste negativo da allowlist do auditor
         run: python scripts/check_allowlist_do_auditor_probes.py
 
+      # M2. SO OS PROBES, pelo mesmo motivo do verificador das provas de
+      # container: `check_prova_do_seed.py` pergunta "a medicao e DESTE
+      # checkout?", e o runner nao tem — nem deve ter — o arquivo que o operador
+      # escreve na maquina que mede. Aqui ele reprovaria sempre, por ausencia.
+      #
+      # O que o CI garante e que o predicado continua sabendo RECUSAR: ausencia,
+      # SHA divergente, arquivo versionado e contexto incompleto.
+      - name: teste negativo da prova do seed
+        run: python scripts/check_prova_do_seed_probes.py
+
       # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
       # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
       # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na

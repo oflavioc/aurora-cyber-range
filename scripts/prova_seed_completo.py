@@ -31,8 +31,10 @@ dizendo que aquele banco e descartavel.
 
 from __future__ import annotations
 
+import json
 import os
 import platform
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -47,6 +49,19 @@ from domains.academus.seed import carga, dataset  # noqa: E402
 from range_core.determinism import random_seed  # noqa: E402
 
 DSN_ENV = "AURORA_SEED_DATABASE_URL"
+
+#: O ARTEFATO ASSINADO — M2 da segunda auditoria, na forma do
+#: `check_provas_de_container.py`.
+#:
+#: Ate aqui o numero vivia so no registro da fase, e o registro trazia DOIS —
+#: 159,4 s e 144,3 s, de antes e depois do embaralhamento — sem nada dizendo a
+#: qual commit cada um pertencia. Numero de desempenho sem commit e ambiguo assim
+#: que a arvore anda uma vez.
+#:
+#: O arquivo carrega o SHA do checkout, e `check_prova_do_seed.py` reprova quando
+#: ele diverge E quando o arquivo nao existe. Nao ha degradacao para "ok por nao
+#: saber": nao ter a prova e o caso em que nao se pode afirmar o item 1.
+EVIDENCIA = ".aurora-prova-do-seed.json"
 
 #: A ordem inversa das FKs, como em `tests/_academus_banco.py`. Repetida aqui
 #: porque `scripts/` nao importa de `tests/`: script de operador nao pode
@@ -136,7 +151,46 @@ def main() -> int:
     print(f"\n  audit_trail  {digests_1['audit_trail']}")
     print(f"  students     {digests_1['students']}")
 
+    _grava(
+        {
+            "commit": _head(),
+            "maquina": platform.platform(),
+            "python": platform.python_version(),
+            "data": datetime.now(timezone.utc).isoformat(),
+            "seed": seed,
+            "linhas": linhas,
+            "orcamento_s": ORCAMENTO_SEGUNDOS,
+            "segundos": [round(tempo_1, 2), round(tempo_2, 2)],
+            "item_1_seed_em_menos_de_5_min": dentro,
+            "item_2_byte_identico": identico,
+            "digests": digests_1,
+        }
+    )
+    print(f"\n  evidencia gravada em {EVIDENCIA}")
+
     return 0 if (identico and dentro) else 1
+
+
+def _head() -> str | None:
+    r = subprocess.run(
+        ["git", "-C", REPO_ROOT, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    sha = r.stdout.strip()
+    return sha if len(sha) == 40 else None
+
+
+def _grava(doc: dict) -> None:
+    """O arquivo e SEMPRE escrito, inclusive quando a prova falha.
+
+    Mesma decisao do gravador de container: evidencia que so existe quando passa
+    nao distingue "falhou" de "ninguem rodou" — e a segunda e exatamente o que o
+    verificador precisa poder reprovar.
+    """
+    with open(os.path.join(REPO_ROOT, EVIDENCIA), "w", encoding="utf-8") as saida:
+        saida.write(json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":
