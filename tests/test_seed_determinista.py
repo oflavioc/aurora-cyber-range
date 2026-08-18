@@ -24,7 +24,7 @@ import unittest
 
 from sqlalchemy import text
 
-from domains.academus.seed import carga, dataset, linha_b
+from domains.academus.seed import carga, dataset, discriminantes, linha_b
 
 from _academus_banco import TABELAS, engine, exige_banco
 
@@ -50,6 +50,63 @@ def _banco_vazio():
     with motor.begin() as conexao:
         conexao.execute(text(f"TRUNCATE {', '.join(TABELAS)} RESTART IDENTITY"))
     return motor
+
+
+
+def _linhas_por_conjunto(motor, conta_alvo: str) -> dict[str, list[dict]]:
+    """As linhas da trilha, agrupadas por conjunto e achatadas em colunas.
+
+    O `payload` e ABERTO em colunas — `student_id`, `previous_value`,
+    `new_value`, `delta` —, porque e ali que dois dos seis vazamentos moraram. O
+    teste varre coluna, e coluna dentro de JSON e coluna.
+    """
+    com_conjunto: dict[str, list[dict]] = {}
+    with motor.begin() as conexao:
+        todas = {
+            linha[0]: linha
+            for linha in conexao.execute(
+                text(
+                    "SELECT sequence, category, actor_user_id, source_ip, "
+                    "user_agent, occurred_at, object_id, within_window, "
+                    "authorization_id, payload FROM audit_trail"
+                )
+            )
+        }
+        for nome, consulta in linha_b.CONJUNTOS.items():
+            sequencias = [
+                l[0]
+                for l in conexao.execute(
+                    text(consulta), linha_b.parametros(conta_alvo)
+                )
+            ]
+            com_conjunto[nome] = [
+                {
+                    "category": todas[s].category,
+                    "actor_user_id": todas[s].actor_user_id,
+                    "source_ip": todas[s].source_ip,
+                    "user_agent": todas[s].user_agent,
+                    "occurred_at": todas[s].occurred_at,
+                    # A FAIXA e a hora; o minuto nunca e normativo. Achatados em
+                    # colunas proprias porque a varredura e POR COLUNA, e o
+                    # instante inteiro e valor de identidade.
+                    "hora": todas[s].occurred_at.hour,
+                    "minuto": todas[s].occurred_at.minute,
+                    "object_id": todas[s].object_id,
+                    "within_window": todas[s].within_window,
+                    "authorization_id": todas[s].authorization_id,
+                    "student_id": todas[s].payload["student_id"],
+                    "previous_value": todas[s].payload["previous_value"],
+                    "new_value": todas[s].payload["new_value"],
+                    "delta": round(
+                        todas[s].payload["new_value"]
+                        - todas[s].payload["previous_value"],
+                        2,
+                    ),
+                    "semester": todas[s].payload["semester"],
+                }
+                for s in sequencias
+            ]
+    return com_conjunto
 
 
 @exige_banco
@@ -433,6 +490,312 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
 
         resultado = Repositorio(self.motor).verificar_trilha()
         self.assertTrue(resultado.integra, str(resultado.quebra))
+
+
+@exige_banco
+class NenhumaColunaForaDaListaSepara(unittest.TestCase):
+    """B1, terceira rodada — a PROPRIEDADE, e nao mais N asserções por vetor.
+
+    Seis vazamentos foram corrigidos um a um: identificador, ordem, valor, delta,
+    infixo e indice. **A lista do que um laco fixa nao e enumeravel por
+    inspecao**, entao corrigir vetor nunca terminava.
+
+    Este teste inverte a pergunta. Em vez de "o prefixo vaza?", ele varre TODA
+    coluna que o dataset escreve e exige, das que nao estao em
+    `discriminantes.LISTA`, que nao separem conjunto. **Coluna nova entra na
+    varredura sozinha** — e essa e a unica forma de o setimo vetor ser pego sem
+    alguem se lembrar dele.
+
+    O QUE A LISTA LICENCIA, E O QUE ELA NAO LICENCIA. `02` §6.1 exige a
+    correlacao de alguns atributos — sem ela os indevidos deixam de ser
+    indevidos. Cada entrada passou pela pergunta *"a spec exige a PROPRIEDADE ou
+    o VALOR?"*, e o que a entrada licencia e so a propriedade: a classe de rede,
+    nao o endereco; a faixa de horario, nao o horario; a concentracao do grupo,
+    nao quais alunos.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        motor = _banco_vazio()
+        cls.conta_a = _semeia(motor, SEED)
+        cls.linhas_a = _linhas_por_conjunto(motor, cls.conta_a)
+        motor = _banco_vazio()
+        cls.conta_b = _semeia(motor, OUTRO_SEED)
+        cls.linhas_b = _linhas_por_conjunto(motor, cls.conta_b)
+
+    def test_a_lista_de_discriminantes_cobre_so_o_que_02_6_1_exige(self) -> None:
+        """A lista nao pode virar esconderijo: toda entrada cita a propriedade.
+
+        Sem isto, fechar um vazamento seria declarar a coluna discriminante — e a
+        classe voltaria com o nome trocado.
+        """
+        for coluna, entrada in discriminantes.LISTA.items():
+            self.assertTrue(
+                entrada.propriedade.strip(),
+                f"`{coluna}` esta na lista sem propriedade escrita",
+            )
+            self.assertTrue(
+                entrada.conjuntos,
+                f"`{coluna}` nao diz quais conjuntos licencia",
+            )
+            # E as constantes do dataset sao as UNICAS sem valor do seed.
+            if not entrada.valor_do_seed.strip():
+                self.assertIn(coluna, ("category", "semester"))
+
+    def _varre(self, coluna: str, nome: str) -> tuple[set, set]:
+        seus = {l[coluna] for l in self.linhas_a[nome]}
+        outros = {
+            l[coluna]
+            for outro, ls in self.linhas_a.items()
+            if outro != nome
+            for l in ls
+        }
+        return seus, outros
+
+    def test_nenhuma_coluna_separa_conjunto_QUE_ELA_NAO_LICENCIA(self) -> None:
+        """A varredura, e ela respeita o campo `conjuntos` da lista.
+
+        **A primeira versao ignorava esse campo**, e a medicao por mutacao pegou:
+        com a hora do ruido fixa em 03h, ela passava — porque `occurred_at` esta
+        na lista e ela isentava a coluna INTEIRA. A entrada licencia a faixa para
+        indevidos e suspeitos, e para mais ninguem.
+
+        Licenciar coluna para todos os conjuntos por comodidade e o esconderijo
+        que a lista existe para nao ter.
+        """
+        for coluna in discriminantes.COLUNAS_DA_TRILHA:
+            entrada = discriminantes.LISTA.get(coluna)
+            for nome in self.linhas_a:
+                if entrada is not None and nome in entrada.conjuntos:
+                    continue
+                seus, outros = self._varre(coluna, nome)
+                # COLUNA DE IDENTIDADE NAO ENTRA na exclusividade: `object_id` e
+                # `occurred_at` tem um valor por linha, e "todos exclusivos" e
+                # verdade trivial. O que se exige delas e INTERCALACAO, e o teste
+                # seguinte cobra isso. Medido: sem esta distincao, a varredura
+                # reprovava contra timestamp, que nao e vazamento nenhum.
+                distintos = len(seus | outros)
+                if distintos > 0.9 * sum(len(l) for l in self.linhas_a.values()):
+                    continue
+                exclusivos = seus - outros
+                self.assertFalse(
+                    exclusivos and len(exclusivos) == len(seus),
+                    f"a coluna `{coluna}` separa `{nome}`: todos os {len(seus)} "
+                    f"valores dele sao exclusivos ({sorted(exclusivos)[:3]}). "
+                    + (
+                        f"A entrada da lista licencia `{coluna}` so para "
+                        f"{entrada.conjuntos}."
+                        if entrada
+                        else "Coluna fora da lista nao pode dizer o conjunto."
+                    ),
+                )
+
+    def test_nenhuma_coluna_ORDINAL_agrupa_conjunto_em_faixa(self) -> None:
+        """A segunda metade, e a mutacao mediu que ela faltava.
+
+        Exclusividade total nao pega assinatura PARCIAL: alunos sorteados de uma
+        janela de indice contigua compartilham valores com os outros conjuntos e
+        ainda assim se agrupam. O que se exige e INTERCALACAO — entre o menor e o
+        maior valor do conjunto tem de haver linha de outro conjunto.
+        """
+        def ordinal(valor):
+            if isinstance(valor, (int, float)):
+                return float(valor)
+            if isinstance(valor, str) and valor.rsplit("-", 1)[-1].isdigit():
+                return float(valor.rsplit("-", 1)[-1])
+            return None
+
+        for coluna in discriminantes.COLUNAS_DA_TRILHA:
+            entrada = discriminantes.LISTA.get(coluna)
+            for nome, linhas in self.linhas_a.items():
+                if entrada is not None and nome in entrada.conjuntos:
+                    continue
+                if len(linhas) < 3:
+                    continue
+                seus = [ordinal(l[coluna]) for l in linhas]
+                if any(v is None for v in seus):
+                    continue
+                outros = [
+                    ordinal(l[coluna])
+                    for outro, ls in self.linhas_a.items()
+                    if outro != nome
+                    for l in ls
+                ]
+                outros = [v for v in outros if v is not None]
+                dentro = [v for v in outros if min(seus) < v < max(seus)]
+                self.assertTrue(
+                    dentro,
+                    f"a coluna `{coluna}` agrupa `{nome}` numa faixa contigua "
+                    f"({min(seus)}..{max(seus)}) sem nenhuma linha de outro "
+                    "conjunto no meio: a faixa separa o gabarito sozinha",
+                )
+
+    def test_o_object_id_nao_agrupa_o_conjunto_em_faixa(self) -> None:
+        """A quarta instancia pelo outro lado: identidade unica e esperada, faixa
+        contigua nao. Se as 22 menores forem os indevidos, contar resolve."""
+        for nome, linhas in self.linhas_a.items():
+            if len(linhas) < 2:
+                continue
+            seus = sorted(int(l["object_id"].rsplit("-", 1)[1]) for l in linhas)
+            outros = sorted(
+                int(l["object_id"].rsplit("-", 1)[1])
+                for outro, ls in self.linhas_a.items()
+                if outro != nome
+                for l in ls
+            )
+            intercalados = [o for o in outros if seus[0] < o < seus[-1]]
+            self.assertTrue(
+                intercalados,
+                f"`{nome}` ocupa uma faixa contigua de `object_id` "
+                f"({seus[0]}..{seus[-1]}) sem nenhuma linha de outro conjunto no "
+                "meio: a ordem voltou a denunciar",
+            )
+
+    def test_nenhuma_coluna_tem_o_MESMO_conteudo_nos_dois_seeds(self) -> None:
+        """A varredura mais forte, e a que a medicao por mutacao exigiu.
+
+        Exclusividade, intercalacao e concentracao sao aproximacoes: cada uma
+        pega uma forma, e a mutacao de janela estreita passou pelas tres porque
+        em escala reduzida a estatistica nao discrimina.
+
+        **O que nao depende de escala e a comparacao entre SEEDS.** Qualquer
+        coisa que o gerador fixe — janela de indice, hora, agente, faixa — produz
+        o MESMO conteudo com qualquer seed. O que sai do pool nao produz.
+
+        Vale por conjunto e por coluna, e so para o que a lista nao licencia: a
+        conta unica dos indevidos muda entre seeds, mas continua unica, e a
+        entrada dela e que diz isso.
+        """
+        for coluna in discriminantes.COLUNAS_DA_TRILHA:
+            entrada = discriminantes.LISTA.get(coluna)
+            if coluna in ("category", "semester"):
+                continue  # constantes do dataset, e a lista as declara assim
+            for nome in self.linhas_a:
+                if entrada is not None and nome in entrada.conjuntos:
+                    continue
+                a = {l[coluna] for l in self.linhas_a[nome]}
+                b = {l[coluna] for l in self.linhas_b[nome]}
+                if len(a) < 3:
+                    continue
+                # VOCABULARIO PEQUENO NAO ENTRA, e a medicao exigiu a distincao:
+                # com quatro user-agents sorteados para toda a Linha B, o
+                # CONJUNTO de valores de qualquer grupo e o mesmo nos dois seeds
+                # por natureza — o que muda e a atribuicao, e ela e coberta pela
+                # exclusividade. A comparacao entre seeds so discrimina onde o
+                # vocabulario e grande: ali, valor igual significa valor FIXADO.
+                vocabulario = len(
+                    {l[coluna] for ls in self.linhas_a.values() for l in ls}
+                )
+                if vocabulario < 0.2 * sum(len(l) for l in self.linhas_a.values()):
+                    continue
+                # COM LIMIAR, e nao `assertNotEqual`: comparar conjuntos por
+                # igualdade e satisfeito por UM elemento de diferenca — que e
+                # exatamente o defeito que o H1 apontou no teste anterior, e que
+                # eu reproduzi aqui antes de a mutacao medir. Sobreposicao alta
+                # e conteudo fixo com ruido em cima.
+                # O LIMIAR E O DA INDEPENDENCIA, e nao uma fracao fixa: duas
+                # amostras independentes de tamanho k sobre vocabulario V se
+                # sobrepoem em ~k²/V por acaso. Limiar fixo reprovava `minuto`
+                # (39 valores sobre 60 possiveis, 20 comuns) — que e MENOS que o
+                # acaso prediz. Medido, e nao estimado.
+                comuns = a & b
+                esperado = len(a) * len(b) / max(1, vocabulario)
+                self.assertLessEqual(
+                    len(comuns),
+                    max(2, 2 * esperado),
+                    f"a coluna `{coluna}` repete {len(comuns)} de {len(a)} valores "
+                    f"em `{nome}` entre dois seeds ({sorted(comuns)[:3]}): ela "
+                    "esta fixada no gerador, e conteudo fixo e assinatura — "
+                    "qualquer que seja a escala",
+                )
+
+    def test_nenhum_conjunto_alem_dos_indevidos_CONCENTRA_alunos(self) -> None:
+        """A terceira forma da varredura, e a mutacao mediu que ela faltava.
+
+        Exclusividade e intercalacao nao pegam CONCENTRACAO: alunos sorteados de
+        uma janela estreita compartilham valores com os outros conjuntos e ficam
+        intercalados — e ainda assim se repetem entre si, que e assinatura.
+
+        A concentracao e licenciada **so para os indevidos**, e la ela e o
+        discriminante normativo (`02` §6.1, "sempre no mesmo grupo"). Para os
+        demais, o numero de alunos distintos tem de acompanhar o de linhas.
+        """
+        licenciados = discriminantes.LISTA["student_id"].conjuntos
+        for nome, linhas in self.linhas_a.items():
+            if nome in licenciados or len(linhas) < 8:
+                continue
+            distintos = len({l["student_id"] for l in linhas})
+            self.assertGreater(
+                distintos,
+                len(linhas) // 2,
+                f"`{nome}` concentra {len(linhas)} linhas em {distintos} alunos. "
+                "A concentracao e licenciada so para os indevidos — repeticao "
+                "aqui e assinatura, e ela passa por exclusividade e por "
+                "intercalacao",
+            )
+
+    def test_a_ATRIBUICAO_de_cada_conjunto_difere_entre_dois_seeds(self) -> None:
+        """H1 — e o `assertNotEqual` sobre uniao nao servia.
+
+        Ele comparava uma tupla de conjuntos de atores e alunos: **um** elemento
+        diferente entre milhares o satisfazia. Aqui a exigencia e por CONJUNTO e
+        com limiar: a atribuicao de cada um dos seis tem de mudar de verdade.
+        """
+        for nome in self.linhas_a:
+            def assinatura(linhas):
+                return {
+                    (l["student_id"], l["previous_value"], l["new_value"])
+                    for l in linhas
+                }
+
+            a, b = assinatura(self.linhas_a[nome]), assinatura(self.linhas_b[nome])
+            if len(a) < 5:
+                continue
+            comuns = a & b
+            self.assertLess(
+                len(comuns),
+                max(1, len(a) // 4),
+                f"`{nome}` tem {len(comuns)} de {len(a)} linhas identicas entre "
+                "dois seeds: a atribuicao nao esta saindo do `RANDOM_SEED`",
+            )
+
+    def test_os_discriminantes_licenciam_a_PROPRIEDADE_e_nao_o_VALOR(self) -> None:
+        """A pergunta que o operador aplicou a cada entrada, virada teste.
+
+        Se o valor fosse fixo, a entrada seria vazamento com nome de
+        discriminante. Tres casos, e os tres sao verificaveis:
+        """
+        # IP — a CLASSE e normativa; os hosts dos dois conjuntos que compartilham
+        # a classe de laboratorio tem de se misturar.
+        def hosts(nome):
+            return {
+                int(l["source_ip"].rsplit(".", 1)[1])
+                for l in self.linhas_a[nome]
+                if l["source_ip"].startswith(dataset.REDE_LABORATORIO)
+            }
+
+        ind, sus = hosts("indevidos_comprovados"), hosts("legitimos_suspeitos")
+        self.assertTrue(
+            ind and sus and not (max(ind) < min(sus) or max(sus) < min(ind)),
+            f"os hosts de laboratorio nao se cruzam: indevidos {sorted(ind)[:4]}, "
+            f"suspeitos {sorted(sus)[:4]} — sub-faixas disjuntas sao o mesmo "
+            "vazamento com outro nome",
+        )
+
+        # HORARIO — a FAIXA e normativa; o minuto exato nao pode ser funcao do
+        # indice, e a faixa noturna e compartilhada pelos dois conjuntos.
+        minutos = {
+            l["occurred_at"].minute for l in self.linhas_a["indevidos_comprovados"]
+        }
+        self.assertGreater(len(minutos), 1, "o minuto dos indevidos e constante")
+
+        # GRUPO DE ALUNOS — a CONCENTRACAO e normativa, a identidade nao.
+        alvo_a = {l["student_id"] for l in self.linhas_a["indevidos_comprovados"]}
+        alvo_b = {l["student_id"] for l in self.linhas_b["indevidos_comprovados"]}
+        self.assertLessEqual(len(alvo_a), 8, "o grupo alvo deixou de ser concentrado")
+        self.assertNotEqual(
+            alvo_a, alvo_b, "o grupo alvo e o mesmo com outro seed: nao sai do seed"
+        )
 
 
 if __name__ == "__main__":

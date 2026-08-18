@@ -85,6 +85,13 @@ COORDENACAO = "U-COORD-0"
 REDE_LABORATORIO = "198.51.100."
 REDE_CAMPUS = "203.0.113."
 
+AGENTES = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    "Mozilla/5.0 (X11; Linux x86_64)",
+    "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)",
+)
+
 CAMPI = (
     "Campus Central",
     "Campus Norte",
@@ -337,252 +344,211 @@ def gerar(escala: Escala, *, seed: int) -> Dataset:
 
 
 def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
-    """Os seis conjuntos de `02` §6.1, com assinatura propria cada um.
+    """Os seis conjuntos de `02` §6.1 — POOL COMUM primeiro, conjunto por ultimo.
 
-    AS ASSINATURAS SAO O PRODUTO. Cada conjunto e separavel dos outros por uma
-    consulta, e `tests/test_seed_determinista.py` prova que as seis consultas
-    PARTICIONAM a trilha — sem sobreposicao e sem sobra.
+    A ESTRUTURA E A CORRECAO, e nao mais um vetor consertado. Ate a segunda
+    auditoria isto era um laco POR CONJUNTO, e todo atributo era escrito de
+    dentro dele: o conjunto era a primeira coisa decidida, e por isso **todo**
+    atributo era funcao dele. Vazar era o caso normal — seis instancias, e a
+    lista do que um laco fixa nao e enumeravel por inspecao.
 
-        indevidos   fora da janela, SEM autorizacao, conta docente unica,
-                    IP de laboratorio, 22h-02h, sempre ELEVANDO, mesmo grupo
-        ambiguos    fora da janela, COM autorizacao de justificativa generica,
-                    aprovada pela MESMA conta que assina os indevidos
-        suspeitos   fora da janela, COM autorizacao solida de outro aprovador,
-                    IP de laboratorio, horario noturno — parecem, e nao sao
-        ruido       conta de servico `svc_migration`, correcao em lote
-        delegadas   dentro da janela, conta de professor COM delegacao formal
-                    valida na data
-        normais     dentro da janela, IP de campus, horario comercial
+    Agora: sorteia-se o universo de linhas SEM SABER a que conjunto vao, e o
+    conjunto e aplicado depois, **so pelos discriminantes declarados** em
+    `discriminantes.LISTA`. O que nao esta na lista sai do pool, e o teste de
+    coluna cobra que nenhuma coluna fora dela separe conjunto.
 
-    O APROVADOR DOS AMBIGUOS E A CONTA DOS INDEVIDOS, e e isso que os torna
-    genuinamente inconclusivos: `02` §6.1 pede "aprovador que tambem aparece nos
-    indevidos". Sem essa ligacao, os 11 seriam apenas "fora da janela com
-    autorizacao" — indistinguiveis dos 34, e o exercicio teria cinco conjuntos.
+    NAO E O POOL QUE FECHA A CLASSE — e o pool MAIS a lista. O pool sozinho seria
+    disciplina: nada impediria alguem de voltar a fixar um atributo dentro de um
+    ramo. A lista torna a fronteira verificavel.
     """
     semestre_alvo = semestres[-2]
     inicio_janela, fim_janela = janelas[semestre_alvo]
 
-    # AS IDENTIDADES SAO SORTEADAS, E NAO POSICIONAIS — e esta linha e a que
-    # sustenta a D10 inteira.
-    #
-    # A primeira versao usava `professores[0]` e `alunos[:8]`: com isso, a conta
-    # comprometida era SEMPRE a PRIMEIRA da lista e o grupo alvo eram os oito
-    # primeiros, qualquer que fosse o `RANDOM_SEED`. O gabarito deixava de
-    # depender do seed — e quem lesse este repositorio publico saberia quais sao
-    # os casos sem nunca ver o `.env`.
-    #
-    # Foi `test_os_fatos_sao_DISTINTOS_entre_os_dois_seeds` que descobriu, e ele
-    # so existe porque o operador pediu a direcao inversa da prova.
     conta_alvo = aleatorio.choice(professores)[2]
+    # A CONCENTRACAO e o discriminante; QUAIS alunos, nao. Ver a entrada
+    # `student_id` da lista: `02` §6.1 pede "sempre no mesmo grupo", e o grupo
+    # sai do seed.
     grupo_alvo = [a[0] for a in aleatorio.sample(alunos, 8)]
 
-    # OS OUTROS PAPEIS SAIEM DO MESMO SORTEIO, e nunca reusam a conta alvo: um
-    # aprovador que fosse por acaso a conta comprometida embaralharia os
-    # conjuntos 2 e 1, e a particao deixaria de valer.
     restantes = [p for p in professores if p[2] != conta_alvo]
-    aprovados = [p[2] for p in aleatorio.sample(restantes, min(3, len(restantes)))]
-    suspeitos = [p[2] for p in aleatorio.sample(restantes, min(5, len(restantes)))]
+    # AS CONTAS DELEGANTES SAO RESERVADAS — a delegacao formal e discriminante
+    # normativo (`02` §6.1). As demais NAO SAO, e isso foi o SETIMO vetor:
+    # `aprovados` e `contas_suspeitas` eram sorteadas e depois EXCLUIDAS das
+    # normais, entao a conta separava "normal" de "ambiguo ou suspeito" — e a
+    # lista nao licencia `actor_user_id` para nenhum dos tres.
+    #
+    # Achado pelo teste de propriedade depois de ele passar a respeitar o campo
+    # `conjuntos`; nenhuma auditoria o tinha visto.
+    delegantes = [p[2] for p in aleatorio.sample(restantes, min(3, len(restantes)))]
+    comuns = [p[2] for p in restantes if p[2] not in set(delegantes)] or [conta_alvo]
+    aprovados = comuns
+    contas_suspeitas = comuns
+    normais_contas = comuns
 
     fora = fim_janela + timedelta(days=10)
     dentro = inicio_janela + timedelta(days=3)
 
-    def instante(dia: date, hora: int, minuto: int) -> datetime:
-        return datetime(dia.year, dia.month, dia.day, hora, minuto, tzinfo=timezone.utc)
+    # -- O POOL: sorteado sem saber o conjunto -------------------------------
+    #
+    # Cada linha ganha aqui tudo o que NAO esta na lista de discriminantes. As
+    # entradas sao identicas em distribuicao para toda a Linha B: e isso que
+    # impede um atributo de virar assinatura por construcao.
+    total = (
+        INDEVIDOS + AMBIGUOS + SUSPEITOS + RUIDO + DELEGADAS
+        + escala.normais_na_trilha
+    )
+    pool = [
+        {
+            "aluno": aleatorio.choice(alunos)[0],
+            "octeto": aleatorio.randrange(2, 250),
+            "dia": aleatorio.randrange(0, 12),
+            "hora": aleatorio.randrange(0, 24),
+            "minuto": aleatorio.randrange(0, 60),
+            "magnitude": round(0.3 + aleatorio.random() * 2.7, 1),
+            "user_agent": aleatorio.choice(AGENTES),
+        }
+        for _ in range(total)
+    ]
+    aleatorio.shuffle(pool)
 
-    def par(menor: float, maior: float) -> tuple[float, float]:
-        """Nota anterior e nova, SORTEADAS, com faixa de variacao que se cruza.
+    def instante(base, comum, banda):
+        """A FAIXA e normativa quando ha; o horario exato sai do pool."""
+        hora = comum["hora"] if banda is None else banda[comum["hora"] % len(banda)]
+        dia = base + timedelta(days=comum["dia"] % 3)
+        return datetime(
+            dia.year, dia.month, dia.day, hora, comum["minuto"], tzinfo=timezone.utc
+        )
 
-        B1 da segunda auditoria, segunda instancia. Cada conjunto tinha um par
-        FIXO — ambiguos 5,0 -> 6,5, suspeitos 5,5 -> 7,0, ruido 7,0 -> 7,0 —, e
-        um `GROUP BY previous_value, new_value` devolvia o gabarito inteiro. Isso
-        passa por qualquer varredura de identificador, porque nao ha string.
-
-        A FAIXA E PARAMETRO E AS FAIXAS SE CRUZAM: se a de um conjunto nao
-        tocasse a de nenhum outro, `new - previous` voltaria a separar sozinho.
-        `02` §6.1 exige dos indevidos apenas que SEMPRE ELEVEM — e elevar nao os
-        distingue, porque a maioria dos outros tambem eleva.
-        """
-        anterior = round(3.0 + aleatorio.random() * 5.0, 1)
-        delta = round(menor + aleatorio.random() * (maior - menor), 1)
-        return anterior, round(min(10.0, max(0.0, anterior + delta)), 1)
+    def linha(comum, *, ator, rede, base, banda, janela, auth, aluno=None, sobe=False):
+        """Aplica os discriminantes declarados sobre uma linha do pool."""
+        anterior = round(3.0 + (comum["octeto"] % 50) / 10.0, 1)
+        if sobe:
+            delta = comum["magnitude"]          # DIRECAO normativa; magnitude do pool
+        else:
+            delta = comum["magnitude"] if comum["dia"] % 2 else -comum["magnitude"]
+        endereco = rede + str(comum["octeto"])
+        return (
+            ator,
+            endereco,
+            instante(base, comum, banda),
+            None,  # `object_id` e atribuido depois do embaralhamento
+            {
+                "previous_value": anterior,
+                "new_value": round(min(10.0, max(0.0, anterior + delta)), 1),
+                "student_id": aluno or comum["aluno"],
+                "semester": semestre_alvo,
+            },
+            janela,
+            auth,
+            comum["user_agent"],
+        )
 
     autorizacoes, delegacoes, registros = [], [], []
+    processo = iter(range(1, 100_000))
+    corte = 0
 
-    # O NUMERO DE PROCESSO NAO NOMEIA O CONJUNTO — quinta instancia do B1, achada
-    # pelo verificador depois de o H1 ser corrigido.
-    #
-    # Eles traziam o INFIXO DO CONJUNTO no meio do identificador, e ele dizia
-    # a que grupo a autorizacao pertencia
-    # em `rectification_authorizations`, que e tabela que o participante LE. A
-    # mesma familia do prefixo de `object_id`, e pelo mesmo caminho — a coluna.
-    #
-    # O contador e sequencial e comum aos tres conjuntos, entao o numero nao
-    # separa nada; e determinista porque nao depende de sorteio.
-    contador = iter(range(1, 10_000))
+    def fatia(quantos):
+        nonlocal corte
+        bloco = pool[corte : corte + quantos]
+        corte += quantos
+        return bloco
 
-    def proximo_processo() -> int:
-        return next(contador)
-
-    # 1. INDEVIDOS COMPROVADOS (22)
-    for i in range(INDEVIDOS):
-        anterior, novo = par(0.5, 3.0)   # SEMPRE positivo — `02` §6.1
+    # 1. INDEVIDOS — unicidade da conta, IP de laboratorio, 22h-02h, sem
+    #    autorizacao, sempre elevando, concentrados no grupo alvo.
+    for k, comum in enumerate(fatia(INDEVIDOS)):
         registros.append(
-            (
-                conta_alvo,
-                f"{REDE_LABORATORIO}{10 + i % 5}",
-                # 22h-02h: os impares antes da meia-noite, os pares depois.
-                instante(fora, 22 + i % 2, 10 + i) if i % 2
-                else instante(fora + timedelta(days=1), i % 2, 10 + i),
-                None,  # o `object_id` e atribuido depois do embaralhamento
-                {
-                    # SEMPRE ELEVANDO — `02` §6.1. A faixa cruza a dos outros
-                    # conjuntos, entao elevar nao denuncia: quase todos elevam.
-                    "previous_value": anterior,
-                    "new_value": novo,
-                    "student_id": grupo_alvo[i % len(grupo_alvo)],
-                    "semester": semestre_alvo,
-                },
-                False,
-                None,
+            linha(
+                comum, ator=conta_alvo, rede=REDE_LABORATORIO, base=fora,
+                banda=(22, 23, 0, 1), janela=False, auth=None,
+                aluno=grupo_alvo[k % len(grupo_alvo)], sobe=True,
             )
         )
 
-    # 2. AMBIGUOS LEGITIMOS (11)
-    for i in range(AMBIGUOS):
-        anterior, novo = par(-1.0, 2.5)
-        auth = f"AUT-{proximo_processo():05d}"
+    # 2. AMBIGUOS — autorizacao de justificativa generica, aprovada pela conta
+    #    dos indevidos.
+    for comum in fatia(AMBIGUOS):
+        auth = "AUT-{:05d}".format(next(processo))
         autorizacoes.append(
-            (auth, COORDENACAO, conta_alvo, "Ajuste solicitado.",
-             f"PR-{proximo_processo():05d}", fora)
+            (
+                auth, COORDENACAO, conta_alvo, "Ajuste solicitado.",
+                "PR-{:05d}".format(next(processo)), fora,
+            )
         )
         registros.append(
-            (
-                aprovados[i % len(aprovados)],
-                f"{REDE_CAMPUS}{20 + i}",
-                instante(fora, 14, i),
-                None,  # o `object_id` e atribuido depois do embaralhamento
-                {"previous_value": anterior, "new_value": novo,
-                 "student_id": alunos[(100 + i) % len(alunos)][0],
-                 "semester": semestre_alvo},
-                False,
-                auth,
+            linha(
+                comum, ator=aprovados[comum["octeto"] % len(aprovados)],
+                rede=REDE_CAMPUS, base=fora, banda=None, janela=False, auth=auth,
             )
         )
 
-    # 3. LEGITIMOS SUSPEITOS (34)
-    for i in range(SUSPEITOS):
-        anterior, novo = par(-1.5, 3.0)
-        auth = f"AUT-{proximo_processo():05d}"
+    # 3. SUSPEITOS — autorizacao solida de outro aprovador, IP de laboratorio,
+    #    horario noturno. Parecem, e nao sao.
+    for comum in fatia(SUSPEITOS):
+        auth = "AUT-{:05d}".format(next(processo))
         autorizacoes.append(
-            (auth, COORDENACAO, COORDENACAO,
-             "Erro de digitacao no lancamento, conferido contra a prova fisica "
-             "arquivada e a ata da banca.",
-             f"PR-{proximo_processo():05d}", fora)
+            (
+                auth, COORDENACAO, COORDENACAO,
+                "Erro de digitacao no lancamento, conferido contra a prova "
+                "fisica arquivada e a ata da banca.",
+                "PR-{:05d}".format(next(processo)), fora,
+            )
         )
         registros.append(
-            (
-                suspeitos[i % len(suspeitos)],
-                f"{REDE_LABORATORIO}{30 + i % 20}",   # IP de laboratorio
-                instante(fora, 23, i % 60),           # horario noturno
-                None,  # o `object_id` e atribuido depois do embaralhamento
-                {"previous_value": anterior, "new_value": novo,
-                 "student_id": alunos[(200 + i) % len(alunos)][0],
-                 "semester": semestre_alvo},
-                False,
-                auth,
+            linha(
+                comum,
+                ator=contas_suspeitas[comum["octeto"] % len(contas_suspeitas)],
+                rede=REDE_LABORATORIO, base=fora, banda=(22, 23, 0, 1),
+                janela=False, auth=auth,
             )
         )
 
-    # 4. RUIDO DE MANUTENCAO (~60)
-    for i in range(RUIDO):
-        anterior, novo = par(-2.0, 2.0)
+    # 4. RUIDO — a conta de servico, e SO ela. Sem horario proprio e sem
+    #    marcador de payload: os dois eram vazamento com nome de discriminante.
+    for comum in fatia(RUIDO):
         registros.append(
-            (
-                SVC_MIGRATION,
-                f"{REDE_CAMPUS}{200 + i % 50}",
-                instante(fora, 3, i % 60),
-                None,  # o `object_id` e atribuido depois do embaralhamento
-                {"previous_value": anterior, "new_value": novo,
-                 "student_id": alunos[(300 + i) % len(alunos)][0],
-                 "semester": semestre_alvo, "lote": "migracao-2024"},
-                False,
-                None,
+            linha(
+                comum, ator=SVC_MIGRATION, rede=REDE_CAMPUS, base=fora,
+                banda=None, janela=False, auth=None,
             )
         )
 
-    # 5. CREDENCIAIS COMPARTILHADAS (18)
-    delegantes = [p[2] for p in aleatorio.sample(restantes, 3)]
+    # 5. CREDENCIAIS COMPARTILHADAS — delegacao formal valida na data.
     for i, conta in enumerate(delegantes):
         delegacoes.append(
-            (f"DEL-{i:03d}", conta, COORDENACAO, f"PR-{proximo_processo():05d}",
-             inicio_janela, fim_janela,
-             "Monitoria de disciplina, com registro na coordenacao.")
-        )
-    for i in range(DELEGADAS):
-        anterior, novo = par(-1.0, 2.0)
-        registros.append(
             (
-                delegantes[i % len(delegantes)],
-                f"{REDE_CAMPUS}{100 + i}",
-                instante(dentro, 15, i % 60),
-                None,  # o `object_id` e atribuido depois do embaralhamento
-                {"previous_value": anterior, "new_value": novo,
-                 "student_id": alunos[(400 + i) % len(alunos)][0],
-                 "semester": semestre_alvo},
-                True,
-                None,
+                "DEL-{:03d}".format(i), conta, COORDENACAO,
+                "PR-{:05d}".format(next(processo)), inicio_janela, fim_janela,
+                "Monitoria de disciplina, com registro na coordenacao.",
+            )
+        )
+    for comum in fatia(DELEGADAS):
+        registros.append(
+            linha(
+                comum, ator=delegantes[comum["octeto"] % len(delegantes)],
+                rede=REDE_CAMPUS, base=dentro, banda=None, janela=True, auth=None,
             )
         )
 
-    # 6. LEGITIMOS NORMAIS (milhares)
-    reservadas = set(delegantes) | {conta_alvo} | set(aprovados) | set(suspeitos)
-    normais = [p[2] for p in professores if p[2] not in reservadas]
-    for i in range(escala.normais_na_trilha):
-        anterior, novo = par(-2.0, 3.0)
+    # 6. LEGITIMOS NORMAIS — dentro da janela, e nada alem disso.
+    for comum in fatia(escala.normais_na_trilha):
         registros.append(
-            (
-                normais[i % len(normais)],
-                f"{REDE_CAMPUS}{i % 200}",
-                instante(dentro, 9 + i % 8, i % 60),
-                None,  # idem
-                {"previous_value": anterior, "new_value": novo,
-                 "student_id": alunos[i % len(alunos)][0],
-                 "semester": semestre_alvo},
-                True,
-                None,
+            linha(
+                comum, ator=normais_contas[comum["octeto"] % len(normais_contas)],
+                rede=REDE_CAMPUS, base=dentro, banda=None, janela=True, auth=None,
             )
         )
 
-    # A ORDEM DA TRILHA E EMBARALHADA, e este e o terceiro vazamento de gabarito
-    # que a peca 5 fechou — o mais silencioso dos tres.
-    #
-    # Sem isto, os conjuntos sao gravados em BLOCO e na ordem em que este arquivo
-    # os escreve: as 22 primeiras linhas de `audit_trail` seriam sempre os
-    # indevidos comprovados, as 11 seguintes os ambiguos, e assim por diante.
-    # Quem lesse este repositorio publico saberia ler o gabarito na PROPRIA
-    # TRILHA, que e o artefato que o participante investiga — sem nunca ver o
-    # `.env`.
-    #
-    # Foi `test_o_MAPEAMENTO_caso_para_fato_muda_com_o_seed` que expos: o
-    # mapeamento caso -> fato era identico entre dois seeds, porque o fato deriva
-    # da POSICAO na trilha e a posicao era fixa.
-    #
-    # O embaralhamento e do fluxo semeado, entao continua determinista: mesmo
-    # seed, mesma ordem.
+    # A ORDEM DA TRILHA E EMBARALHADA — terceira instancia do B1. Sem isto, os
+    # conjuntos ficam em blocos e a posicao denuncia.
     aleatorio.shuffle(registros)
 
-    # O `object_id` E ATRIBUIDO AQUI, DEPOIS DO EMBARALHAMENTO — B1 da segunda
-    # auditoria, e o QUARTO vazamento da mesma familia.
-    #
-    # Ele trazia `g-ind-`, `g-amb-`, `g-sus-`, `g-mnt-`, `g-del-` e `g-nrm-`: o
-    # prefixo NOMEAVA o conjunto, na coluna que o participante le. Pior que o
-    # vazamento de ordem, que ao menos exigia contar linhas — aqui bastava olhar.
-    #
-    # Atribuido depois do `shuffle` e em ordem de trilha, ele nao carrega nem o
-    # conjunto nem a posicao de origem: e identidade de linha, e nada mais.
+    # O `object_id` E ATRIBUIDO AQUI, depois do embaralhamento e em ordem de
+    # trilha — quarta instancia. Ele nao carrega conjunto nem posicao de origem.
     numerados = [
-        (ator, ip, quando, f"g-{n:06d}", payload, janela, auth)
-        for n, (ator, ip, quando, _, payload, janela, auth) in enumerate(registros, 1)
+        (ator, ip, quando, "g-{:06d}".format(n), payload, janela, auth, agente)
+        for n, (ator, ip, quando, _, payload, janela, auth, agente) in enumerate(
+            registros, 1
+        )
     ]
     return autorizacoes, delegacoes, _encadeia(numerados), conta_alvo
 
@@ -601,14 +567,14 @@ def _encadeia(registros: list[tuple]) -> list[tuple]:
     """
     encadeados = []
     anterior = GENESIS_HASH
-    for i, (ator, ip, quando, objeto, payload, janela, auth) in enumerate(
+    for i, (ator, ip, quando, objeto, payload, janela, auth, agente) in enumerate(
         registros, start=1
     ):
         linha = trilha.Registro(
             category=trilha.ALTERACAO_DE_NOTA,
             actor_user_id=ator,
             source_ip=ip,
-            user_agent="Mozilla/5.0",
+            user_agent=agente,
             object_type="grade",
             object_id=objeto,
             occurred_at=quando,
@@ -618,7 +584,7 @@ def _encadeia(registros: list[tuple]) -> list[tuple]:
         )
         atual = chained_hash(linha.forma_canonica(i), anterior)
         encadeados.append(
-            (i, trilha.ALTERACAO_DE_NOTA, ator, ip, "Mozilla/5.0", quando, quando,
+            (i, trilha.ALTERACAO_DE_NOTA, ator, ip, agente, quando, quando,
              "grade", objeto, payload, janela, auth, anterior, atual)
         )
         anterior = atual

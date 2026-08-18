@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **394 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 132 exigem Postgres ou containers e pulam sem a stack no ar |
+| **402 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 140 exigem Postgres ou containers e pulam sem a stack no ar |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -187,7 +187,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 
 **Cada checkpoint de fase é auditado por um agente adversarial**, em contexto isolado, num worktree fixado no commit candidato, sem ferramentas de escrita, emitindo PASS ou FAIL contra a especificação. Ele vive fora deste repositório de propósito: um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 
-**As reprovações não são apagadas.** São **31 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 5, e a maioria é de rodadas que falharam. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
+**As reprovações não são apagadas.** São **32 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 5, e a maioria é de rodadas que falharam. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
 
 ## Estrutura do repositório
 
@@ -243,7 +243,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 132 dos 394 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 140 dos 402 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 
