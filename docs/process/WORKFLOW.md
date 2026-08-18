@@ -376,9 +376,25 @@ Um segundo fornecedor/modelo pode ser usado nos checkpoints ⏸ para reduzir vi�
 
 1. **Hook** — feedback em segundos dentro da sessão; pega violações óbvias.
 2. **CI** — gate real por AST/contrato; pega violações feitas dentro ou fora do Claude Code.
-3. **Auditor** — verifica se o teste realmente prova o requisito e se a semântica da implementação corresponde à spec.
+3. **Auditor** — verifica se o teste realmente prova o requisito, se a semântica da implementação corresponde à spec, **e executa a suíte**.
 
 Nenhuma camada substitui outra.
+
+### O terceiro papel do auditor é execução, e ele não é redundância do CI
+
+As três não são intensidades da mesma coisa: **o hook impede, o CI mede o que foi declarado, e o auditor é a única camada onde o teste roda sem que ninguém tenha interesse no resultado.**
+
+Verde de CI é evidência real, e é evidência produzida pelo pipeline de quem implementou — mesmo runner, mesma configuração, mesma suíte que o autor escolheu declarar. Na auditoria os mesmos testes são exercitados por **quem não os escreveu**, num ambiente que quem implementou não configurou. É por isso que a linha 3 diz "e executa a suíte" e não só "verifica".
+
+### Rodada de checkpoint degradada não fecha fase
+
+**Regra:** se a rodada de auditoria rodou com testes pulados, ela não é a rodada que fecha a fase. Corrija a causa do pulo, gere novo commit candidato e reaudite.
+
+O custo da rodada extra **não entra na conta**. Ele é o que a Fase 4 pagou para poder fechar: a rodada degradada mediu 22% menos — 73 dos 335 testes pularam —, o risco material era baixo e estava medido (os mesmos 73 rodaram verdes no CI, sobre o mesmo SHA), e a rodada foi refeita assim mesmo. O motivo não era o risco: é que este projeto passou três fases recusando *"provavelmente está certo"* como fecho, e fechar a fase mais importante com a degradação declarada no relatório, **tendo a correção ao alcance**, seria a exceção que o resto do método não admitiu.
+
+Isso estava em `docs/progress/fase_4.md` §8.5, que é registro **descritivo** — diz o que aconteceu, não o que deve acontecer. Lição registrada não constrange a fase seguinte: a Fase 4 seguiu a regra porque alguém se lembrou dela, e **detecção por memória não é detecção** é o diagnóstico que já motivou mecanizar coisa duas vezes neste repositório. Aqui ela é regra.
+
+**O que ela não é:** não é gate — nenhum mecanismo lê o relatório e conta pulos. É regra de processo, e a distinção entre regra e impedimento é a da §1.6 do registro da Fase 1. O que a torna mais forte que a lição é o lugar: `WORKFLOW.md` é lido antes do checkpoint; o registro de uma fase encerrada, não.
 
 ## Auto Mode e secrets
 

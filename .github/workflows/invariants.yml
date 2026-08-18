@@ -178,6 +178,25 @@ jobs:
       - name: teste negativo da cobertura do gate
         run: python scripts/check_gate_coverage_probes.py
 
+      # P4-12, e ela e a generalizacao do B1 acima em vez da repeticao dele. A
+      # §4 atravessou sete pecas sem ser lida porque NADA APONTAVA PARA ELA; o
+      # verificador do banner consertou aquela secao, e nao a propriedade.
+      #
+      # Aqui cada secao de `05` tem entrada: ou um mecanismo que a executa, ou a
+      # fase que o trara, com motivo. Nao e gate que exija verificador para toda
+      # secao — cobrar mecanismo antes do artefato e o erro que a §7.3 do
+      # registro da Fase 3 nomeia. O que se cobra e a DECLARACAO.
+      #
+      # A medicao ao escrever o registro corrigiu a propria pendencia: a P4-12
+      # contou cinco secoes cobertas, e sao QUATRO. A §6 nao e citada por
+      # verificador nenhum — o que a sustentava eram dois comentarios, um deles
+      # neste arquivo, e comentario nao fica vermelho.
+      - name: toda secao de 05_SECURITY_REQUIREMENTS tem mecanismo ou destinatario
+        run: python scripts/check_secoes_de_seguranca.py
+
+      - name: teste negativo do registro de secoes de seguranca
+        run: python scripts/check_secoes_de_seguranca_probes.py
+
       # Sete eixos da guarda de base do lancador (P3-7). So os PROBES rodam no
       # CI: `check_audit_base.py` julga a topologia entre a branch da fase e
       # `main`, que e uma pergunta do LANCADOR e nao do PR — roda-lo aqui
