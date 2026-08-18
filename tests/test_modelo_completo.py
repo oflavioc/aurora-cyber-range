@@ -86,6 +86,9 @@ TABELAS_ESPERADAS = {
 #: O QUE CADA ROTA DA FASE 3 DEVOLVIA, e continua devolvendo. Copiado da resposta
 #: real da Fase 4, e nao de `CAMPOS_PUBLICOS` — cruzar a whitelist consigo mesma
 #: nao prova nada.
+#: A TRILHA — no banco, fora da metadata. Ver os dois testes que a cruzam.
+TRILHA = "audit_trail"
+
 RESPOSTAS_DA_FASE_4 = {
     "aluno": {"student_id", "name", "program"},
     "turma": {"class_id", "subject", "semester", "professor_id"},
@@ -115,17 +118,36 @@ class ModeloCompleto(unittest.TestCase):
         propria e e lida por `psycopg` cru — o cabecalho de `Base` diz por que
         um modelo declarativo para ela poria o esquema do core sob a metadata de
         um adapter.
+
+        `audit_trail` FICA DE FORA DA METADATA PELO MESMO MOTIVO, e a ausencia e
+        mecanismo: ela e `INSERT`-only por `02` §4, e um modelo declarativo poria
+        `session.merge()` ao alcance de quem a tocasse — um `UPDATE` que o
+        trigger recusaria em producao, descoberto tarde. O acesso e por SQL cru
+        em `domains/academus/audit/trilha.py`. `check_trilha_de_auditoria.py`
+        reprova se alguem lhe der modelo.
         """
         self.assertEqual(TABELAS_ESPERADAS, set(Base.metadata.tables))
+        self.assertNotIn(TRILHA, Base.metadata.tables)
 
-    def test_o_truncate_da_suite_cobre_toda_tabela_do_modelo(self) -> None:
+    def test_a_trilha_existe_no_banco_mesmo_sem_modelo(self) -> None:
+        """O par do teste acima: sem modelo, mas com tabela.
+
+        Sem esta metade, "nao esta na metadata" seria satisfeito por uma trilha
+        que nao existe em lugar nenhum.
+        """
+        self.assertIn(TRILHA, inspect(self.motor).get_table_names())
+
+    def test_o_truncate_da_suite_cobre_toda_tabela_do_modelo_E_A_TRILHA(self) -> None:
         """Tabela fora de `TABELAS` sobreviveria ao `banco_limpo()`.
 
         E o dado de um teste entrando no proximo — a classe de defeito mais cara
         de diagnosticar numa suite, porque ela aparece como teste que passa
         sozinho e falha em conjunto.
+
+        `audit_trail` ENTRA no truncate e NAO na metadata, e a assimetria e
+        deliberada — ver o teste da metadata logo acima.
         """
-        self.assertEqual(TABELAS_ESPERADAS, set(TABELAS))
+        self.assertEqual(TABELAS_ESPERADAS | {TRILHA}, set(TABELAS))
 
     def test_a_janela_de_retificacao_existe_e_e_posterior_ao_lancamento(self) -> None:
         """`02` §2 e §4.1: `within_window` sera calculado contra estas datas.
@@ -201,23 +223,20 @@ class FronteirasDoEsquema(unittest.TestCase):
     def setUp(self) -> None:
         self.motor = banco_limpo()
 
-    def test_grades_student_id_continua_sem_FK(self) -> None:
-        """A D5: o par rota + 404 + FK e da peca 3, e nao desta.
+    def test_grades_student_id_GANHOU_FK_na_peca_3(self) -> None:
+        """A P4-5 fechada, do lado do esquema — e este teste anunciou.
 
-        Este teste fica **vermelho** quando a peca 3 fechar a P4-5, e e assim que
-        a mudanca se anuncia. Ele e o espelho de
-        `test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje`, do lado do esquema.
+        Ate a peca 2 ele dizia `..._continua_sem_FK` e afirmava a ausencia. Ficou
+        **vermelho** na peca 3, junto do
+        `test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje`, e os dois vermelhos
+        ao mesmo tempo sao o que distingue "a P4-5 fechou" de "alguem pos uma FK".
+
+        A FK sozinha teria sido mudanca de comportamento por efeito colateral de
+        migration. Ela veio com o 404 na rota, que e o par que a D5 exigiu.
         """
         fks = inspect(self.motor).get_foreign_keys("grades")
         colunas = {coluna for fk in fks for coluna in fk["constrained_columns"]}
-        self.assertNotIn(
-            "student_id",
-            colunas,
-            "a FK de `grades.student_id` chegou. Se foi junto do 404 na rota, "
-            "isto e a P4-5 fechando: atualize este teste e o "
-            "`test_P4_5_..._e_aceita_hoje`. Se veio sozinha, a mudanca de "
-            "comportamento entrou por migration — que e o que a D5 recusa.",
-        )
+        self.assertIn("student_id", colunas)
 
     def test_classes_ganhou_as_tres_FKs_que_a_0002_nao_tinha(self) -> None:
         fks = inspect(self.motor).get_foreign_keys("classes")

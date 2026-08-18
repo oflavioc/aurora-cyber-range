@@ -64,11 +64,13 @@ que o exercicio existe para martelar, isso e o pool acabando durante a sala.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import Session
 
 from domains.academus.api.surface import PROPRIO, TITULAR
+from domains.academus.audit import trilha
 from domains.academus.models.registros import (
     Class,
     Enrollment,
@@ -89,6 +91,25 @@ class Escopo:
 
     sub: str
     regra: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class Contexto:
+    """O que `02` §4.1 exige da REQUISICAO, e que so existe no ponto dela.
+
+    Usuario, IP, user-agent e o instante. A P3-6 registrou exatamente isto:
+    *"tres deles so podem ser preenchidos no ponto da requisicao. Quem chegar na
+    Fase 5 pela via do banco nao vai encontra-los; encontra a rota."*
+
+    `occurred_at` VEM DE FORA e nao de `now()` aqui: o instante do fato e do
+    handler, e uma segunda leitura de relogio dentro do repositorio produziria
+    dois tempos para o mesmo ato. O `recorded_at` da linha, esse sim, e o `now()`
+    do banco — sao as duas marcas do timestamp duplo.
+    """
+
+    source_ip: str
+    user_agent: str | None
+    occurred_at: datetime
 
 
 class Repositorio:
@@ -147,18 +168,94 @@ class Repositorio:
             return [como_json(nota) for nota in notas]
 
     def lancar_nota(
-        self, class_id: str, student_id: str, value: float, escopo: Escopo
+        self,
+        class_id: str,
+        student_id: str,
+        value: float,
+        escopo: Escopo,
+        contexto: Contexto,
     ) -> dict | None:
+        """Lanca a nota E grava a trilha, na MESMA transacao — P3-6 e D4.
+
+        `01` §4.3 diz que reverter business state geraria *"evento na trilha de
+        auditoria sem correspondente no banco"*. A reciproca e esta: nota gravada
+        sem linha de trilha e o mesmo estado impossivel pelo outro lado, e era o
+        que a P3-6 registrava desde a Fase 3. Trilha como efeito colateral depois
+        do `commit` produz, na primeira falha, nota sem registro.
+
+        A P4-5 FECHA AQUI, e com o par que a pendencia previu: o aluno e
+        conferido e a resposta e 404 — a mesma que a turma inexistente ja dava —,
+        e so entao a FK da 0004 documenta no esquema o que esta linha passou a
+        fazer. `test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje` fica vermelho
+        neste commit, que era o anuncio armado na Fase 4.
+
+        404 E NAO 400, e a escolha nao e cosmetica: `_aluno` com escopo devolve
+        `None` tanto para ausente quanto para fora de escopo, e um 400 aqui
+        contaria a diferenca. A indistinguibilidade da peca 4 da Fase 3 vale
+        tambem para quem lanca nota.
+        """
         with Session(self._engine) as sessao:
-            if self._turma(sessao, class_id, escopo) is None:
+            turma = self._turma(sessao, class_id, escopo)
+            if turma is None:
                 return None
+            # SEM ESCOPO na busca do aluno: quem lanca e o titular da turma, e o
+            # aluno nao e "dele" em sentido nenhum. `Escopo(sub, None)` pergunta
+            # so pela existencia.
+            if self._aluno(sessao, student_id, Escopo(sub=escopo.sub, regra=None)) is None:
+                return None
+
             registro = Grade(student_id=student_id, class_id=class_id, value=value)
             sessao.add(registro)
+            sessao.flush()
+
+            trilha.registrar(
+                sessao,
+                trilha.Registro(
+                    category=trilha.ALTERACAO_DE_NOTA,
+                    actor_user_id=escopo.sub,
+                    source_ip=contexto.source_ip,
+                    user_agent=contexto.user_agent,
+                    object_type="grade",
+                    object_id=str(registro.grade_id),
+                    occurred_at=contexto.occurred_at,
+                    # `02` §4.1: nota anterior, nova nota, semestre, disciplina.
+                    # A anterior e `None` no lancamento — nao ha o que havia —, e
+                    # `None` aqui diz "nao havia", enquanto omitir o campo diria
+                    # "ninguem registrou". A Linha B depende dessa diferenca.
+                    payload={
+                        "previous_value": None,
+                        "new_value": value,
+                        "class_id": class_id,
+                        "student_id": student_id,
+                        "semester": turma.semester,
+                        "subject_id": turma.subject_id,
+                    },
+                    within_window=trilha.dentro_da_janela(
+                        sessao, turma.semester, contexto.occurred_at.date()
+                    ),
+                    # NULO NO LANCAMENTO: autorizacao de retificacao existe para
+                    # alteracao fora da janela, e a Fase 8 e quem traz a rota que
+                    # altera nota ja lancada. Aqui o campo e nulo com o sentido
+                    # que `02` §4.1 lhe da — "nulo quando nao houver".
+                    authorization_id=None,
+                ),
+            )
             sessao.commit()
             # DENTRO da sessao e DEPOIS do commit: `expire_on_commit` e o default,
             # entao o proximo atributo recarrega do banco. E o que se quer — a
             # resposta descreve o que ficou gravado, e nao o que se pediu.
             return como_json(registro)
+
+    def verificar_trilha(self) -> trilha.Resultado:
+        """`GET /audit/verify-chain`. Leitura, e nada alem — ver a D14.
+
+        Sessao propria e somente leitura: a verificacao nao escreve, nao emite
+        evento e nao muda flag. Se escrevesse — um marcador de "verificado em" —,
+        verificar a trilha alteraria a trilha, e a cadeia passaria a depender de
+        quantas vezes alguem perguntou.
+        """
+        with Session(self._engine) as sessao:
+            return trilha.verificar(sessao)
 
     def matricular(self, student_id: str, class_id: str, escopo: Escopo) -> dict | None:
         """Matricula. O escopo vale sobre o ALUNO — a turma e livre.

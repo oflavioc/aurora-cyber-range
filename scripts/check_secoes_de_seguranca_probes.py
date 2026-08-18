@@ -105,6 +105,17 @@ def probe_promocao_que_faltou() -> tuple:
     que o mecanismo nasce, a entrada tem de ser promovida no mesmo commit.
     """
     secoes, registro, citado, vers, univ, fases = _base()
+    # A ENTRADA "ESPERANDO FASE" E PLANTADA, e nao tomada da arvore. Este probe
+    # usava a §7 real, e envelheceu no commit que a promoveu: passou a acusar
+    # pelo eixo generico da (d) em vez do da promocao. Plantando o estado, ele
+    # prova o eixo qualquer que seja a cobertura real — que e o ponto de os
+    # cinco conjuntos entrarem por parametro.
+    registro[7] = Entrada(
+        titulo=SECOES[7],
+        mecanismos=(),
+        destinatario=(9, "plantado pelo probe"),
+        nota="—",
+    )
     citado["scripts/check_novo.py"] = {7}
     univ.add("scripts/check_novo.py")
     return (secoes, registro, citado, vers, univ, fases), "e a promocao que esta faltando"

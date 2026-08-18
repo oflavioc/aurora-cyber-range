@@ -42,9 +42,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from datetime import datetime, timezone
+
 from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao
-from domains.academus.api.repositorio import Escopo, Repositorio
+from domains.academus.api.repositorio import Contexto, Escopo, Repositorio
 from domains.academus.api.surface import carregar
 from domains.academus.models.registros import Enrollment, Grade, Student
 
@@ -62,6 +64,18 @@ ALUNO = "A-1001"
 #: SEM regra de escopo — e o escopo da `secretaria`, que ve tudo. Usado nos
 #: testes que falam com o repositorio direto, onde nao ha token para resolve-lo.
 IRRESTRITO = Escopo(sub="S-1", regra=None)
+
+#: O CONTEXTO DA REQUISICAO, que a peca 3 da Fase 5 passou a exigir de
+#: `lancar_nota`: `02` §4.1 pede usuario, IP, user-agent e timestamp, e os tres
+#: primeiros so existem no ponto da requisicao — foi o que a P3-6 registrou.
+#:
+#: IP DE FAIXA DE DOCUMENTACAO (RFC 5737), como `05` §3 exige de todo dado
+#: sintetico. `tools/check_synthetic_data.py` varre isto.
+CONTEXTO = Contexto(
+    source_ip="198.51.100.7",
+    user_agent="teste",
+    occurred_at=datetime(2026, 8, 18, 14, 0, tzinfo=timezone.utc),
+)
 
 
 @exige_banco
@@ -198,25 +212,30 @@ class OQueOEsquemaGarante(unittest.TestCase):
         self.assertIsNone(self.repositorio.matricular("A-9999", TURMA, IRRESTRITO))
 
     def test_nota_em_turma_inexistente_nao_grava(self):
-        self.assertIsNone(self.repositorio.lancar_nota("T-9999", ALUNO, 9.0, IRRESTRITO))
+        self.assertIsNone(self.repositorio.lancar_nota("T-9999", ALUNO, 9.0, IRRESTRITO, CONTEXTO))
 
-    def test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje(self):
-        """A ausencia, afirmada em vez de omitida.
+    def test_P4_5_FECHADA_nota_de_aluno_inexistente_e_recusada(self):
+        """A P4-5, fechada na peca 3 da Fase 5 — e o anuncio funcionou.
 
-        `grades.student_id` nao tem FK, e a rota nao confere o aluno: a nota
-        grava. Este teste existe para que a P4-5 seja **medida** e nao apenas
-        escrita — e para que o dia em que ela for fechada tenha um teste
-        vermelho anunciando a mudanca de comportamento, em vez de um verde
-        silencioso.
+        ESTE TESTE AFIRMAVA O CONTRARIO ate a peca 3, e o nome dele era
+        `test_P4_5_nota_de_aluno_INEXISTENTE_e_aceita_hoje`. Ele ficou **VERMELHO**
+        no commit que fechou a pendencia, que era exatamente o combinado na Fase 4:
+        *"o dia em que ela for fechada tem um teste vermelho anunciando a mudanca,
+        em vez de um verde silencioso"*. A saida medida esta no registro da fase.
 
-        Por que nao fechar agora: por FK ali, `POST /classes/{class_id}/grades`
-        passaria de 201 a erro de integridade — mudanca de comportamento de uma
-        rota que a Fase 3 entregou e auditou, entrando por efeito colateral de
-        migration. Vence na Fase 5, dona da trilha de `02` §4.1, que registra o
-        aluno da alteracao de nota.
+        O QUE MUDOU, e sao duas coisas e nao uma: a rota passou a conferir o
+        aluno e a responder 404 — o mesmo 404 da turma inexistente —, e so entao a
+        FK da `0004` documentou no esquema o que a rota passou a fazer. A FK
+        sozinha teria trocado 201 por erro de integridade, que e a mudanca de
+        comportamento por efeito colateral de migration que a D5 recusou.
+
+        O GATILHO ERA ESTE COMMIT: `02` §4.1 manda a trilha registrar o aluno da
+        alteracao de nota, e trilha que registra aluno inexistente e a camada 2
+        produzindo evidencia plausivel e falsa sobre a camada 1.
         """
-        gravada = self.repositorio.lancar_nota(TURMA, "A-9999", 9.0, IRRESTRITO)
-        self.assertEqual(gravada, {"student_id": "A-9999", "class_id": TURMA, "value": 9.0})
+        self.assertIsNone(
+            self.repositorio.lancar_nota(TURMA, "A-9999", 9.0, IRRESTRITO, CONTEXTO)
+        )
 
     def test_a_resposta_nao_carrega_a_chave_substituta(self):
         """`grade_id` e identidade de linha, e nao dado de negocio.
@@ -225,13 +244,13 @@ class OQueOEsquemaGarante(unittest.TestCase):
         reflexao poria na resposta toda coluna nova por ela existir, que e a D6
         aplicada ao business state.
         """
-        gravada = self.repositorio.lancar_nota(TURMA, ALUNO, 7.5, IRRESTRITO)
+        gravada = self.repositorio.lancar_nota(TURMA, ALUNO, 7.5, IRRESTRITO, CONTEXTO)
         self.assertNotIn("grade_id", gravada)
 
     def test_o_diario_sai_em_ordem_estavel(self):
         """Sem `ORDER BY` o Postgres nao promete ordem, e a sala leria bagunca."""
         for valor in (1.0, 2.0, 3.0):
-            self.repositorio.lancar_nota(TURMA, ALUNO, valor, IRRESTRITO)
+            self.repositorio.lancar_nota(TURMA, ALUNO, valor, IRRESTRITO, CONTEXTO)
 
         duas_leituras = [
             [n["value"] for n in self.repositorio.diario(TURMA, IRRESTRITO)]

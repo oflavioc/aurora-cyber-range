@@ -69,6 +69,22 @@ impede `destinatario` de virar esconderijo: no dia em que um verificador citar a
 promocao. E a (b) impede o registro de envelhecer afirmando uma secao que a spec
 renomeou ou removeu.
 
+O UNIVERSO E O QUE O `git` VE, E ISSO TEM UM LIMITE MEDIDO
+------------------------------------------------------------
+`_git_ls` lista arquivos **versionados**. Um verificador novo que exista apenas
+na arvore de trabalho e INVISIVEL para a direcao (d): ele cita a secao, e o
+registro nao e cobrado a promover a entrada.
+
+Medido na peca 3 da Fase 5, ao exercer a (d) pela primeira vez:
+`check_trilha_de_auditoria.py` recem-escrito nao disparou nada; **um `git add -N`
+depois, disparou** com a mensagem da promocao.
+
+**Nao e defeito a corrigir, e sim escopo a declarar.** Arquivo nao versionado nao
+roda no CI de ninguem, entao trata-lo como mecanismo seria o registro afirmar
+cobertura que nao existe em lugar nenhum. O que a medicao muda e o PROCEDIMENTO:
+quem escreve verificador novo o adiciona ao indice antes de rodar a checagem —
+no commit, isso e automatico, e no CI a arvore ja esta commitada.
+
 ESTA CHECAGEM SE EXCLUI DO PROPRIO UNIVERSO, e a exclusao e necessaria
 -----------------------------------------------------------------------
 Ela cita as oito secoes por construcao — e o registro. Sem a exclusao, a direcao
@@ -229,17 +245,16 @@ MECANISMOS: dict[int, Entrada] = {
     ),
     7: Entrada(
         titulo="Integridade da trilha de auditoria",
-        mecanismos=(),
-        destinatario=(
-            5,
-            "a trilha de `02` §4 nasce na peca 3 desta fase, com role `INSERT`-only, "
-            "`REVOKE`, trigger e encadeamento de hash. E a secao cujo artefato esta "
-            "fase produz, e a entrada e promovida no commit em que ele existir",
-        ),
-        nota="Ate a peca 3, as unicas citacoes sao de migration — e uma delas cita a "
-        "secao justamente para dizer que NAO a implementa (`0002_business_state.py`: "
-        "*nao ha `REVOKE`, role `INSERT`-only nem trigger; isso e Fase 5*). Contar "
-        "essa citacao como cobertura inverteria o sentido da frase",
+        mecanismos=("scripts/check_trilha_de_auditoria.py",),
+        destinatario=None,
+        nota="PROMOVIDA na peca 3 da Fase 5, e a promocao foi COBRADA pela direcao "
+        "(d) em vez de lembrada: com o verificador escrito e a entrada ainda "
+        "dizendo 'sem mecanismo — Fase 5', esta checagem reprovou com a mensagem "
+        "da promocao. A saida vermelha esta no registro da fase. Antes disso, as "
+        "unicas citacoes da secao eram de migration — e uma delas a citava para "
+        "dizer que NAO a implementava (`0002_business_state.py`: *nao ha `REVOKE`, "
+        "role `INSERT`-only nem trigger; isso e Fase 5*). Contar aquilo como "
+        "cobertura inverteria o sentido da frase",
     ),
     8: Entrada(
         titulo="Autenticação",

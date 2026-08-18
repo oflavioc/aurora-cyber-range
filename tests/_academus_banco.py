@@ -72,6 +72,9 @@ exige_banco = unittest.skipIf(URL is None, RAZAO)
 #: cruza esta lista com a metadata esta em `test_modelo_completo.py`, e ele fica
 #: vermelho quando alguem cria tabela e esquece daqui.
 TABELAS = (
+    # A TRILHA PRIMEIRO: ela referencia `rectification_authorizations`, e o
+    # TRUNCATE segue a ordem inversa das FKs como o resto da lista.
+    "audit_trail",
     "hpc_jobs",
     "research_projects",
     "exam_questions",

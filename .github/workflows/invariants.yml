@@ -197,6 +197,22 @@ jobs:
       - name: teste negativo do registro de secoes de seguranca
         run: python scripts/check_secoes_de_seguranca_probes.py
 
+      # `05` secao 7 — a secao que a peca 3 da Fase 5 tirou de "sem verificador".
+      # Ele confere que o MECANISMO continua declarado: tabela dedicada, role sem
+      # UPDATE/DELETE/TRUNCATE, trigger incondicional, colunas de cadeia e a rota
+      # de verificacao implementada.
+      #
+      # NAO SUBSTITUI OS TESTES DE `06` T7, e a divisao e o ponto: um teste prova
+      # o comportamento do banco que tem na frente; isto prova que o mecanismo
+      # nao saiu da arvore. Apagar o `REVOKE` de uma migration futura nao derruba
+      # teste nenhum que rode sobre base ja migrada — a tabela mantem as
+      # permissoes de ontem —, e o defeito viajaria ate alguem recriar a base.
+      - name: integridade da trilha de auditoria (05 secao 7)
+        run: python scripts/check_trilha_de_auditoria.py
+
+      - name: teste negativo do verificador da trilha
+        run: python scripts/check_trilha_de_auditoria_probes.py
+
       # Sete eixos da guarda de base do lancador (P3-7). So os PROBES rodam no
       # CI: `check_audit_base.py` julga a topologia entre a branch da fase e
       # `main`, que e uma pergunta do LANCADOR e nao do PR — roda-lo aqui
