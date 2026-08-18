@@ -1,6 +1,8 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM ANDAMENTO — peças 1 a 5 de 6 fechadas; falta o fechamento.** A branch nasceu em
+**Status: CONCLUÍDA — as seis peças, os seis itens da DoD com prova, e a
+auditoria de checkpoint.** O fechamento item a item está na §7; o inventário de
+pendências por destinatário na §8; as quatro lições na §9. A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
 decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
 pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
@@ -90,7 +92,7 @@ produz o insumo da seguinte.
 | **3** ✅ | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
 | **4** ✅ | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
 | **5** ✅ | `GM_NOTES.md`, a query de referência e o mecanismo do gabarito | **D10** inteira |
-| **6** | fechamento: DoD com prova item a item, registro, auditoria de checkpoint | — |
+| **6** ✅ | fechamento: DoD com prova item a item, a varredura do E1, o registro e a auditoria | **P5-1** |
 
 **A trilha vem antes do seed, e a ordem não é preferência.** Os seis conjuntos
 da Linha B *são registros de alteração de nota* — `02` §6.1 os descreve por
@@ -1218,7 +1220,7 @@ Abertas nesta fase. Prefixo `P5-`.
 
 | Id | O que é | Vence em |
 |---|---|---|
-| P5-1 | docstring de `scripts/sobe_sala.py` manda rodar um script que não existe | **condição** — ver abaixo |
+| P5-1 | ~~docstring de `scripts/sobe_sala.py` manda rodar um script que não existe~~ | ✅ **FECHADA** no commit de fechamento |
 | P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor | **Fase 6** — ver abaixo |
 | P5-3 | a role da aplicação e a das migrations são a mesma, e `REVOKE` não alcança quem conecta | **operador** — ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores do enum do contrato | **Fase 7** — ver abaixo |
@@ -1373,3 +1375,173 @@ pontuada. Hoje isso não custa nada — a calibração é da Fase 6 e o pack é 
 gabarito** — que é quando "caso sem entrada" deixa de ser assimetria de modelo e
 vira lacuna de pontuação. A saída provável é uma `schema_version` nova, e ela é
 decisão daquela fase e não desta.
+
+---
+
+## 7. O fechamento — a DoD com prova, item a item
+
+`CLAUDE.md` diz que uma fase só fecha quando **todos** os itens da Definition of
+Done passam. O quadro abaixo é o de `07` Fase 5 com a prova de cada um — não a
+afirmação de que passou.
+
+| # | Item de `07` Fase 5 | Prova |
+|---|---|---|
+| 1 | Seed completo em < 5 min | `scripts/prova_seed_completo.py` — **144,3 s de 300 s**, 3.543.783 linhas, Windows-11-10.0.26200-SP0 · python 3.12.10 · 18/08/2026 |
+| 2 | Mesmo `RANDOM_SEED` produz dataset byte-idêntico | o mesmo script: **20 tabelas com SHA-256 igual** em duas rodadas. E as duas direções na suíte: mesmo seed → mesmo dump; seeds diferentes → dumps diferentes |
+| 3 | `UPDATE` e `DELETE` em `audit_trail` falham por trigger **e** por permissão de role | `tests/test_trilha_de_auditoria.py::TrilhaEhAppendOnly` — **quatro** testes: trigger recusando os dois verbos, `has_table_privilege` negando os três à role, e o par que impede o terceiro de virar superstição (a role **possui** `INSERT` e `SELECT`) |
+| 4 | `GET /audit/verify-chain` detecta adulteração induzida | `CadeiaDetectaAdulteracao` — campo alterado, `payload` alterado (a nota trocada), linha removida do meio, cada um reportando a **posição exata**; e a rota pelo stack ASGI, com papel, 401 e 403 |
+| 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**. Mais o teste das seis características de `02` §6.1, e não só das contagens |
+| 6 | `GM_NOTES.md` contém a query de referência que separa indevidos de ambíguos | `tests/test_gabarito.py` — o CI **produz** o artefato e o julga: o texto está lá, e a query **executada** devolve os 22 e nenhum dos 11 |
+
+### 7.1 O que o item 3 NÃO prova — e isto está na linha dele de propósito
+
+**T7 prova a propriedade da role `academus_app`, e não a da aplicação.** A
+`academus-api` não conecta como ela: conecta com a `POSTGRES_USER`, que roda as
+migrations, é dona da tabela e, na imagem oficial, é superusuária. Enquanto for
+assim, `REVOKE` não alcança o caminho da aplicação, e **`RESET ROLE` está a um
+comando de distância** do `SET LOCAL ROLE` que a escrita da trilha assume.
+
+Quem lê "o item 3 passa" e conclui que a aplicação não pode alterar a trilha
+conclui algo falso. **O que segura ali é o trigger** — que recusa a todos,
+inclusive ao dono — **e a cadeia**, que torna visível a reescrita de quem
+desabilitar o trigger.
+
+O limite é **exercido e não só escrito**: `OQueT7NaoProva` afirma que a role que
+conecta ainda possui `UPDATE` e que `RESET ROLE` a traz de volta. Os dois ficam
+vermelhos no dia em que a segunda credencial existir, e a mensagem de falha diz
+que isso é a **P5-3** fechando. É a mesma forma do
+`test_truncamento_da_cauda_NAO_e_detectado`.
+
+### 7.2 Os critérios de aceitação, e o que ficou fora
+
+| Critério | Estado |
+|---|---|
+| `06` **T7** — auditoria imutável | os três critérios, com quatro testes; o limite da role declarado acima |
+| `06` **T8** — determinismo e gabarito | os quatro critérios: dataset idêntico, os seis conjuntos, a query devolvendo exatamente os 22, e todo fato do `GM_NOTES` existindo no `ground_truth` |
+| `06` **T6** — isolamento de papel (Fases 4–5) | a rota nova exige `secretaria`; 403 para aluno, 401 sem token. **A varredura recursiva de payload continua sendo a da Fase 4** — a rota de verificação devolve três campos e nenhum deles é conteúdo de trilha |
+| `06` **T15** — segurança transversal | `Faker` pinado com fecho conferido; IPs só de RFC 5737; nenhum serviço novo exposto |
+
+---
+
+## 8. O inventário do fechamento — por destinatário
+
+| Fechadas nesta fase | Onde |
+|---|---|
+| **P3-6** — nota gravada antes de a trilha existir | peça 3: nota e trilha na mesma transação, com os dez campos de `02` §4.1 |
+| **P4-5** — `grades.student_id` aceita aluno inexistente | peça 3: o par rota 404 + FK, anunciado por **dois** testes vermelhos ao mesmo tempo |
+| **P4-12** — três seções de `05` sem verificador e sem declaração | peça 1: registro com cinco direções; §7 promovida na peça 3 e §6 na peça 5. **As oito seções têm mecanismo** |
+| **P5-1** — a docstring do `sobe_sala.py` | fechada no commit de fechamento, e a classe registrada |
+
+**Abertas, e para quem elas vão:**
+
+| Destinatário | Id | O que ela cobra | Gatilho |
+|---|---|---|---|
+| **Fase 6** | P4-2 | emitir evento sem declarar `emite` não tem guarda | *o primeiro `append` fora do `inject-engine`* — **medido nesta fase: não ocorreu**, nenhuma chamada em `domains/` |
+| **Fase 6** | P5-2 | a categoria "declarações do exercício" não tem produtor | o commit em que a primeira ação `declare_*` nascer |
+| **Fase 7** | P5-4 | seis conjuntos, três valores de enum | o commit em que o primeiro `assessment` for pontuado contra o gabarito |
+| **operador, sem fase** | P5-3 | `REVOKE` não alcança a role que conecta | o primeiro deploy destinado a exercício com participante real |
+| **condição, sem fase** | P4-7, P4-8, P4-11 | herdadas da Fase 4, sem mudança | inalterados |
+| **Fase 8** | P4-4, P4-6, P2-6 | herdadas, sem mudança | inalterados |
+
+**A P4-2 foi redatada e não empurrada**, e a diferença está medida: o gatilho
+continua sendo *o primeiro `append`*, e a Fase 5 provou que ele não aconteceu
+aqui — a trilha de `02` §4 é tabela de domínio com cadeia própria, e não o event
+store. Se a Fase 6 também não o produzir, ela desce de novo.
+
+**A P5-3 é a única sem fase, e é a única do operador.** O gatilho não cabe como
+item de DoD sem `spec-change`: `07` não declara fase de deploy. Ele viaja na
+entrada da §6 do registro de seções — que é CODE, e que quem mexer em deploy e em
+exclusão de gabarito tem de tocar.
+
+---
+
+## 9. O que a fase aprendeu sobre o próprio método
+
+### 9.1 O texto que explica a regra reprova contra ela — seis vezes, e é padrão
+
+Não é coincidência. Aconteceu **seis vezes nesta fase**, em seis mecanismos
+diferentes:
+
+| # | A regra | O que ela reprovou |
+|---|---|---|
+| 1 | o teste que proíbe leitura de relógio no gerador | o **docstring** do gerador, que cita `datetime.now(` para dizer que ele não existe |
+| 2 | a guarda de placeholder não substituído | a **instrução de edição** do template, que cita as chaves duplas |
+| 3 | o verificador de gabarito, forma de identificador | o **comentário** que citava a conta como exemplo do que não fazer |
+| 4 | o mesmo verificador, sobre os módulos | o comentário de `dataset.py` que citava a conta antiga |
+| 5 | a direção (e), afirmação de que o gabarito é versionado | o **texto corrigido**: *"não é versionado"* contém *"é versionado"* |
+| 6 | a mesma direção (e) | o **arquivo de prova**, que precisa plantar a afirmação para testá-la |
+
+**A correção nunca foi afrouxar a regra.** Foram três formas, e as três são a
+mesma ideia:
+
+- **olhar a estrutura em vez do texto** — AST para a chamada de relógio, forma do
+  placeholder em vez da abertura `{{`, negação filtrada por janela;
+- **o texto deixar de conter a instância** — o comentário passou a dizer "a
+  primeira da lista" em vez do identificador;
+- **autoexclusão declarada** — o verificador e sua prova saem do próprio
+  universo, com o motivo escrito, como `check_secoes_de_seguranca.py` já
+  precisara.
+
+**Por que isto merece seção e não linha.** Um verificador de texto tem uma
+superfície que nenhum outro tem: **ele também é texto**, e o texto que o explica
+vive perto dele. Toda vez que a regra é sobre conteúdo escrito, o material da
+explicação é material da violação. A Fase 6 traz `observability_hooks.yaml`,
+rubricas versionadas e binding evento→objetivo — três mecanismos que se explicam
+citando o que proíbem. **Comece sabendo:** se a checagem é sobre texto, ela
+precisa de estrutura ou de autoexclusão **antes** da primeira execução, e não
+depois.
+
+### 9.2 Uma decisão de fronteira protege o arquivo, e o conteúdo vaza por onde ela não nomeia
+
+A D10 decidiu *"`scenarios/` fica fora do Git"*, e a decisão está certa. Ela
+protege **o arquivo**. O gabarito vazou por **três caminhos que ela não nomeia**,
+e os três foram achados por teste e não por leitura:
+
+| Caminho | O que vazava |
+|---|---|
+| **o gerador** | a conta comprometida era constante num módulo versionado |
+| **a posição** | as identidades eram por índice: mesma conta e mesmo grupo com qualquer seed |
+| **a ordem** | os conjuntos gravados em bloco — as 22 primeiras linhas da trilha eram sempre os indevidos |
+
+**O terceiro é o mais grave**, e é o que resume a lição: o gabarito estava
+legível no **artefato que o participante investiga**, por contagem de linhas, sem
+`.env` e sem repositório. Nenhuma regra sobre versionamento alcança isso.
+
+**A generalização:** uma fronteira declarada sobre *onde o arquivo mora* não diz
+nada sobre *o que o conteúdo revela*. As duas perguntas são diferentes, e a
+segunda só tem resposta quando alguém a formula como propriedade verificável —
+aqui, "nada que identifique um caso pode sobreviver a dois seeds". Foi essa
+pergunta, e não a decisão, que achou os três.
+
+### 9.3 Escalar sem varrer é a metade barata — e a varredura não impede a terceira vez
+
+`CLAUDE.md` foi corrigida em `3dd9d18`: de "repositório privado" para "este
+repositório é público". A mesma afirmação vivia em **mais três lugares**, e
+ficou — `.gitignore`, `docs/process/WORKFLOW.md`, e duas vezes em
+`.claude/agents/scenario-designer.md`, onde **instruía um subagente a versionar
+o gabarito**.
+
+É a classe do E1, e o custo dela aqui foi maior que o usual: a definição de
+subagente não é documentação, é instrução executável por outro agente.
+
+**A varredura acha a segunda ocorrência; não impede a terceira.** O critério
+usado está escrito no registro e no verificador, e a direção (e) do
+`check_gabarito_fora_do_git.py` passou a executá-lo: documento versionado que
+**afirme** que o gabarito é versionado reprova, com allowlist declarada para
+quem cita a frase antiga de propósito.
+
+### 9.4 A direção inversa da prova é a que descobre
+
+Três dos achados desta fase vieram de testes que ninguém teria escrito para
+"provar que funciona":
+
+- **seeds diferentes produzem SHAs diferentes** — pedido pelo operador na peça 4,
+  e foi ele que achou o vazamento posicional;
+- **o mapeamento caso → conteúdo muda com o seed** — achou o vazamento de ordem;
+- **a role possui `INSERT` e `SELECT`** — o par que impede os três `assertFalse`
+  de T7 de passarem com uma role sem privilégio nenhum.
+
+A forma comum: **o teste que afirma o que NÃO pode ser igual**, ao lado do que
+afirma o que deve ser. Sem ele, um mecanismo que ignora sua própria entrada passa
+por vacuidade.
+

@@ -31,9 +31,9 @@ Você pode **ler** especificação, contratos e implementação para obter conte
 
 **Todo fato vive em `ground_truth.yaml`**, com `fact_id` e `projections`. Nenhuma evidência é escrita à mão — evidência é projeção de fato.
 
-`ground_truth.yaml` é versionado no repositório privado, mas é artefato exclusivo de facilitação/máquina e deve ser excluído de qualquer imagem, bundle ou export destinado a participantes.
+`ground_truth.yaml` **não é versionado** — `scenarios/` está fora do Git desde a peça 5 da Fase 5, e este repositório é público. Ele é artefato exclusivo de facilitação/máquina, reconstruído a partir do gerador mais o `RANDOM_SEED`, e excluído de qualquer imagem, bundle ou export destinado a participantes. A versão anterior desta linha dizia "versionado no repositório privado" e instruía este subagente a fazer o oposto do que a decisão manda.
 
-**`GM_NOTES.md` não pode conter fato ausente do ground truth.** Narrativa explica; não inventa. Também é versionado no repositório privado e excluído de superfícies de participante.
+**`GM_NOTES.md` não pode conter fato ausente do ground truth.** Narrativa explica; não inventa. Ele também **não é versionado**: o que fica no repositório é o template de prosa, e nele nenhum identificador concreto pode ser escrito à mão — `scripts/check_gabarito_fora_do_git.py` reprova.
 
 **Declaração nunca altera ground truth.** Se um inject parece precisar disso, o desenho está errado.
 

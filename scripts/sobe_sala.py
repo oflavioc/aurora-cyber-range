@@ -4,7 +4,7 @@
 USO
     AURORA_GM_PASSWORD=<credencial local> python scripts/sobe_sala.py
     # e, noutro terminal:
-    python scripts/dispara.py A01        # ou o DEMO da peca 7
+    python scripts/demo_fase4.py         # a sequencia do DEMO, com assercao
 
     Depois abra http://127.0.0.1:8000/sala
 
@@ -22,6 +22,19 @@ persistencia e da peca 7, e para olhar a sala funcionar ela nao acrescenta nada
 
 `05` §6: bind em `127.0.0.1`, e a porta vem de `AURORA_BIND_*`. Nenhuma porta
 publicada, nenhuma interface externa.
+
+A LINHA DE USO CITAVA `scripts/dispara.py`, QUE NUNCA EXISTIU — a P5-1, aberta na
+peca 0 da Fase 5 e fechada aqui. Nao era citacao que envelheceu: nasceu falsa, ao
+lado de uma alternativa verdadeira, e atravessou uma auditoria de checkpoint com
+PASS integral. Quem seguisse a instrucao receberia "No such file or directory"
+com a sala no ar, e leria o erro como instalacao quebrada.
+
+Aponta agora para `scripts/demo_fase4.py`, que existe e faz o que a linha promete.
+A CLASSE — caminho citado em docstring sem nada conferindo que ele existe —
+continua sem mecanismo, e o motivo esta na P5-1: um verificador que cruzasse
+todo caminho citado com `git ls-files` tem risco de overmatch (exemplo
+hipotetico, artefato gerado, caminho dentro de bloco de saida), e essa decisao
+nao e do commit que corrige a linha.
 """
 
 from __future__ import annotations
