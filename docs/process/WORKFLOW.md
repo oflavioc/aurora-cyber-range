@@ -194,20 +194,22 @@ de uma vez. A saída foi o lançador subir a stack efêmera.
 | `docker compose up` da stack efêmera | sem ela, doze testes pulam e o pulo é lido como verde — P2-19 |
 | `pip install -e <worktree>` num venv próprio | sem ele, `range_core` resolve pela árvore principal — P3-4, abaixo |
 | **as provas de container do commit auditado** | o DEMO ponta a ponta e o reinício de container exigem Docker, e o auditor não o tem — P4-10, abaixo |
+| **a medição do seed completo do commit auditado** | ela escreve 3,5 milhões de linhas duas vezes e leva minutos, e medi-la *antes* do commit invalida a própria prova — Fase 5 §11, abaixo |
 
 **O critério de severidade é um só, e ele decide as quatro:** *falha ALTO o que
 faria o veredito **falar de outra coisa**; falha BAIXO o que faria o veredito
 **dizer menos**.* A primeira é um veredito errado com cara de certo; a segunda é
 um veredito incompleto que se declara incompleto.
 
-Contadas no código, e não lembradas — **uma** aborta e **três** seguem:
+Contadas no código, e não lembradas — **uma** aborta e **quatro** seguem:
 
 | Etapa | Falha | Consequência declarada |
 |---|---|---|
 | `pip install -e <worktree>` | **ALTO** — `exit 1` | sem o venv, os testes rodam contra o núcleo da árvore principal: o veredito seria **sobre outro commit** |
 | `git fetch origin main` | segue, com aviso | a base pode estar desatualizada; o SHA dela vai no prompt e o auditor sabe contra o que compara |
 | `docker compose up` da stack efêmera | segue, `SERVICOS=AUSENTES` | os testes de serviço **pulam**, e o prompt diz isso ao auditor para que o pulo não seja lido como verde |
-| as provas de container | segue, com aviso | os itens 1 e 4 voltam a **NÃO VERIFICADO** |
+| as provas de container | segue, com aviso | os itens 1 e 4 da Fase 4 voltam a **NÃO VERIFICADO** |
+| a medição do seed completo | segue, com aviso e log | os itens 1 e 2 da Fase 5 caem para o que houver de transportado, e o verificador recusa se o SHA divergir |
 
 > **A frase que estava aqui dizia *"falha de rede no lançador falha ALTO — nenhum
 > dos três degrada para 'segue sem'"*, e ela era falsa quando escrita.** A stack
@@ -294,7 +296,44 @@ allowlist.
 
 **Para quem vier depois:** precisar de rede não é argumento para acrescentá-la à
 allowlist do auditor. É argumento para fazer a coisa no lançador, antes da
-sessão, e entregar o resultado pronto — como as três linhas acima.
+sessão, e entregar o resultado pronto — como as linhas acima.
+
+### A medição do seed, e por que ela é a única que acontece DEPOIS do commit
+
+Itens 1 e 2 da DoD da Fase 5 — o seed completo em menos de cinco minutos, e o
+dataset byte-idêntico com o mesmo `RANDOM_SEED`. A forma é a da P4-10, e a
+diferença é o **momento**, que aqui não é detalhe:
+
+> a prova carrega o SHA do checkout, e o verificador reprova quando ele diverge.
+> Medir → registrar o número → commitar **invalida a própria medição**.
+
+A saída procedimental existe e é óbvia — *medir por último, com o código
+congelado, e não commitar nada depois*. Ela foi escrita no registro da Fase 5 e
+**a volta seguinte caiu no laço de novo**, escrita por quem tinha acabado de
+descrevê-lo. É a mesma distinção entre regra e propriedade que já motivou
+mecanizar o guarda de branch e o sentinela: instrução é regra; lançador é
+impedimento.
+
+Por isso o lançador **mede**, depois do `git worktree add` e contra o worktree. O
+que a distingue das provas de container, e o motivo de cada coisa:
+
+| | |
+|---|---|
+| **banco descartável próprio** | o script **TRUNCA vinte tabelas duas vezes**. Apontá-lo para o banco da stack efêmera destruiria, na mesma sessão, aquele em que a suíte do auditor vai rodar. Ele nasce e morre no mesmo servidor efêmero, que não tem volume |
+| **recriado a cada rodada** | mesmo motivo do venv: banco reaproveitado carrega o esquema do commit anterior |
+| **`CREATEROLE`** | a migration `0004` cria a role da aplicação, e a `POSTGRES_USER` da imagem é superusuária do cluster. A role é objeto de cluster: se o outro banco já a criou, esta execução só faz o `GRANT` |
+| **`RANDOM_SEED` fixo no lançador** | seed que mudasse por rodada tornaria a medição incomparável com a anterior — o mesmo argumento do `SEED` do gravador de container. Não é credencial |
+
+**O transporte continua existindo, e é o caminho degradado.** O lançador copia
+`.aurora-prova-do-seed.json` da árvore principal **antes** de medir, e a medição
+o sobrescreve quando acontece. Sem Docker, o que sobra é a medição de quem mediu
+fora — e quem a aceita ou recusa é o verificador, pelo SHA. Invertida a ordem, a
+cópia velha sobrescreveria a medição recém-feita, que é o defeito entrando pela
+porta do fallback.
+
+**O briefing distingue os dois casos**, e não deixa o auditor deduzir: `MEDIDA
+PELO LANCADOR` é vínculo estrutural; `TRANSPORTADA` avisa que divergência de SHA
+é o caso normal daquela rodada, e não anomalia.
 
 ### O venv da auditoria, e o que ele fecha — P3-4
 

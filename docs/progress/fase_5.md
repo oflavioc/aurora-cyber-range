@@ -1,7 +1,8 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM REAUDITORIA — as seis peças, os seis itens da DoD com prova, e a
-segunda rodada de checkpoint FAIL com o B1 corrigido.** O
+**Status: EM REAUDITORIA — terceira rodada FAIL. O H1 está corrigido na árvore e
+NÃO COMMITADO, e a decisão A+B do operador não está implementada.** O estado
+aberto, com o que a próxima sessão precisa, está na **§11**. O
 fechamento item a item está na §7; o inventário de pendências por destinatário na
 §8; as quatro lições na §9; a auditoria e as correções na §10. A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
@@ -1017,24 +1018,24 @@ e a partição dos seis conjuntos.
 
 #### Os dois itens da DoD, medidos em escala completa
 
-```text
-maquina  Windows-11-10.0.26200-SP0        python 3.12.10       data 2026-08-18
-escala   28.000 alunos · 1.200 professores · 60 cursos · 8 semestres
-linhas   3.543.783        (1,12 M notas · 1,12 M matriculas · 1,12 M historicos)
+A escala é a de `02` §5 — 28.000 alunos · 1.200 professores · 60 cursos · 8
+semestres —, e o que ela produz é da ordem de 3,5 milhões de linhas, com as
+notas, as matrículas e os históricos respondendo por 1,12 M cada. **O que a
+medição afere são duas coisas**, e elas não são a mesma: o tempo do caminho
+`gerar → COPY`, que é o que a DoD chama de seed, e a igualdade dos SHA-256 por
+tabela entre duas rodadas do mesmo `RANDOM_SEED`.
 
-  rodada 1   gerar 1,57 s   COPY 148,76 s   dump 4,41 s   seed 150,32 s
-  rodada 2   gerar 2,01 s   COPY 157,37 s   dump 4,61 s   seed 159,39 s
+**O número não está escrito aqui, e a ausência é o mecanismo.** Ele vive no
+artefato assinado que o lançador grava sobre o commit auditado, e sai de
+`scripts/check_prova_do_seed.py`, que só o imprime depois de conferir o SHA.
+Máquina, data e stack continuam **ao lado do número** — a exigência de forma de
+`06` T3 —, e continuam lá porque é lá que o número está. O porquê da mudança
+está na §11: número de desempenho no registro envelhece em silêncio, e este
+envelheceu três vezes.
 
-  item 1  seed completo em < 5 min:  PASSA — 159,4 s de 300 s
-  item 2  dataset byte-identico:     PASSA — 20 tabelas, SHA-256 por tabela
-
-  audit_trail  c48adb205c44cf03810010836105b4efb423abbbb68fa54cf12ccb830906bc84
-  students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
-```
-
-Máquina, data e stack ao lado do número — a exigência de forma que `06` T3 fixou
-para a curva da Fase 2, e que vale igual aqui. **Os dois SHAs estão impressos e
-não só comparados:** quem tiver o mesmo seed os reproduz sem confiar nesta saída.
+**O par de digests é o que confirma escopo**, e ele também sai do verificador:
+`students` não muda quando a correção é da trilha, e `audit_trail` muda. É essa
+leitura que vale, e não o valor.
 
 #### As duas direções do determinismo
 
@@ -1207,16 +1208,15 @@ disciplina de operação, não propriedade de repositório.
 
 #### A medição em escala completa, refeita depois do embaralhamento
 
-```text
-  item 1  seed completo em < 5 min: PASSA — 144,3 s de 300 s
-  item 2  dataset byte-identico:    PASSA — 20 tabelas, SHA-256 por tabela
+A medição foi **refeita** depois do embaralhamento, e os dois itens continuaram
+passando: o tempo dentro do orçamento, e as vinte tabelas com SHA-256 igual nas
+duas rodadas. Os números são os do artefato do commit, e não os deste parágrafo —
+a §11 diz por quê.
 
-  audit_trail  56a85082ddf6e1ef7764cfae491aba5f281c4965c3b33814a6b08ed5e28ee26f
-  students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
-```
-
-**O SHA de `students` não mudou e o de `audit_trail` mudou**, e o par confirma o
-escopo do embaralhamento: ele reordena a trilha e não toca o resto.
+**O que a releitura mostrou é o par, e não os valores:** o digest de `students`
+não mudou e o de `audit_trail` mudou. Isso confirma o escopo do embaralhamento —
+ele reordena a trilha e não toca o resto —, e é uma afirmação que sobrevive à
+troca dos números, porque é sobre a **relação** entre os dois.
 
 #### A quarta vez que o texto que explica a regra reprovou contra ela
 
@@ -1570,8 +1570,8 @@ afirmação de que passou.
 
 | # | Item de `07` Fase 5 | Prova |
 |---|---|---|
-| 1 | Seed completo em < 5 min | `scripts/prova_seed_completo.py` — **144,3 s de 300 s**, 3.543.783 linhas, Windows-11-10.0.26200-SP0 · python 3.12.10 · 18/08/2026 |
-| 2 | Mesmo `RANDOM_SEED` produz dataset byte-idêntico | o mesmo script: **20 tabelas com SHA-256 igual** em duas rodadas. E as duas direções na suíte: mesmo seed → mesmo dump; seeds diferentes → dumps diferentes |
+| 1 | Seed completo em < 5 min | `scripts/check_prova_do_seed.py`, que **só imprime o número depois de conferir o SHA** — a medição é feita pelo lançador, no worktree do commit auditado, e o verificador recusa prova ausente ou de outro commit. O número não está aqui de propósito: ver §11 |
+| 2 | Mesmo `RANDOM_SEED` produz dataset byte-idêntico | o mesmo artefato e o mesmo verificador: SHA-256 por tabela, igual nas duas rodadas da medição. E as duas direções na suíte: mesmo seed → mesmo dump; seeds diferentes → dumps diferentes |
 | 3 | `UPDATE` e `DELETE` em `audit_trail` falham por trigger **e** por permissão de role | `tests/test_trilha_de_auditoria.py::TrilhaEhAppendOnly` — **quatro** testes: trigger recusando os dois verbos, `has_table_privilege` negando os três à role, e o par que impede o terceiro de virar superstição (a role **possui** `INSERT` e `SELECT`) |
 | 4 | `GET /audit/verify-chain` detecta adulteração induzida | `CadeiaDetectaAdulteracao` — campo alterado, `payload` alterado (a nota trocada), linha removida do meio, cada um reportando a **posição exata**; e a rota pelo stack ASGI, com papel, 401 e 403 |
 | 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**, aferidos contra `02` §6.1 e não contra o gerador (M2). Mais as seis características, e não só as contagens. **Limite: a partição é exercida em `ESCALA_REDUZIDA`** — os cinco conjuntos plantados não escalam, e o que muda com a escala é só o volume de fundo (L1) |
@@ -2065,10 +2065,13 @@ embaralhamento, num ponto onde o conjunto já não está em escopo.
 
 ### 10.8 M2 — o artefato assinado, e o que ele torna não-ambíguo
 
-**Os dois números do registro eram o sintoma.** A §4.4 traz 159,4 s e a §4.5 traz
-144,3 s — de antes e depois do embaralhamento —, e nada nos dois dizia a qual
-commit cada um pertencia. Número de desempenho sem commit fica ambíguo assim que
-a árvore anda uma vez, e ela andou seis.
+**Os dois números do registro eram o sintoma.** A §4.4 e a §4.5 traziam valores
+diferentes para a mesma medição — de antes e depois do embaralhamento —, e nada
+nos dois dizia a qual commit cada um pertencia. Número de desempenho sem commit
+fica ambíguo assim que a árvore anda uma vez, e ela andou seis. Os valores saíram
+das duas seções pela Forma A, e o que sobrou aqui é o diagnóstico: **citá-los de
+volta para explicar o defeito seria a §9.1 outra vez** — o texto que explica a
+regra contendo a instância que a regra proíbe.
 
 **A forma é a do `check_provas_de_container.py`, e o argumento é o da P4-10:** o
 que exige rede e volume acontece **fora** da sessão do julgador, e o resultado
@@ -2102,33 +2105,184 @@ verificador entra na allowlist; o script medido, não.
 
 #### A medição assinada, e o número que agora tem dono
 
-```text
-commit   <o do candidato, e o verificador confere>
-maquina  Windows-11-10.0.26200-SP0
-python   3.12.10                   data     2026-08-18
-seed     20260818                  linhas   3.543.783
+O que o verificador imprime, depois de conferir o SHA, tem esta forma — e é o
+conteúdo, e não os valores, que importa aqui:
 
-item 1   145,1 s e 148,5 s, de um orcamento de 300 s      PASSA
+```text
+commit   <o do candidato, e o verificador confere antes de imprimir>
+maquina  <platform.platform()>
+python   <versao>                  data     <data UTC da medicao>
+seed     <RANDOM_SEED>             linhas   <total gerado>
+
+item 1   <t1> s e <t2> s, de um orcamento de 300 s        PASSA
 item 2   20 tabelas com SHA-256 igual nas duas rodadas    PASSA
 
-audit_trail  f7db7e37c0c13aaf3ea22392b996227ba927635f4e5682784256dfced6444f95
-students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
+audit_trail  <digest>
+students     <digest>
 ```
 
 **O digest de `students` é o mesmo desde a peça 4 e o de `audit_trail` mudou a
 cada correção da Linha B** — e o par continua sendo a confirmação de escopo que
-ele era: as sete correções tocaram a trilha e não o resto.
+ele era: as sete correções tocaram a trilha e não o resto. É a única afirmação
+desta seção que não depende de qual rodada produziu o artefato.
 
-**Os números acima são da rodada em que foram medidos, e a autoridade não é
-este texto — é o artefato.** Citar o SHA aqui reintroduziria, com outra forma, a
-ambiguidade que o M2 fecha: o registro é histórico e não acompanha o candidato.
-Quem quiser o número deste commit roda o verificador, que só imprime depois de
-conferir o SHA.
+**A autoridade não é este texto — é o artefato.** Escrever o número aqui
+reintroduziria, com outra forma, a ambiguidade que o M2 fecha: o registro é
+histórico e não acompanha o candidato. Quem quiser o número deste commit roda o
+verificador.
 
 **E o mecanismo se exerceu duas vezes antes de eu entender o que ele exige.** A
 medição foi gravada sobre `9042d9f`; o commit seguinte a invalidou, e o
 verificador reprovou com *"a prova foi gravada sobre X e este checkout é Y"*.
 Refiz sobre o novo candidato — e o commit que registrava o número invalidou a
-prova de novo. **É um laço, e ele tem uma saída só:** a medição é o **último
-passo antes do checkpoint**, depois de o código estar congelado, e nada é
-commitado depois dela. Descobri isso medindo, e não desenhando.
+prova de novo. **É um laço**, e a saída que eu enxerguei ali foi procedimental:
+medir por último, depois de o código congelar, e não commitar nada depois. A §11
+registra por que essa saída não bastou, e o que entrou no lugar dela.
+
+---
+## 11. A medição sai do registro e entra no lançador — Formas A e B
+
+**As duas foram decididas pelo operador e implementadas juntas**, e é a junção
+que fecha. Elas atacam o mesmo laço por lados diferentes: a **A** tira do registro
+o número que envelhece, a **B** tira da disciplina a responsabilidade de medir na
+hora certa.
+
+### 11.1 O laço, medido antes de ser desenhado
+
+O artefato do M2 carrega o SHA do checkout, e `check_prova_do_seed.py` reprova
+quando ele diverge. A consequência não estava no desenho:
+
+```text
+medir  ->  registrar o número  ->  commitar  ->  a medição fica de outro commit
+   ^                                                            |
+   +------------------------------------------------------------+
+```
+
+**Ele se exerceu duas vezes na volta que o criou**, e a saída que eu enxerguei era
+procedimental: medir por último, com o código congelado, e não commitar nada
+depois. Está registrado na §10.8 — e a volta seguinte caiu nele de novo.
+
+### 11.2 Forma A — nenhuma linha do registro carrega número de medição
+
+| Onde | O que passou a dizer |
+|---|---|
+| quadro da DoD, itens 1 e 2 | *provado por `check_prova_do_seed.py`, que só imprime depois de conferir o SHA* |
+| §4.4 e §4.5 | a narrativa sem os tempos e sem os digests: o que se mediu, por quê, e o que o **par** de digests confirma |
+| §10.8 | o quadro vira **forma** — os campos, com o lugar do valor marcado |
+| §10.8, o diagnóstico | os dois números que ele citava saíram: recitá-los para explicar a regra é a §9.1 |
+
+**`06` T3 continua satisfeito**, e a leitura é literal: ele exige máquina, data e
+stack **ao lado do número**. O número está no artefato, e é lá que os três estão.
+O que o registro perde é *"quanto levou nesta máquina"* — e a perda não é real,
+porque esse número nunca foi autoritativo: envelheceu em três rodadas e produziu
+o M1 da terceira auditoria.
+
+### 11.3 Forma B — o lançador mede, sobre o commit já congelado
+
+**A A sozinha não bastava**, e o argumento é desta fase contra ela mesma: ela
+deixa *"medir por último"* como **disciplina**, e a §9.6 registra que a disciplina
+não segura nem quem acabou de escrever a regra — a correção herdou o defeito da
+coisa corrigida, no mesmo turno. Três voltas confirmaram.
+
+**O precedente é a P4-10, inteiro.** É a razão pela qual o gêmeo — as provas de
+container — funciona: o que exige rede, volume e minutos acontece no lançador,
+fora da sessão do julgador, e o resultado chega pronto e amarrado por SHA. A
+medição do seed passou a ser a quinta etapa dessa lista.
+
+O que ela precisa e o gêmeo não, com o motivo de cada uma:
+
+| | Por quê |
+|---|---|
+| **banco descartável próprio** (`aurora_seed`, no servidor efêmero) | `prova_seed_completo.py` **TRUNCA vinte tabelas duas vezes**. Apontá-lo para `aurora_audit` destruiria, na mesma sessão, o banco em que a suíte do auditor vai rodar |
+| **recriado a cada rodada** | mesmo motivo do venv da P3-4: banco reaproveitado carrega o esquema do commit anterior |
+| **`CREATEROLE`** | a `0004` cria `academus_app`. `aurora_audit` é a `POSTGRES_USER` da imagem, então é superusuária do cluster. A role é objeto de **cluster**: se a migration do banco da stack já a criou, esta só faz o `GRANT` |
+| **depois do `git worktree add`, e contra o worktree** | são três coisas e não uma: a migration aplicada é a do commit auditado, o código medido é o do commit auditado, e `prova_seed_completo.py` grava o artefato na raiz da árvore **de onde ele foi executado**, com o SHA que `git -C` resolve ali |
+| **`RANDOM_SEED` fixo no lançador** | o mesmo argumento do `SEED` do `grava_provas_de_container.py`: seed que mudasse por rodada tornaria a medição incomparável com a anterior. Não é credencial |
+| **falha BAIXO, e diz por quê** | sem a medição os itens 1 e 2 voltam a NÃO VERIFICADO, que é honesto. O log fica em `.aurora-worktrees/seed.log`, e a causa vai para a tela — a decisão do `diagnostica_stack` |
+
+**O custo está aceito pelo operador:** ~5 min por rodada, somados aos ~3 das
+provas de container.
+
+### 11.4 O transporte fica, e vira o caminho degradado — a decisão que faltava
+
+A §11.3 anterior deixou explícito que **manter ou remover o transporte era decisão
+desta sessão, com o motivo escrito**. Ele fica, e muda de papel:
+
+- com a **B**, o artefato **nasce dentro do worktree** e sobrescreve o que a cópia
+  tiver posto ali. O transporte deixa de ser o caminho normal;
+- ele continua sendo o que sobra **quando não há Docker nesta máquina** — a
+  medição de quem mediu fora ainda vale, e quem a aceita ou recusa é o
+  verificador, pelo SHA, exatamente como antes. Removê-lo trocaria um veredito
+  parcial por nenhum na única situação em que ele ainda serve;
+- **ele vem antes da medição, e não depois.** Invertida a ordem, uma cópia velha
+  sobrescreveria a medição recém-feita deste commit — o defeito que a B existe
+  para fechar, entrando pela porta do fallback.
+
+**E o briefing do auditor distingue quatro estados, não dois** — deixar que ele
+deduza qual foi é a forma que já custou uma rodada na Fase 3, quando o veredito da
+guarda de base ia para o `stderr` e morria ali:
+
+| Estado | O que ele diz ao auditor |
+|---|---|
+| `MEDIDA` | vínculo estrutural: o artefato nasceu aqui, sobre este commit |
+| `REPROVOU` | a medição **aconteceu** e um dos dois itens falhou. É defeito da fase, e **não** ausência de ambiente |
+| `TRANSPORTADA` | a medição desta rodada não aconteceu; divergência de SHA é o caso **normal**, não anomalia |
+| `AUSENTE` | não há prova nenhuma, e os itens 1 e 2 são NÃO VERIFICADO |
+
+**A segunda linha é a que quase não existiu.** `prova_seed_completo.py` grava o
+artefato **mesmo quando a medição falha** — é assim que "falhou" se distingue de
+"ninguém rodou" —, então um lançador que só olhasse o `rc` chamaria de
+`TRANSPORTADA` um arquivo que é a medição reprovada **deste** commit. O auditor
+leria "divergência de SHA é normal" onde o fato é item de DoD vermelho. A
+separação é pelo SHA gravado no artefato, e não pelo código de saída.
+
+### 11.5 A lição da volta — mecanismo sem caminho de exercício
+
+`check_prova_do_seed.py` entrou na allowlist do auditor **como se funcionasse**.
+Ele nascia inalcançável: o artefato era gravado na raiz da árvore de quem mede, o
+worktree de auditoria é criado do zero a partir do commit, e o lançador
+transportava apenas as provas de container. **O gate reprovaria em toda auditoria
+futura** — desta fase e das próximas —, por ausência de um arquivo que nunca
+chegava ali.
+
+**É a §7.3 do registro da Fase 3 aplicada a mecanismo em vez de a teste** —
+*"checagem só é exercida quando existe consumidor, e até lá ela parece pronta"*.
+Aquela seção nomeia a
+verificação que *parece* existir; esta é a mesma forma um andar acima — o
+mecanismo admitido, allowlistado, documentado, e sem o caminho pelo qual é
+exercido.
+
+**E o que a torna dura é o gêmeo.** `check_provas_de_container.py` funciona
+porque recebeu o transporte no mesmo commit que o criou. A forma completa era
+conhecida, estava escrita ao lado, e mesmo assim eu admiti a metade — pelo mesmo
+motivo que as seis instâncias de vazamento: **olhar o artefato novo e não a
+cadeia que o faz existir**.
+
+O antídoto não é lembrar. É a pergunta que a próxima admissão de mecanismo tem de
+responder antes de entrar em qualquer lista: **por qual caminho ele é exercido no
+ambiente em que vai julgar, e quem constrói esse caminho?**
+
+### 11.6 A B foi exercida antes de entrar — e é a §11.5 aplicada a si mesma
+
+**O achado que fechou esta volta foi um mecanismo admitido sem caminho de
+exercício.** Entregar a correção dele sem exercer o caminho novo repetiria a forma
+com um andar a mais, e este projeto já registrou seis instâncias de olhar o
+artefato novo em vez da cadeia que o faz existir.
+
+Então a cadeia foi rodada inteira, na máquina do operador, nesta ordem: subir a
+stack efêmera, criar o banco descartável, `alembic upgrade head` nele — as quatro
+revisões, incluindo o `CREATE ROLE` que exige `CREATEROLE` — e a medição completa
+com as duas rodadas. **Ela saiu `rc=0`, e os dois itens passaram.**
+
+**E há uma confirmação que não era esperada e vale mais que o `rc`:** os dois
+digests saíram **idênticos** aos das medições anteriores com o mesmo
+`RANDOM_SEED`. Isso prova a decisão do seed fixo no lançador pelo lado que
+importa — ele reproduz o mesmo dataset, e não apenas *um* dataset determinista.
+
+**O que isto não prova, e está dito porque não prova:** a medição foi exercida a
+partir da árvore principal, com o Postgres efêmero de pé, e **não de dentro de um
+worktree de auditoria em curso**. O que resta não exercido é o acoplamento do
+bloco ao resto do lançador — a ordem, o `VENV_BIN`, o `cd "$WT"` —, e é a primeira
+reauditoria que o exerce. O limite é o mesmo do `--headless`: caminho que existe e
+nunca rodou é atestação esperando acontecer, e a diferença aqui é que **a
+reauditoria seguinte o roda por construção**, sem ninguém precisar lembrar.

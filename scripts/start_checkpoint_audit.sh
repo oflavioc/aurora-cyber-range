@@ -424,6 +424,193 @@ else
   PROVAS="NAO PASSARAM (rc=$PROVAS_RC). Rode 'python scripts/check_provas_de_container.py': ele recusa e imprime o motivo. Enquanto ele recusar, os itens 1 e 4 da DoD sao NAO VERIFICADO — nunca PASS por silencio."
 fi
 
+# ---------------------------------------------------------------------------
+# O TRANSPORTE DA PROVA DO SEED — H1 da terceira auditoria da Fase 5.
+#
+# `check_prova_do_seed.py` entrou na allowlist do auditor COMO SE FUNCIONASSE, e
+# nasceu inalcancavel: o artefato e gravado na raiz da arvore de quem mede, o
+# worktree de auditoria e criado do zero a partir do commit, e o lancador
+# transportava apenas as provas de container. O gate reprovaria em TODA auditoria
+# futura — desta fase e das proximas —, por ausencia de um arquivo que nunca
+# chegava ali.
+#
+# O gemeo funciona porque recebeu o transporte; este nao o tinha. A licao e a de
+# sempre nesta linhagem, e desta vez ela custou um BLOCKER de sintoma: mecanismo
+# admitido sem o caminho pelo qual ele e exercido e mecanismo que so parece
+# existir.
+#
+# COPIA INCONDICIONAL, e a decisao e deliberada: se a prova for de outro commit,
+# quem recusa e o verificador — com o SHA gravado ao lado do SHA do checkout, que
+# e a leitura que o auditor precisa ver. Filtrar aqui trocaria "prova de outro
+# commit" por "prova ausente", e as duas mensagens dizem coisas diferentes.
+#
+# AUSENCIA NAO ABORTA, pelo mesmo criterio das provas de container: falha alto o
+# que faria o veredito falar de outra coisa; falha baixo o que faria o veredito
+# dizer menos. Sem a prova, os itens 1 e 2 da DoD ficam NAO VERIFICADO — e o
+# verificador diz isso com todas as letras, em vez de o lancador decidir por ele.
+#
+# ELE FICA, E DEIXA DE SER O CAMINHO NORMAL — a decisao que a Forma B abaixo
+# exigia, com o motivo escrito. Com a medicao acontecendo aqui dentro, o artefato
+# NASCE no worktree e sobrescreve o que for copiado por esta etapa. O transporte
+# passa a ser o caminho DEGRADADO: e o que sobra quando nao ha Docker nesta
+# maquina, e a medicao de quem mediu fora continua valendo — o verificador a
+# aceita ou a recusa pelo SHA, exatamente como antes. Remove-lo trocaria um
+# veredito parcial por nenhum na unica situacao em que ele ainda serve.
+#
+# E ELE VEM ANTES DA MEDICAO, e nao depois: invertida a ordem, uma copia velha
+# sobrescreveria a medicao recem-feita deste commit — que e o defeito que a
+# Forma B existe para fechar, entrando pela porta do fallback.
+# ---------------------------------------------------------------------------
+PROVA_SEED=".aurora-prova-do-seed.json"
+SEED_ORIGEM="ausente"
+if [ -f "$ROOT/$PROVA_SEED" ]; then
+  cp "$ROOT/$PROVA_SEED" "$WT/$PROVA_SEED"
+  SEED_ORIGEM="transportada"
+fi
+
+# ---------------------------------------------------------------------------
+# A MEDICAO DO SEED COMPLETO, FEITA AQUI — Forma B, decidida pelo operador.
+#
+# O PROBLEMA ERA UM LACO, e ele esta medido: a prova carrega o SHA do checkout, e
+# `check_prova_do_seed.py` reprova quando ele diverge. Medir, registrar o numero e
+# commitar INVALIDA a propria medicao — aconteceu duas vezes antes de eu entender
+# o que o mecanismo exigia. A saida procedimental existia — "medir por ultimo,
+# depois de o codigo estar congelado" — e e disciplina.
+#
+# E DISCIPLINA NAO SEGURA. A §9.6 do registro desta fase e a prova pela pior via:
+# a correcao herdou o defeito da coisa corrigida, no mesmo turno, escrita por quem
+# tinha acabado de descrever o defeito. Tres voltas confirmaram. Entao o vinculo
+# deixa de ser procedimental e vira ESTRUTURAL: a medicao acontece DEPOIS de o
+# commit existir, sobre o commit congelado, e nao ha "antes" em que esquecer.
+#
+# E O PRECEDENTE E A P4-10, inteiro. As provas de container funcionam por esta
+# forma exata — o que exige rede, volume e minutos acontece no lancador, fora da
+# sessao do julgador, e o resultado chega pronto e amarrado ao objeto por SHA. A
+# Forma A sozinha (nenhum numero de medicao no registro) tira a ambiguidade do
+# texto e deixa o laco de pe; as duas juntas o fecham.
+#
+# BANCO PROPRIO, E NAO O DA STACK. `prova_seed_completo.py` TRUNCA as vinte
+# tabelas DUAS vezes — e por isso exige `AURORA_SEED_DATABASE_URL` em vez de
+# `DATABASE_URL`, que e a mesma disciplina do `AURORA_TEST_*`. Aponta-lo para
+# `aurora_audit` destruiria o banco em que a suite do auditor vai rodar, na mesma
+# sessao. O banco nasce e morre dentro do MESMO servidor efemero: `docker compose
+# down` o leva junto, porque o compose da auditoria nao tem volume.
+#
+# `CREATE ROLE` EXIGE `CREATEROLE`, e aqui existe: `aurora_audit` e a
+# `POSTGRES_USER` da imagem, entao e superusuaria do cluster. A `0004` cria
+# `academus_app` num `DO` que trata `insufficient_privilege` e explica a saida no
+# proprio erro — medido na peca 3. A role e objeto de CLUSTER: se a migration do
+# `aurora_audit` ja a criou, esta aqui so faz o `GRANT`.
+#
+# DEPOIS DO `git worktree add`, E CONTRA O WORKTREE. As tres coisas que isso fixa
+# nao sao a mesma: a migration aplicada e a do commit auditado; o codigo medido e
+# o do commit auditado; e `prova_seed_completo.py` grava o artefato na raiz da
+# arvore de onde ELE foi executado — que passa a ser o worktree — com o SHA que
+# `git -C` resolve ali, que e o candidato. As tres saem do mesmo `$WT`.
+#
+# O `RANDOM_SEED` E FIXO AQUI, pelo mesmo argumento do `grava_provas_de_container`:
+# a seed governa determinismo, e uma seed que mudasse a cada rodada faria o item 2
+# comparar duas rodadas de uma medicao que nao e comparavel com a anterior. Ela
+# nao e credencial e nao sai do lancador.
+#
+# FALHA BAIXO, como as provas de container e ao contrario do venv: sem a medicao
+# os itens 1 e 2 voltam a NAO VERIFICADO, que e honesto. E a falha DIZ POR QUE —
+# `.aurora-worktrees/seed.log`, mesma decisao do `diagnostica_stack`: degradar e
+# decisao, degradar em silencio e defeito.
+# ---------------------------------------------------------------------------
+SEED_DB="aurora_seed"
+AURORA_SEED_DB="postgresql+psycopg://aurora_audit:efemero-da-auditoria@127.0.0.1:15432/$SEED_DB"
+SEED_RANDOM="20260818"
+SEED_LOG="$ROOT/.aurora-worktrees/seed.log"
+MEDE_MOTIVO=""
+rm -f "$SEED_LOG"
+
+psql_efemero() {
+  docker compose -p "$PROJETO_AUDIT" -f "$COMPOSE_AUDIT" exec -T postgres \
+    psql -v ON_ERROR_STOP=1 -U aurora_audit -d postgres -c "$1"
+}
+
+mede_seed() {
+  # RECRIADO A CADA RODADA, pelo mesmo motivo do venv: banco reaproveitado
+  # carrega o esquema do commit anterior, e a medicao sairia sobre outra coisa.
+  if ! psql_efemero "DROP DATABASE IF EXISTS $SEED_DB" >>"$SEED_LOG" 2>&1; then
+    echo "nao foi possivel remover o banco anterior '$SEED_DB'"
+    return 1
+  fi
+  if ! psql_efemero "CREATE DATABASE $SEED_DB" >>"$SEED_LOG" 2>&1; then
+    echo "nao foi possivel criar o banco descartavel '$SEED_DB'"
+    return 1
+  fi
+  # A migration DO COMMIT AUDITADO — o CWD ja e o worktree, e o `python` do PATH
+  # ja e o do venv da P3-4.
+  if ! DATABASE_URL="$AURORA_SEED_DB" python -m alembic upgrade head \
+       >>"$SEED_LOG" 2>&1; then
+    echo "'alembic upgrade head' FALHOU no banco da medicao"
+    return 1
+  fi
+  # `PYTHONIOENCODING` pelo mesmo motivo do gravador de container: a saida tem
+  # acento, e no Windows o Python escreve na codepage do locale.
+  if ! AURORA_SEED_DATABASE_URL="$AURORA_SEED_DB" \
+       RANDOM_SEED="$SEED_RANDOM" \
+       PYTHONIOENCODING=utf-8 \
+       "$VENV_BIN/python" "$WT/scripts/prova_seed_completo.py" \
+       >>"$SEED_LOG" 2>&1; then
+    echo "a medicao rodou e saiu diferente de zero"
+    return 1
+  fi
+  return 0
+}
+
+if [ "$STACK_ATIVA" = "1" ]; then
+  echo "Medindo o seed completo do commit auditado (~5 min; Forma B da Fase 5)..."
+  set +e
+  MEDE_MOTIVO=$(mede_seed)
+  MEDE_RC=$?
+  set -e
+  if [ "$MEDE_RC" = "0" ]; then
+    SEED_ORIGEM="medida"
+  else
+    # A CAUSA VAI PARA A TELA, e ela e o fim do log — a mesma correcao que a
+    # primeira execucao do `diagnostica_stack` exigiu: diagnostico que existe e
+    # nao chega a quem le e a mesma perda com mais passos.
+    echo "AVISO: a medicao do seed NAO completou: $MEDE_MOTIVO." >&2
+    echo "       A auditoria SEGUE. A causa, do proprio comando que falhou:" >&2
+    echo "       ---------------------------------------------------------------" >&2
+    tail -n 25 "$SEED_LOG" >&2 || true
+    echo "       ---------------------------------------------------------------" >&2
+    echo "       Log completo em: $SEED_LOG" >&2
+    # DUAS FALHAS DIFERENTES, e a mensagem nao pode confundi-las. Se o artefato
+    # DESTE commit foi escrito, a medicao ACONTECEU e um dos dois itens
+    # REPROVOU — `prova_seed_completo.py` grava mesmo quando falha, de proposito,
+    # porque e assim que "falhou" se distingue de "ninguem rodou". Se nao foi
+    # escrito, a medicao nao chegou ao fim, e o que vale e o que o transporte
+    # deixou ali. Chamar a primeira de "transportada" faria o auditor ler
+    # divergencia de SHA onde o fato e defeito da fase.
+    if grep -q "\"$HEAD_SHA\"" "$WT/$PROVA_SEED" 2>/dev/null; then
+      SEED_ORIGEM="reprovou"
+    fi
+  fi
+else
+  echo "AVISO: sem a stack efemera nao ha Postgres para medir o seed." >&2
+  MEDE_MOTIVO="a stack efemera nao esta no ar"
+fi
+
+case "$SEED_ORIGEM" in
+  medida)
+    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre $HEAD_SHA, com banco descartavel proprio. Rode 'python scripts/check_prova_do_seed.py' — ele confere o SHA gravado contra o deste checkout e imprime a medicao integra."
+    ;;
+  reprovou)
+    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre $HEAD_SHA, e REPROVOU. O artefato e deste commit e diz qual dos dois itens falhou; 'python scripts/check_prova_do_seed.py' recusa e imprime. Isto e defeito da fase, e NAO ausencia de ambiente — nao trate como NAO VERIFICADO."
+    ;;
+  transportada)
+    SEED_PROVA="NAO MEDIDA nesta rodada ($MEDE_MOTIVO); o que esta aqui foi TRANSPORTADO da arvore principal, e pode ser de outro commit. Rode 'python scripts/check_prova_do_seed.py': ele confere o SHA e recusa se divergir — nunca PASS por silencio."
+    ;;
+  *)
+    echo "       Os itens 1 e 2 da DoD da Fase 5 ficam NAO VERIFICADO." >&2
+    SEED_PROVA="AUSENTE ($MEDE_MOTIVO), e nao havia prova na arvore principal para transportar. 'python scripts/check_prova_do_seed.py' recusa por ausencia, e os itens 1 e 2 da DoD sao NAO VERIFICADO — nunca PASS por silencio."
+    ;;
+esac
+
 RAW=""
 if [ "$MODE" = headless ]; then
   RAW=$(mktemp)
@@ -465,6 +652,7 @@ echo "Auditoria Fase $PHASE — commit $HEAD_SHA"
 echo "Base de comparacao: $BASE_SHA ($BASE_REF)"
 echo "Servicos: $SERVICOS"
 echo "Provas de container: $PROVAS"
+echo "Prova do seed completo: $SEED_PROVA"
 echo "Worktree de auditoria: $WT"
 if [ "$MODE" = headless ]; then
   echo "Modo: HEADLESS (-p). NENHUMA sessao interativa vai abrir; isto e esperado."
@@ -502,6 +690,9 @@ PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEA
 
 PROVAS DE CONTAINER (P4-10): $PROVAS
 O lancador as rodou na maquina do operador, porque exigem Docker e a allowlist nao o tem. Voce NAO as viu rodar — o que amarra a evidencia a este commit e o SHA que o arquivo carrega, e o verificador reprova se ele divergir. Ausencia tambem reprova: ele nao sai 0 por nao saber.
+
+PROVA DO SEED COMPLETO (M2 da Fase 5): $SEED_PROVA
+Mesma forma e mesmo limite das provas de container. O lancador roda a medicao AQUI, contra este worktree e depois do commit existir — o script exige Postgres, escreve 3,5 milhoes de linhas duas vezes e leva minutos, e a allowlist nao tem nada disso. Voce NAO viu medir; o que amarra a medicao a este commit e o SHA gravado, conferido contra o deste checkout, e ausencia tambem reprova. Se a linha acima disser TRANSPORTADA em vez de MEDIDA, a medicao desta rodada nao aconteceu e o arquivo veio da arvore principal: trate a divergencia de SHA como o caso normal, e nao como anomalia.
 
 VEREDITO DA GUARDA DE BASE, verbatim do lancador. Porta ou laudo esta DITO aqui, e nao deve ser deduzido do que o prompt deixa de conter:
 $GUARDA_SAIDA
