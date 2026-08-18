@@ -1,7 +1,7 @@
 # Aurora Cyber Range — Briefing
 
 **Autor:** Flavio Costa · Projeto pessoal
-**Estado:** Fase 0 em fechamento — especificação congelada, aparato de verificação operante, nenhum código de aplicação
+**Estado:** Fases 0 a 4 concluídas — especificação congelada, aparato de verificação operante, vertical slice rodando ponta a ponta. Próximo checkpoint: Fase 5
 **Repositório:** github.com/oflavioc/aurora-cyber-range
 
 ---
@@ -72,9 +72,9 @@ Implementar um segundo vertical — energia, financeiro, saúde — significa es
 
 ## Rigor de construção
 
-A Fase 0 do projeto não produziu nenhuma linha de aplicação. Produziu o aparato que vigia a construção: seis verificadores automáticos que aplicam as regras arquiteturais por análise de árvore sintática, e um agente auditor independente que revisa cada checkpoint contra a especificação, em contexto isolado e sem ferramentas de escrita.
+A Fase 0 do projeto não produziu nenhuma linha de aplicação. Produziu o aparato que vigia a construção: 6 verificadores automáticos que aplicam as regras arquiteturais por análise de árvore sintática, e um agente auditor independente que revisa cada checkpoint contra a especificação, em contexto isolado e sem ferramentas de escrita.
 
-**Essa fase passou por dezesseis rodadas de auditoria. Dez reprovaram** — a primeira e depois nove seguidas.
+**Só a Fase 0 respondeu por 14 relatórios de auditoria versionados, e 13 deles reprovaram.** As primeiras rodadas dela são anteriores ao mecanismo que persiste o relatório, e por isso não têm arquivo próprio — o que também está registrado.
 
 Isso é o resultado esperado de um aparato que funciona, e vale detalhar por quê. A primeira rodada encontrou um teste que **passava sem exercitar a fronteira que deveria verificar**: o probe estava plantado dentro da região que o verificador já enxergava. Teste verde, requisito não provado.
 
@@ -86,11 +86,13 @@ A especificação está congelada em `spec-v1.0`. Alterações exigem processo f
 
 ## Estado e próximos passos
 
-Doze fases planejadas. A Fase 0 está em fechamento: dois itens da Definition of Done seguem abertos e cinco estão fechados por atestação do operador, não por verificação independente — o que está registrado como tal, e não como conclusão.
+São 12 fases planejadas, 4 concluídas. Próximo checkpoint: **Fase 5 — dados em escala e trilha de auditoria com hash encadeado**.
 
-A Fase 4 é o primeiro marco demonstrável: console do facilitador disparando eventos e o wallboard reagindo ao vivo — suficiente para uma conversa de "é isto que estou construindo".
+A Fase 4, o vertical slice, está concluída e é o primeiro marco demonstrável: o console do facilitador dispara um inject, o endpoint de matrícula devolve `503` de verdade, o wallboard reage em menos de um segundo, e o rollback restaura o estado com a mesma requisição voltando a `201`. É o suficiente para uma conversa de "é isto que estou construindo" com o sistema no ar.
 
-O primeiro pacote de cenário completo será o de ransomware universitário, desenhado para audiência executiva.
+**O que ainda não existe** é a maior parte do que este briefing descreve como proposta: rubricas, métricas pareadas, calibração, assimetria de informação e o relatório de debriefing são das Fases 6 a 10. Nenhum pacote de cenário foi escrito, e nenhum exercício real foi conduzido.
+
+O primeiro pacote de cenário completo será o de ransomware universitário, desenhado para audiência executiva, na Fase 7.
 
 ---
 
