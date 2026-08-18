@@ -340,7 +340,7 @@ A restrição é técnica, não apenas textual:
 - `scenario_scope.py`: bloqueia Write/Edit fora de `scenarios/`;
 - `scenario_bash.py`: permite apenas `range-cli scenario validate|lint|dryrun`, `git diff -- scenarios/...` e `git status --short`.
 
-`ground_truth.yaml` e `GM_NOTES.md` são versionados no repositório privado. Eles nunca chegam a imagem, API, bundle ou export de participante.
+`ground_truth.yaml` e `GM_NOTES.md` **não são versionados**. `scenarios/` está fora do Git desde a peça 5 da Fase 5 — este repositório é público, e os dois são o gabarito. O que fica versionado é o **gerador**, a **query de referência** e o **template de prosa**; os artefatos nascem de `RANDOM_SEED` na máquina de quem tem o `.env`. Eles nunca chegam a imagem, API, bundle ou export de participante, e `scripts/check_gabarito_fora_do_git.py` reprova o PR que os versionar.
 
 ## Paralelismo — não antes da Fase 8
 

@@ -100,7 +100,7 @@ Um segundo adapter hospitalar — **Hospital Regional Aurora**, sistema **PRONTU
 
 ## Estado atual
 
-**Fases 0 a 4 concluídas.** Próximo checkpoint: **Fase 5 — Dados e auditoria**. O roadmap tem **12 fases**.
+**Fases 0 a 5 concluídas.** Próximo checkpoint: **Fase 6 — Objetivos, rubricas e métricas**. O roadmap tem **12 fases**.
 
 A Fase 4 é o *vertical slice*: o caminho ponta a ponta mínimo, exigido cedo de propósito, para que a arquitetura falhe antes de haver o que reescrever. O que ele prova, contra dois containers, Postgres e Redis reais:
 
@@ -265,7 +265,7 @@ A fronteira pretendida separa o que pode ser distribuído do que precisa ficar f
 
 A regra que a sustenta é de mecanismo, não de disciplina: a narrativa é carregada por superfície com whitelist, e a evidência gerada em `scenarios/**/evidence/` fica fora do Git por ser projeção determinista de `ground_truth.yaml` mais o `RANDOM_SEED` — reconstruída por comando, nunca versionada.
 
-**Pendência aberta.** Este repositório é público, e o destino dos artefatos privados ainda não está decidido — repositório separado, submódulo, ou `scenarios/` fora do Git. Hoje a questão é latente: `scenarios/` está vazio e nenhum ground truth existe. A decisão vence no commit em que o primeiro pack for escrito, na Fase 7.
+**Decidido na Fase 5:** `scenarios/` fica **fora do Git**. Este repositório é público, e a distinção que sustenta a decisão é entre o que a spec já publica e o que só o seed produz — `02_DOMAIN_ACADEMUS.md` §6.1 descreve os seis conjuntos da Linha B em detalhe, então a descrição não é gabarito; gabarito é **quais casos**, e eles saem do `RANDOM_SEED`, que mora no `.env`. Versionado fica o **gerador**, a **query de referência** e o **template de prosa** do `GM_NOTES`; os dois artefatos nascem por comando, na máquina de quem tem o seed. Um verificador reprova o PR que versionar qualquer um dos dois, e reprova também identificador concreto escrito à mão no template.
 
 ## Licença e origem
 

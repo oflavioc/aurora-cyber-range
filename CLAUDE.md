@@ -104,13 +104,15 @@ O `scenario-designer` pode ler o repositório, mas só pode escrever em `scenari
 
 `ground_truth.yaml` e `GM_NOTES.md` são fontes de facilitação e de máquina: quem os lê antes do exercício tem o gabarito. Em repositório público, versioná-los entrega o gabarito junto com o motor.
 
-Enquanto o destino definitivo não estiver decidido, vale a regra restritiva:
+A regra, agora com destino decidido:
 
-- **Não versione `ground_truth.yaml` nem `GM_NOTES.md` aqui.** Hoje nenhum existe — `scenarios/` está vazio, e o primeiro pack é entregável da Fase 7.
+- **Não versione `ground_truth.yaml` nem `GM_NOTES.md` aqui.** Não é mais regra restritiva à espera de decisão: `scenarios/` inteiro está no `.gitignore`, e há verificador que reprova.
 - Eles seguem excluídos de imagens, bundles, APIs e exports destinados a participantes. Isso é `05_SECURITY_REQUIREMENTS.md` §6 e não depende da visibilidade do repositório.
 - Exemplo de pack **sanitizado** — sem gabarito e sem notas de GM — é permitido, e é o que torna a fronteira pública demonstrável em vez de apenas declarada.
 
-**Pendência aberta, e ela é do operador:** onde vivem os artefatos privados quando o primeiro pack existir — repositório privado separado, submódulo, ou `scenarios/` fora do Git. A decisão vence no commit em que o primeiro `ground_truth.yaml` for escrito, e não antes.
+**Decidido na peça 5 da Fase 5, pelo operador: `scenarios/` fica fora do Git.** As três opções eram repositório separado, submódulo ou diretório fora do Git, e a terceira venceu por uma distinção — a spec já publica a descrição dos seis conjuntos da Linha B, então descrição não é gabarito; gabarito é **quais casos**, e eles saem do `RANDOM_SEED`. Versionado fica o gerador, a query de referência e o template de prosa; os artefatos nascem por comando.
+
+`scripts/check_gabarito_fora_do_git.py` executa a decisão: reprova `ground_truth.yaml` ou `GM_NOTES.md` versionados em qualquer lugar, reprova a entrada de `scenarios/` sumindo do `.gitignore`, e reprova identificador concreto escrito à mão no template ou nos módulos do gerador — que é por onde o gabarito vaza sem que o linter de fatos veja.
 
 ## Secrets
 

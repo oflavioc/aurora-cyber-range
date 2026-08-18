@@ -11,8 +11,8 @@ quem os le antes da sala sabe quais casos sao indevidos.
 diretorio que alguem designorou localmente faz o mesmo sem intencao nenhuma.
 Convencao nao reprova PR; isto reprova.
 
-AS QUATRO DIRECOES
--------------------
+AS CINCO DIRECOES
+------------------
     (a) `ground_truth.yaml` ou `GM_NOTES.md` VERSIONADO, em qualquer lugar
         da arvore                                                  -> REPROVA
     (b) a entrada de `scenarios/` sumiu do `.gitignore`, ou perdeu
@@ -21,6 +21,33 @@ AS QUATRO DIRECOES
         MODULOS versionados do gerador                             -> REPROVA
     (d) o template perdeu placeholder que o gerador substitui —
         prosa que deveria ser concreta virou texto fixo            -> REPROVA
+    (e) documento versionado AFIRMANDO que o gabarito e versionado
+        (a linha "repositorio privado" que sobreviveu)             -> REPROVA
+
+A (e) EXISTE PORQUE A MESMA AFIRMACAO FALSA JA APARECEU EM QUATRO LUGARES
+--------------------------------------------------------------------------
+`CLAUDE.md` foi corrigida em `3dd9d18` — de "repositorio privado" para "este
+repositorio e publico". A mesma afirmacao vivia em mais TRES lugares, e ficou:
+
+    .gitignore                          "intentionally versioned in this
+                                         private repository"
+    .claude/agents/scenario-designer.md  duas vezes, e esta INSTRUIA o subagente
+                                         a versionar o gabarito
+    docs/process/WORKFLOW.md             "sao versionados no repositorio privado"
+
+E a classe do E1 — escalar sem varrer onde mais a exigencia vive. Varredura
+manual acha a segunda ocorrencia; **nao impede a terceira**, e aqui ja houve
+quatro. Isto impede.
+
+E ELA CUSTOU DUAS VOLTAS, as duas do mesmo padrao: a regra reprovou contra o
+texto CORRIGIDO — *"nao e versionado"* contem *"e versionado"* —, e depois contra
+o proprio arquivo de prova, que precisa PLANTAR a afirmacao para testa-la. As
+correcoes sao as de sempre: filtrar a negacao pela estrutura, e autoexcluir-se.
+
+O CRITERIO E ESTREITO DE PROPOSITO: casa a AFIRMACAO de que os dois arquivos sao
+versionados, e nao a palavra "privado". Documento que discute a decisao — o
+registro de fase, a citacao historica no `.gitignore` — precisa poder citar a
+frase antiga, e por isso ha allowlist declarada.
 
 A (c) E A QUE FECHA O BURACO QUE A (a) NAO VE
 -----------------------------------------------
@@ -89,6 +116,35 @@ IDENTIFICADORES = re.compile(
     r"|AUT-[A-Z]+-[0-9]+|PR-[A-Z]+-[0-9]+|DEL-[0-9]+|g-[a-z]{3}-[0-9]+)\b"
 )
 
+#: A AFIRMACAO FALSA, na forma em que ela apareceu quatro vezes: um dos dois
+#: nomes seguido, de perto, de "e/sao versionado(s)" ou "is/are versioned".
+#:
+#: `[^.]{0,80}` e nao `.{0,80}`: sem o corte na frase, a regra casaria um nome
+#: numa sentenca e "versionado" na seguinte, e reprovaria texto que diz o
+#: contrario em duas frases.
+AFIRMACAO_DE_VERSIONADO = re.compile(
+    r"(?:ground_truth\.yaml|GM_NOTES\.md)[^.]{0,80}?"
+    r"(?:sao versionados|são versionados|e versionado|é versionado"
+    r"|is versioned|are versioned|intentionally versioned)",
+    re.I,
+)
+
+#: ONDE A CITACAO HISTORICA E DELIBERADA, com o motivo por entrada.
+#:
+#: Sem esta lista, a propria correcao seria reprovada: o `.gitignore` cita a
+#: frase antiga para dizer que ela era falsa, e o registro de fase e historia.
+CITACAO_PERMITIDA = {
+    ".gitignore": "cita a frase antiga para declarar que ela ficou falsa",
+    "docs/progress/": "registro de fase e relatorio de auditoria sao historia: "
+    "dizem o que aconteceu, e nao o que vale",
+    "scripts/check_gabarito_fora_do_git.py": "esta checagem CITA a afirmacao "
+    "para descreve-la; sem a autoexclusao, ela reprova a si mesma",
+    "scripts/check_gabarito_fora_do_git_probes.py": "a prova negativa PLANTA a "
+    "afirmacao — e o material dela. Foi a SEXTA vez nesta fase que o texto que "
+    "fala sobre a regra caiu nela, e a autoexclusao e a mesma que "
+    "`check_secoes_de_seguranca.py` precisou pelo mesmo motivo",
+}
+
 #: Os placeholders que o gerador substitui. Se um sumir do template, o numero
 #: correspondente virou texto fixo — e texto fixo envelhece na primeira mudanca
 #: de escala, dizendo 22 quando o dataset tem outro numero.
@@ -106,8 +162,13 @@ def _versionados() -> list[str]:
     return [linha for linha in saida.stdout.splitlines() if linha]
 
 
-def verifica(versionados: list[str], gitignore: str, fontes: dict[str, str]) -> list[str]:
-    """As quatro direcoes. Tudo por parametro, para a prova negativa injetar."""
+def verifica(
+    versionados: list[str],
+    gitignore: str,
+    fontes: dict[str, str],
+    documentos: dict[str, str] | None = None,
+) -> list[str]:
+    """As cinco direcoes. Tudo por parametro, para a prova negativa injetar."""
     problemas: list[str] = []
 
     # (a)
@@ -174,7 +235,61 @@ def verifica(versionados: list[str], gitignore: str, fontes: dict[str, str]) -> 
             "de escala — o facilitador leria 22 num dataset que tem outro numero."
         )
 
+    # (e) — a afirmacao falsa que sobreviveu a correcao, em qualquer documento
+    for caminho, texto in sorted((documentos or {}).items()):
+        if any(caminho.startswith(p) for p in CITACAO_PERMITIDA):
+            continue
+        if casado := _afirmacao_positiva(texto):
+            problemas.append(
+                f"{caminho} afirma que o gabarito e versionado: "
+                f"{casado.group(0)[:90]!r}.\n"
+                "    `scenarios/` esta fora do Git desde a peca 5 da Fase 5. Esta "
+                "mesma frase sobreviveu a correcao da `CLAUDE.md` em QUATRO "
+                "lugares, e um deles instruia um subagente a versionar o "
+                "gabarito — escalar sem varrer onde mais a exigencia vive e a "
+                "classe do E1."
+            )
+
     return problemas
+
+
+#: As negacoes que transformam a afirmacao no seu contrario.
+NEGACOES = ("nao ", "não ", "not ", "never ", "nunca ")
+
+
+def _afirmacao_positiva(texto: str):
+    """A afirmacao SEM negacao na janela imediatamente anterior ao verbo.
+
+    A NEGACAO E FILTRADA EM PYTHON, e nao no regex, e a razao e mecanica: em
+    Python o lookbehind e de largura fixa, e as negacoes tem larguras diferentes
+    e vem cercadas de marcacao (`**nao** e versionado`). Um regex tentando cobrir
+    isso vira ilegivel antes de virar correto.
+
+    E ELA EXISTE PORQUE A REGRA REPROVOU CONTRA O PROPRIO TEXTO CORRIGIDO —
+    *"`ground_truth.yaml` **nao e versionado**"* contem "e versionado". Foi a
+    QUINTA vez nesta fase que o texto que fala sobre a regra caiu nela, e a
+    correcao e a de sempre: a checagem olha a estrutura, e nao a substring.
+    """
+    for casado in AFIRMACAO_DE_VERSIONADO.finditer(texto):
+        janela = texto[max(0, casado.start()) : casado.end()].lower()
+        if any(n in janela for n in NEGACOES):
+            continue
+        return casado
+    return None
+
+
+def _documentos() -> dict[str, str]:
+    """Os versionados em que a afirmacao caberia: markdown, YAML de agente, texto."""
+    lidos = {}
+    for caminho in _versionados():
+        if not caminho.endswith((".md", ".yaml", ".yml", ".txt", ".py", ".sh")):
+            continue
+        alvo = REPO_ROOT / caminho
+        try:
+            lidos[caminho] = alvo.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+    return lidos
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -184,7 +299,12 @@ def main(argv: list[str] | None = None) -> int:
 
     fontes = {TEMPLATE.name: TEMPLATE.read_text(encoding="utf-8")}
     fontes.update({nome: (SEED / nome).read_text(encoding="utf-8") for nome in MODULOS})
-    problemas = verifica(_versionados(), GITIGNORE.read_text(encoding="utf-8"), fontes)
+    problemas = verifica(
+        _versionados(),
+        GITIGNORE.read_text(encoding="utf-8"),
+        fontes,
+        _documentos(),
+    )
 
     if problemas:
         print(f"{RULE}\n", file=sys.stderr)
