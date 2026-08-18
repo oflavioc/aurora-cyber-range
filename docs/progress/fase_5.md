@@ -1,13 +1,22 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM REAUDITORIA — terceira rodada FAIL. O H1 está corrigido na árvore e
-NÃO COMMITADO, e a decisão A+B do operador não está implementada.** O estado
-aberto, com o que a próxima sessão precisa, está na **§11**. O
-fechamento item a item está na §7; o inventário de pendências por destinatário na
-§8; as quatro lições na §9; a auditoria e as correções na §10. A branch nasceu em
-`fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
-decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
-pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
+**Status: CONCLUÍDA — PASS na quinta rodada, contra `027f07e7`, sem BLOCKER e sem
+HIGH.** 402 testes contra Postgres real, `OK` **sem nenhum `skipped`**; os quatro
+invariantes verdes e os seis verificadores da fase com prova negativa executada.
+O fechamento item a item está na §7; o inventário por destinatário na §8; as
+lições na §9 — **sete nomeadas no fechamento**, sobre as quatro registradas
+durante a fase; as cinco rodadas de auditoria na §10, na §11 e na §12. A
+branch nasceu em `fd34c44` e a âncora está gravada em
+`docs/process/phase_anchors.tsv`. As dezesseis decisões da §3 estão marcadas, e
+nenhuma linha de código nasceu contra decisão pendente — as três do operador (D9,
+D10 e D16) foram respondidas antes da peça que dependia de cada uma.
+
+**Esta §7 não foi redigida pelo auditor, e a recusa dele é parte do fechamento.**
+A instrução de escrevê-la chegou à janela errada, e ele parou: se quem emite o
+veredito redige o artefato que a próxima auditoria trata como evidência, o
+documento desfaz a separação que a Forma B (§11.3) acabou de estabelecer no
+mecanismo. O que é dele está na §12.5 — a releitura conferindo se esta seção
+corresponde ao que ele verificou.
 
 **Um status só**, e ele é o do documento inteiro — L2 da segunda auditoria da
 Fase 3.
@@ -94,7 +103,7 @@ produz o insumo da seguinte.
 | **3** ✅ | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
 | **4** ✅ | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
 | **5** ✅ | `GM_NOTES.md`, a query de referência e o mecanismo do gabarito | **D10** inteira |
-| **6** ✅ | fechamento: DoD com prova item a item, a varredura do E1, o registro e a auditoria | **P5-1** |
+| **6** ✅ | fechamento: DoD com prova item a item, a varredura do E1, o inventário por destinatário, as sete lições e as cinco rodadas de auditoria | **P5-1** |
 
 **A trilha vem antes do seed, e a ordem não é preferência.** Os seis conjuntos
 da Linha B *são registros de alteração de nota* — `02` §6.1 os descreve por
@@ -1298,6 +1307,7 @@ Abertas nesta fase. Prefixo `P5-`.
 | P5-3 | a role da aplicação e a das migrations são a mesma, e `REVOKE` não alcança quem conecta | **operador** — ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores do enum do contrato | **Fase 7** — ver abaixo |
 | P5-5 | a senha de seed de `05` §8 vale por vacuidade, e a D9 não foi executada | **condição** — ver abaixo |
+| P5-6 | o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/` | **Fase 7** — ver abaixo |
 
 #### P5-1 — caminho citado em docstring apontando para arquivo inexistente
 
@@ -1560,6 +1570,38 @@ gabarito** — que é quando "caso sem entrada" deixa de ser assimetria de model
 vira lacuna de pontuação. A saída provável é uma `schema_version` nova, e ela é
 decisão daquela fase e não desta.
 
+#### P5-6 — o gabarito existe como valor de retorno, e não como arquivo
+
+**Aberta pelo L3 da quinta auditoria, e aceita como está.**
+
+`07` Fase 5 lista `GM_NOTES.md` do pack nos OUTPUTS. `gabarito.gerar()` devolve o
+artefato **em memória**, o linter roda dentro dele, e o teste produz o texto e o
+julga — inclusive **executando** a query de referência contra o banco. O item 6
+da DoD tem prova executável por esse caminho, e é por isso que isto é LOW e não
+lacuna de entrega.
+
+**O que falta é o produtor em disco:** nenhum comando escreve o par
+`ground_truth.yaml` + `GM_NOTES.md` em `scenarios/`. Quem for facilitar um
+exercício hoje tem o gerador e não tem o arquivo.
+
+**Por que não se resolve aqui.** O `range-cli` é `00` §7 e `07` Fase 7 — escrever
+um comando de pack nesta fase seria superfície de outra fase nascendo fora dela,
+que é exatamente o corte declarado na §1.1. E a D10 já decidiu que o artefato
+**nasce por comando** em vez de ser versionado: o produtor é a metade que falta
+daquela decisão, não uma correção dela.
+
+**Destinatário: Fase 7. Gatilho: o commit em que `range-cli` ganhar o subcomando
+que escreve o pack** — é ali que "devolve em memória" deixa de ser suficiente,
+porque o comando existe justamente para pôr o arquivo no disco.
+
+> A numeração é `P5-6` e não `P5-5`: a P5-5 já estava ocupada pela senha de seed,
+> aberta pelo L1 da segunda rodada. O item é o do L3 da quinta, com o
+> destinatário e o gatilho aceitos.
+
+**O que ela vai encontrar pronto:** o gerador, o linter que recusa divergência
+dentro de `gerar`, o template de prosa e a query de referência — versionados, como
+a D10 decidiu. Falta a chamada e o caminho de escrita.
+
 ---
 
 ## 7. O fechamento — a DoD com prova, item a item
@@ -1572,10 +1614,10 @@ afirmação de que passou.
 |---|---|---|
 | 1 | Seed completo em < 5 min | `scripts/check_prova_do_seed.py`, que **só imprime o número depois de conferir o SHA** — a medição é feita pelo lançador, no worktree do commit auditado, e o verificador recusa prova ausente ou de outro commit. O número não está aqui de propósito: ver §11 |
 | 2 | Mesmo `RANDOM_SEED` produz dataset byte-idêntico | o mesmo artefato e o mesmo verificador: SHA-256 por tabela, igual nas duas rodadas da medição. E as duas direções na suíte: mesmo seed → mesmo dump; seeds diferentes → dumps diferentes |
-| 3 | `UPDATE` e `DELETE` em `audit_trail` falham por trigger **e** por permissão de role | `tests/test_trilha_de_auditoria.py::TrilhaEhAppendOnly` — **quatro** testes: trigger recusando os dois verbos, `has_table_privilege` negando os três à role, e o par que impede o terceiro de virar superstição (a role **possui** `INSERT` e `SELECT`) |
-| 4 | `GET /audit/verify-chain` detecta adulteração induzida | `CadeiaDetectaAdulteracao` — campo alterado, `payload` alterado (a nota trocada), linha removida do meio, cada um reportando a **posição exata**; e a rota pelo stack ASGI, com papel, 401 e 403 |
-| 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**, aferidos contra `02` §6.1 e não contra o gerador (M2). Mais as seis características, e não só as contagens. **Limite: a partição é exercida em `ESCALA_REDUZIDA`** — os cinco conjuntos plantados não escalam, e o que muda com a escala é só o volume de fundo (L1) |
-| 6 | `GM_NOTES.md` contém a query de referência que separa indevidos de ambíguos | `tests/test_gabarito.py` — o CI **produz** o artefato e o julga: o texto está lá, e a query **executada** devolve os 22 e nenhum dos 11 |
+| 3 | `UPDATE` e `DELETE` em `audit_trail` falham por trigger **e** por permissão de role | `tests/test_trilha_de_auditoria.py::TrilhaEhAppendOnly` — **quatro** testes: trigger recusando os dois verbos, `has_table_privilege` negando os três à role, e o par que impede o terceiro de virar superstição (a role **possui** `INSERT` e `SELECT`). **Limite: a role que a aplicação CONECTA não é essa** — M1 da quinta rodada, é a P5-3, e o que ele não prova está na §7.1 |
+| 4 | `GET /audit/verify-chain` detecta adulteração induzida | `CadeiaDetectaAdulteracao` — campo alterado, `payload` alterado (a nota trocada), linha removida do meio, cada um reportando a **posição exata**; e a rota pelo stack ASGI, com papel, 401 e 403. **Limite: truncamento da cauda NÃO é detectado** — declarado, e **afirmado por teste** (`test_truncamento_da_cauda_NAO_e_detectado`), que é a técnica da §9.12 |
+| 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**, aferidos contra `02` §6.1 e não contra o gerador (M2). Mais as seis características, e não só as contagens. **Limite: a partição é exercida em `ESCALA_REDUZIDA`** — os cinco conjuntos plantados não escalam, e o que muda com a escala é só o volume de fundo (L2 da quinta rodada, mantido) |
+| 6 | `GM_NOTES.md` contém a query de referência que separa indevidos de ambíguos | `tests/test_gabarito.py` — o CI **produz** o artefato e o julga: o texto está lá, e a query **executada** devolve os 22 e nenhum dos 11. **Limite: o artefato existe em memória e nada o escreve em `scenarios/`** — L3 da quinta rodada, é a **P5-6**, com destinatário Fase 7 |
 
 ### 7.1 O que o item 3 NÃO prova — e isto está na linha dele de propósito
 
@@ -1600,10 +1642,65 @@ que isso é a **P5-3** fechando. É a mesma forma do
 
 | Critério | Estado |
 |---|---|
-| `06` **T7** — auditoria imutável | os três critérios, com quatro testes; o limite da role declarado acima |
+| `06` **T7** — auditoria imutável | os três critérios cobertos. Os critérios 1 e 2 — trigger e role — pelos **quatro** testes de `TrilhaEhAppendOnly`; o critério 3, a posição exata, por `CadeiaDetectaAdulteracao`. O limite da role declarado acima |
 | `06` **T8** — determinismo e gabarito | os quatro critérios: dataset idêntico, os seis conjuntos, a query devolvendo exatamente os 22, e todo fato do `GM_NOTES` existindo no `ground_truth` |
 | `06` **T6** — isolamento de papel (Fases 4–5) | a rota nova exige `secretaria`; 403 para aluno, 401 sem token. **A varredura recursiva de payload continua sendo a da Fase 4** — a rota de verificação devolve três campos e nenhum deles é conteúdo de trilha |
-| `06` **T15** — segurança transversal | `Faker` pinado com fecho conferido; IPs só de RFC 5737; nenhum serviço novo exposto |
+| `06` **T15** — segurança transversal | `Faker` pinado com fecho conferido; IPs só de RFC 5737; nenhum serviço novo exposto. **Esta linha é afirmação minha, e não do relatório** — ver abaixo |
+
+**A conferência independente é a da quinta rodada**, e ela é de outra sessão e
+outro worktree: os seis itens PASS, os **três critérios de T7** e os **quatro de
+T8** cobertos, nenhum teste classificado como não provando o requisito, e as três
+armadilhas típicas procuradas uma a uma. O relatório é
+`docs/progress/audit_20260818T181506Z.md`; o que ele **não** conseguiu verificar
+está lá, na seção própria, e não foi reescrito aqui.
+
+**E a conferência para aí — a linha de T15 não tem corroboração no relatório.** Ele
+não menciona T15 em ponto nenhum: nem `Faker`, nem RFC 5737, nem serviço exposto.
+As três afirmações são minhas, conferidas na árvore (`constraints.txt`,
+`dataset.py`, o compose), e ficam marcadas porque ler a tabela inteira como
+auditada seria ler além do que foi auditado. **T6 está na mesma condição parcial**:
+o relatório registra a rota nova com `papeis: [secretaria]` e 403/401 provados, e
+não a varredura recursiva de payload, que continua sendo a da Fase 4.
+
+### 7.3 Os dois verificadores por SHA reprovam no commit de fechamento — e isso é esperado
+
+**O commit que grava este fechamento move o `HEAD`**, e os dois verificadores que
+amarram evidência ao commit — `check_prova_do_seed.py` e
+`check_provas_de_container.py` — reprovam por divergência de SHA: a prova gravada
+é de outro commit.
+
+Na árvore principal os dois **já estavam vermelhos antes deste commit**, pelo
+mesmo motivo e não por outro: a prova do seed foi gravada sobre `c119718`, e a de
+container declara `1d2f6395` — que não é ancestral nem de `c119718` nem do `HEAD`,
+porque o rebase da P4-9 reescreveu aquela linha. **Anterior no tempo, e fora da
+história alcançável** — e para o verificador tanto faz, porque o predicado é
+igualdade de SHA e não ancestralidade. A medição que sustenta o candidato
+`027f07e` nasceu **dentro do worktree de auditoria**, que é onde a Forma B a
+executa. Não há nada a corrigir aqui: a árvore de quem edita não é a árvore que
+julga.
+
+**Não quebra nada, e a razão é de desenho:** no CI rodam **apenas os probes** dos
+dois, porque o runner não tem — nem deve ter — o artefato que o operador escreve
+na máquina que mede. E na próxima auditoria a Forma B mede dentro do worktree, de
+modo que o artefato nasce sobre o commit que está sendo julgado.
+
+**O que alguém vai ver, e qual estado é.** Quem rodar o lançador ou os dois
+verificadores sobre o commit de fechamento verá dois vermelhos. O estado é
+`TRANSPORTADA`, e não `AUSENTE`: **o artefato existe** — o que diverge é o SHA. Os
+dois são direções separadas do verificador, (a) *arquivo não existe* e (b) *SHA
+diverge*, e o briefing do auditor os distingue justamente para que ninguém deduza
+qual foi.
+
+**E o par que não pode ser confundido é `TRANSPORTADA` × `REPROVOU`.** O vermelho
+diz *"a medição desta rodada não aconteceu, e divergência de SHA é o caso normal
+aqui"* — **não** *"a medição rodou e um item falhou"*, que é a direção (e) e é
+defeito de fase. `prova_seed_completo.py` grava o artefato **mesmo quando a
+medição falha**, então o código de saída não separa os dois; o que separa é o SHA
+gravado dentro dele. É a §11.4 inteira, e ela existe porque quem só olhasse o `rc`
+chamaria de transporte uma medição reprovada.
+
+Está escrito aqui porque a alternativa seria alguém redescobrir o vermelho sem o
+contexto e concluir que a fase regrediu depois do PASS.
 
 ---
 
@@ -1623,23 +1720,67 @@ que isso é a **P5-3** fechando. É a mesma forma do
 | **Fase 6** | P4-2 | emitir evento sem declarar `emite` não tem guarda | *o primeiro `append` fora do `inject-engine`* — **medido nesta fase: não ocorreu**, nenhuma chamada em `domains/` |
 | **Fase 6** | P5-2 | a categoria "declarações do exercício" não tem produtor | o commit em que a primeira ação `declare_*` nascer |
 | **Fase 7** | P5-4 | seis conjuntos, três valores de enum | o commit em que o primeiro `assessment` for pontuado contra o gabarito |
+| **Fase 7** | P5-6 | o gabarito não tem produtor em disco | o commit em que `range-cli` ganhar o subcomando que escreve o pack |
 | **operador, sem fase** | P5-3 | `REVOKE` não alcança a role que conecta | o primeiro deploy destinado a exercício com participante real |
+| **condição, sem fase** | P5-5 | senha de seed de `05` §8 vale por vacuidade | o primeiro commit que implemente `POST /auth/token` |
 | **condição, sem fase** | P4-7, P4-8, P4-11 | herdadas da Fase 4, sem mudança | inalterados |
 | **Fase 8** | P4-4, P4-6, P2-6 | herdadas, sem mudança | inalterados |
+
+**As duas da Fase 7 vão juntas e não são a mesma.** A P5-6 é o **produtor** — o
+comando que escreve o par no disco; a P5-4 é o **modelo** — os seis conjuntos que
+não cabem nos três valores do enum. Quem fechar a primeira sem olhar a segunda
+escreve um `ground_truth.yaml` que omite dois conjuntos sem que nada acuse, porque
+o schema não tem como recusar o que não sabe nomear.
+
+**Duas das seis abertas aqui ficaram sem fase, e ficaram de propósito.** A P5-3
+não tem fase porque `07` não declara fase de deploy; a P5-5 não tem fase porque a
+D9 decidiu uma e ela não foi executada — e inventar outra repetiria o defeito que
+o L1 da segunda rodada achou. Pôr fase numa pendência cuja condição não pertence a
+fase nenhuma é como ela morre calada: chega o marco, ninguém viu a condição, e a
+linha é riscada por vencimento.
 
 **A P4-2 foi redatada e não empurrada**, e a diferença está medida: o gatilho
 continua sendo *o primeiro `append`*, e a Fase 5 provou que ele não aconteceu
 aqui — a trilha de `02` §4 é tabela de domínio com cadeia própria, e não o event
 store. Se a Fase 6 também não o produzir, ela desce de novo.
 
-**A P5-3 é a única sem fase, e é a única do operador.** O gatilho não cabe como
-item de DoD sem `spec-change`: `07` não declara fase de deploy. Ele viaja na
-entrada da §6 do registro de seções — que é CODE, e que quem mexer em deploy e em
-exclusão de gabarito tem de tocar.
+**A P5-3 é a única do operador**, e é a única que não é minha para fechar: ela
+exige uma segunda credencial, e credencial não se escreve em arquivo versionado.
+O gatilho não cabe como item de DoD sem `spec-change` — `07` não declara fase de
+deploy. Ele viaja na entrada da §6 do registro de seções, que é CODE e que quem
+mexer em deploy e em exclusão de gabarito tem de tocar. A P5-5, a outra sem fase,
+viaja de outro jeito: pela terceira direção da superfície, que cobra a promoção da
+rota no commit em que ela nascer.
 
 ---
 
 ## 9. O que a fase aprendeu sobre o próprio método
+
+**Sete lições são as que o fechamento nomeia** — quatro do operador, três
+acrescentadas pelo auditor. Elas não estão em ordem numérica: as seções foram
+escritas na volta em que cada uma apareceu, e renumerá-las quebraria as citações
+que outras fases já fazem.
+
+| A lição | Onde | Quem a nomeou |
+|---|---|---|
+| a família dos **sete vetores** e a propriedade que a fechou — partição declarada | **§9.2**, com a distinção entre *corrigido* e *inexprimível* na **§9.7** | operador |
+| a **correção herdando o defeito** da coisa corrigida, minutos depois de a classe ser nomeada | **§9.6** | operador |
+| o **gate que nasceu inalcançável**, e a pergunta que virou critério de admissão | **§9.8** | operador |
+| o **laço da medição**, fechado tirando o número do registro e pondo a medição no lançamento | **§9.9** | operador |
+| **regra escrita × regra virada predicado** — a mesma violada quatro vezes, a quarta corrigindo a terceira | **§9.10** | auditor |
+| **auditabilidade como produto**, e não subproduto — a comparação com a Fase 2 | **§9.11** | auditor |
+| o **limite exercido** em vez de escrito, com nome próprio: a técnica é autoextinguível | **§9.12** | auditor |
+
+**E quatro ficam registradas de onde nasceram**, porque são as instâncias que as
+sete generalizam: **§9.1** (o texto que explica a regra reprova contra ela, seis
+vezes), **§9.3** (escalar sem varrer), **§9.4** (a direção inversa da prova) e
+**§9.5** (o teste não nasceu certo, e o que o descobriu foi plantar).
+
+**As três do auditor entraram porque ele viu o que eu não podia ver.** A §9.10 e a
+§9.11 são sobre o julgador — quem constrói o mecanismo julga mal se ele próprio
+alcança o julgador; e a §9.12 nomeia uma técnica que eu usei quatro vezes sem
+perceber que era uma. Nenhuma das três foi redigida por ele: o que ele fez foi
+nomeá-las, e a distinção é a mesma da §12.5.
 
 ### 9.1 O texto que explica a regra reprova contra ela — seis vezes, e é padrão
 
@@ -1748,34 +1889,70 @@ grande: a hora, o IP, o aluno e o valor continuam sendo decididos com o conjunto
 em escopo, porque `02` §6.1 exige que sejam. O que os segura é a lista declarada
 mais a varredura por coluna — mecanismo, e não impossibilidade.
 
-### 9.2 Uma decisão de fronteira protege o arquivo, e o conteúdo vaza por onde ela não nomeia
+### 9.2 Sete vetores da mesma família, e o que a fechou não foi o sétimo conserto
+
+**Esta é a lição central da fase, e ela tem duas metades**: por que a contagem
+chegou a sete, e por que parar de consertar vetor foi o que terminou.
 
 A D10 decidiu *"`scenarios/` fica fora do Git"*, e a decisão está certa. Ela
-protege **o arquivo**. O gabarito vazou por **três caminhos que ela não nomeia**,
-e os três foram achados por teste e não por leitura:
+protege **o arquivo**. O gabarito vazou por sete caminhos que ela não nomeia, e
+**nenhum dos sete foi achado por leitura** — cada um veio de teste, de verificador
+ou de auditoria:
 
-| Caminho | O que vazava |
-|---|---|
-| **o gerador** | a conta comprometida era constante num módulo versionado |
-| **a posição** | as identidades eram por índice: mesma conta e mesmo grupo com qualquer seed |
-| **a ordem** | os conjuntos gravados em bloco — as 22 primeiras linhas da trilha eram sempre os indevidos |
-| **a própria linha** | `object_id` com prefixo por conjunto, e o par de valores fixo por conjunto — B1 da segunda auditoria |
-| **a tabela vizinha** | o infixo do número de processo, em `rectification_authorizations` — quinta instância, achada pelo verificador depois do H1 |
+| # | Caminho | O que vazava | Quem achou |
+|---|---|---|---|
+| 1 | **o gerador** | a conta comprometida era constante num módulo versionado | teste da peça 5 |
+| 2 | **a posição** | identidades por índice: mesma conta e mesmo grupo com qualquer seed | *seeds diferentes → SHAs diferentes*, pedido pelo operador |
+| 3 | **a ordem** | conjuntos gravados em bloco — as 22 primeiras linhas da trilha eram sempre os indevidos | o mapeamento caso → conteúdo mudando com o seed |
+| 4 | **a própria linha** | prefixo de conjunto em `object_id`, e par de valores fixo por conjunto | B1 da segunda rodada |
+| 5 | **a tabela vizinha** | infixo de conjunto no número de processo, em `rectification_authorizations` | o verificador **depois** de o H1 corrigi-lo |
+| 6 | **a janela de índice** | `student_id`, justificativa e aprovador saindo de faixas disjuntas por conjunto | B1 da terceira rodada |
+| 7 | **a conta do ator** | `actor_user_id` de ambíguos e suspeitos disjunto do dos normais | a varredura corrigida, e **nenhuma auditoria o viu** |
 
-**O quarto é o mais grave**, e ele chegou depois desta lição ser escrita: o
-prefixo de `object_id` dizia o conjunto **na coluna**. O terceiro exigia contar
-linhas; o quarto bastava olhar. E o quinto estava na tabela vizinha.
+E três entradas saíram **antes** de virar instância numerada — `lote` no payload,
+`user_agent` e a hora fixa do ruído —, achadas por aplicar uma pergunta a cada
+campo, e não por rodar teste nenhum.
 
-O que resume os cinco: o gabarito estava legível no **artefato que o participante
-investiga**, sem `.env` e sem repositório. Nenhuma regra sobre versionamento
-alcança isso — e **a bateria inteira apontava para o repositório**. A lacuna não
-era nenhum dos cinco: era a direção que ninguém tinha testado.
+**O que os sete têm em comum, e o que isso invalidava.** O gabarito estava legível
+no **artefato que o participante investiga** — sem `.env`, sem repositório e sem
+`RANDOM_SEED`. A bateria anti-vazamento inteira apontava para o repositório: três
+verificadores, dezenas de asserções. A lacuna nunca foi nenhum dos sete; era a
+**direção** que ninguém tinha testado. Uma fronteira declarada sobre *onde o
+arquivo mora* não diz nada sobre *o que o conteúdo revela*, e as duas perguntas
+não se respondem uma à outra.
 
-**A generalização:** uma fronteira declarada sobre *onde o arquivo mora* não diz
-nada sobre *o que o conteúdo revela*. As duas perguntas são diferentes, e a
-segunda só tem resposta quando alguém a formula como propriedade verificável —
-aqui, "nada que identifique um caso pode sobreviver a dois seeds". Foi essa
-pergunta, e não a decisão, que achou os três.
+**A causa é estrutural, e é por isso que a contagem não parava.** O gerador
+construía **por conjunto**: um laço por conjunto, e todo atributo escrito de
+dentro dele. O conjunto era a **primeira** coisa decidida — então todo atributo
+era função dele, vazar era o caso normal e *não* vazar era o acidente. A lista do
+que um laço fixa não é enumerável por inspeção. Consertar o vetor N deixava N+1
+existindo, e foi o que aconteceu cinco vezes seguidas.
+
+**A propriedade que fechou a classe** não é "nada depende do conjunto" — isso
+destruiria a Linha B, porque `02` §6.1 **exige** a correlação; sem ela os indevidos
+deixam de ser indevidos. É esta:
+
+> a partição dos atributos é **declarada**, e tudo que não está na lista é sorteado
+> por um caminho que não conhece o conjunto.
+
+**Não é o pool que fecha — é o pool mais a lista.** O pool torna a independência
+possível; é a **lista** que torna a fronteira verificável em vez de intencional, e
+que faz **coluna nova entrar sozinha** na varredura em vez de precisar de asserção
+nova. A pergunta que classifica cada entrada — *a spec exige a propriedade ou o
+valor?* — achou três vazamentos antes de qualquer teste rodar, e a varredura
+corrigida achou o sétimo.
+
+**A mudança de forma é o ponto.** Antes: N asserções contra N vetores conhecidos,
+e o N+1 sempre existia. Depois: uma propriedade sobre **toda coluna que o dataset
+escreve**, com a lista declarada do que pode correlacionar. Seis dos sete ficaram
+**corrigidos**; um ficou **inexprimível**, e a distinção entre os dois estados —
+que é o que a reestruturação comprou — está na §9.7.
+
+**A generalização, para a Fase 6 e as seguintes:** quando uma classe de defeito
+chega à terceira instância, o conserto da terceira é a resposta errada. O que
+termina é achar a propriedade que tornava a classe possível e trocar as asserções
+por ela — e o sinal de que se achou a propriedade certa é que a instância N+1
+deixa de ser expressável, e não que ela deixou de aparecer.
 
 ### 9.3 Escalar sem varrer é a metade barata — e a varredura não impede a terceira vez
 
@@ -1809,12 +1986,219 @@ A forma comum: **o teste que afirma o que NÃO pode ser igual**, ao lado do que
 afirma o que deve ser. Sem ele, um mecanismo que ignora sua própria entrada passa
 por vacuidade.
 
+### 9.8 Mecanismo admitido sem caminho de exercício — a pergunta que virou critério
+
+`check_prova_do_seed.py` foi escrito, testado por nove eixos de prova negativa,
+documentado no registro e **admitido na allowlist do auditor**. Ele nascia
+**inalcançável**: o artefato que ele lê é gravado na raiz da árvore de quem mede,
+o worktree de auditoria é criado do zero a partir do commit, e o lançador
+transportava apenas as provas de container. O gate reprovaria em **toda auditoria
+futura** — desta fase e das próximas — por ausência de um arquivo que nunca
+chegava ali. Foi H1 da quarta rodada, e o BLOCKER da mesma rodada era a
+consequência: os itens 1 e 2 da DoD sem prova nenhuma no checkout.
+
+**O que torna isto uma lição e não um esquecimento é o gêmeo.**
+`check_provas_de_container.py` funciona porque recebeu o transporte **no mesmo
+commit que o criou**. A forma completa era conhecida, estava escrita ao lado, e
+mesmo assim entrou a metade. É o mesmo movimento das sete instâncias da §9.2:
+**olhar o artefato novo e não a cadeia que o faz existir**.
+
+É a §7.3 do registro da Fase 3 — *"checagem só é exercida quando existe
+consumidor, e até lá ela parece pronta"* — um andar acima: lá, o teste que parece
+existir; aqui, o **mecanismo** admitido, allowlistado e documentado, sem o caminho
+pelo qual é exercido.
+
+**O antídoto não é lembrar. É a pergunta, e ela vale para toda admissão futura de
+mecanismo — allowlist, CI, hook, gate de PR:**
+
+> **Por qual caminho ele é exercido no ambiente em que vai julgar, e quem constrói
+> esse caminho?**
+
+Duas metades, e a segunda é a que faltou: *"o operador roda"* não é resposta se
+nada no lançador o roda. **A resposta certa nomeia um commit**, e é o commit que
+cria o mecanismo — não um posterior.
+
+**E a pergunta foi aplicada a si mesma antes de a correção entrar**: a cadeia da
+Forma B foi rodada inteira — stack efêmera, banco descartável, `alembic upgrade
+head`, as duas rodadas de medição — antes de o commit existir. O que ficou não
+exercido está dito na §11.6, com o motivo de por que a primeira reauditoria o
+exerce por construção.
+
+### 9.9 O laço da medição: o registro que envelhece a prova que ele cita
+
+O artefato de medição carrega o SHA do checkout, e o verificador reprova quando
+ele diverge. Daí sai um laço que não estava no desenho:
+
+```text
+medir  ->  registrar o número  ->  commitar  ->  a medição fica de outro commit
+   ^                                                            |
+   +------------------------------------------------------------+
+```
+
+**Ele se exerceu duas vezes na volta que o criou**, e a saída que enxerguei foi
+procedimental: *medir por último, com o código congelado, e não commitar nada
+depois*. A volta seguinte caiu nele de novo — e o M1 da quarta rodada foi
+exatamente isto: o quadro de DoD, que é a linha mais lida do registro, citando um
+número que não era de medição nenhuma do candidato.
+
+**A disciplina falhou porque disciplina é o que a §9.6 já registrou não segurar** —
+não segura nem quem acabou de escrever a regra. Três voltas confirmaram.
+
+**A saída foi tirar as duas responsabilidades de quem escreve o documento**, e são
+duas e não uma:
+
+| | O que saiu de onde |
+|---|---|
+| **Forma A** | o **número** sai do registro. Nenhuma linha carrega valor de medição; o registro diz *onde* a prova está e o que ela prova |
+| **Forma B** | a **medição** sai da disciplina e entra no lançador, que a executa sobre o commit já congelado, dentro do worktree |
+
+**A A sozinha não bastava** — ela deixa "medir por último" como disciplina. A B
+sozinha também não: o número voltaria a ser transcrito e a envelhecer. É a junção
+que fecha o laço, e o detalhe da implementação está na §11.
+
+**A generalização:** todo número de desempenho é uma afirmação sobre um commit. Se
+ele mora num documento que o commit seguinte não atualiza, ele **envelhece em
+silêncio** — e a forma de não envelhecer não é atualizá-lo com cuidado, é o
+documento não o conter. `06` T3 continua satisfeito por leitura literal: ele exige
+máquina, data e stack **ao lado do número**, e os três estão onde o número está.
+
+### 9.10 A regra que virou predicado é a que segurou — e a que ficou escrita foi violada quatro vezes
+
+*"Script novo que precise ser executado pelo auditor entra aqui por nome, no
+commit que o cria."* A frase está escrita **dentro do arquivo que ela governa**.
+Foi violada **quatro vezes**:
+
+| # | Cometida em | Como se soube |
+|---|---|---|
+| 1 | Fase 2 | B1 da auditoria — a fase criou a primeira suíte real e não estendeu o julgador; ele não executou **nada**, e sete de nove itens da DoD ficaram NÃO VERIFICADO |
+| 2 | Fase 4 | `check_readme_atual.py` e sua prova negativa ficaram fora, e **ninguém notou por uma fase inteira** — só o verificador da D16 os viu, já na Fase 5 |
+| 3 | Fase 5, peças 1, 3 e 5 | M1 da primeira auditoria — os três verificadores novos da fase nasceram fora da allowlist. A terceira reincidência da mesma regra |
+| 4 | Fase 5, na rodada que corrigia a terceira | `check_volumes_da_linha_b.py`, criado **para corrigir o M1**, nasceu fora da allowlist. Achado pelo verificador da D16 na primeira execução, junto com a segunda ocorrência |
+
+**A quarta é a que fecha o argumento.** Ela foi cometida enquanto se corrigia a
+terceira, por quem tinha acabado de escrever sobre ela. É a **§9.6 em outro
+subsistema** — a correção herdando o defeito da coisa corrigida —, e a segunda vez
+na mesma fase que essa forma aparece. Se restava dúvida de que a regra escrita não
+segurava, ela acaba aqui.
+
+**O que a fechou foi a D16: a regra virou predicado.**
+`check_allowlist_do_auditor.py` cruza `git ls-files scripts/` com a allowlist real
+do hook, e **importa o matcher em vez de reimplementá-lo** — divergência entre "o
+matcher libera" e "a leitura encontrou" reprova *por divergência*, antes de
+qualquer conclusão sobre classificação. Ele disparou **duas vezes enquanto era
+escrito**, e achou as quatro entradas na primeira execução real. Resultado: 50
+scripts, 40 na allowlist, 10 declarados fora **com motivo** — porque universo que
+exclui por não incluir é a mesma forma de "coberto por nada" que já custou duas
+auditorias.
+
+**A conclusão conjunta desta fase, e ela é a lição:** das correções que esta fase
+produziu, **as que seguraram foram exatamente as que viraram predicado** — a
+partição declarada com varredura por coluna, o linter que **recusa** dentro de
+`gerar`, os volumes lidos da spec em vez das constantes, a allowlist cruzada com o
+matcher, a medição amarrada por SHA. As que ficaram como texto — a frase dentro do
+hook, "medir por último", "prestar atenção ao `assertNotEqual`" — foram
+reincididas, **inclusive por quem as tinha acabado de escrever**.
+
+Regra escrita é documentação do que se pretendia. **Só o predicado é mecanismo**, e
+a diferença entre os dois é medida em reincidências.
+
+### 9.11 Auditabilidade é produto da fase, e não subproduto dela
+
+**A comparação é com a Fase 2, e ela é dura.** Lá, a fase criou a primeira suíte
+real do projeto e não estendeu o julgador por uma linha: o auditor **não executou
+nada**, voltou a julgar por leitura de código, e **sete dos nove itens da DoD
+ficaram NÃO VERIFICADO**. O veredito foi FAIL por uma omissão de uma linha — e o
+que se perdeu não foi o veredito, foi a evidência: nenhum daqueles sete itens ficou
+provado, apenas plausível.
+
+Nesta fase o julgador executou. O relatório da quinta rodada registra 402 testes
+contra Postgres real com `OK` e **zero pulos**, os quatro invariantes verdes com
+`phase0_negative_tests.py` provando que os seis verificadores ainda reprovam contra
+violação plantada, e os seis verificadores novos da fase com **prova negativa
+executada**. Nenhum item de DoD ficou NÃO VERIFICADO.
+
+**Isso não foi consequência de a fase ser boa — foi construído, e custou:**
+
+| O que foi construído | Contra qual falha |
+|---|---|
+| a **allowlist como predicado** (D16) | o auditor sem o comando que a fase criou — a §9.10 |
+| a **prova de container** amarrada por SHA (P4-10) | o que exige rede e volume não caber na sessão do julgador |
+| a **medição do seed no lançador** (Forma B) | o gate que nasce inalcançável — a §9.8 |
+| os **quatro estados** do briefing (`MEDIDA`, `REPROVOU`, `TRANSPORTADA`, `AUSENTE`) | o auditor deduzindo qual foi, que já custou uma rodada na Fase 3 |
+| o **verificador da §7 de `05`** entrando antes da promoção | seção normativa coberta por nada |
+
+**A inversão é o ponto.** Enquanto auditabilidade é subproduto, ela é o que sobra
+depois de a fase estar pronta — e o que sobra é leitura de código, que produz
+"parece certo" e não "está provado". Quando é produto, ela aparece no plano da
+fase, tem commit, tem prova negativa, e **falha antes** de a auditoria começar.
+
+**O critério prático, para a Fase 6:** um mecanismo novo só está pronto quando o
+julgador consegue exercê-lo no ambiente em que vai julgar — o que é a pergunta da
+§9.8 outra vez, agora como definição de pronto e não como antídoto.
+
+### 9.12 O limite exercido — uma técnica com nome próprio, e ela se autoextingue
+
+**Esta técnica está diluída dentro da P5-3 e da §7.1, e a fase inteira a usou
+quatro vezes sem nomeá-la.** O nome importa porque sem ele ela não é reusável.
+
+**A forma:** quando um mecanismo tem um limite conhecido, escreve-se um teste que
+**afirma o limite** — não que o mecanismo funciona, mas que a lacuna ainda está
+lá. Ele fica **verde enquanto o limite existe**, e **vermelho no dia em que
+alguém o fechar**, com mensagem de falha dizendo qual pendência acabou de vencer.
+
+| Onde | O que o teste afirma | Fica vermelho quando |
+|---|---|---|
+| `test_a_role_QUE_CONECTA_ainda_possui_UPDATE_na_trilha` | a role de conexão **ainda tem** `UPDATE` sobre a trilha | a segunda credencial existir — a P5-3 fechando |
+| `test_a_role_que_conecta_pode_voltar_de_SET_ROLE` | `RESET ROLE` desfaz o `SET LOCAL ROLE` da escrita | idem |
+| `test_truncamento_da_cauda_NAO_e_detectado` | a cadeia não detecta remoção do fim | a âncora de cauda existir |
+| a partição em `ESCALA_REDUZIDA` | o limite declarado ao lado do item 5 | a partição for exercida em escala completa |
+
+**Por que é melhor que escrever o limite.** Limite escrito envelhece calado: ele
+continua no documento depois de fechado, e passa a ser afirmação falsa — que é
+exatamente a classe do E1 e da P5-1, e o que a §9.3 registra sobre a terceira
+ocorrência. Limite **exercido** não pode envelhecer: no instante em que deixa de
+ser verdade, a suíte fica vermelha e alguém tem de olhar.
+
+**A propriedade que ela tem e nenhuma outra tem: é autoextinguível.** O teste
+existe para deixar de existir. Ele não é dívida acumulando — é dívida com alarme,
+e o alarme dispara **do lado certo**, no commit que resolve, e não no commit que
+esquece.
+
+**O que ela não faz, e está dito porque não faz:** não fecha o limite. A P5-3
+continua aberta e é do operador; o truncamento de cauda continua não detectado. A
+técnica troca *"o limite está escrito em algum lugar"* por *"o limite tem
+mecanismo que acusa quando muda"* — que é a mesma distinção entre regra e
+predicado da §9.10, aplicada ao que ainda **não** foi construído.
+
+**Quando usá-la:** sempre que um item de DoD passar com limite conhecido. O par
+"o item passa" + "e isto é o que ele não prova" só é honesto se a segunda metade
+tiver mecanismo — do contrário ela é ressalva, e ressalva é o que a leitura de
+amanhã ignora.
+
 ---
 
-## 10. A auditoria de checkpoint — PASS, e as duas correções da rodada
+## 10. A auditoria de checkpoint — cinco rodadas, e o PASS é o da quinta
 
-**PASS na primeira rodada**, com dois MEDIUM e dois LOW. Os dois MEDIUM foram
-corrigidos nesta rodada; os dois LOW ficam, e o motivo de cada um está abaixo.
+**Cinco rodadas, três FAIL entre dois PASS**, e a sequência importa mais que o
+veredito final: o PASS da primeira era um PASS que não tinha visto o gabarito
+vazando pela coluna que o participante lê.
+
+| # | Commit | Veredito | O achado que a definiu | Onde |
+|---|---|---|---|---|
+| 1 | `7e4c897` | PASS | M1 allowlist (a terceira reincidência) e M2 guarda em vez de conferência | §10.1–§10.5 |
+| 2 | `719d84a` | **FAIL** | B1 — prefixo de conjunto em `object_id`; H1 — o verificador declarava cobrir o que não via | §10.6 |
+| 3 | `46c0347` | **FAIL** | B1 — o sexto vetor, e a decisão de parar de consertar vetor | §10.7, §10.8 |
+| 4 | `c119718` | **FAIL** | B1 + H1 — os itens 1 e 2 sem medição, e o gate nascido inalcançável | §11 |
+| 5 | `027f07e` | **PASS** | sem BLOCKER e sem HIGH; um MEDIUM e três LOW, todos declarados | §12 |
+
+**O PASS da primeira rodada é o dado mais útil da tabela.** Ele foi emitido sobre
+uma árvore em que o gabarito de dezenas de casos era legível na trilha, e o achado
+não veio de mais leitura: veio de a auditoria seguinte perguntar numa direção que
+nenhuma das anteriores tinha perguntado. Auditoria é amostra, e um PASS diz que
+*aquelas* perguntas foram respondidas.
+
+As três primeiras rodadas e as correções de cada uma estão abaixo; a quarta produziu
+a §11 inteira, e a quinta está na §12.
 
 ### 10.1 M1 — a allowlist do auditor, e a terceira reincidência da mesma regra
 
@@ -1895,8 +2279,18 @@ código**, e não digitados.
 
 **Sustentado por:** o CI, que exercita o mesmo caminho de geração e carga em
 escala reduzida com as duas direções do determinismo; mais a medição registrada
-com contexto na §4.4 e na §4.5. Declarado, e não omitido — como a Fase 4 fez com
+com contexto no próprio registro. Declarado, e não omitido — como a Fase 4 fez com
 a opção C que recusou.
+
+> **Superado em parte, e a leitura desta seção mudou duas vezes depois.** A
+> exclusão de `prova_seed_completo.py` da allowlist continua válida, e pelas três
+> razões acima. O que caiu foi a segunda metade do "sustentado por": *"a medição
+> registrada com contexto no registro"* virou o M2 da terceira rodada (número sem
+> dono) e o B1 da quarta (item de DoD sem prova amarrada ao commit). A resposta
+> está na §10.8 — o artefato assinado — e na §11: a medição não é lida no
+> documento nem executada pelo auditor; ela é feita **pelo lançador**, fora da
+> sessão dele, e chega amarrada por SHA. A exclusão da allowlist não era o
+> problema; a ausência do caminho era.
 
 ### 10.5 A D16 implementada — e ela achou a quarta ocorrência na primeira execução
 
@@ -2255,7 +2649,7 @@ exercido.
 **E o que a torna dura é o gêmeo.** `check_provas_de_container.py` funciona
 porque recebeu o transporte no mesmo commit que o criou. A forma completa era
 conhecida, estava escrita ao lado, e mesmo assim eu admiti a metade — pelo mesmo
-motivo que as seis instâncias de vazamento: **olhar o artefato novo e não a
+motivo que as sete instâncias de vazamento: **olhar o artefato novo e não a
 cadeia que o faz existir**.
 
 O antídoto não é lembrar. É a pergunta que a próxima admissão de mecanismo tem de
@@ -2266,7 +2660,7 @@ ambiente em que vai julgar, e quem constrói esse caminho?**
 
 **O achado que fechou esta volta foi um mecanismo admitido sem caminho de
 exercício.** Entregar a correção dele sem exercer o caminho novo repetiria a forma
-com um andar a mais, e este projeto já registrou seis instâncias de olhar o
+com um andar a mais, e este projeto já registrou sete instâncias de olhar o
 artefato novo em vez da cadeia que o faz existir.
 
 Então a cadeia foi rodada inteira, na máquina do operador, nesta ordem: subir a
@@ -2286,3 +2680,129 @@ bloco ao resto do lançador — a ordem, o `VENV_BIN`, o `cd "$WT"` —, e é a 
 reauditoria que o exerce. O limite é o mesmo do `--headless`: caminho que existe e
 nunca rodou é atestação esperando acontecer, e a diferença aqui é que **a
 reauditoria seguinte o roda por construção**, sem ninguém precisar lembrar.
+
+---
+
+## 12. A quinta rodada — PASS, e o que sai declarado
+
+**PASS contra `027f07e7`, sem BLOCKER e sem HIGH**, com um MEDIUM e três LOW.
+Relatório em `docs/progress/audit_20260818T181506Z.md`. A guarda de base saiu
+**PORTA**: `HEAD` conferido, árvore limpa, âncora em
+`docs/process/phase_anchors.tsv` idêntica à base informada.
+
+### 12.1 O que o julgador executou, e por que a lista é o resultado
+
+Isto é a §9.11 medida em vez de afirmada:
+
+| O que rodou | Resultado |
+|---|---|
+| a suíte inteira, contra Postgres real | **402 testes, `OK`, nenhum `skipped`** |
+| os quatro invariantes arquiteturais | verdes, com `phase0_negative_tests.py` provando que os seis verificadores ainda reprovam contra violação plantada |
+| os seis verificadores novos da fase | todos com **prova negativa executada** e verde |
+| as três armadilhas típicas de teste que não prova o requisito | procuradas uma a uma; **nenhuma encontrada** |
+
+Nenhum item de DoD ficou NÃO VERIFICADO. **E os limites do próprio julgador estão
+no relatório dele**, em seção própria — a medição do seed e as provas de container
+não foram presenciadas, o número do item 1 é de máquina, a partição em escala
+completa não foi executada, e o pack real com o `RANDOM_SEED` de produção não é
+visto por CI nenhum. A amarração é o SHA, e não a palavra de quem mediu.
+
+### 12.2 M1 — a role que conecta, e por que o MEDIUM não vira item de DoD
+
+**O auditor registrou explicitamente que nenhum requisito é violado.** `02` §4
+item 2 e `05` §7 exigem que `academus_app` exista `INSERT`-only com os três
+`REVOKE`, e ela existe — conferido no catálogo do Postgres, não por comportamento.
+O MEDIUM é **consequência operacional**, e é a **P5-3**, que já estava aberta com
+destinatário operador e gatilho declarado.
+
+O que segura hoje está dito na §7.1 e não se repete aqui: o trigger recusa a
+todos, inclusive ao dono, e a cadeia torna visível a reescrita de quem o
+desabilitar. E o limite é **exercido** — a técnica da §9.12 —, com dois testes que
+ficam vermelhos no dia em que a segunda credencial existir.
+
+### 12.3 Os três LOW — dois ficam declarados, um virou pendência
+
+| | O que é | Destino |
+|---|---|---|
+| **L1** | a posição da quebra é extraída por *parsing* da mensagem de `ChainBroken`, que não carrega campo estruturado | **fica declarado, com a condição que o relatório dá e que não pode sumir aqui:** neste mesmo diff a mensagem do event store perdeu o trecho `evento {event_id}`, e **se um identificador iniciado por dígito precedesse a sequência, a posição reportada seria outra**. Os três casos de T7 têm teste verde hoje. A correção é dar campo estruturado à exceção do core — mexer em `range-core/` por conveniência de um domínio, e a fronteira do invariante 1 é o que impede que isso seja "de passagem" |
+| **L2** | a partição da Linha B é exercida em `ESCALA_REDUZIDA` | **fica declarado**, e a linha do item 5 diz isso. O auditor conferiu que os pools de conta são disjuntos **por construção**, de modo que a propriedade não depende do volume de fundo — **e classificou o próprio argumento como estrutural, por leitura de `dataset.py:373-386`, e NÃO como medição.** As duas metades andam juntas: a segunda é dele, está na seção de limites do relatório, e sem ela isto viraria "o auditor verificou em escala" |
+| **L3** | o gabarito não tem produtor em disco | virou **P5-6**, com destinatário Fase 7 e gatilho no commit do subcomando de pack |
+
+**Os dois que ficam não viraram pendência de propósito.** Pendência é para o que
+tem condição de vencimento e destinatário; limite conhecido de mecanismo que
+funciona é declaração — e nos dois casos a declaração tem mecanismo, que é a §9.12
+outra vez. Abrir pendência para tudo que é LOW transforma o inventário em lista
+de desejos, e o efeito é que ninguém lê a parte que cobra.
+
+### 12.4 A linha de status tem forma, e a primeira que escrevi era uma terceira
+
+**Aconteceu escrevendo este fechamento, e vale registrar porque o mecanismo que
+deveria pegar estava escrito para pegar exatamente isto.**
+
+`check_readme_atual.py` decide *"a fase fechou?"* pela linha `**Status:` do
+cabeçalho, e reconhece **duas** formas — `CONCLUÍDA` e `AUDITADA — PASS` —,
+porque os registros usam duas. A primeira versão desta linha dizia
+`**Status: FECHADA`. O verificador **não reclamou da forma**: ele apenas não viu a
+Fase 5 fechar, continuou computando *"última fase concluída: 4"*, e o vermelho que
+apareceu foi outro — a contagem de relatórios de auditoria no README.
+
+**O docstring de `_status_da_proxima` prevê este caso literalmente** — *"se a Fase
+5 fechar numa TERCEIRA forma, a fonte continuaria dizendo 4, o documento
+continuaria dizendo 4, e os dois concordariam sobre um fato falso"* — e a guarda
+que ele instalou cobre **linha ausente**, não **forma nova**. É a §9.8 outra vez,
+em miniatura: a pergunta certa estava escrita ao lado do mecanismo, e o mecanismo
+cobria a metade barata dela.
+
+**Corrigido usando a forma reconhecida**, que é o certo — inventar vocabulário de
+status é o defeito, não a vítima dele. **O que fica declarado:** a guarda continua
+sem cobrir forma nova, e fechar o buraco é fazer o verificador reprovar linha de
+status que não case com nenhuma das duas formas. É correção de uma linha, e é
+**da fase que a fizer** — mexer no verificador dentro do commit de fechamento da
+fase que ele julga é a forma que este registro passou cinco rodadas separando.
+
+### 12.5 A releitura do auditor sobre a §7 — e as oito divergências que ela achou
+
+**O auditor recusou redigir esta §7, e a recusa está certa.** Se quem emite o
+veredito escreve o artefato que a próxima auditoria trata como evidência, o
+documento desfaz no papel a separação que a Forma B acabou de estabelecer no
+mecanismo — a medição saindo da sessão do julgador. Redigir é de quem implementou.
+
+**Conferir é dele, e é auditoria.** Pedido: a §7 corresponde ao que a quinta
+rodada de fato verificou? Saída em divergências — SUPERAFIRMAÇÃO, IMPRECISÃO,
+OMISSÃO —, com a instrução explícita de apontar e **não** propor redação.
+
+**O veredito da releitura: nenhuma SUPERAFIRMAÇÃO.** Toda prova citada existe e é
+a que o relatório registra; nenhuma linha atribui cobertura que a auditoria não
+sustente. Os números do quadro foram conferidos contra `02` §6.1, o quadro contra
+`07` Fase 5 linha a linha, e os dois verificadores por SHA foram executados.
+
+**Oito divergências, e o padrão delas é um só: a §7 afirmava de MENOS.** Sete das
+oito eram limite que o relatório declara e a linha do registro não carregava — o
+inverso do defeito que se procura num fechamento, e ainda assim defeito, porque
+limite que só existe três seções adiante não acompanha a linha que alguém cita.
+
+| O que estava errado | Corrigido para |
+|---|---|
+| **§7.3 — o par de estados errado**, e no parágrafo cujo propósito é impedir exatamente essa leitura: o estado no commit de fechamento é `TRANSPORTADA` (o artefato **existe**, o SHA diverge) e não `AUSENTE` (não há prova nenhuma) | o estado nomeado certo, e o par que não pode ser confundido dito como a §11.4 o diz: `TRANSPORTADA` × `REPROVOU` |
+| item 3 do quadro sem marca de limite, enquanto o item 5 tinha | a marca na linha, apontando a §7.1 e a P5-3 |
+| item 6 sem marca de limite | a marca na linha, apontando a P5-6 |
+| item 4 sem o limite que o relatório nomeia para ele — truncamento de cauda | o limite na linha, com o teste que o afirma |
+| §7.2 — *"T7: os três critérios, com quatro testes"*, quando os quatro cobrem dois dos três | a atribuição correta: critérios 1 e 2 por `TrilhaEhAppendOnly`, critério 3 por `CadeiaDetectaAdulteracao` |
+| §7.2 — a linha de T15 lida como auditada, e o relatório não menciona T15 | marcada como afirmação minha, conferida na árvore; e T6 marcada como parcial pelo mesmo critério |
+| §12.3 L2 — *"o auditor verificou independentemente"*, ficando com a metade boa | as duas metades: ele conferiu **por construção**, e classificou o próprio argumento como **estrutural e não medição** |
+| §12.3 L1 — a condição da fragilidade omitida | a condição, do relatório: identificador iniciado por dígito precedendo a sequência mudaria a posição reportada |
+
+E uma oitava, menor: a prova de container não é de um commit "anterior" na
+história — `1d2f6395` **não é ancestral** do `HEAD`, porque o rebase da P4-9
+reescreveu aquela linha. Para o verificador tanto faz, e é por isso que o
+predicado é igualdade de SHA e não ancestralidade; para o registro, não tanto
+faz.
+
+**O que a releitura demonstra, e é por isso que ela fica registrada.** As oito
+foram achadas **lendo o registro contra o relatório**, não relendo o código — e
+sete delas eram do tipo que nenhum teste pega, porque o defeito é o documento
+dizer menos do que a evidência sustenta. Um fechamento escrito por quem
+implementou tende a esse erro: quem sabe onde o limite está escrito não sente
+falta dele na linha. Este é o argumento a favor da divisão — **redigir de um lado,
+conferir do outro** —, e ele não é sobre confiança, é sobre o que cada lado
+consegue ver.
