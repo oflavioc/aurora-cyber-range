@@ -100,9 +100,17 @@ O `scenario-designer` pode ler o repositório, mas só pode escrever em `scenari
 
 ## Ground truth e GM notes
 
-`ground_truth.yaml` e `GM_NOTES.md` **são versionados neste repositório privado** quando fazem parte de um scenario pack. Eles são fontes de facilitação/máquina e devem ser excluídos de imagens, bundles, APIs e exports destinados a participantes.
+**Este repositório é público.** A versão anterior desta seção dizia "repositório privado" e instruía a mover os artefatos de gabarito *antes* de uma publicação futura. A publicação já ocorreu, e a instrução ficou apontando para uma condição que não existe mais.
 
-Se o projeto for aberto/publicado no futuro, mova esses artefatos para repositório privado antes da publicação.
+`ground_truth.yaml` e `GM_NOTES.md` são fontes de facilitação e de máquina: quem os lê antes do exercício tem o gabarito. Em repositório público, versioná-los entrega o gabarito junto com o motor.
+
+Enquanto o destino definitivo não estiver decidido, vale a regra restritiva:
+
+- **Não versione `ground_truth.yaml` nem `GM_NOTES.md` aqui.** Hoje nenhum existe — `scenarios/` está vazio, e o primeiro pack é entregável da Fase 7.
+- Eles seguem excluídos de imagens, bundles, APIs e exports destinados a participantes. Isso é `05_SECURITY_REQUIREMENTS.md` §6 e não depende da visibilidade do repositório.
+- Exemplo de pack **sanitizado** — sem gabarito e sem notas de GM — é permitido, e é o que torna a fronteira pública demonstrável em vez de apenas declarada.
+
+**Pendência aberta, e ela é do operador:** onde vivem os artefatos privados quando o primeiro pack existir — repositório privado separado, submódulo, ou `scenarios/` fora do Git. A decisão vence no commit em que o primeiro `ground_truth.yaml` for escrito, e não antes.
 
 ## Secrets
 
