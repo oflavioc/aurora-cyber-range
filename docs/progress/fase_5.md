@@ -2103,11 +2103,12 @@ verificador entra na allowlist; o script medido, não.
 #### A medição assinada, e o número que agora tem dono
 
 ```text
-commit   <o do candidato>          maquina  Windows-11-10.0.26200-SP0
+commit   <o do candidato, e o verificador confere>
+maquina  Windows-11-10.0.26200-SP0
 python   3.12.10                   data     2026-08-18
 seed     20260818                  linhas   3.543.783
 
-item 1   154,7 s e 141,8 s, de um orcamento de 300 s      PASSA
+item 1   145,1 s e 148,5 s, de um orcamento de 300 s      PASSA
 item 2   20 tabelas com SHA-256 igual nas duas rodadas    PASSA
 
 audit_trail  f7db7e37c0c13aaf3ea22392b996227ba927635f4e5682784256dfced6444f95
@@ -2118,8 +2119,16 @@ students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
 cada correção da Linha B** — e o par continua sendo a confirmação de escopo que
 ele era: as sete correções tocaram a trilha e não o resto.
 
-**E o mecanismo se exerceu na primeira tentativa.** A medição foi gravada sobre
-`9042d9f`, e o commit desta volta a invalida: o verificador reprova com *"a prova
-foi gravada sobre X e este checkout é Y"*, e a medição é refeita sobre o
-candidato. Foi assim que se descobriu, medindo, que o artefato **tem de ser o
-último passo antes do checkpoint** — e não um subproduto de qualquer volta.
+**Os números acima são da rodada em que foram medidos, e a autoridade não é
+este texto — é o artefato.** Citar o SHA aqui reintroduziria, com outra forma, a
+ambiguidade que o M2 fecha: o registro é histórico e não acompanha o candidato.
+Quem quiser o número deste commit roda o verificador, que só imprime depois de
+conferir o SHA.
+
+**E o mecanismo se exerceu duas vezes antes de eu entender o que ele exige.** A
+medição foi gravada sobre `9042d9f`; o commit seguinte a invalidou, e o
+verificador reprovou com *"a prova foi gravada sobre X e este checkout é Y"*.
+Refiz sobre o novo candidato — e o commit que registrava o número invalidou a
+prova de novo. **É um laço, e ele tem uma saída só:** a medição é o **último
+passo antes do checkpoint**, depois de o código estar congelado, e nada é
+commitado depois dela. Descobri isso medindo, e não desenhando.
