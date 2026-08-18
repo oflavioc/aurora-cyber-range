@@ -215,6 +215,52 @@ ALLOWED = [
     # que a checagem nao degrada para "ok" — que e exatamente a propriedade em
     # questao.
     rf"|check_provas_de_container|check_provas_de_container_probes"
+    # ---------------------------------------------------------------------
+    # FASE 5 — os tres verificadores novos, e a TERCEIRA reincidencia da mesma
+    # regra: "script novo que precise ser executado pelo auditor entra aqui por
+    # nome, no commit que o cria". Ela ja foi violada no H3 da Fase 1 e no M5 da
+    # quarta auditoria da Fase 3, e agora no M1 desta. Tres correcoes, e nenhuma
+    # impediu a seguinte — a regra esta escrita no lugar certo e depende de
+    # alguem le-la na hora certa, que e a definicao de disciplina. A proposta de
+    # mecanismo esta na D16 do registro da Fase 5.
+    #
+    # `check_secoes_de_seguranca` — P4-12. Ele responde "toda secao de `05` tem
+    #   mecanismo ou destinatario?", cruzando a spec com os 41 verificadores da
+    #   arvore. Por leitura, o auditor compararia oito secoes contra quarenta e
+    #   um arquivos a olho — e foi exatamente assim que a contagem da §6 passou
+    #   errada pela propria pendencia que a criou.
+    # `check_trilha_de_auditoria` — `05` §7. Ele confere que o mecanismo de
+    #   `02` §4 continua declarado: os tres verbos revogados POR NOME, o trigger
+    #   incondicional, as colunas de cadeia, a rota implementada e a ausencia de
+    #   modelo ORM. Sem executa-lo, o auditor le uma migration de 300 linhas
+    #   procurando por `REVOKE` a olho.
+    # `check_gabarito_fora_do_git` — `05` §6. A direcao que importa nao e o
+    #   arquivo versionado (que o auditor ve no `git ls-files`), e sim o
+    #   IDENTIFICADOR escrito a mao no template e nos modulos do gerador. Isso e
+    #   varredura por forma sobre cinco arquivos, e nao leitura.
+    #
+    # As tres provas negativas entram junto, pelo motivo de sempre: verificador
+    # cuja prova nao roda e verificador cuja propriedade o auditor aceita da
+    # palavra de quem o escreveu.
+    rf"|check_secoes_de_seguranca|check_secoes_de_seguranca_probes"
+    rf"|check_trilha_de_auditoria|check_trilha_de_auditoria_probes"
+    rf"|check_gabarito_fora_do_git|check_gabarito_fora_do_git_probes"
+    # `prova_seed_completo` FICA DE FORA, e a exclusao e decisao pelo MESMO
+    # criterio de `bench_reconstruction`, com um agravante proprio:
+    #
+    #   - exige Postgres, ESCREVE 3,5 milhoes de linhas DUAS VEZES e demora
+    #     ~5 min. Admiti-lo daria ao julgador uma operacao de escrita longa;
+    #   - exige `AURORA_SEED_DATABASE_URL`, que `SAFE_ENV_PREFIX` nao admite —
+    #     e alarga-lo para aceitar DSN poria connection string arbitraria na mao
+    #     do auditor, que e superficie de rede pela porta do ambiente;
+    #   - e o que o item 1 da DoD pede e um NUMERO DE MAQUINA. Reexecuta-lo em
+    #     outra maquina produz outro numero, e nao confirma o primeiro. O que se
+    #     confere por leitura e o que `06` T3 exige: que maquina, data e stack
+    #     sejam gerados POR CODIGO ao lado do numero — e isso o auditor le.
+    #
+    # O item 1 fica sustentado pelo CI (que exercita o mesmo caminho de geracao
+    # e carga em escala reduzida, nas duas direcoes do determinismo) mais a
+    # medicao registrada com contexto. Declarado, e nao omitido.
     # `grava_provas_de_container` FICA DE FORA, e a exclusao e a propria
     # propriedade — nao esquecimento. Ele constroi imagem, sobe container e
     # derruba stack: admiti-lo poria rede E execucao de container na mao do

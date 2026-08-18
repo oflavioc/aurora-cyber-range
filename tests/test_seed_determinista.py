@@ -151,12 +151,36 @@ class SeisConjuntosDaLinhaB(unittest.TestCase):
             }
 
     def test_os_volumes_sao_os_de_02_secao_6_1(self) -> None:
+        """E ele LE A SPEC, e nao as constantes — M2 da auditoria de checkpoint.
+
+        A versao anterior comparava o dataset com `dataset.INDEVIDOS`, quer
+        dizer, o gerador consigo mesmo: trocar a constante por 20 mantinha o
+        teste verde e fazia o dataset deixar de cumprir `02` §6.1. **O nome
+        prometia "os de `02` §6.1" e entregava "os do gerador"** — nome que
+        promete o que nao entrega e a classe da §7.3 da Fase 3, e por isso o
+        nome ficou e a leitura mudou.
+
+        A autoridade e a spec. `check_volumes_da_linha_b.py` cruza os dois em
+        CI sem banco; aqui a spec e lida pelo mesmo parser, e o que se afere e o
+        DADO SEMEADO contra ela.
+        """
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+        from check_volumes_da_linha_b import SPEC, volumes_da_spec
+
+        da_spec = volumes_da_spec(SPEC.read_text(encoding="utf-8"))
         esperado = {
-            "indevidos_comprovados": dataset.INDEVIDOS,
-            "ambiguos_legitimos": dataset.AMBIGUOS,
-            "legitimos_suspeitos": dataset.SUSPEITOS,
-            "ruido_de_manutencao": dataset.RUIDO,
-            "credenciais_compartilhadas": dataset.DELEGADAS,
+            "indevidos_comprovados": int(da_spec["Indevidos comprovados"]),
+            "ambiguos_legitimos": int(da_spec["Ambíguos legítimos"]),
+            "legitimos_suspeitos": int(
+                da_spec["Legítimos suspeitos à primeira vista"]
+            ),
+            "ruido_de_manutencao": int(da_spec["Ruído de manutenção"]),
+            "credenciais_compartilhadas": int(da_spec["Credenciais compartilhadas"]),
+            # O UNICO QUE NAO VEM DA SPEC, e a excecao esta declarada la e aqui:
+            # `02` §6.1 lhe da "milhares", e o volume e parametro de `Escala`.
             "legitimos_normais": dataset.ESCALA_REDUZIDA.normais_na_trilha,
         }
         medido = {

@@ -1,8 +1,9 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: CONCLUÍDA — as seis peças, os seis itens da DoD com prova, e a
-auditoria de checkpoint.** O fechamento item a item está na §7; o inventário de
-pendências por destinatário na §8; as quatro lições na §9. A branch nasceu em
+**Status: CONCLUÍDA — as seis peças, os seis itens da DoD com prova, e PASS na
+auditoria de checkpoint, com os dois MEDIUM corrigidos na mesma rodada.** O
+fechamento item a item está na §7; o inventário de pendências por destinatário na
+§8; as quatro lições na §9; a auditoria e as correções na §10. A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
 decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
 pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
@@ -547,6 +548,69 @@ Ordem: `scripts/check_trilha_de_auditoria.py` nasce citando `05` §7 → a checa
 de seções **reprova**, porque a entrada ainda diz "sem mecanismo — Fase 5" → a
 saída vermelha é copiada para o registro → **só então** a entrada é promovida.
 Vale igual para a §6 na peça 5.
+
+### D16 — o mecanismo contra a reincidência da allowlist — `PROPOSTA`
+
+**Não implementada. A forma está aqui para ser vista antes.**
+
+**O problema, medido e não suposto:** a regra *"script novo que precise ser
+executado pelo auditor entra na allowlist por nome, no commit que o cria"* está
+escrita **dentro do `readonly_bash.py`**, e o próprio arquivo documenta duas
+violações anteriores — H3 da Fase 1, M5 da quarta auditoria da Fase 3. Esta é a
+terceira. Três correções, nenhuma impediu a seguinte.
+
+#### A forma
+
+`scripts/check_allowlist_do_auditor.py`, no job `arquitetura`, cruzando **todo
+`scripts/*.py` versionado** com os padrões de `ALLOWED`:
+
+| | |
+|---|---|
+| (a) | script versionado em `scripts/` **ausente** da allowlist e **sem entrada** no registro de exclusão → **reprova** |
+| (b) | entrada da allowlist nomeando script que **não existe** → reprova (allowlist que envelheceu afirmando ferramenta que sumiu) |
+| (c) | exclusão declarada para script que **está** na allowlist → reprova (a declaração sobra e mente sobre o que acontece) |
+| (d) | zero padrões extraídos de `ALLOWED` → reprova (a forma do arquivo mudou, e as outras três passariam por vacuidade) |
+
+**O universo é `scripts/*.py`, e não `check_*.py`.** Restringir aos verificadores
+deixaria de fora exatamente os dois que a discussão nomeia — `bench_reconstruction`
+e `prova_seed_completo` —, e a pergunta que o mecanismo existe para responder é
+sobre **todo script que o auditor poderia precisar rodar**.
+
+#### O registro de exclusão, com motivo por entrada
+
+É a forma do `DESCRITIVO` de `check_gate_coverage.py`: **tudo classificado, e a
+terceira classe é declaração explícita.** As entradas que já existem por decisão,
+com o motivo que já está escrito no hook:
+
+```text
+bench_reconstruction    Postgres, escreve centenas de milhares de linhas, minutos
+prova_seed_completo     idem, mais `AURORA_SEED_DATABASE_URL`, e o item pede
+                        NÚMERO DE MÁQUINA — reexecutar não confirma
+grava_provas_de_container   sobe container: rede e execução na mão do julgador
+reancorar_sessao        ESCREVE o sentinela em `.git/`
+sobe_sala, demo_fase4, audit_report, …   uma linha cada, com o motivo
+```
+
+**O custo de acrescentar é uma frase de motivo**, e é ele que separa *"decidimos
+que fica de fora"* de *"ninguém olhou"* — que é a distinção inteira.
+
+#### Três coisas que a proposta precisa que você decida
+
+1. **O universo cobre `scripts/*.sh`?** `start_checkpoint_audit.sh` é o lançador,
+   e o auditor nunca o roda. Incluí-lo custa uma entrada; excluí-lo por extensão
+   é uma regra a mais para lembrar.
+2. **A extração de `ALLOWED` lê o hook por regex ou por AST?** O hook mora em
+   `user-scope/hooks/` e é versionado; ler por AST é mais estável, e o padrão é
+   uma f-string concatenada — o que torna o AST menos direto do que parece.
+3. **P4-11 vale aqui**, e é preciso dizê-lo: este verificador **mora na árvore
+   que audita** e lê o hook que constrange o auditor. A direção é aditiva
+   (verificador novo, read-only), então a pendência não dispara — mas ele passa a
+   ser mais um mecanismo cuja propriedade depende de a árvore auditada não o
+   enfraquecer.
+
+**O que a proposta NÃO resolve:** o item 1 da DoD continua sustentado pelo CI. A
+exclusão de `prova_seed_completo` é decisão, e o mecanismo só a torna **visível e
+cobrada** — ele não a desfaz. Ver a §10.4.
 
 ---
 
@@ -1390,7 +1454,7 @@ afirmação de que passou.
 | 2 | Mesmo `RANDOM_SEED` produz dataset byte-idêntico | o mesmo script: **20 tabelas com SHA-256 igual** em duas rodadas. E as duas direções na suíte: mesmo seed → mesmo dump; seeds diferentes → dumps diferentes |
 | 3 | `UPDATE` e `DELETE` em `audit_trail` falham por trigger **e** por permissão de role | `tests/test_trilha_de_auditoria.py::TrilhaEhAppendOnly` — **quatro** testes: trigger recusando os dois verbos, `has_table_privilege` negando os três à role, e o par que impede o terceiro de virar superstição (a role **possui** `INSERT` e `SELECT`) |
 | 4 | `GET /audit/verify-chain` detecta adulteração induzida | `CadeiaDetectaAdulteracao` — campo alterado, `payload` alterado (a nota trocada), linha removida do meio, cada um reportando a **posição exata**; e a rota pelo stack ASGI, com papel, 401 e 403 |
-| 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**. Mais o teste das seis características de `02` §6.1, e não só das contagens |
+| 5 | Os seis conjuntos da Linha B nos volumes especificados | `SeisConjuntosDaLinhaB` — 22 · 11 · 34 · 60 · 18 · N, **disjuntos** e cuja **união é a trilha inteira**, aferidos contra `02` §6.1 e não contra o gerador (M2). Mais as seis características, e não só as contagens. **Limite: a partição é exercida em `ESCALA_REDUZIDA`** — os cinco conjuntos plantados não escalam, e o que muda com a escala é só o volume de fundo (L1) |
 | 6 | `GM_NOTES.md` contém a query de referência que separa indevidos de ambíguos | `tests/test_gabarito.py` — o CI **produz** o artefato e o julga: o texto está lá, e a query **executada** devolve os 22 e nenhum dos 11 |
 
 ### 7.1 O que o item 3 NÃO prova — e isto está na linha dele de propósito
@@ -1544,4 +1608,93 @@ Três dos achados desta fase vieram de testes que ninguém teria escrito para
 A forma comum: **o teste que afirma o que NÃO pode ser igual**, ao lado do que
 afirma o que deve ser. Sem ele, um mecanismo que ignora sua própria entrada passa
 por vacuidade.
+
+---
+
+## 10. A auditoria de checkpoint — PASS, e as duas correções da rodada
+
+**PASS na primeira rodada**, com dois MEDIUM e dois LOW. Os dois MEDIUM foram
+corrigidos nesta rodada; os dois LOW ficam, e o motivo de cada um está abaixo.
+
+### 10.1 M1 — a allowlist do auditor, e a terceira reincidência da mesma regra
+
+Os três verificadores da fase — `check_secoes_de_seguranca`,
+`check_trilha_de_auditoria`, `check_gabarito_fora_do_git` — nasceram fora da
+allowlist do `readonly_bash.py`. A regra existe e está escrita **dentro do
+próprio arquivo**: *"script novo que precise ser executado pelo auditor entra
+aqui por nome, no commit que o cria"*.
+
+**Corrigido: os três entram, com as três provas negativas**, e o critério de
+admissão é o mesmo dos que já estavam lá — o auditor **não consegue responder por
+leitura**. Ler oito seções contra 41 verificadores a olho, ou uma migration de
+300 linhas procurando `REVOKE`, ou cinco arquivos procurando forma de
+identificador, não é auditoria.
+
+**Mas a correção não é o achado.** O arquivo documenta **duas** ocorrências
+anteriores dentro dele mesmo — o H3 da Fase 1 e o M5 da quarta auditoria da Fase
+3 — e esta é a terceira. **Três correções, e nenhuma impediu a seguinte.** A
+regra está no lugar certo e depende de alguém lê-la no momento certo, que é a
+definição de disciplina, e a §1.6 da Fase 1 separa disciplina de impedimento.
+
+A proposta de mecanismo está na **D16**, e ela não está implementada.
+
+### 10.2 M2 — a guarda em vez da conferência
+
+O teste que julga os volumes da Linha B lia as **constantes do gerador** — quer
+dizer, comparava o gerador consigo mesmo. Trocar `INDEVIDOS = 22` por `20`
+manteria tudo verde, e o dataset deixaria de cumprir `02` §6.1 sem nada ficar
+vermelho.
+
+**A conferência à mão satisfaz e não segura.** O auditor conferiu os cinco
+números e eles estavam certos; a rodada seguinte dependeria de alguém conferir de
+novo.
+
+**Fechado com a forma do `check_spec_flags.py`:**
+`scripts/check_volumes_da_linha_b.py` lê a tabela de `02` §6.1 e cruza com as
+constantes por AST, nas quatro direções — conjunto sem constante, constante sem
+conjunto, número divergente, e **tabela ilegível**, que é a que impede as outras
+três de passarem por vacuidade. Oito eixos de prova negativa.
+
+**E é verificador, e não só teste, por um motivo mecânico:** os testes do seed
+exigem Postgres e **pulam sem ele**. A pergunta *"o gerador ainda promete o que a
+spec pede?"* tem de ser respondida sem banco.
+
+**O nome do teste prometia o que não entregava** — `test_os_volumes_sao_os_de_02_
+secao_6_1` lendo o gerador. É a classe da §7.3 da Fase 3, e a correção foi manter
+o nome e **mudar a leitura**: ele passa a ler `02` §6.1 pelo mesmo parser. O
+mesmo vale para o teste de volumes do `GM_NOTES`.
+
+### 10.3 L1 e L2 — ficam, e por quê
+
+**L1 — a partição dos seis conjuntos não é exercida em escala completa.** É
+verdade e é limite declarado: os testes rodam em `ESCALA_REDUZIDA`, e o que muda
+com a escala é apenas o volume de fundo — os cinco conjuntos plantados **não
+escalam**, porque 22, 11, 34, 60 e 18 são números de `02` §6.1. A linha do item 5
+no fechamento diz isso.
+
+**L2 — os seis conjuntos e os três valores do enum.** É a **P5-4**, aberta na
+peça 5 com destinatário na Fase 7 e gatilho declarado.
+
+### 10.4 O item 1 da DoD, e por que ele fica sustentado pelo CI
+
+`prova_seed_completo.py` ficou fora da allowlist, e a exclusão é **decisão pelo
+mesmo critério de `bench_reconstruction`**, com um agravante próprio:
+
+| | |
+|---|---|
+| exige Postgres, **escreve 3,5 M de linhas duas vezes**, ~5 min | admiti-lo daria ao julgador uma operação de escrita longa |
+| exige `AURORA_SEED_DATABASE_URL` | `SAFE_ENV_PREFIX` não a admite, e alargá-lo para aceitar DSN poria connection string arbitrária na mão do auditor — superfície de rede pela porta do ambiente |
+| o item pede um **número de máquina** | reexecutá-lo em outra máquina produz **outro número**, e não confirma o primeiro |
+
+**O terceiro é o que decide, e ele não vale para a Fase 4.** Lá, a P4-10 escolheu
+a opção A porque a propriedade era *comportamental* — a sequência do DEMO roda
+ponta a ponta? —, e isso não se lê. Aqui a propriedade é um número relativo à
+máquina, e é por isso que `06` T3 exige máquina, data e stack **ao lado dele**. O
+que o auditor confere por leitura é o que importa: que os três são gerados **por
+código**, e não digitados.
+
+**Sustentado por:** o CI, que exercita o mesmo caminho de geração e carga em
+escala reduzida com as duas direções do determinismo; mais a medição registrada
+com contexto na §4.4 e na §4.5. Declarado, e não omitido — como a Fase 4 fez com
+a opção C que recusou.
 
