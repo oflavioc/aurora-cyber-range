@@ -243,6 +243,21 @@ jobs:
       - name: teste negativo dos volumes da Linha B
         run: python scripts/check_volumes_da_linha_b_probes.py
 
+      # D16 — a regra "script novo entra na allowlist do auditor no commit que o
+      # cria" esta escrita DENTRO do `readonly_bash.py`, e foi violada QUATRO
+      # vezes: H3 da Fase 1, M5 da quarta auditoria da Fase 3, M1 da Fase 5, e a
+      # quarta na propria rodada que corrigia a terceira. Regra que depende de
+      # alguem le-la na hora certa e disciplina; isto e impedimento.
+      #
+      # A leitura dos nomes e por regex sobre o fonte do hook, e a direcao (d)
+      # cruza o resultado com o MATCHER REAL importado — leitura PARCIAL reprova
+      # igual a leitura vazia, que e a fragilidade que o regex assume.
+      - name: scripts x allowlist do auditor
+        run: python scripts/check_allowlist_do_auditor.py
+
+      - name: teste negativo da allowlist do auditor
+        run: python scripts/check_allowlist_do_auditor_probes.py
+
       # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
       # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
       # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na

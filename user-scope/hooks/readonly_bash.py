@@ -245,6 +245,28 @@ ALLOWED = [
     rf"|check_secoes_de_seguranca|check_secoes_de_seguranca_probes"
     rf"|check_trilha_de_auditoria|check_trilha_de_auditoria_probes"
     rf"|check_gabarito_fora_do_git|check_gabarito_fora_do_git_probes"
+    # ---------------------------------------------------------------------
+    # OS DOIS ABAIXO ENTRARAM PORQUE O MECANISMO DA D16 OS ACHOU, na primeira
+    # execucao dele. E a prova de que a regra escrita nao segurava:
+    #
+    # `check_volumes_da_linha_b` foi criado NESTA MESMA RODADA, corrigindo o M1 —
+    #   a QUARTA ocorrencia da regra, cometida enquanto se corrigia a terceira.
+    # `check_readme_atual` estava fora desde a Fase 4, e ninguem havia notado.
+    #
+    # O criterio de admissao dos dois e o de sempre. `check_volumes_da_linha_b`
+    # cruza a tabela de `02` §6.1 com constantes lidas por AST; ler os dois lados
+    # a olho e o que o M2 acabou de recusar como forma de auditar.
+    # `check_readme_atual` cruza dezessete predicados de prosa com a arvore —
+    # contagem de testes, de verificadores, de relatorios, caminhos citados.
+    # Por leitura, o auditor compararia numeros de texto com uma arvore que so
+    # cresce, que e como o README envelheceu duas vezes antes de ele existir.
+    rf"|check_volumes_da_linha_b|check_volumes_da_linha_b_probes"
+    rf"|check_readme_atual|check_readme_atual_probes"
+    # `check_allowlist_do_auditor` — a D16, e ele entra por si mesmo: sem
+    # executa-lo, o auditor confere um registro de exclusao de dez entradas
+    # contra cinquenta scripts a olho, que e exatamente a conferencia manual que
+    # o M2 recusou. A prova negativa entra junto pelo motivo de sempre.
+    rf"|check_allowlist_do_auditor|check_allowlist_do_auditor_probes"
     # `prova_seed_completo` FICA DE FORA, e a exclusao e decisao pelo MESMO
     # criterio de `bench_reconstruction`, com um agravante proprio:
     #
