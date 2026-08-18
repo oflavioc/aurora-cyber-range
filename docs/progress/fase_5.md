@@ -1,6 +1,6 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM ANDAMENTO — peças 1 a 4 de 6 fechadas.** A branch nasceu em
+**Status: EM ANDAMENTO — peças 1 a 5 de 6 fechadas; falta o fechamento.** A branch nasceu em
 `fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
 decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
 pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
@@ -89,7 +89,7 @@ produz o insumo da seguinte.
 | **2** ✅ | modelo completo, `CalendarioAcademico`, `AutorizacaoRetificacao`, `access_delegations` (migration, sem dado) | abriu a **P5-2** |
 | **3** ✅ | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
 | **4** ✅ | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
-| **5** | `GM_NOTES.md` e a query de referência | depende da **D10** |
+| **5** ✅ | `GM_NOTES.md`, a query de referência e o mecanismo do gabarito | **D10** inteira |
 | **6** | fechamento: DoD com prova item a item, registro, auditoria de checkpoint | — |
 
 **A trilha vem antes do seed, e a ordem não é preferência.** Os seis conjuntos
@@ -1060,6 +1060,110 @@ também, é `spec-change` e eu abro.
 
 ---
 
+### 4.5 Peça 5 — o gabarito, e três vazamentos que os testes acharam
+
+**Entregue:** a entrada de `scenarios/` no `.gitignore` com o motivo,
+`scripts/check_gabarito_fora_do_git.py` com dez eixos de prova negativa,
+`domains/academus/seed/{gabarito.py,GM_NOTES.template.md}`, e onze testes que
+**produzem** os dois artefatos e os julgam.
+
+#### O que é gerado e o que é escrito à mão — a sua pergunta
+
+| | |
+|---|---|
+| **escrito à mão**, versionado | a prosa do template — por que cada conjunto existe, por que os 34 parecem suspeitos, como conduzir. E a query de referência. **Nada disso é gabarito**: é reafirmação de `02` §6.1 e §6.2, e a spec é pública |
+| **gerado**, fora do Git | todo fato concreto — `case_id`, a conta comprometida, o grupo de alunos, os números de processo, as datas, os volumes |
+
+**Você estava certo que a metade escrita à mão é onde o gabarito vaza sem a
+checagem ver.** O linter de T8 não pega: ele confere que todo fato do `GM_NOTES`
+existe no `ground_truth.yaml`, e um caso escrito à mão **existe** lá. Então há
+duas guardas, e a segunda é derivada em vez de declarada:
+
+- **estática** — o verificador recusa token com forma de identificador de
+  gabarito dentro do template **e dos módulos versionados do gerador**;
+- **dinâmica** — renderizar com dois seeds e exigir que nenhum identificador que
+  aponte para linha sobreviva aos dois. O que sobrevive está no template por
+  construção: o teste **descobre** o que é escrito à mão em vez de confiar na
+  declaração acima.
+
+#### Três vazamentos, e os três foram achados por teste
+
+**1. A conta comprometida era constante no repositório público.**
+`linha_b.py` nasceu com `CONTA_DOS_INDEVIDOS` apontando para um identificador
+literal. Quem lesse o repositório sabia metade do gabarito, e o `.env` não
+protegia nada. A conta passou a ser **sorteada** e a chegar como parâmetro.
+
+**2. As identidades da Linha B eram posicionais.** `professores[0]`,
+`alunos[:8]` — a conta comprometida e o grupo alvo eram os mesmos com qualquer
+seed. Foi `test_os_fatos_sao_DISTINTOS_entre_os_dois_seeds` que achou, **e ele só
+existe porque você pediu a direção inversa da prova na peça 4**. Todas as
+identidades passaram a sair de `sample`/`choice` do fluxo semeado.
+
+**3. A ordem da trilha revelava os conjuntos — o mais silencioso dos três.** Os
+conjuntos eram gravados em bloco: as 22 primeiras linhas de `audit_trail` eram
+sempre os indevidos, as 11 seguintes os ambíguos. **O participante investiga a
+trilha**, então o gabarito estava legível no artefato que ele abre — sem `.env`,
+sem repositório, só contando linhas. Achado por
+`test_o_MAPEAMENTO_caso_para_fato_muda_com_o_seed`. O gerador passou a
+**embaralhar** a ordem com o fluxo semeado, e o determinismo continua.
+
+**Os três têm a mesma forma:** o gabarito não estava no arquivo que a decisão
+protegia. Estava no gerador, na posição e na ordem — lugares que "não versionar
+`scenarios/`" não alcança.
+
+#### A forma da prova (D10.3), e o limite nos dois lugares
+
+O CI **produz** os dois artefatos de um seed de teste e os julga: o `GM_NOTES`
+contém a query, **a query executada** devolve os 22 e nenhum ambíguo (conter o
+texto sem executá-lo provaria interpolação de string), todo fato citado existe no
+`ground_truth`, e o `ground_truth` gerado **valida contra o contrato do próprio
+projeto**.
+
+Duas execuções com seeds diferentes: os seis volumes iguais e os números de
+`02` §6.1, e o mapeamento caso → conteúdo distinto.
+
+**O limite está no cabeçalho do verificador e no cabeçalho do arquivo de teste**,
+que são os dois lugares onde alguém pergunta "o que exatamente isto provou?": o
+artefato gerado com o `RANDOM_SEED` de **produção** nunca é visto por CI nenhum,
+e não precisa ser — a propriedade provada é do gerador. E há um limite que
+nenhuma checagem alcança, dito em vez de suposto: nada impede alguém de publicar
+o artefato renderizado fora do Git, por e-mail ou captura de tela. Isso é
+disciplina de operação, não propriedade de repositório.
+
+#### A medição em escala completa, refeita depois do embaralhamento
+
+```text
+  item 1  seed completo em < 5 min: PASSA — 144,3 s de 300 s
+  item 2  dataset byte-identico:    PASSA — 20 tabelas, SHA-256 por tabela
+
+  audit_trail  56a85082ddf6e1ef7764cfae491aba5f281c4965c3b33814a6b08ed5e28ee26f
+  students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
+```
+
+**O SHA de `students` não mudou e o de `audit_trail` mudou**, e o par confirma o
+escopo do embaralhamento: ele reordena a trilha e não toca o resto.
+
+#### A quarta vez que o texto que explica a regra reprovou contra ela
+
+Aconteceu três vezes nesta fase e uma quarta aqui: o teste de relógio reprovou
+contra o docstring que cita `now()`; a guarda de placeholder reprovou contra a
+instrução que cita as chaves duplas; o verificador de gabarito reprovou contra o
+comentário que citava a conta como exemplo do que não fazer. **A correção nunca é
+afrouxar a regra** — é a checagem olhar a estrutura (AST, forma do placeholder)
+ou o texto deixar de conter a instância. Comparação por texto pega o texto que
+fala sobre ela.
+
+#### Uma decisão de contrato que virou pendência
+
+`contracts/ground_truth.schema.yaml` fecha `line_b_case.set` em **três** valores,
+e `02` §6.1 tem **seis** conjuntos. Ruído de manutenção e credenciais
+compartilhadas ficam no dataset e **fora de `line_b_cases`**: rotulá-los
+`legitimo_aparencia_suspeita` faria o gabarito afirmar algo falso, e alargar o
+enum seria mudar semântica dentro da mesma `schema_version`, que `04` §4 proíbe.
+É a **P5-4**, com destinatário na Fase 7.
+
+---
+
 #### O que fica fora da fase inteira, e contra qual vizinha
 
 | Fora | Onde |
@@ -1117,6 +1221,7 @@ Abertas nesta fase. Prefixo `P5-`.
 | P5-1 | docstring de `scripts/sobe_sala.py` manda rodar um script que não existe | **condição** — ver abaixo |
 | P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor | **Fase 6** — ver abaixo |
 | P5-3 | a role da aplicação e a das migrations são a mesma, e `REVOKE` não alcança quem conecta | **operador** — ver abaixo |
+| P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores do enum do contrato | **Fase 7** — ver abaixo |
 
 #### P5-1 — caminho citado em docstring apontando para arquivo inexistente
 
@@ -1238,3 +1343,33 @@ aplicação passa a ser alcançável por quem estiver dentro dele.
 **O que eu preparei para essa hora:** a role já existe, os `GRANT`/`REVOKE` já
 estão certos, e o código já assume a role. O que falta é a credencial — uma
 variável, e não uma refatoração.
+
+#### P5-4 — o enum do contrato tem três valores e `02` §6.1 tem seis conjuntos
+
+**Aberta gerando o `ground_truth.yaml`, ao mapear os conjuntos para o contrato.**
+
+`contracts/ground_truth.schema.yaml` fecha `line_b_case.set` em
+`indevido_comprovado`, `ambiguo` e `legitimo_aparencia_suspeita`. `02` §6.1 nomeia
+**seis** conjuntos, e `02` §6.2 dá `defensibility` 0.0 a *"legítimo (inclusive os
+de aparência suspeita, **manutenção e delegação**)"* — o que implica que os seis
+são casos.
+
+**O que a peça 5 fez, e por quê:** ruído de manutenção e credenciais
+compartilhadas ficam no **dataset** e fora de `line_b_cases`. As duas
+alternativas foram recusadas com motivo:
+
+| Alternativa | Por que não |
+|---|---|
+| rotulá-los `legitimo_aparencia_suspeita` | o gabarito afirmaria algo falso — que eles *parecem* suspeitos à primeira vista —, e a calibração da Fase 6 os trataria como os 34, misturando dois erros que `02` §6.2 manda separar |
+| alargar o enum | é mudar semântica dentro da mesma `schema_version`, e `04` §4 proíbe |
+
+**A consequência, dita em vez de escondida:** uma equipe que classifique uma
+linha de manutenção como suspeita não tem caso no gabarito contra o qual ser
+pontuada. Hoje isso não custa nada — a calibração é da Fase 6 e o pack é da Fase
+7 —, e passa a custar quando o Brier for calculado.
+
+**Destinatário: Fase 7**, que é a dona do pack e do `ground_truth.yaml` completo.
+**Gatilho: o commit em que o primeiro `assessment` for pontuado contra o
+gabarito** — que é quando "caso sem entrada" deixa de ser assimetria de modelo e
+vira lacuna de pontuação. A saída provável é uma `schema_version` nova, e ela é
+decisão daquela fase e não desta.

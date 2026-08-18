@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **378 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 116 exigem Postgres ou containers e pulam sem a stack no ar |
+| **387 testes** | `python -m unittest discover -s tests`, em 18/08/2026. 125 exigem Postgres ou containers e pulam sem a stack no ar |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -183,7 +183,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 
 **Os invariantes são gate, não convenção.** Quatro regras arquiteturais — o core não importa domínio, nenhuma string solta de nome de flag, nenhum `event_type` fora do catálogo, nenhum evento carregando `objective_ids` — têm hook local para feedback rápido e teste de CI como porta real.
 
-**Cada verificador tem prova negativa.** São **6** verificadores em [`tools/`](tools/) e **18** em [`scripts/`](scripts/), e **17** destes últimos têm um `_probes.py` pareado que planta a violação de propósito e exige que a checagem reprove — nas duas direções, porque um guarda que bloqueia tudo também passa no teste que só mede bloqueio. A exceção é `check_progress_consistency.py`, que ainda não tem prova negativa própria. Um verificador que nunca ficou vermelho contra uma violação plantada prova que roda, não que detecta.
+**Cada verificador tem prova negativa.** São **6** verificadores em [`tools/`](tools/) e **19** em [`scripts/`](scripts/), e **18** destes últimos têm um `_probes.py` pareado que planta a violação de propósito e exige que a checagem reprove — nas duas direções, porque um guarda que bloqueia tudo também passa no teste que só mede bloqueio. A exceção é `check_progress_consistency.py`, que ainda não tem prova negativa própria. Um verificador que nunca ficou vermelho contra uma violação plantada prova que roda, não que detecta.
 
 **Cada checkpoint de fase é auditado por um agente adversarial**, em contexto isolado, num worktree fixado no commit candidato, sem ferramentas de escrita, emitindo PASS ou FAIL contra a especificação. Ele vive fora deste repositório de propósito: um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 
@@ -243,7 +243,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 116 dos 378 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 125 dos 387 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 

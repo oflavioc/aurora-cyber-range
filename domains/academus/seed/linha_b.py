@@ -34,8 +34,21 @@ from __future__ import annotations
 
 from domains.academus.seed.dataset import SVC_MIGRATION
 
-#: A conta docente unica dos indevidos. Derivada do dataset — `professors[0]`.
-CONTA_DOS_INDEVIDOS = "U-P-0000"
+#: A CONTA DOCENTE UNICA NAO E CONSTANTE AQUI, e a ausencia e a decisao.
+#:
+#: Este arquivo e versionado num repositorio publico. Uma linha
+#: `CONTA_DOS_INDEVIDOS = "<a conta>"` — que existiu na primeira versao, com o
+#: identificador literal — entrega metade do gabarito a quem le o repositorio, e
+#: torna o `.env` irrelevante.
+#:
+#: E O IDENTIFICADOR NAO PODE SER ESCRITO NEM AQUI, nesta explicacao: a checagem
+#: varre o arquivo inteiro, e um exemplo concreto na prosa e tao publico quanto
+#: uma constante. Foi a terceira vez nesta fase que o texto que explica a regra
+#: reprovou contra ela.
+#:
+#: A conta e SORTEADA pelo `RANDOM_SEED` (`dataset.Dataset.conta_alvo`) e chega
+#: como PARAMETRO da consulta. `check_gabarito_fora_do_git.py` reprova se um
+#: identificador com forma de gabarito voltar a aparecer neste arquivo.
 
 #: 1. INDEVIDOS COMPROVADOS — `defensibility` 1.0 em `02` §6.2.
 INDEVIDOS = """
@@ -100,4 +113,6 @@ CONJUNTOS: dict[str, str] = {
     "legitimos_normais": NORMAIS,
 }
 
-PARAMETROS = {"conta_alvo": CONTA_DOS_INDEVIDOS, "svc": SVC_MIGRATION}
+def parametros(conta_alvo: str) -> dict[str, str]:
+    """Os parametros das seis consultas. `conta_alvo` vem do dataset, e nao daqui."""
+    return {"conta_alvo": conta_alvo, "svc": SVC_MIGRATION}

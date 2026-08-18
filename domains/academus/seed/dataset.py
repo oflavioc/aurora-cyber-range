@@ -133,9 +133,16 @@ ESCALA_REDUZIDA = Escala(
 
 @dataclass(frozen=True, slots=True)
 class Dataset:
-    """As tabelas prontas para `COPY`, em ordem de dependencia."""
+    """As tabelas prontas para `COPY`, mais o que a Linha B sorteou.
+
+    `conta_alvo` E GABARITO, e por isso ela vive AQUI e nao num arquivo
+    versionado: e a conta docente unica dos indevidos comprovados, sorteada a
+    partir do `RANDOM_SEED`. Quem tem o seed a reproduz; quem so tem o
+    repositorio, nao.
+    """
 
     tabelas: dict[str, tuple[tuple, ...]]
+    conta_alvo: str
 
     def total(self) -> int:
         return sum(len(linhas) for linhas in self.tabelas.values())
@@ -298,11 +305,12 @@ def gerar(escala: Escala, *, seed: int) -> Dataset:
         for i in range(max(10, escala.professores // 10))
     ]
 
-    autorizacoes, delegacoes, eventos = _linha_b(
+    autorizacoes, delegacoes, eventos, conta_alvo = _linha_b(
         escala, r_linha_b, semestres, janelas, alunos, professores
     )
 
     return Dataset(
+        conta_alvo=conta_alvo,
         tabelas={
             "academic_calendar": tuple(calendario),
             "users": tuple(usuarios),
@@ -354,8 +362,26 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
     semestre_alvo = semestres[-2]
     inicio_janela, fim_janela = janelas[semestre_alvo]
 
-    conta_alvo = professores[0][2]              # a conta docente unica
-    grupo_alvo = [a[0] for a in alunos[:8]]     # o mesmo grupo de alunos
+    # AS IDENTIDADES SAO SORTEADAS, E NAO POSICIONAIS — e esta linha e a que
+    # sustenta a D10 inteira.
+    #
+    # A primeira versao usava `professores[0]` e `alunos[:8]`: com isso, a conta
+    # comprometida era SEMPRE a PRIMEIRA da lista e o grupo alvo eram os oito
+    # primeiros, qualquer que fosse o `RANDOM_SEED`. O gabarito deixava de
+    # depender do seed — e quem lesse este repositorio publico saberia quais sao
+    # os casos sem nunca ver o `.env`.
+    #
+    # Foi `test_os_fatos_sao_DISTINTOS_entre_os_dois_seeds` que descobriu, e ele
+    # so existe porque o operador pediu a direcao inversa da prova.
+    conta_alvo = aleatorio.choice(professores)[2]
+    grupo_alvo = [a[0] for a in aleatorio.sample(alunos, 8)]
+
+    # OS OUTROS PAPEIS SAIEM DO MESMO SORTEIO, e nunca reusam a conta alvo: um
+    # aprovador que fosse por acaso a conta comprometida embaralharia os
+    # conjuntos 2 e 1, e a particao deixaria de valer.
+    restantes = [p for p in professores if p[2] != conta_alvo]
+    aprovados = [p[2] for p in aleatorio.sample(restantes, min(3, len(restantes)))]
+    suspeitos = [p[2] for p in aleatorio.sample(restantes, min(5, len(restantes)))]
 
     fora = fim_janela + timedelta(days=10)
     dentro = inicio_janela + timedelta(days=3)
@@ -395,7 +421,7 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
         )
         registros.append(
             (
-                professores[1 + i % 3][2],
+                aprovados[i % len(aprovados)],
                 f"{REDE_CAMPUS}{20 + i}",
                 instante(fora, 14, i),
                 f"g-amb-{i:03d}",
@@ -418,7 +444,7 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
         )
         registros.append(
             (
-                professores[2 + i % 5][2],
+                suspeitos[i % len(suspeitos)],
                 f"{REDE_LABORATORIO}{30 + i % 20}",   # IP de laboratorio
                 instante(fora, 23, i % 60),           # horario noturno
                 f"g-sus-{i:03d}",
@@ -447,7 +473,7 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
         )
 
     # 5. CREDENCIAIS COMPARTILHADAS (18)
-    delegantes = [professores[i][2] for i in range(5, min(8, len(professores)))]
+    delegantes = [p[2] for p in aleatorio.sample(restantes, 3)]
     for i, conta in enumerate(delegantes):
         delegacoes.append(
             (f"DEL-{i:03d}", conta, COORDENACAO, f"PR-DEL-{i:03d}",
@@ -470,7 +496,7 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
         )
 
     # 6. LEGITIMOS NORMAIS (milhares)
-    reservadas = set(delegantes) | {conta_alvo}
+    reservadas = set(delegantes) | {conta_alvo} | set(aprovados) | set(suspeitos)
     normais = [p[2] for p in professores if p[2] not in reservadas]
     for i in range(escala.normais_na_trilha):
         registros.append(
@@ -487,7 +513,24 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
             )
         )
 
-    return autorizacoes, delegacoes, _encadeia(registros)
+    # A ORDEM DA TRILHA E EMBARALHADA, e este e o terceiro vazamento de gabarito
+    # que a peca 5 fechou — o mais silencioso dos tres.
+    #
+    # Sem isto, os conjuntos sao gravados em BLOCO e na ordem em que este arquivo
+    # os escreve: as 22 primeiras linhas de `audit_trail` seriam sempre os
+    # indevidos comprovados, as 11 seguintes os ambiguos, e assim por diante.
+    # Quem lesse este repositorio publico saberia ler o gabarito na PROPRIA
+    # TRILHA, que e o artefato que o participante investiga — sem nunca ver o
+    # `.env`.
+    #
+    # Foi `test_o_MAPEAMENTO_caso_para_fato_muda_com_o_seed` que expos: o
+    # mapeamento caso -> fato era identico entre dois seeds, porque o fato deriva
+    # da POSICAO na trilha e a posicao era fixa.
+    #
+    # O embaralhamento e do fluxo semeado, entao continua determinista: mesmo
+    # seed, mesma ordem.
+    aleatorio.shuffle(registros)
+    return autorizacoes, delegacoes, _encadeia(registros), conta_alvo
 
 
 def _encadeia(registros: list[tuple]) -> list[tuple]:
