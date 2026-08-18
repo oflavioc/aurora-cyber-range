@@ -1,9 +1,9 @@
 # Fase 5 — Dados e auditoria ⏸
 
-**Status: EM ANDAMENTO — o plano, as decisões e nenhuma linha de código.** A
-branch nasceu em `fd34c44` e a âncora está gravada em
-`docs/process/phase_anchors.tsv`. As peças começam depois de as decisões
-marcadas `OPERADOR` serem respondidas.
+**Status: EM ANDAMENTO — peças 1 e 2 de 6 fechadas.** A branch nasceu em
+`fd34c44` e a âncora está gravada em `docs/process/phase_anchors.tsv`. As dez
+decisões da §3 estão marcadas, e nenhuma linha de código nasceu contra decisão
+pendente — as duas do operador (D9 e D10) foram respondidas antes da peça 2.
 
 **Um status só**, e ele é o do documento inteiro — L2 da segunda auditoria da
 Fase 3.
@@ -85,8 +85,8 @@ produz o insumo da seguinte.
 
 | Peça | O que entrega | Fecha |
 |---|---|---|
-| **1** | registro seção → verificador de `05`, com as quatro direções e prova negativa pareada; e a §8.5 virando regra em `WORKFLOW.md` | **P4-12** |
-| **2** | modelo completo, `CalendarioAcademico`, `AutorizacaoRetificacao` (migration, sem dado) | — |
+| **1** ✅ | registro seção → verificador de `05`, com as cinco direções e prova negativa pareada; e a §8.5 virando regra em `WORKFLOW.md` | **P4-12** |
+| **2** ✅ | modelo completo, `CalendarioAcademico`, `AutorizacaoRetificacao`, `access_delegations` (migration, sem dado) | abriu a **P5-2** |
 | **3** | trilha `audit_trail`: role `INSERT`-only, `REVOKE`, trigger, hash encadeado, `GET /audit/verify-chain`, e a escrita da trilha na rota de nota | **P3-6**, **P4-5**, e é o gatilho declarado da **P4-2** |
 | **4** | seed em escala determinístico, com os seis conjuntos da Linha B nos volumes de `02` §6.1 | — |
 | **5** | `GM_NOTES.md` e a query de referência | depende da **D10** |
@@ -144,6 +144,14 @@ cobrar mecanismo antes do artefato é o erro que a §7.3 da Fase 3 nomeia.
 `05` §7 é *"Integridade da trilha de auditoria"*, e ela é a seção cujo artefato
 **esta fase produz**. Deixá-la no registro como "Fase 5, planejada" enquanto a
 trilha nasce no mesmo commit seria escrever a declaração e não cumpri-la.
+
+**A promoção da entrada é medida NA ORDEM, e não afirmada.** A direção (d) do
+`check_secoes_de_seguranca.py` só é gate se ela de fato reprovar; promover a
+entrada no mesmo gesto que cria o verificador deixaria a direção (d) como prosa —
+ela nunca teria ficado vermelha, e ninguém saberia se ela funciona. Então a ordem
+é: o verificador da §7 entra **primeiro**, com a entrada ainda dizendo *"sem
+mecanismo — Fase 5"*; a saída vermelha vai para o registro; **só então** a entrada
+é promovida. Vale igual para a §6 na peça 5 (D10.2).
 
 O que o verificador confere é estrutura, e a propriedade em execução fica com os
 testes de T7 contra Postgres real — que é a mesma divisão de
@@ -390,6 +398,14 @@ gerado com o `RANDOM_SEED` de produção, nunca é visto pelo CI. E não precisa
 a propriedade provada é do **gerador**, e ela é independente do valor do seed.
 Afirmar mais do que isso seria a atestação que a pergunta recusa.
 
+**E esse limite não pode morar só aqui.** Quem lê o item 6 da DoD no fechamento
+não abre a decisão que o produziu — é a mesma distância que fez a §8.5 precisar
+sair do registro para o `WORKFLOW.md`. Então o limite é escrito nos **dois**
+lugares em que alguém tropeça nele: no cabeçalho do verificador que prova o item
+(é ele que o leitor abre quando pergunta *"o que exatamente isto provou?"*), e na
+linha do item 6 na §7 do fechamento, junto da prova — não como nota de rodapé do
+registro da decisão.
+
 ### D11 — a §8.5 da Fase 4 vira regra de processo — `DECIDIDA` (instrução do operador)
 
 *"O auditor é a única camada onde o teste roda sem que ninguém tenha interesse no
@@ -505,6 +521,195 @@ compara.
 `scripts/` e **16** com prova negativa (eram 16 e 15). O número não é enfeite —
 `check_readme_atual.py` o cruza com a árvore, e a peça teria ficado vermelha nele.
 
+### 4.2 Peça 2 — o corte de "modelo completo", declarado antes da migration
+
+*"Modelo completo"* é a expressão mais elástica da DoD desta fase, e ela é
+elástica porque não diz **completo em relação a quê**. Três leituras cabem na
+frase, e elas produzem migrations diferentes:
+
+| Leitura | O que ela produz | Por que não é ela |
+|---|---|---|
+| tudo que uma universidade tem | sem limite | não tem fonte; "completo" viraria juízo meu |
+| as entidades que o exercício usa | ~8 tabelas | é a lista que **eu** escolheria, e a fase seguinte descobre a falta |
+| **a lista de `02` §1** | 20 entidades | **é a única lista que a spec dá**, e é normativa |
+
+**Adotada a terceira.** `02` §1 enumera vinte entidades, e é contra ela que
+"completo" se mede. As duas exclusões abaixo têm fonte normativa própria — não
+são corte por tamanho.
+
+#### O que NÃO vira tabela, e contra qual documento
+
+| Entidade | Fora porque | Chega em |
+|---|---|---|
+| **Incidente** | `01` §4 põe Participant Actions no **event store**, reversibilidade "nunca". `incident_declared` e `separate_incident_declared` são `event_type` do catálogo (`09` §4.1) | Fase 6, como **projeção** |
+| **Declaracao** | idem — as ações `declare_*` de `03` §3.1 são eventos `declaration`, e `07` Fase 6 tem *"ações de declaração nos endpoints"* nos OUTPUTS | Fase 6, como **projeção** |
+
+Uma tabela em Postgres para qualquer das duas seria **segunda casa do mesmo
+fato**, e `09` §5 é explícito: nenhuma projeção escreve no store, e toda projeção
+é reconstruível do zero. Business state não reverte (`01` §4.3); ação de
+participante nunca reverte. Guardar declaração como business state trocaria a
+segunda regra pela primeira sem que nada acusasse.
+
+**Consequência que fica declarada:** `02` §4.1 manda a trilha registrar
+*"Declarações do exercício — todas as ações de `declare_*`"*. A trilha desta fase
+**suporta a categoria e não tem produtor** — o produtor é a Fase 6. Categoria sem
+produtor declarada é diferente de categoria esquecida, e é a diferença que a
+P4-12 acabou de mecanizar um nível acima.
+
+**Dezoito tabelas, então.** As dezesseis restantes de `02` §1, mais
+`CalendarioAcademico` e `AutorizacaoRetificacao` que a mesma lista já traz e que
+`07` nomeia à parte por serem o que torna a Linha B detectável (`02` §2 e §3).
+
+#### As quatro tabelas da Fase 4 não são substituídas — elas crescem
+
+`students`, `classes`, `grades` e `enrollments` ganham colunas e chaves
+estrangeiras. Isso tem três consequências que a migration precisa resolver, e
+nenhuma delas é neutra:
+
+| | O que muda | O cuidado |
+|---|---|---|
+| `classes.semester` | hoje é texto livre (`"2026.2"`); passa a referenciar `academic_calendar` | a linha do semestre precisa existir **antes**; a fixture de demonstração usa `2026.2` |
+| `classes.professor_id` | hoje é texto sem FK, porque não havia tabela de professor; agora há | a regra `titular` da P3-3 não muda — a FK documenta o que a rota já compara |
+| coluna nova `NOT NULL` | em tabela que já tem dado | ou default declarado, ou backfill na própria migration; `demonstracao.py` acompanha no mesmo commit |
+
+**`grades.student_id` continua sem FK nesta peça, e isso é a D5 e não esquecimento.**
+O par rota + FK é da peça 3, onde a trilha nasce; separar a FK do 404 faria a
+mudança de comportamento entrar por migration, que é exatamente o que a Fase 4
+recusou.
+
+#### Uma entidade que `02` §1 não lista, e por isso está marcada
+
+`02` §6.1 exige o conjunto **Credenciais compartilhadas — 18 casos**: *"Monitor/
+assistente usando conta do professor **com registro formal de delegação**"*. Esse
+registro não está entre as vinte entidades de §1, e **sem ele o conjunto é
+indistinguível dos indevidos comprovados** — a Linha B perde um dos seis, e com
+ele o item 5 da DoD.
+
+Duas formas, e recomendo a primeira:
+
+| Forma | A favor | Contra |
+|---|---|---|
+| **tabela `access_delegations`** | a delegação existe **antes e independentemente** da alteração de nota, e o console de investigação da Fase 8 precisa perguntar *"havia delegação válida naquela data?"* — que é consulta a fato, não a evento | acrescenta tabela que `02` §1 não nomeia |
+| campo na linha da trilha | não acrescenta entidade | faria a delegação virar propriedade do evento: duas alterações sob a mesma delegação a repetiriam, e não haveria como perguntar por validade em data nenhuma |
+
+**`02` §1 não se declara fechada** — diferente do catálogo de eventos, que `09`
+§4 chama de *"registro fechado"* com todas as letras. Então acrescentar não
+contradiz a spec. Mas é acréscimo ao modelo do domínio, e por isso está **dito
+aqui em vez de aparecer na migration**: se você lê §1 como lista fechada, isto é
+`spec-change` e não decisão de fase.
+
+#### `Diário` não vira tabela própria, e a alternativa está dita
+
+`Diário` é, em `02` §7, o que o Portal do Professor mostra: *"diário, frequência,
+lançamento de notas"*. As notas já são `grades`; o que o diário tem e **nenhuma
+outra entidade guarda** é a frequência. Então o que vira tabela é
+`attendance_records`, e `Diário` permanece a **visão** turma → notas + frequência,
+que é como a rota `GET /classes/{class_id}/gradebook` já o trata desde a Fase 3.
+
+A alternativa — uma tabela `class_journals` com cabeçalho por turma — guardaria
+uma linha por turma sem nenhum campo que a turma já não tenha. É a classe D4:
+mesma regra escrita duas vezes.
+
+#### O corte de VOLUME é outro, e é da peça 4
+
+Tabela existir e tabela ter volume são coisas diferentes, e misturá-las é o que
+faz "modelo completo" parecer "seed de tudo". Três faixas:
+
+| Faixa | Entidades | Volume |
+|---|---|---|
+| **número na fonte** | Aluno, Professor, Curso, Semestre, Disciplina, Turma, Matrícula, Nota, e os seis conjuntos da Linha B | 28.000 · 1.200 · 60 · 8 · milhões de notas · 22/11/34/~60/18 — `02` §5 e §6.1 |
+| **sem número, volume mínimo coerente** | HistóricoEscolar, Diploma, Bolsa, ContratoFinanciamento, QuestãoVestibular, ProjetoPesquisa, JobHPC, Usuário, `access_delegations` | o bastante para a trilha de `02` §4.1 ter objeto nas quatro categorias que ela declara, e para `02` §5 ter a distribuição plausível de CR, reprovação, evasão e bolsas |
+| **vazia** | nenhuma | tabela criada e nunca semeada é modelo que parece pronto e não é |
+
+**As quatro categorias de `02` §4.1 são o que decide a segunda faixa**, e não
+gosto: a trilha registra alteração de nota, **emissão de diploma**, **banco de
+questões** e **pesquisa acadêmica**. Sem `diplomas`, `exam_questions` e
+`research_projects` com alguma linha, três das quatro categorias da trilha
+nascem sem objeto — e uma trilha que declara categoria sem sujeito é a mesma
+forma de promessa vazia que a P4-4 registra sobre flags.
+
+#### O que a peça entregou, e a correção que escrever a migration produziu
+
+**Dezenove tabelas**: as dezoito de `02` §1 menos `Incidente` e `Declaracao`,
+mais `access_delegations`. Migration `0003_modelo_completo`, modelos, fixture
+crescida e `tests/test_modelo_completo.py` com treze testes.
+
+**A migration RECUSA sobre tabela com dado, e foi escrever o backfill que
+mostrou por quê.** A primeira versão migrava: `students.program` viraria um curso
+por valor distinto já gravado, com o próprio texto como nome — honesto, sem
+informação nova. **Duas das três ligações não são deriváveis, e isso só aparece
+ao escrever a terceira:**
+
+| Ligação | O que falta no dado antigo |
+|---|---|
+| `classes.professor_id` → `professors` | o **nome** do professor não está em lugar nenhum; `classes` guarda só o identificador |
+| `classes.semester` → `academic_calendar` | as **onze datas** do semestre — incluindo a janela de retificação, que é o que `02` §2 diz tornar a Linha B detectável |
+
+Backfill que inventa nome de professor ou janela de retificação produz dado
+plausível e falso, e `within_window` calculado contra janela inventada é a camada
+2 mentindo sobre a camada 1 — o mesmo argumento da P4-5, um andar acima. Então
+uma regra em vez de três backfills desiguais, e ela é verdadeira: **não existe
+dado de produção neste projeto.** O que há em `students` e `classes` é a fixture
+de seis linhas, que `demonstracao.py` recarrega.
+
+**Medido, e não afirmado:** com um aluno gravado, a 0003 recusa com a instrução
+no próprio erro, e **nenhuma tabela é criada** — a transação inteira aborta (6
+tabelas antes, 6 depois). Com base limpa, aplica as 19 e o esquema confere.
+
+**Limite declarado, com a condição que o encerra:** isto vale enquanto não houver
+exercício com dado de participante gravado. No primeiro que houver, migration
+terá de **migrar**, e recusar deixa de ser aceitável.
+
+#### Nenhuma resposta de rota mudou, e a razão é estrutural
+
+Você pediu a confirmação ou o par que anuncia. **São as duas coisas**, porque a
+confirmação sozinha seria conferência minha:
+
+| | Por que não muda |
+|---|---|
+| FK nova em `students` e `classes` | **nenhuma rota escreve nessas tabelas.** As duas únicas que escrevem são `POST /enrollment` e `POST /classes/{class_id}/grades`; `enrollments` já tinha as duas FKs desde a 0002 e a rota já conferia as duas pontas |
+| `grades.student_id` | **continua sem FK** — é a D5, e o par rota + 404 + FK é da peça 3 |
+| coluna nova (`status`, `entry_semester`) | `CAMPOS_PUBLICOS` é whitelist: o que não está lá não sai. Nasce invisível |
+| `program` e `subject` | mudaram de **fonte** e não de **chave** — vêm de `courses.name` e `subjects.name` por relação, sob o mesmo nome e com o mesmo valor |
+
+**O par que anuncia é `tests/test_modelo_completo.py`**, e ele tem três dentes:
+`test_a_resposta_das_quatro_rotas_nao_mudou` fixa os conjuntos de chaves copiados
+da resposta real da Fase 4 — não de `CAMPOS_PUBLICOS`, porque cruzar a whitelist
+consigo mesma não prova nada; `test_program_e_subject_mudaram_de_fonte_e_nao_de_
+valor` separa *"a chave sobreviveu"* de *"o valor sobreviveu"*, porque devolver
+`C-9001` sob a chave `program` passaria no primeiro e quebraria a tela; e
+`test_grades_student_id_continua_sem_FK` fica **vermelho no dia em que a peça 3
+fechar a P4-5** — é o espelho, do lado do esquema, do
+`test_P4_5_..._e_aceita_hoje`.
+
+**348 testes, 86 exigindo Postgres**, contra Postgres real: base descartável,
+migration aplicada, suíte inteira verde. Os quatro pulos restantes são de Redis e
+já existiam.
+
+#### `class_journals` recusada — a D4 em esquema, e não em código
+
+A D4 da Fase 3 nomeou a classe *"mesma regra escrita duas vezes"* em código.
+`class_journals` seria a mesma coisa **em esquema**: uma linha por turma sem
+nenhum campo que a turma já não tenha, e um segundo lugar de onde ler a mesma
+identidade. A frequência — que é o que o diário tem e nenhuma outra entidade
+guarda — virou `attendance_records`, e `Diário` continua sendo a visão turma →
+notas + frequência.
+
+Vale registrar porque a classe é a mesma e o custo é diferente: em código, a
+duplicação diverge na primeira edição; em esquema, ela diverge e **fica**, porque
+migration para desfazer tabela já povoada é mais cara que a que a criou.
+
+#### O que fica fora da fase inteira, e contra qual vizinha
+
+| Fora | Onde |
+|---|---|
+| ecossistema externo de `02` §8 (`lms_vendor`, `payment_gateway`, …) | Fase 11 — `07` "serviços externos" |
+| `federated-identity-simulator` e `mec-gateway` de `02` §7 | Fase 11 |
+| telemetria do adapter de `02` §10 (`telemetry_events.yaml`) | Fase 9 |
+| Modo "Prova em andamento", console de investigação, dashboards por persona | Fase 8 |
+| ações de continuidade de `02` §9 | Fase 8 |
+| regra de negócio sobre o dado (nota válida, matrícula única, pré-requisito) | **nenhuma fase pediu**, e a migration 0002 já recusou decidir comportamento de rota por esquema |
+
 ---
 
 ## 5. O que a Fase 5 recebe — as pendências datadas para cá
@@ -549,6 +754,7 @@ Abertas nesta fase. Prefixo `P5-`.
 | Id | O que é | Vence em |
 |---|---|---|
 | P5-1 | docstring de `scripts/sobe_sala.py` manda rodar um script que não existe | **condição** — ver abaixo |
+| P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor | **Fase 6** — ver abaixo |
 
 #### P5-1 — caminho citado em docstring apontando para arquivo inexistente
 
@@ -597,3 +803,39 @@ caminho citado como exemplo hipotético, caminho de artefato gerado que não é
 versionado, caminho dentro de bloco de saída de comando. **Isso é decisão de
 quando a pendência for fechada**, e registrá-la aqui é o que impede que a
 correção da linha feche o assunto sem que ninguém tenha olhado para a classe.
+
+#### P5-2 — categoria de trilha declarada sem produtor
+
+**Aberta no corte da peça 2, e ela é a forma da P2-3:** requisito que existe e
+não tem fase obrigada a cumpri-lo. Declarar não basta — sem destinatário, a
+categoria fica lá e ninguém a cobra.
+
+`02` §4.1 lista **cinco** categorias que a trilha registra: alteração de nota,
+emissão de diploma, banco de questões, pesquisa acadêmica e **declarações do
+exercício — todas as ações de `declare_*`** (`03` §3.1).
+
+As quatro primeiras ganham objeto nesta fase: a peça 2 criou `diplomas`,
+`exam_questions` e `research_projects` exatamente para que não nascessem sem
+sujeito. **A quinta não pode ganhar**, e a razão é o corte que a própria peça 2
+declara: as ações `declare_*` são eventos `declaration` do catálogo (`09` §4.1),
+`01` §4 as põe no event store com reversibilidade "nunca", e `Declaracao` por
+isso não virou tabela. O produtor delas é `07` Fase 6 — *"ações de declaração nos
+endpoints"* nos OUTPUTS.
+
+**O risco concreto, e ele não é teórico.** A trilha da peça 3 vai declarar as
+cinco categorias. Quatro terão escrita exercitada por teste; a quinta será uma
+constante que nada emite — e é assim que um `event_type` com erro de digitação
+sobrevive até o exercício ao vivo, que `09` §4 chama de *"a falha mais cara
+possível"*. Uma categoria que ninguém escreve nunca é exercitada, e ninguém
+descobre que ela não funciona.
+
+**Destinatário: Fase 6. Gatilho: o commit em que a primeira ação `declare_*`
+nascer** — que é o que aquela fase entrega por OUTPUTS. O que ela precisa
+encontrar aqui está dito para não ser redescoberto: a categoria já existe na
+trilha, com nome, e o que falta é o chamador.
+
+**A alternativa que NÃO se deve escolher:** omitir a categoria agora e
+acrescentá-la na Fase 6. Isso trocaria uma promessa vazia declarada por uma
+lacuna silenciosa — a trilha passaria a ter quatro categorias e nada diria que a
+quinta é da spec. É a mesma escolha que a P4-4 registrou sobre flags que declaram
+consumidor inexistente, e a resposta lá foi a mesma: declarar com destinatário.

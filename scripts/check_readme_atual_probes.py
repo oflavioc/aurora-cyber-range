@@ -115,7 +115,7 @@ def probes_de_documento(f) -> list[bool]:
         ),
         (
             "contagem de testes velha",
-            _com(DOCS_REAIS, "README.md", "**335 testes**", "**402 testes**"),
+            _com(DOCS_REAIS, "README.md", "**348 testes**", "**402 testes**"),
             "`testes` afirma",
         ),
         (
