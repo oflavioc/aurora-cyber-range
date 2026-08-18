@@ -389,11 +389,43 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
     def instante(dia: date, hora: int, minuto: int) -> datetime:
         return datetime(dia.year, dia.month, dia.day, hora, minuto, tzinfo=timezone.utc)
 
+    def par(menor: float, maior: float) -> tuple[float, float]:
+        """Nota anterior e nova, SORTEADAS, com faixa de variacao que se cruza.
+
+        B1 da segunda auditoria, segunda instancia. Cada conjunto tinha um par
+        FIXO — ambiguos 5,0 -> 6,5, suspeitos 5,5 -> 7,0, ruido 7,0 -> 7,0 —, e
+        um `GROUP BY previous_value, new_value` devolvia o gabarito inteiro. Isso
+        passa por qualquer varredura de identificador, porque nao ha string.
+
+        A FAIXA E PARAMETRO E AS FAIXAS SE CRUZAM: se a de um conjunto nao
+        tocasse a de nenhum outro, `new - previous` voltaria a separar sozinho.
+        `02` §6.1 exige dos indevidos apenas que SEMPRE ELEVEM — e elevar nao os
+        distingue, porque a maioria dos outros tambem eleva.
+        """
+        anterior = round(3.0 + aleatorio.random() * 5.0, 1)
+        delta = round(menor + aleatorio.random() * (maior - menor), 1)
+        return anterior, round(min(10.0, max(0.0, anterior + delta)), 1)
+
     autorizacoes, delegacoes, registros = [], [], []
+
+    # O NUMERO DE PROCESSO NAO NOMEIA O CONJUNTO — quinta instancia do B1, achada
+    # pelo verificador depois de o H1 ser corrigido.
+    #
+    # Eles traziam o INFIXO DO CONJUNTO no meio do identificador, e ele dizia
+    # a que grupo a autorizacao pertencia
+    # em `rectification_authorizations`, que e tabela que o participante LE. A
+    # mesma familia do prefixo de `object_id`, e pelo mesmo caminho — a coluna.
+    #
+    # O contador e sequencial e comum aos tres conjuntos, entao o numero nao
+    # separa nada; e determinista porque nao depende de sorteio.
+    contador = iter(range(1, 10_000))
+
+    def proximo_processo() -> int:
+        return next(contador)
 
     # 1. INDEVIDOS COMPROVADOS (22)
     for i in range(INDEVIDOS):
-        anterior = round(4.0 + aleatorio.random() * 2.0, 1)
+        anterior, novo = par(0.5, 3.0)   # SEMPRE positivo — `02` §6.1
         registros.append(
             (
                 conta_alvo,
@@ -401,10 +433,12 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
                 # 22h-02h: os impares antes da meia-noite, os pares depois.
                 instante(fora, 22 + i % 2, 10 + i) if i % 2
                 else instante(fora + timedelta(days=1), i % 2, 10 + i),
-                f"g-ind-{i:03d}",
+                None,  # o `object_id` e atribuido depois do embaralhamento
                 {
+                    # SEMPRE ELEVANDO — `02` §6.1. A faixa cruza a dos outros
+                    # conjuntos, entao elevar nao denuncia: quase todos elevam.
                     "previous_value": anterior,
-                    "new_value": round(anterior + 3.0, 1),  # SEMPRE ELEVANDO
+                    "new_value": novo,
                     "student_id": grupo_alvo[i % len(grupo_alvo)],
                     "semester": semestre_alvo,
                 },
@@ -415,17 +449,19 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
 
     # 2. AMBIGUOS LEGITIMOS (11)
     for i in range(AMBIGUOS):
-        auth = f"AUT-AMB-{i:03d}"
+        anterior, novo = par(-1.0, 2.5)
+        auth = f"AUT-{proximo_processo():05d}"
         autorizacoes.append(
-            (auth, COORDENACAO, conta_alvo, "Ajuste solicitado.", f"PR-AMB-{i:03d}", fora)
+            (auth, COORDENACAO, conta_alvo, "Ajuste solicitado.",
+             f"PR-{proximo_processo():05d}", fora)
         )
         registros.append(
             (
                 aprovados[i % len(aprovados)],
                 f"{REDE_CAMPUS}{20 + i}",
                 instante(fora, 14, i),
-                f"g-amb-{i:03d}",
-                {"previous_value": 5.0, "new_value": 6.5,
+                None,  # o `object_id` e atribuido depois do embaralhamento
+                {"previous_value": anterior, "new_value": novo,
                  "student_id": alunos[(100 + i) % len(alunos)][0],
                  "semester": semestre_alvo},
                 False,
@@ -435,20 +471,21 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
 
     # 3. LEGITIMOS SUSPEITOS (34)
     for i in range(SUSPEITOS):
-        auth = f"AUT-SUS-{i:03d}"
+        anterior, novo = par(-1.5, 3.0)
+        auth = f"AUT-{proximo_processo():05d}"
         autorizacoes.append(
             (auth, COORDENACAO, COORDENACAO,
              "Erro de digitacao no lancamento, conferido contra a prova fisica "
              "arquivada e a ata da banca.",
-             f"PR-SUS-{i:03d}", fora)
+             f"PR-{proximo_processo():05d}", fora)
         )
         registros.append(
             (
                 suspeitos[i % len(suspeitos)],
                 f"{REDE_LABORATORIO}{30 + i % 20}",   # IP de laboratorio
                 instante(fora, 23, i % 60),           # horario noturno
-                f"g-sus-{i:03d}",
-                {"previous_value": 5.5, "new_value": 7.0,
+                None,  # o `object_id` e atribuido depois do embaralhamento
+                {"previous_value": anterior, "new_value": novo,
                  "student_id": alunos[(200 + i) % len(alunos)][0],
                  "semester": semestre_alvo},
                 False,
@@ -458,13 +495,14 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
 
     # 4. RUIDO DE MANUTENCAO (~60)
     for i in range(RUIDO):
+        anterior, novo = par(-2.0, 2.0)
         registros.append(
             (
                 SVC_MIGRATION,
                 f"{REDE_CAMPUS}{200 + i % 50}",
                 instante(fora, 3, i % 60),
-                f"g-mnt-{i:03d}",
-                {"previous_value": 7.0, "new_value": 7.0,
+                None,  # o `object_id` e atribuido depois do embaralhamento
+                {"previous_value": anterior, "new_value": novo,
                  "student_id": alunos[(300 + i) % len(alunos)][0],
                  "semester": semestre_alvo, "lote": "migracao-2024"},
                 False,
@@ -476,18 +514,19 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
     delegantes = [p[2] for p in aleatorio.sample(restantes, 3)]
     for i, conta in enumerate(delegantes):
         delegacoes.append(
-            (f"DEL-{i:03d}", conta, COORDENACAO, f"PR-DEL-{i:03d}",
+            (f"DEL-{i:03d}", conta, COORDENACAO, f"PR-{proximo_processo():05d}",
              inicio_janela, fim_janela,
              "Monitoria de disciplina, com registro na coordenacao.")
         )
     for i in range(DELEGADAS):
+        anterior, novo = par(-1.0, 2.0)
         registros.append(
             (
                 delegantes[i % len(delegantes)],
                 f"{REDE_CAMPUS}{100 + i}",
                 instante(dentro, 15, i % 60),
-                f"g-del-{i:03d}",
-                {"previous_value": 6.0, "new_value": 6.5,
+                None,  # o `object_id` e atribuido depois do embaralhamento
+                {"previous_value": anterior, "new_value": novo,
                  "student_id": alunos[(400 + i) % len(alunos)][0],
                  "semester": semestre_alvo},
                 True,
@@ -499,13 +538,14 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
     reservadas = set(delegantes) | {conta_alvo} | set(aprovados) | set(suspeitos)
     normais = [p[2] for p in professores if p[2] not in reservadas]
     for i in range(escala.normais_na_trilha):
+        anterior, novo = par(-2.0, 3.0)
         registros.append(
             (
                 normais[i % len(normais)],
                 f"{REDE_CAMPUS}{i % 200}",
                 instante(dentro, 9 + i % 8, i % 60),
-                f"g-nrm-{i:05d}",
-                {"previous_value": 6.0, "new_value": 7.0,
+                None,  # idem
+                {"previous_value": anterior, "new_value": novo,
                  "student_id": alunos[i % len(alunos)][0],
                  "semester": semestre_alvo},
                 True,
@@ -530,7 +570,21 @@ def _linha_b(escala, aleatorio, semestres, janelas, alunos, professores):
     # O embaralhamento e do fluxo semeado, entao continua determinista: mesmo
     # seed, mesma ordem.
     aleatorio.shuffle(registros)
-    return autorizacoes, delegacoes, _encadeia(registros), conta_alvo
+
+    # O `object_id` E ATRIBUIDO AQUI, DEPOIS DO EMBARALHAMENTO — B1 da segunda
+    # auditoria, e o QUARTO vazamento da mesma familia.
+    #
+    # Ele trazia `g-ind-`, `g-amb-`, `g-sus-`, `g-mnt-`, `g-del-` e `g-nrm-`: o
+    # prefixo NOMEAVA o conjunto, na coluna que o participante le. Pior que o
+    # vazamento de ordem, que ao menos exigia contar linhas — aqui bastava olhar.
+    #
+    # Atribuido depois do `shuffle` e em ordem de trilha, ele nao carrega nem o
+    # conjunto nem a posicao de origem: e identidade de linha, e nada mais.
+    numerados = [
+        (ator, ip, quando, f"g-{n:06d}", payload, janela, auth)
+        for n, (ator, ip, quando, _, payload, janela, auth) in enumerate(registros, 1)
+    ]
+    return autorizacoes, delegacoes, _encadeia(numerados), conta_alvo
 
 
 def _encadeia(registros: list[tuple]) -> list[tuple]:

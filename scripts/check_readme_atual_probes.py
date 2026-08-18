@@ -100,7 +100,7 @@ def probes_de_documento(f) -> list[bool]:
     casos = [
         (
             "fase corrente desatualizada - a classe que ocorreu duas vezes",
-            _com(DOCS_REAIS, "README.md", "Fases 0 a 5 conclu", "Fases 0 a 4 conclu"),
+            _com(DOCS_REAIS, "README.md", "Fases 0 a 4 conclu", "Fases 0 a 3 conclu"),
             "`ultima_fase_concluida` afirma",
         ),
         (
@@ -108,14 +108,14 @@ def probes_de_documento(f) -> list[bool]:
             _com(
                 DOCS_REAIS,
                 "README.md",
-                "Próximo checkpoint: **Fase 6",
                 "Próximo checkpoint: **Fase 5",
+                "Próximo checkpoint: **Fase 4",
             ),
             "`proximo_checkpoint` afirma",
         ),
         (
             "contagem de testes velha",
-            _com(DOCS_REAIS, "README.md", "**387 testes**", "**402 testes**"),
+            _com(DOCS_REAIS, "README.md", "**394 testes**", "**402 testes**"),
             "`testes` afirma",
         ),
         (
@@ -123,7 +123,7 @@ def probes_de_documento(f) -> list[bool]:
             _com(
                 DOCS_REAIS,
                 "docs/BRIEFING.md",
-                "Fases 0 a 5 conclu",
+                "Fases 0 a 4 conclu",
                 "Fases 0 a 2 conclu",
             ),
             "docs/BRIEFING.md: `ultima_fase_concluida` afirma",
@@ -157,11 +157,11 @@ def probes_de_fonte(f) -> list[bool]:
     resultados = []
 
     fase_nova = dict(f)
-    fase_nova["ultima_fase_concluida"] = 6
-    fase_nova["proximo_checkpoint"] = 7
+    fase_nova["ultima_fase_concluida"] = 5
+    fase_nova["proximo_checkpoint"] = 6
     resultados.append(
         roda(
-            "a Fase 6 fechou e os documentos nao souberam",
+            "a Fase 5 fechou e os documentos nao souberam",
             DOCS_REAIS,
             fase_nova,
             "`ultima_fase_concluida` afirma",
@@ -261,7 +261,7 @@ def probe_afirmacao_reescrita(f) -> bool:
     errado" passaria aqui, e passaria justamente no caso em que ele parou de
     verificar.
     """
-    docs = _com(DOCS_REAIS, "README.md", "**Fases 0 a 5 concluídas.**", "")
+    docs = _com(DOCS_REAIS, "README.md", "**Fases 0 a 4 concluídas.**", "")
     return roda(
         "a afirmacao foi reescrita e a ancora sumiu",
         docs,

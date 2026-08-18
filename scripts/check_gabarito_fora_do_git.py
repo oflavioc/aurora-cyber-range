@@ -111,9 +111,43 @@ MOTIVO_MINIMO = 400
 #:   GT-LINHAB-1  fato do ground truth     A-000123     matricula
 #:   AUT-AMB-000  autorizacao              PR-DEL-000   numero de processo
 #:   DEL-000      delegacao                g-ind-000    objeto da trilha
+#: O SUFIXO E NUMERO **OU INTERPOLACAO** — H1 da segunda auditoria.
+#:
+#: O comentario acima nomeava `g-ind-000`, e o fonte tem `f"g-ind-{i:03d}"`: o
+#: verificador declarava cobrir uma forma que NAO VIA, e as quinze sondas
+#: passavam porque nenhuma plantava identificador construido por f-string.
+#: **Verificador que declara cobrir e nao cobre e pior que ausencia**, porque a
+#: ausencia nao da falsa garantia.
+SUFIXO = r"(?:[0-9]+|\{[^}]*\})"
+
+#: O FECHO E LOOKAHEAD E NAO `\b`, e a diferenca decide: depois de `}` vem `"`, e
+#: `\b` exige fronteira entre dois nao-palavra — que nao existe. Com `\b`, a forma
+#: interpolada continuava passando mesmo depois de o sufixo aceita-la.
+#:
+#: OS PREFIXOS QUE CARREGAM GABARITO, e a distincao com os que nao carregam e o
+#: que impede a regra de reprovar o gerador inteiro:
+#:
+#:   `GC-`, `GT-`, `AUT-XXX-`, `PR-XXX-`, `DEL-`, `g-xxx-` dizem QUAL CASO ou
+#:       QUAL CONJUNTO. Interpolados ou nao, sao gabarito — `f"AUT-AMB-{i}"` diz
+#:       que aquela autorizacao e de ambiguo tao alto quanto `AUT-AMB-000`.
+#:
+#:   `A-`, `U-P-` sao formato de ENTIDADE: `f"A-{i:06d}"` gera os 28 mil alunos e
+#:       nao aponta caso nenhum. So a forma CONCRETA deles e gabarito.
+#: E A INTERPOLACAO SO CONTA ONDE HA **INFIXO DE CONJUNTO**, que e a distincao
+#: que a primeira versao desta correcao nao fazia — ela reprovou `GC-{:04d}` e
+#: `GT-LINHAB-{}`, que sao formato do artefato NAO versionado e nao apontam caso
+#: nenhum.
+#:
+#:   `AUT-AMB-{i}`, `PR-SUS-{i}`, `g-ind-{i}`   o infixo NOMEIA o conjunto, e o
+#:       participante le a coluna. Interpolado ou nao, e gabarito.
+#:   `GC-{n}`, `GT-LINHAB-{n}`, `DEL-{i}`       formato sem conjunto: `GC-` so
+#:       existe no gabarito, e `DEL-` marca a entidade, nao o grupo.
+INFIXO_DE_CONJUNTO = r"(?:AUT|PR)-[A-Z]{3}-" + SUFIXO + r"|g-[a-z]{3}-" + SUFIXO
+
 IDENTIFICADORES = re.compile(
-    r"\b(?:GC-[0-9]+|GT-[A-Z0-9]+-[0-9]+|U-P-[0-9]+|A-[0-9]{4,}"
-    r"|AUT-[A-Z]+-[0-9]+|PR-[A-Z]+-[0-9]+|DEL-[0-9]+|g-[a-z]{3}-[0-9]+)\b"
+    r"\b(?:" + INFIXO_DE_CONJUNTO
+    + r"|GC-[0-9]+|GT-[A-Z0-9]+-[0-9]+|DEL-[0-9]+"
+    + r"|U-P-[0-9]+|A-[0-9]{4,})(?![0-9A-Za-z_])"
 )
 
 #: A AFIRMACAO FALSA, na forma em que ela apareceu quatro vezes: um dos dois

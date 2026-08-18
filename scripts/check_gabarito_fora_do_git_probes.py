@@ -101,6 +101,48 @@ PROBES = [
         "identificador concreto",
     ),
     (
+        "H1 — o identificador construido por f-STRING com INFIXO de conjunto",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"linha_b.py": 'AUTH = f"AUT-AMB-{i:03d}"'}, DOCS_LIMPOS),
+        "identificador concreto",
+    ),
+    (
+        "H1 — e a do processo, que foi a quinta instancia do B1",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"dataset.py": 'PROC = f"PR-SUS-{i:03d}"'}, DOCS_LIMPOS),
+        "identificador concreto",
+    ),
+    (
+        "e o formato de ENTIDADE nao reprova: `f\"U-P-{i:04d}\"` gera os 1.200",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"linha_b.py": 'CONTA = f"U-P-{i:04d}"'}, DOCS_LIMPOS),
+        None,
+    ),
+    (
+        "H1 — e a do objeto da trilha, que o comentario NOMEIA e o regex nao via",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"dataset.py": 'objeto = f"g-ind-{i:03d}"'}, DOCS_LIMPOS),
+        "identificador concreto",
+    ),
+    (
+        "nem o formato do artefato NAO versionado: `f\"GC-{n}\"` nao aponta caso",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"gabarito.py": 'CASO = f"GC-{numero}"'}, DOCS_LIMPOS),
+        None,
+    ),
+    (
+        "mas a forma CONCRETA dele reprova, e essa e a distincao inteira",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"gabarito.py": 'ALVO = "GC-0007"'}, DOCS_LIMPOS),
+        "identificador concreto",
+    ),
+    (
+        "e a forma de FORMATACAO nao pode reprovar sozinha, sem prefixo de gabarito",
+        (VERSIONADOS, IGNORE,
+         _fontes() | {"carga.py": 'linha = f"{tabela}-{i:04d}"'}, DOCS_LIMPOS),
+        None,
+    ),
+    (
         "placeholder trocado por numero fixo",
         (VERSIONADOS, IGNORE, _fontes(MODELO.replace("{{N_INDEVIDOS}}", "22")), DOCS_LIMPOS),
         "perdeu os placeholders",
