@@ -1675,6 +1675,79 @@ citando o que proíbem. **Comece sabendo:** se a checagem é sobre texto, ela
 precisa de estrutura ou de autoexclusão **antes** da primeira execução, e não
 depois.
 
+
+### 9.5 O teste não nasceu certo, e o que o descobriu foi plantar — não reler
+
+O teste de propriedade que substituiu as asserções por vetor **passou verde na
+primeira execução**. Quatro vetores históricos foram plantados para medir, e **só
+dois reprovavam**.
+
+| Vetor plantado | Reprovava? | O que faltava |
+|---|---|---|
+| `user_agent` próprio do ruído | sim | — |
+| hora do ruído fixa em 03h | **não** | a varredura isentava a coluna **inteira**, sem olhar o campo `conjuntos` |
+| alunos de janela estreita | **não** | exclusividade e intercalação não pegam concentração; e depois, o limiar |
+| infixo no `object_id` | **não** (ver §9.7) | a mutação não é escrevível |
+
+**Sem plantar, o verde de primeira teria fechado a fase.** E verde de primeira num
+teste escrito para uma classe que já produziu sete instâncias era o resultado
+menos provável — foi o que não me ocorreu enquanto eu o lia e achava correto.
+
+**As três correções que a medição exigiu** não são refinamentos: cada uma fechava
+um buraco pelo qual um vazamento real passava. E a última — comparar entre seeds
+com limiar de independência — só apareceu porque a anterior produziu **falso
+positivo** contra `minuto`, cuja sobreposição entre dois seeds é *menor* que o
+acaso prediz. Um teste que reprova o que não é defeito é abandonado na terceira
+vez que alguém o vê vermelho.
+
+### 9.6 A correção herdou o defeito da coisa corrigida — e no mesmo turno
+
+O H1 da segunda auditoria apontou: `assertNotEqual` sobre união é satisfeito por
+**um** elemento. Escrevi o teste de propriedade para corrigir isso — e **usei
+`assertNotEqual` sobre conjuntos dentro dele**.
+
+Segunda vez na mesma volta, com a classe nomeada, escrita e fresca. É a §7.3.1 na
+forma mais dura que esta linhagem produziu: **a correção reproduzindo o defeito
+da coisa que ela corrige**, minutos depois de o defeito ter sido explicado.
+
+**O que pegou foi medir, e não lembrar.** Eu tinha acabado de escrever o
+parágrafo sobre a fraqueza do `assertNotEqual`; isso não impediu nada. O que
+impediu foi plantar o vetor e ver o teste passar quando ele devia falhar.
+
+A conclusão não é "prestar mais atenção" — é a mesma da §1.6 da Fase 1, com um
+alvo novo: **a disciplina não segura nem quem acabou de escrever a regra**, e
+por isso a medição por mutação deixa de ser recomendável e passa a ser o passo
+que fecha um teste de classe. Um teste escrito contra uma classe conhecida nasce
+sem prova, e prova aqui é mutação que ele tem de pegar.
+
+### 9.7 Corrigido e inexprimível não são o mesmo estado
+
+Seis dos sete vazamentos foram **corrigidos**: o código mudou, e o teste que os
+pega existe. Um deles ficou em outro estado, e a distinção vale registro porque
+ela é o que a reestruturação comprou.
+
+**O vetor de identificador é hoje inexprimível.** `object_id` é atribuído
+**depois** do embaralhamento, num ponto onde o conjunto já não está em escopo:
+não há variável a consultar. Tentei escrever a mutação que o reintroduziria e não
+consegui — não porque seja difícil, mas porque exigiria **mover código de lugar**,
+e mover código de lugar aparece no diff como reestruturação, não como ajuste.
+
+| Estado | O que impede o retorno | O que o retorno parece no diff |
+|---|---|---|
+| **corrigido** | um teste que fica vermelho | uma linha alterada, e o teste acusa |
+| **inexprimível** | não há de onde tirar o dado | uma função mudando de forma |
+
+**A diferença é o custo de reintroduzir.** Um vetor corrigido volta com um
+descuido e é pego por um teste; um vetor inexprimível volta só com uma decisão de
+estrutura, que passa por revisão de PR com outra cara. É a distinção entre regra
+e impedimento da §1.6 — e é o argumento a favor de reestruturar em vez de
+corrigir, quando a classe já mostrou que tem N+1 instâncias.
+
+**Não vale para os outros seis**, e isso está dito para não virar promessa
+grande: a hora, o IP, o aluno e o valor continuam sendo decididos com o conjunto
+em escopo, porque `02` §6.1 exige que sejam. O que os segura é a lista declarada
+mais a varredura por coluna — mecanismo, e não impossibilidade.
+
 ### 9.2 Uma decisão de fronteira protege o arquivo, e o conteúdo vaza por onde ela não nomeia
 
 A D10 decidiu *"`scenarios/` fica fora do Git"*, e a decisão está certa. Ela
@@ -1987,3 +2060,66 @@ Agora: uma propriedade sobre **toda coluna que o dataset escreve**, com a lista
 declarada do que pode correlacionar. O vetor de identificador é hoje
 **estruturalmente inexprimível** — `object_id` é atribuído depois do
 embaralhamento, num ponto onde o conjunto já não está em escopo.
+
+---
+
+### 10.8 M2 — o artefato assinado, e o que ele torna não-ambíguo
+
+**Os dois números do registro eram o sintoma.** A §4.4 traz 159,4 s e a §4.5 traz
+144,3 s — de antes e depois do embaralhamento —, e nada nos dois dizia a qual
+commit cada um pertencia. Número de desempenho sem commit fica ambíguo assim que
+a árvore anda uma vez, e ela andou seis.
+
+**A forma é a do `check_provas_de_container.py`, e o argumento é o da P4-10:** o
+que exige rede e volume acontece **fora** da sessão do julgador, e o resultado
+chega pronto — amarrado ao objeto por SHA. Isso não faz o auditor ver a execução;
+amarra a evidência ao commit, que é a diferença entre "alguém rodou" e "rodou
+nisto".
+
+`prova_seed_completo.py` passou a gravar `.aurora-prova-do-seed.json` com o SHA
+do checkout, máquina, data, stack, o número de linhas, os dois tempos e os
+digests. **O arquivo é sempre escrito, inclusive quando a medição falha** — é
+assim que "falhou" se distingue de "ninguém rodou".
+
+`check_prova_do_seed.py` reprova em cinco direções, e a primeira é a que não pode
+degradar:
+
+| | |
+|---|---|
+| (a) | o arquivo **não existe** → reprova. Não ter a medição é o caso em que não se pode afirmar o item |
+| (b) | o `commit` gravado diverge do `HEAD` → reprova |
+| (c) | o arquivo está **versionado** → reprova: ele carrega o SHA do commit que mede, e um commit não contém o próprio SHA |
+| (d) | falta máquina, data, python ou linhas → reprova. É `06` T3 virando predicado |
+| (e) | a prova gravada diz que um dos itens **falhou** → reprova |
+
+Nove eixos de prova negativa. No CI **só os probes** rodam, pelo mesmo motivo do
+verificador das provas de container: o runner não tem — nem deve ter — o arquivo
+que o operador escreve na máquina que mede.
+
+**A exclusão do `prova_seed_completo.py` da allowlist continua válida**, e não
+mudou: o que faltava não era o auditor rodar, era a gravação existir. O
+verificador entra na allowlist; o script medido, não.
+
+#### A medição assinada, e o número que agora tem dono
+
+```text
+commit   <o do candidato>          maquina  Windows-11-10.0.26200-SP0
+python   3.12.10                   data     2026-08-18
+seed     20260818                  linhas   3.543.783
+
+item 1   154,7 s e 141,8 s, de um orcamento de 300 s      PASSA
+item 2   20 tabelas com SHA-256 igual nas duas rodadas    PASSA
+
+audit_trail  f7db7e37c0c13aaf3ea22392b996227ba927635f4e5682784256dfced6444f95
+students     b154960b58f49eb6cdf655dd397020beb4243663be906ae7247dc2985a09eaed
+```
+
+**O digest de `students` é o mesmo desde a peça 4 e o de `audit_trail` mudou a
+cada correção da Linha B** — e o par continua sendo a confirmação de escopo que
+ele era: as sete correções tocaram a trilha e não o resto.
+
+**E o mecanismo se exerceu na primeira tentativa.** A medição foi gravada sobre
+`9042d9f`, e o commit desta volta a invalida: o verificador reprova com *"a prova
+foi gravada sobre X e este checkout é Y"*, e a medição é refeita sobre o
+candidato. Foi assim que se descobriu, medindo, que o artefato **tem de ser o
+último passo antes do checkpoint** — e não um subproduto de qualquer volta.

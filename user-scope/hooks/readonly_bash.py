@@ -267,6 +267,17 @@ ALLOWED = [
     # contra cinquenta scripts a olho, que e exatamente a conferencia manual que
     # o M2 recusou. A prova negativa entra junto pelo motivo de sempre.
     rf"|check_allowlist_do_auditor|check_allowlist_do_auditor_probes"
+    # `check_volumes_da_linha_b` ja entrou acima. `check_prova_do_seed` entra
+    # aqui — M2 da segunda auditoria —, e o criterio e o mesmo do
+    # `check_provas_de_container`: a evidencia e um arquivo que OUTRO processo
+    # escreveu, e a pergunta "ela e deste commit?" e uma comparacao entre o SHA
+    # gravado e o `HEAD` deste checkout. Ler o arquivo com `cat` mostraria o SHA
+    # declarado e nada mais; quem confere e ele.
+    #
+    # ELE NAO EXECUTA O SEED. Le um JSON, chama `git rev-parse` e `git ls-files`,
+    # e imprime. O `prova_seed_completo.py` continua FORA, pelo motivo declarado
+    # logo abaixo.
+    rf"|check_prova_do_seed|check_prova_do_seed_probes"
     # `prova_seed_completo` FICA DE FORA, e a exclusao e decisao pelo MESMO
     # criterio de `bench_reconstruction`, com um agravante proprio:
     #
