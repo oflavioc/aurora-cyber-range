@@ -2734,7 +2734,9 @@ funciona é declaração — e nos dois casos a declaração tem mecanismo, que 
 outra vez. Abrir pendência para tudo que é LOW transforma o inventário em lista
 de desejos, e o efeito é que ninguém lê a parte que cobra.
 
-### 12.4 A linha de status tem forma, e a primeira que escrevi era uma terceira
+### 12.4 Dois defeitos que o próprio commit de fechamento produziu
+
+**A linha de status tem forma, e a primeira que escrevi era uma terceira.**
 
 **Aconteceu escrevendo este fechamento, e vale registrar porque o mecanismo que
 deveria pegar estava escrito para pegar exatamente isto.**
@@ -2759,6 +2761,33 @@ sem cobrir forma nova, e fechar o buraco é fazer o verificador reprovar linha d
 status que não case com nenhuma das duas formas. É correção de uma linha, e é
 **da fase que a fizer** — mexer no verificador dentro do commit de fechamento da
 fase que ele julga é a forma que este registro passou cinco rodadas separando.
+
+**E o segundo: rodei o verificador e não a prova negativa dele.**
+
+Atualizar o README para *"Fases 0 a 5"* deixou `check_readme_atual.py` verde e
+**quebrou `check_readme_atual_probes.py`**, que planta mutação ancorando na frase
+antiga: *"o probe nao ancorou em README.md: `Fases 0 a 4 conclu` nao esta la"*. O
+CI reprovou o commit de fechamento no job `contratos`.
+
+**O probe fez exatamente o que devia** — recusou em vez de passar sobre âncora que
+não existe mais, que é a diferença entre plantio verificado e plantio vazio. O
+defeito é meu, e tem nome nesta fase: **rodei o mecanismo e não a prova dele**. O
+verificador verde diz que o documento bate com a árvore; só a prova negativa diz
+que ele ainda **reprovaria** se não batesse — e é essa a metade que envelhece
+quando o documento muda.
+
+**A generalização, e ela custa uma linha por vez:** quem edita um documento que
+tem verificador precisa rodar **o par**, e não o verificador. Os dois estão
+ao lado um do outro no diretório e no CI, e a assimetria de rodar só um é a
+mesma coisa que a §9.11 chama de auditabilidade tratada como subproduto — em
+escala de um comando.
+
+Quatro âncoras foram atualizadas (a fase corrente e o próximo checkpoint no
+README, a fase corrente no BRIEFING, e a frase inteira do probe de âncora
+reescrita), mais o caso de fonte que agora planta *"a Fase 6 fechou e os
+documentos não souberam"*. **Os dezesseis eixos voltaram a reprovar como devem**,
+e desta vez todos os `*_probes.py` do repositório foram executados antes do
+push.
 
 ### 12.5 A releitura do auditor sobre a §7 — e as oito divergências que ela achou
 
