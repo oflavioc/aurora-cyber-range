@@ -65,7 +65,33 @@ exige_banco = unittest.skipIf(URL is None, RAZAO)
 #: ORDEM INVERSA DAS FKs. `students` antes de `enrollments` deixaria a referencia
 #: pendurada; `CASCADE` resolveria e esconderia a ordem errada, e a ordem errada
 #: e informacao — ela diz que alguem mudou o esquema sem olhar as dependencias.
-TABELAS = ("enrollments", "grades", "classes", "students")
+#:
+#: A PECA 2 DA FASE 5 fez a lista crescer de quatro para dezenove: o modelo
+#: completo de `02` §1 chegou, e uma tabela de fora desta lista sobreviveria ao
+#: `banco_limpo()` levando dado de um teste para dentro do proximo. O teste que
+#: cruza esta lista com a metadata esta em `test_modelo_completo.py`, e ele fica
+#: vermelho quando alguem cria tabela e esquece daqui.
+TABELAS = (
+    "hpc_jobs",
+    "research_projects",
+    "exam_questions",
+    "financing_contracts",
+    "scholarships",
+    "diplomas",
+    "academic_transcripts",
+    "attendance_records",
+    "enrollments",
+    "grades",
+    "classes",
+    "students",
+    "access_delegations",
+    "rectification_authorizations",
+    "subjects",
+    "professors",
+    "courses",
+    "users",
+    "academic_calendar",
+)
 
 
 def engine() -> Engine:
