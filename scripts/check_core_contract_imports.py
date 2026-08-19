@@ -101,6 +101,12 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "inject corrente pelo `inject_fired`. E LEITURA do catalogo, e nao "
         "emissao: este modulo nao chama `append` e nao tem store ao alcance",
     ),
+    "objectives/projecao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a projecao acha as marcacoes do avaliador por "
+        "`observed_marker_set`. E LEITURA do catalogo, como `api/projecoes.py`: "
+        "este modulo nao chama `append` e nao tem store ao alcance",
+    ),
     "engine/loader/contract_source.py": (
         frozenset({CONTRACTS}),
         "A EXCECAO, e a unica: importa o PACOTE para resolver o diretorio e ler "

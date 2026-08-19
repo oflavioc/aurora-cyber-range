@@ -58,9 +58,21 @@ $defs:
       # versionada; o que muda entre packs e onde a competencia se manifesta,
       # nao como se pontua.
       # ---------------------------------------------------------------------
+      #
+      # O `pattern` alcanca a FORMA; `x-aurora-ref` alcanca a EXISTENCIA, e
+      # resolve contra o `required_rubrics` DO MANIFESTO — nao direto contra a
+      # biblioteca. A transitividade da o resto: `required_rubrics` ja resolve
+      # contra `rubric_library` (scenario.schema.v2.yaml), entao objetivo que
+      # cite rubrica inexistente e recusado por esta regra ANTES de chegar la.
+      #
+      # Contra o manifesto, e nao contra a biblioteca, porque a lacuna e outra:
+      # objetivo citando `escalation.v1` com o manifesto declarando so
+      # `incident_triage.v2` faria o engine nunca carregar a rubrica que
+      # pontuaria a competencia. O pack carrega, e o AAR sai sem ancora.
       rubric:
         type: string
         pattern: '^[a-z][a-z0-9_]*\.v[0-9]+$'
+        x-aurora-ref: pack_required_rubrics
 
       evidence:
         $ref: '#/$defs/evidence'
@@ -266,7 +278,7 @@ x-aurora-invalid-examples:
         OBJ-02:
           title: 'Coordenar resposta entre areas'
           competency: cross_functional_coordination
-          rubric: cross_functional_coordination.v1
+          rubric: incident_triage.v2
           evidence:
             derived: [algo_inferido]
 
@@ -277,7 +289,7 @@ x-aurora-invalid-examples:
         OBJ-04:
           title: 'Resistir a viés de confirmação'
           competency: analytical_rigor
-          rubric: analytical_rigor.v1
+          rubric: incident_triage.v2
           evidence:
             observed:
               - id: pensou_bem
@@ -300,7 +312,7 @@ x-aurora-invalid-examples:
         OBJ-06:
           title: 'Decidir sobre suspensão da matrícula'
           competency: risk_decision
-          rubric: risk_decision.v1
+          rubric: incident_triage.v2
 
   # Mapeamento vazio nao e expressavel no subconjunto YAML da Fase 0 — `{}` e
   # fluxo e o parser recusa. A instancia usa `evidence` nulo, que e a forma
@@ -312,7 +324,7 @@ x-aurora-invalid-examples:
         OBJ-06:
           title: 'Decidir sobre suspensão da matrícula'
           competency: risk_decision
-          rubric: risk_decision.v1
+          rubric: incident_triage.v2
           evidence:
 
   - reason: 'metric_binding fora do conjunto de metricas de 03 secao 3'
@@ -322,7 +334,7 @@ x-aurora-invalid-examples:
         OBJ-07:
           title: 'Validar integridade antes de liberar restauração'
           competency: integrity_assurance
-          rubric: integrity_assurance.v1
+          rubric: incident_triage.v2
           evidence:
             auto: [integrity_validation_declared]
           metric_binding: MTTR
@@ -338,6 +350,26 @@ x-aurora-invalid-examples:
           evidence:
             auto: [audit_query_performed]
 
+  # A LACUNA QUE A PECA 1 DA FASE 6 DEIXOU ABERTA. `required_rubrics` do
+  # manifesto passou a resolver contra a biblioteca do core, mas o `rubric` de
+  # cada objetivo nao resolvia contra nada alem do `pattern`. Um objetivo citando
+  # rubrica que o manifesto nao declara faz o engine nunca carregar a ancora que
+  # pontuaria a competencia: o pack carrega, e o AAR sai sem com que pontuar.
+  #
+  # `crisis_communication.v2` EXISTE na biblioteca — a fixture nao e sobre
+  # rubrica inexistente, e sim sobre rubrica nao declarada NESTE pack. E por isso
+  # que a regra resolve contra o manifesto e nao contra a biblioteca.
+  - reason: 'objetivo cita rubrica que o manifesto do pack nao declara'
+    rejected_by: 'x-aurora-ref:pack_required_rubrics'
+    instance:
+      objectives:
+        OBJ-01:
+          title: 'Classificar severidade e escalar para crise'
+          competency: escalation
+          rubric: regulatory_compliance.v1
+          evidence:
+            auto: [incident_declared]
+
   - reason: 'evidence.auto referencia event_type fora do catalogo'
     rejected_by: 'x-aurora-ref:event_catalog'
     instance:
@@ -345,6 +377,6 @@ x-aurora-invalid-examples:
         OBJ-01:
           title: 'Classificar severidade e escalar para crise'
           competency: escalation
-          rubric: escalation.v1
+          rubric: incident_triage.v2
           evidence:
             auto: [incident_declaread]

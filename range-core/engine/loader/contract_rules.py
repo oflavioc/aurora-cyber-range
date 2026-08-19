@@ -235,6 +235,15 @@ def build_registries(
     for exemplo in contracts["objectives"].get("examples") or []:
         objetivos.update((exemplo.get("objectives") or {}).keys())
 
+    # `pack_required_rubrics` — o manifesto declara de QUAIS rubricas o pack
+    # precisa, e `objectives.yaml` nao pode citar fora dessa lista. Sem isto, um
+    # objetivo cita `escalation.v1`, o manifesto nao a declara, e a rubrica que
+    # pontuaria a competencia nunca e carregada: o AAR sai sem ancora, e o pack
+    # carregou.
+    rubricas_do_pack = set()
+    for exemplo in contracts["scenario"].get("examples") or []:
+        rubricas_do_pack.update(exemplo.get("required_rubrics") or [])
+
     injects, opcoes = set(), set()
     for doc in contracts["scenario"].get("x-aurora-document-examples") or []:
         do_exemplo, opcoes_do_exemplo = _injects_and_options(doc.get("instance") or {})
@@ -245,6 +254,7 @@ def build_registries(
         {
             "pack_facts": fatos,
             "pack_objectives": objetivos,
+            "pack_required_rubrics": rubricas_do_pack,
             "pack_injects": injects,
             "pack_decision_options": opcoes,
         }
@@ -257,6 +267,7 @@ def build_pack_registries(
     adapter_flags: dict,
     rubric_library: dict,
     *,
+    manifest_document: dict | None = None,
     injects_document: dict | None = None,
     objectives_document: dict | None = None,
     ground_truth_document: dict | None = None,
@@ -287,6 +298,7 @@ def build_pack_registries(
         {
             "pack_facts": fatos,
             "pack_objectives": set(((objectives_document or {}).get("objectives") or {}).keys()),
+            "pack_required_rubrics": set((manifest_document or {}).get("required_rubrics") or []),
             "pack_injects": injects,
             "pack_decision_options": opcoes,
         }
