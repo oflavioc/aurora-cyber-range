@@ -441,6 +441,7 @@ def _verify_rules(
         # *"rubrica ausente ou em versao diferente impede a carga"* (04 secao 2),
         # pelo mesmo `x-aurora-ref` com que a flag desconhecida impede o boot.
         load_library(),
+        manifest_document=documentos.get("manifest.yaml"),
         injects_document=documentos.get("injects.yaml"),
         objectives_document=documentos.get("objectives.yaml"),
         ground_truth_document=documentos.get("ground_truth.yaml"),
