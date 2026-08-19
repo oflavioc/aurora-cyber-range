@@ -101,6 +101,51 @@ rebase moveu o começo da fase de verdade.
 natureza do squash. Por isso mora aqui, no procedimento, e não só na pendência
 que o descobriu.
 
+### O prefixo `spec-change:` é lido por DOIS verificadores, e eles não são o mesmo
+
+Custou duas ocorrências para ficar escrito, e a segunda aconteceu **no PR
+seguinte ao que a ensinou** — o que já basta para tirar a regra de mensagem de
+commit e trazê-la para cá. Ela protege `spec-change`, e `spec-change` acontece
+no meio de fase.
+
+**Os dois predicados, sobre a mesma convenção:**
+
+| Quem lê | O que lê | O que acontece se estiver errado |
+|---|---|---|
+| `spec_freeze` (CI) | o **título do PR** | PR que toca `docs/spec/` sem o prefixo é reprovado |
+| `check_readme_atual.py` | os **subjects de `git log spec-v1.0..HEAD`** | o contador do README diverge da árvore e o job `contratos` reprova |
+
+São verificadores diferentes, com entradas diferentes, e **os dois mordem**.
+Satisfazer um não diz nada sobre o outro.
+
+**A regra operacional.** O prefixo `spec-change:` pertence a **duas** coisas: ao
+commit normativo e ao título do PR. Commit auxiliar dentro do mesmo PR — o que
+atualiza o contador do README, o que corrige uma âncora de probe, o que
+conserta um typo — usa `docs:` ou `fix:`.
+
+O motivo é aritmético e não estético: um segundo commit com o prefixo entra na
+própria conta, e o número que ele acabou de corrigir sobe de novo. Foi
+exatamente isso no primeiro dos dois casos.
+
+**A regra de ordem, que é a que faltou no segundo.** Em branch que carregue
+mudança normativa, `check_readme_atual.py` roda **depois de todo commit**, antes
+do push.
+
+**A propriedade que obriga a ordem, e ela é do verificador e não da lista.** A
+entrada dele inclui o próprio commit candidato: lê `git log`, e não a árvore de
+trabalho. Rodá-lo antes de commitar devolve verde sobre um estado que não é o
+que vai ao CI, e o verde é sincero — o commit ainda não existia.
+
+**Verificador com essa propriedade roda depois do commit.** Hoje
+`check_readme_atual.py` é o único caso; qualquer verificador futuro que leia o
+log herda esta regra sem precisar que alguém volte aqui para acrescentá-lo.
+
+A redação anterior deste parágrafo dizia *"é o único verificador cuja entrada
+inclui o commit candidato"* e *"todos os outros podem ser conferidos com a
+árvore suja"* — duas afirmações universais sobre o conjunto de hoje, dentro do
+documento que ensina a não inscrever contagem. Enunciar a propriedade, com a
+instância datada e o herdeiro declarado, é o que não envelhece.
+
 ### Rebase, nunca squash, no merge de branch de fase
 
 **Regra:** o merge de uma branch de fase é `--rebase` (ou fast-forward). **`--squash`
