@@ -1,0 +1,19 @@
+# RUBRICA BARS — business_continuity v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: business_continuity
+version: v1
+scale: 0-4
+anchors:
+  0: "Não decide sobre continuidade; serviços caem ou seguem por inércia."
+  1: "Decide interromper ou manter sem consultar o calendário nem o impacto sobre quem depende do serviço."
+  2: "Decide com base no impacto imediato, sem prazo de reavaliação."
+  3: "Decide com impacto e prazo de reavaliação declarados, e comunica a decisão a quem ela afeta."
+  4: "Decide com impacto, prazo e critério de retomada declarados, e executa a reavaliação no prazo que declarou."

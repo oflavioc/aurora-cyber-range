@@ -1,0 +1,19 @@
+# RUBRICA BARS — escalation v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: escalation
+version: v1
+scale: 0-4
+anchors:
+  0: "Não escala; a crise chega à liderança por canal informal ou por terceiro."
+  1: "Escala depois de a consequência já ter se materializado, sem critério declarado."
+  2: "Escala dentro do prazo, mas sem informar severidade, escopo ou o que se pede de decisão."
+  3: "Escala com severidade e escopo, e nomeia quem precisa decidir o quê."
+  4: "Escala com severidade, escopo, decisão pedida e prazo da decisão, e reescala quando o quadro muda de faixa."

@@ -1,0 +1,19 @@
+# RUBRICA BARS — integrity_assurance v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: integrity_assurance
+version: v1
+scale: 0-4
+anchors:
+  0: "Trata serviço no ar como dado íntegro."
+  1: "Verifica integridade apenas onde o incidente foi percebido, e generaliza o resultado."
+  2: "Define escopo de verificação, mas o declara depois de já ter concluído sobre os casos."
+  3: "Declara escopo de revisão antes de avaliar, e mantém a conclusão dentro dele."
+  4: "Declara escopo antes de avaliar, distingue o que revisou do que não alcançou, e libera restauração só depois de a verificação cobrir o que se propôs a cobrir."

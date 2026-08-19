@@ -36,7 +36,10 @@ required_flags:
   - academus.lms_session_drop_rate
   - academus.portal_defaced
 
-# Rubrica com versao, como `04` secao 2 exige. A conferencia de que ela EXISTE
-# na biblioteca e da Fase 6 (T9): aqui o manifesto so a declara.
+# Rubrica com versao, como `04` secao 2 exige. Desde a peca 1 da Fase 6, a
+# EXISTENCIA tambem e conferida: `x-aurora-ref: rubric_library` resolve contra
+# range-core/rubrics/, e `incident_triage.v2` esta la. Trocar por uma rubrica
+# ausente ou por outra versao recusa a carga — os dois testes em
+# `tests/test_pack_loader.py`.
 required_rubrics:
   - incident_triage.v2

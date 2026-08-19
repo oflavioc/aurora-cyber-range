@@ -1,0 +1,19 @@
+# RUBRICA BARS — regulatory_compliance v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: regulatory_compliance
+version: v1
+scale: 0-4
+anchors:
+  0: "Não considera obrigação regulatória dentro do exercício."
+  1: "Reconhece a obrigação depois de o prazo ter corrido."
+  2: "Cumpre o prazo com conteúdo que afirma número não verificado."
+  3: "Cumpre o prazo distinguindo o que está confirmado do que é estimativa."
+  4: "Cumpre o prazo, distingue confirmado de estimado, declara a data de atualização e a cumpre quando o número muda."
