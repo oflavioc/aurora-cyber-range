@@ -64,6 +64,7 @@ from range_core.engine.loader.canonical import (
     scope_from_contract,
 )
 from range_core.engine.loader.contract_rules import AuroraChecker, build_pack_registries
+from range_core.rubrics.library import load_library
 from range_core.engine.loader.contract_source import (
     ContractSourceError,
     documents_by_id,
@@ -435,6 +436,11 @@ def _verify_rules(
     registros = build_pack_registries(
         dict(contracts),
         dict(adapter_flags.specs),
+        # A biblioteca de rubricas e do core (00 secao 5.8) e vem da arvore em
+        # execucao — nao e dado de dominio nem de pack. E ela que executa
+        # *"rubrica ausente ou em versao diferente impede a carga"* (04 secao 2),
+        # pelo mesmo `x-aurora-ref` com que a flag desconhecida impede o boot.
+        load_library(),
         injects_document=documentos.get("injects.yaml"),
         objectives_document=documentos.get("objectives.yaml"),
         ground_truth_document=documentos.get("ground_truth.yaml"),

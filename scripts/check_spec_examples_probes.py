@@ -59,10 +59,19 @@ PROBES = [
         "nenhum contrato reivindica",
     ),
     (
+        # A ancora era `sections: [1, 2]`, e a secao 2 servia porque o bloco de
+        # `03` §2.2 estava em IGNORADOS. Na peca 1 da Fase 6 ele saiu de la —
+        # `contracts/rubrics.schema.yaml` passou a reivindica-lo —, e o probe
+        # deixou de ter bloco ignorado sob a secao que planta. Repontado para a
+        # secao 4, onde `information_distribution` segue ignorado (P1-20).
+        #
+        # E o eixo, e nao a secao, que este probe prova: contrato que se declara
+        # autoridade sobre uma secao cujo bloco alguem ignorou tem de dizer por
+        # que nao o reivindica.
         "ignorado sob secao reivindicada como autoridade, sem justificar por que",
         "objectives.schema.yaml",
         "  - doc: '03_EXERCISE_DESIGN.md'\n    sections: [1]\n",
-        "  - doc: '03_EXERCISE_DESIGN.md'\n    sections: [1, 2]\n",
+        "  - doc: '03_EXERCISE_DESIGN.md'\n    sections: [1, 4]\n",
         "e o motivo nao diz por que o",
     ),
     (

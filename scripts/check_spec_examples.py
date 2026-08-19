@@ -103,9 +103,10 @@ IGNORADOS = {
     ("02_DOMAIN_ACADEMUS.md", "6.2 Avaliação por calibração, não por recall", 0): {
         "motivo": "submissao de assessment: artefato de runtime da Fase 6, sem contrato",
     },
-    ("03_EXERCISE_DESIGN.md", "2.2 Formato", 0): {
-        "motivo": "rubrica BARS: artefato de range-core/rubrics/, chega na Fase 6",
-    },
+    # `03` §2.2 SAIU DAQUI na Fase 6. O motivo escrito era "chega na Fase 6", e a
+    # Fase 6 chegou: `contracts/rubrics.schema.yaml` existe e REIVINDICA o bloco.
+    # Ignorado com motivo que ja nao vale e ignorado sem motivo — e ninguem
+    # reabre um IGNORADOS para conferir se a condicao ainda se sustenta.
     ("03_EXERCISE_DESIGN.md", "4. Ground truth, observável e reportado", 0): {
         "motivo": "information_distribution.yaml: arquivo de pack sem contrato — ver P1-20",
     },

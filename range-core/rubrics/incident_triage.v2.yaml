@@ -1,0 +1,24 @@
+# RUBRICA BARS — incident_triage v2
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+#
+# Mede RECONHECER O QUE ESTA ACONTECENDO, incluindo o caso em que sao dois
+# incidentes e nao um — o objeto do OBJ-03 (03 secao 1.3). A ancora 4 exige a
+# hipotese concorrente REGISTRADA, e nao apenas verbalizada: 00 secao 5.7 nao
+# admite criterio sem evidencia observavel.
+
+
+competency: incident_triage
+version: v2
+scale: 0-4
+anchors:
+  0: "Não classifica o evento dentro do exercício, ou trata sintoma isolado como se fosse o incidente."
+  1: "Classifica um único incidente e não revisa a classificação quando surge evidência que a contradiz."
+  2: "Classifica com severidade e escopo declarados, mas atribui todos os sintomas a uma causa única sem investigar alternativa."
+  3: "Levanta hipótese de incidentes concorrentes e a investiga, ainda que sem declaração formal de incidente separado."
+  4: "Declara incidente separado com escopo próprio, mantém as hipóteses concorrentes registradas e nomeia a evidência que sustenta cada uma."

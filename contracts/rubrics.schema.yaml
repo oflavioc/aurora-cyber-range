@@ -1,0 +1,260 @@
+# CONTRATO — Rubrica BARS da biblioteca do core
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2, 00_MASTER_SPEC.md secao 5.8.
+#
+# DIVISAO DE RESPONSABILIDADE (00 secao 5.8): a ancora BARS e UNIVERSAL e vive
+# no core, versionada; QUAIS evidencias demonstram a competencia e decisao do
+# cenario. Por isso a rubrica nao mora no pack: o pack a REFERENCIA, por
+# `required_rubrics`, com a versao embutida.
+#
+# O ARQUIVO E A UNIDADE. Cada rubrica e um arquivo de
+# range-core/rubrics/<competency>.<version>.yaml, e o nome do arquivo E o
+# identificador que `required_rubrics` cita. NAO ha campo `id`: ele seria uma
+# segunda copia do nome do arquivo e divergiria dele em silencio — a classe de
+# defeito que `effect_class` e `metric_side` existem para fechar em
+# events.schema.yaml. Quem verifica a identidade entre nome e conteudo e
+# range-core/rubrics/library.py, com teste.
+#
+# POR QUE VERSAO NAO E ESCADA DE MATURIDADE. `04 secao 2` fixa o manifesto
+# normativo com `[incident_triage.v2, crisis_communication.v2,
+# integrity_assurance.v1]` — v1 e v2 convivem, e nao ha v1 de
+# `incident_triage`. Versao aqui e IDENTIDADE, nao progresso: 03 secao 2.1 diz
+# que comparabilidade entre exercicios vale apenas dentro da mesma versao, e
+# inventar uma v1 para as duas que a spec nomeia em v2 seria escrever historia
+# que nao houve.
+#
+# AS CHAVES DE `anchors` SAO INTEIROS, E ISSO E DELIBERADO. O bloco normativo de
+# 03 secao 2.2 escreve `0:` a `4:` sem aspas, e YAML os le como int. JSON Schema
+# valida JSON, cujas chaves de objeto sao strings — entao `properties`,
+# `required` e `propertyNames` NAO alcancam chave inteira. O que este contrato
+# alcanca, e alcanca de fato: ser objeto, ter EXATAMENTE cinco entradas, e todo
+# valor ser string nao vazia (`additionalProperties` recebe as cinco, porque
+# nenhuma casa em `properties`).
+#
+# O que sobra — que as chaves sejam exatamente 0..4 — e verificado em
+# range-core/rubrics/library.py. Nao e lacuna escondida: esta escrito aqui, e a
+# alternativa seria pedir a spec que citasse as chaves entre aspas, o que e o
+# documento normativo se dobrando a limitacao da ferramenta.
+#
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
+
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/rubrics.schema.json'
+title: Rubrica BARS versionada
+x-aurora-contract: rubrics
+x-aurora-schema-version: 1
+
+type: object
+required: [competency, version, scale, anchors]
+additionalProperties: false
+
+properties:
+
+  # As nove competencias de 03 secao 2.3. Conjunto FECHADO: competencia nova
+  # exige spec-change, porque a lista e normativa e o pack referencia por nome.
+  competency:
+    enum:
+      - incident_triage
+      - escalation
+      - cross_functional_coordination
+      - analytical_rigor
+      - business_continuity
+      - risk_decision
+      - integrity_assurance
+      - crisis_communication
+      - regulatory_compliance
+
+  # Mesmo padrao que `required_rubrics` de scenario.schema.v2.yaml exige depois
+  # do ponto. Escrito aqui tambem, e nao so la, porque um arquivo de biblioteca
+  # com `version: 2` (sem o `v`) produziria id `incident_triage.2`, que o pack
+  # nunca casaria — e a falha apareceria como "rubrica ausente", que e a
+  # mensagem errada para o defeito certo.
+  version:
+    type: string
+    pattern: '^v[0-9]+$'
+
+  # 03 secao 2.2 exibe `0-4`, e a escala e a mesma para todas as competencias:
+  # comparabilidade entre competencias depende disso. `const` em vez de `enum`
+  # porque nao ha segunda escala admitida — se um dia houver, e spec-change.
+  scale:
+    const: '0-4'
+
+  # CINCO ancoras — 03 secao 2.3, "cinco ancoras cada, redigidas em
+  # comportamento observavel, nunca em adjetivo". A redacao em comportamento
+  # nao e verificavel por schema e nao se finge que seja: o que se verifica e
+  # cardinalidade e tipo. A regra de redacao vive na revisao humana e na
+  # segunda leitura.
+  anchors:
+    type: object
+    minProperties: 5
+    maxProperties: 5
+    additionalProperties:
+      type: string
+      minLength: 1
+
+x-aurora-authority:
+  - doc: '03_EXERCISE_DESIGN.md'
+    sections: [2]
+  - doc: '00_MASTER_SPEC.md'
+    sections: [5]
+
+# O bloco de 03 secao 2.2 estava em IGNORADOS de scripts/check_spec_examples.py,
+# com o motivo "artefato de range-core/rubrics/, chega na Fase 6". A Fase 6
+# chegou, e o motivo caducou: agora ele e REIVINDICADO, e o arquivo real de
+# range-core/rubrics/crisis_communication.v2.yaml e identico a ele.
+x-aurora-spec-examples:
+  - doc: '03_EXERCISE_DESIGN.md'
+    anchor: '2.2 Formato'
+    pointer: ''
+    form: document
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — a rubrica normativa de 03 secao 2.2, verbatim.
+# ---------------------------------------------------------------------------
+examples:
+  - competency: crisis_communication
+    version: v2
+    scale: '0-4'
+    anchors:
+      0: 'Nenhuma resposta emitida dentro do exercício.'
+      1: 'Resposta fora do prazo, ou internamente contraditória.'
+      2: 'Resposta no prazo, mas sem distinguir fato confirmado de incerteza.'
+      3: 'Comunica fatos confirmados, incertezas declaradas, ações em curso e horário do próximo update.'
+      4: 'Além do nível 3, mantém consistência verificável entre canais e corrige publicamente informação anterior quando novo fato a contradiz.'
+
+# ---------------------------------------------------------------------------
+# Exemplos NEGATIVOS — um defeito por fixture, cada uma completa.
+# ---------------------------------------------------------------------------
+x-aurora-invalid-examples:
+
+  - reason: 'competencia fora das nove de 03 secao 2.3'
+    rejected_by: schema
+    instance:
+      competency: threat_hunting
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  # `2` em vez de `v2` produz id `incident_triage.2`, que `required_rubrics`
+  # nunca casa — e a falha chegaria ao operador como "rubrica ausente".
+  - reason: 'versao sem o prefixo v: id que o pack nunca casa'
+    rejected_by: schema
+    instance:
+      competency: incident_triage
+      version: '2'
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  - reason: 'escala diferente de 0-4: destroi a comparabilidade entre competencias'
+    rejected_by: schema
+    instance:
+      competency: escalation
+      version: v1
+      scale: '0-5'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  - reason: 'quatro ancoras: 03 secao 2.3 exige cinco'
+    rejected_by: schema
+    instance:
+      competency: risk_decision
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+
+  - reason: 'seis ancoras: 03 secao 2.3 exige cinco'
+    rejected_by: schema
+    instance:
+      competency: risk_decision
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+        5: 'f'
+
+  - reason: 'ancora vazia: nivel sem comportamento descrito nao ancora nota nenhuma'
+    rejected_by: schema
+    instance:
+      competency: analytical_rigor
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: ''
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  - reason: 'ancora nao textual: nota nao e ancora de comportamento'
+    rejected_by: schema
+    instance:
+      competency: business_continuity
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 0
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  - reason: 'campo fora do contrato: rubrica nao carrega evidencia, que e do pack'
+    rejected_by: schema
+    instance:
+      competency: integrity_assurance
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+      evidence:
+        auto: [assessment_submitted]
+
+  - reason: 'sem competency: o arquivo nao diz o que mede'
+    rejected_by: schema
+    instance:
+      version: v1
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'
+
+  - reason: 'sem version: o pack referencia por versao e nao teria o que casar'
+    rejected_by: schema
+    instance:
+      competency: escalation
+      scale: '0-4'
+      anchors:
+        0: 'a'
+        1: 'b'
+        2: 'c'
+        3: 'd'
+        4: 'e'

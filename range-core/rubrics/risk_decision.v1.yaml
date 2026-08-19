@@ -1,0 +1,19 @@
+# RUBRICA BARS — risk_decision v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: risk_decision
+version: v1
+scale: 0-4
+anchors:
+  0: "Adia a decisão até que ela seja tomada pelos fatos."
+  1: "Decide sem nomear o que se ganha e o que se perde."
+  2: "Nomeia o trade-off, mas não declara qual lado escolheu nem por quê."
+  3: "Declara o trade-off, a escolha e a razão, com o dono da decisão identificado."
+  4: "Declara trade-off, escolha, razão e a condição que faria a decisão ser revista — e a revê quando a condição ocorre."

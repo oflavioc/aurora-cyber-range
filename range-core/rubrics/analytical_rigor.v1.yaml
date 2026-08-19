@@ -1,0 +1,19 @@
+# RUBRICA BARS — analytical_rigor v1
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 2. Contrato: contracts/rubrics.schema.yaml.
+#
+# O nome do arquivo E o identificador que `required_rubrics` cita. Cinco
+# ancoras, em COMPORTAMENTO OBSERVAVEL — nunca em adjetivo: "respondeu no prazo
+# sem distinguir fato de incerteza" ancora nota; "comunicou mal" nao ancora nada
+# e devolve ao avaliador a decisao que a rubrica existe para tirar dele.
+
+
+competency: analytical_rigor
+version: v1
+scale: 0-4
+anchors:
+  0: "Conclui a partir do primeiro dado disponível e não revisita a conclusão."
+  1: "Busca dado adicional apenas quando ele confirma a hipótese já adotada."
+  2: "Considera hipótese alternativa quando alguém a levanta, sem procurá-la por conta própria."
+  3: "Procura ativamente evidência que refute a hipótese corrente e registra o que encontrou."
+  4: "Procura refutação, declara o que a evidência sustenta e o que não sustenta, e separa correlação de atribuição na comunicação para fora."
