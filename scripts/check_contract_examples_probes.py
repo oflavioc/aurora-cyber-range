@@ -110,11 +110,38 @@ PROBES = [
         "vezes, esperado 1",
     ),
     (
+        # A ancora era `containment_declared: declaration`, e passou a aparecer
+        # DUAS vezes quando o registro `metric_side` entrou: os dois registros
+        # compartilham o valor `declaration`. Ancora agora num tipo cujo valor
+        # difere entre os dois — `observation` so existe em `effect_class`.
         "effect_class sem cobrir o catalogo inteiro",
         "events.schema.yaml",
-        "    containment_declared: declaration\n",
+        "    audit_query_performed: observation\n",
         "",
         "sem effect_class",
+    ),
+    (
+        "metric_side sem cobrir o catalogo inteiro",
+        "events.schema.yaml",
+        "    branch_selected: none\n",
+        "",
+        "sem metric_side",
+    ),
+    (
+        "metric_side com valor fora do conjunto declarado",
+        "events.schema.yaml",
+        "    rollback_performed: epoch\n",
+        "    rollback_performed: os_dois_lados\n",
+        "valor de metric_side fora do conjunto",
+    ),
+    (
+        # Lado declarado que nao classifica nenhum tipo e regra que nunca sera
+        # avaliada — a familia do escopo sem papel de `check_api_surface.py`.
+        "lado declarado em metric_side_values e vazio no mapa",
+        "events.schema.yaml",
+        "  metric_side_values: [declaration, verification, epoch, none]\n",
+        "  metric_side_values: [declaration, verification, epoch, none, aar]\n",
+        "lado declarado e sem nenhum event_type",
     ),
     (
         "effect_class com valor fora do conjunto declarado",

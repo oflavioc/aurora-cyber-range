@@ -506,6 +506,95 @@ x-aurora-registry:
 
   effect_class_values: [state_effect, declaration, observation, machine]
 
+  # ---------------------------------------------------------------------------
+  # METRIC_SIDE — 00 secao 3.2, acrescentado pelo spec-change
+  # `particao-das-metricas-pareadas`.
+  #
+  # `effect_class` responde QUE ESPECIE DE COISA O EVENTO E. `metric_side`
+  # responde QUAL COMPUTADOR DE METRICA PODE LE-LO. Sao ortogonais, e o segundo
+  # NAO e derivavel do primeiro — a derivacao foi tentada e reprova nos dois
+  # sentidos:
+  #
+  #   - `verification_predicate_satisfied` e `machine`, como `inject_fired`, e
+  #     so um dos dois e veredito;
+  #   - `assessment_submitted` e `declaration` e e o insumo do limiar que decide
+  #     TTIV (03 secao 3.3).
+  #
+  # PARA QUE SERVE: 00 secao 3.2 exige que o computador de cada metrica receba
+  # apenas os eventos do seu lado, mais a escrituracao de epoch e os escalares
+  # do insumo tipado — e que so o AAR tenha as duas metades de um par. Uma regra
+  # fecha os dois defeitos: metrica simples lendo veredito, e TTCD computado de
+  # TTCV. E 09 secao 4.0 usa `verification` como a segunda perna da conjuncao
+  # que decide o que uma folha de predicado pode referenciar.
+  #
+  # `epoch` vai AOS DOIS LADOS de proposito. O desconto por uniao e a exclusao
+  # de `rehearsal` sao computacao do consumidor, testada em 06 T10; recorta-los
+  # na montagem faria o numero certo aparecer por AUSENCIA DE INSUMO em vez de
+  # por calculo, e evento perdido por defeito ficaria indistinguivel de evento
+  # corretamente descontado.
+  #
+  # COBERTURA EXATA e DISJUNCAO sao verificadas em
+  # range-core/engine/loader/contract_rules.py, junto da cobertura de
+  # `effect_class` e pelo mesmo motivo: sem isso esta tabela e uma TERCEIRA
+  # copia da lista de 33 tipos e divergiria das outras duas em silencio.
+  # ---------------------------------------------------------------------------
+  metric_side_values: [declaration, verification, epoch, none]
+
+  metric_side:
+    # --- verification: o que decide o instante por fora da declaracao ---
+    fact_materialized: verification
+    attack_stage_reached: verification
+    verification_predicate_satisfied: verification
+    vpn_access_revoked: verification
+    identity_scope_disabled: verification
+    continuity_action_taken: verification
+    # `declaration` por classe, `verification` por papel: e o insumo do limiar
+    # de calibracao que decide TTIV. E o caso que prova que lado nao se deriva
+    # de `effect_class`.
+    assessment_submitted: verification
+
+    # --- declaration: o que a equipe afirma, e os starts ---
+    incident_declared: declaration
+    separate_incident_declared: declaration
+    classification_declared: declaration
+    containment_declared: declaration
+    service_restoration_declared: declaration
+    integrity_validation_declared: declaration
+    # Stop de TTCM (03 secao 3, OBJ-08 e OBJ-09). Sao `state_effect` por
+    # classe, e e por isso que a folha de predicado precisa da CONJUNCAO: sem a
+    # segunda perna eles seriam referenciaveis e cairiam nos dois lados.
+    communication_submitted: declaration
+    regulatory_notice_submitted: declaration
+    # Start de TTA e de TTCM. Quais injects se qualificam e calculo do
+    # consumidor sobre o payload, nunca recorte do montador — 00 secao 3.2.
+    inject_fired: declaration
+
+    # --- epoch: escrituracao, entregue AOS DOIS lados ---
+    rollback_performed: epoch
+    exercise_started: epoch
+    exercise_paused: epoch
+    exercise_resumed: epoch
+    exercise_reset: epoch
+
+    # --- none: nenhum computador de metrica le ---
+    #
+    # `decision_made` e `capability_gap_declared` sao `declaration` por classe e
+    # estao AQUI: nenhuma das nove siglas de 03 secao 3 os consome, e quem os le
+    # e o AAR, que nao e computador de metrica. Lado e sobre QUEM PODE LER, nao
+    # sobre a especie do evento.
+    evidence_source_released: none
+    evidence_source_accessed: none
+    telemetry_emitted: none
+    inject_viewed: none
+    audit_query_performed: none
+    evidence_source_opened: none
+    decision_made: none
+    capability_gap_declared: none
+    bars_score_submitted: none
+    observed_marker_set: none
+    qualitative_note_added: none
+    branch_selected: none
+
   effect_class:
     fact_materialized: state_effect
     attack_stage_reached: state_effect
