@@ -112,19 +112,49 @@ Divergência ≥ 2 pontos na mesma competência gera alerta no AAR. Não resolve
 
 MTTD e MTTR são ambíguos demais. Substituídos por pares **declaração × verificação**.
 
+As tabelas desta seção são o **resultado de aplicar o critério de `00_MASTER_SPEC.md` §3.2** às nove siglas de v1. Não são a definição da partição e não podem ser lidas como lista de isenções: o critério classifica, a tabela registra o que ele classificou, e §3.0 mostra a conta. Sigla nova entra pela derivação, não por acréscimo de linha.
+
 | Par | Declaração (participante) | Verificação (ground truth) |
 |---|---|---|
 | Contenção | **TTCD** — `containment_declared` | **TTCV** — predicado de contenção satisfeito |
 | Restauração | **TTRD** — `service_restoration_declared` | **TTRV** — predicado de restauração satisfeito |
 | Integridade | **TTID** — `integrity_validation_declared` | **TTIV** — ver §3.3 |
 
-Métricas simples, sem par:
+Métricas **simples** — classificadas em §3.0, com a cláusula que decidiu cada uma:
 
-| Sigla | Start | Stop |
-|---|---|---|
-| **TTA** | primeiro inject com impacto observável | `incident_declared` |
-| **TTT** | `incident_declared` | `classification_declared` com severidade e escopo |
-| **TTCM** | inject com `requires_response` | submissão correspondente |
+| Sigla | Start | Stop | Cláusula que a mantém simples |
+|---|---|---|---|
+| **TTA** | primeiro inject com impacto observável | `incident_declared` | (1) e (3) — atributo do mundo, e o instante já é o start |
+| **TTT** | `incident_declared` | `classification_declared` com severidade e escopo | (1) — atributo do incidente; acurácia é calibração (§3.0) |
+| **TTCM** | inject com `requires_response` | submissão correspondente | (2) — a submissão constitui a resposta |
+
+### 3.0 Derivação das nove siglas
+
+A conjunção de `00_MASTER_SPEC.md` §3.2, aplicada sigla a sigla. Esta tabela é o que `06_ACCEPTANCE_TESTS.md` T10 confere contra o critério; divergência reprova esta tabela, nunca o critério.
+
+| Sigla | Instante que marca | (1) conclusão de ação de resposta? | (2) instante decidido fora da declaração? | (3) não coincide com extremo próprio? | Resultado |
+|---|---|---|---|---|---|
+| **TTCD** | `containment_declared` | **sim** — acesso revogado, escopo desabilitado são ações da equipe | **sim** — `verification_predicates.containment` sobre `state_effect` | sim | **pareada** → `TTCV` |
+| **TTRD** | `service_restoration_declared` | **sim** — restabelecer serviço é ação da equipe | **sim** — `verification_predicates.service_restoration` | sim | **pareada** → `TTRV` |
+| **TTID** | `integrity_validation_declared` | **sim** — validar integridade é ação da equipe | **sim** — limiar de calibração contra defensibilidade (§3.3) | sim | **pareada** → `TTIV` |
+| **TTA** | `incident_declared` | **não** — *"há incidente"* é atributo do mundo, não conclusão de ação | (não se alcança) | **não** — o instante em que passou a valer **é o start** da própria métrica | **simples** |
+| **TTT** | `classification_declared` | **não** — severidade e escopo são atributos do incidente | (não se alcança) | (não se alcança) | **simples** — ver abaixo |
+| **TTCM** | submissão correspondente ao inject `requires_response` | **sim** — responder é ação da equipe | **não** — a submissão **constitui** a resposta; nada fora dela decide que houve resposta | (não se alcança) | **simples** |
+| **TTCV** | predicado de contenção satisfeito | — não se classifica pelo critério | — | — | metade de verificação de `TTCD` |
+| **TTRV** | predicado de restauração satisfeito | — não se classifica pelo critério | — | — | metade de verificação de `TTRD` |
+| **TTIV** | limiar de calibração atingido | — não se classifica pelo critério | — | — | metade de verificação de `TTID`; verificador não é o mundo (§3.3) |
+
+**`TTA` falha por duas razões independentes**, e as duas estão na tabela porque a segunda sobrevive a quem leia `incident_declared` como conclusão de um reconhecimento: mesmo assim o instante em que *"há incidente"* passou a valer é o inject que o materializa, que é o start. `TTA` **já é** o delta entre mundo e declaração.
+
+#### Por que `TTT` não tem par, e não é omissão
+
+Parear `TTT` exigiria predicado de verificação para a classificação, e ele seria **parametrizado pelo conteúdo da declaração**: o instante a marcar seria aquele em que o incidente atingiu *a severidade declarada*. Declarada errada para mais, esse instante **não existe** — o mundo nunca chega lá —, e a métrica fica indefinida: some do AAR sem dizer que sumiu. Métrica que não dispara é pior que métrica ausente, porque a ausência ao menos se vê.
+
+**É esse o argumento, e ele basta.** Verificador que depende do que a declaração diz não verifica a declaração.
+
+A acurácia de um atributo declarado é, por categoria, matéria de **calibração** — relação entre confiança declarada e força da evidência, §5 — e não distância entre dois instantes. Isso classifica; **não afirma que a §5, como está, cobre `classification_declared`**: ela escora o Brier sobre os casos de Linha B, e a classificação não é um deles. Estender a §5 é decisão própria, registrada como **P6-1**, e esta seção não depende dela.
+
+`TTT` mede o tempo até haver classificação, e só.
 
 ### 3.1 Predicados de verificação
 
@@ -163,13 +193,13 @@ Redação-alvo no AAR: *"Contenção declarada em T+31. Evento incompatível com
 
 Isso mede qualidade da decisão, não velocidade.
 
-### 3.3 TTIV não é simétrico
+### 3.3 TTIV é o par cujo verificador não é o mundo
 
 Contenção e restauração são **estados do mundo** — o ground truth sabe se valem. Integridade validada não é: é propriedade da **qualidade da avaliação da equipe**.
 
-`TTIV` = instante em que o conjunto de `assessment_submitted` atinge o limiar de calibração definido no pack (`calibration.threshold`), medido contra a defensibilidade do gabarito (§5).
+Isso **não a tira do par**, e a redação anterior sugeria o contrário ao chamá-la de assimétrica. Pelo critério de `00_MASTER_SPEC.md` §3.2, o par exige conclusão de ação da equipe com instante decidido fora da declaração — e as duas coisas valem: validar integridade é ação da equipe, e o instante é aquele em que o conjunto de `assessment_submitted` atinge `calibration.threshold`, medido contra a defensibilidade do gabarito (§5). O que muda é **quem decide o instante**, não se há par.
 
-Forçar simetria aqui produziria um número inexplicável no debriefing.
+`TTIV` = esse instante. Forçar o verificador a ser predicado de estado do mundo produziria um número inexplicável no debriefing — e essa é a assimetria real: de verificador, não de estrutura.
 
 ### 3.4 Ações de declaração são requisito funcional
 

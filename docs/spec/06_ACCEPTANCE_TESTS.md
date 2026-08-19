@@ -106,8 +106,17 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 - `TTIV` é computado por limiar de calibração, não por predicado de estado do mundo.
 - Métricas descontam o intervalo registrado por `rollback_performed` com `reason: technical_failure`. O desconto usa a **união** dos intervalos registrados, nunca a soma das durações.
 - Nenhum evento de epoch com `reason: rehearsal` entra em cálculo de métrica.
+- A classificação das nove siglas obtida pelo critério de `00_MASTER_SPEC.md` §3.2 é igual à de `03_EXERCISE_DESIGN.md` §3.0. Divergência reprova a tabela, nunca o critério.
+- Todo `event_type` do catálogo tem `metric_side`, e os quatro lados são disjuntos — checado sobre o atributo, junto da cobertura de `effect_class`.
+- A folha `event` de predicado obedece à conjunção de `09_EVENT_MODEL.md` §4.0, e o probe planta as três formas de violação mais o controle positivo.
+- Métrica simples plantada computando seu instante a partir do lado de verificação reprova, nomeando a sigla e a referência.
+- Metade de declaração de um par plantada computando-se a partir da metade de verificação reprova.
+- **A recusa é estrutural, não por detecção de referência no corpo do cálculo.** Insumo de cada lado com tipo próprio, `Sequence[Event]` recusado, sem parâmetro por onde entrem fluxo total, store ou pack como objeto, escalares pelo insumo tipado, construtor só no ponto de montagem.
+- **O desconto por união, a exclusão de `rehearsal` e a seleção de start são computação do consumidor.** Os eventos de lado `epoch` chegam aos dois computadores e os atributos de inject chegam no payload; o teste falha se o número certo aparecer por ausência de insumo em vez de por cálculo.
+- `inject_fired` emite no payload os marcadores que os starts exigem, e o teste de emissão os cobra.
+- Todo verificador tem teste negativo próprio.
 
-> Os dois últimos critérios entraram no `spec-change` `fase-2-escalacoes-e-exclusao`. **O primeiro é o destino do que a Fase 2 deixou de calcular**: T3 e o item 7 da DoD da Fase 2 passaram a exigir apenas que o intervalo seja *registrado*, e sem este critério o desconto ficaria registrado e nunca verificado — norma viva em `09_EVENT_MODEL.md` §3.1, em `01_ARCHITECTURE.md` §3 e em `03_EXERCISE_DESIGN.md` §3.5, sem nenhuma fase obrigada a executá-la.
+> Os critérios do desconto por `technical_failure` e da exclusão por `rehearsal` entraram no `spec-change` `fase-2-escalacoes-e-exclusao` — eram os dois últimos até o `spec-change` `particao-das-metricas-pareadas` acrescentar os seguintes. **O primeiro é o destino do que a Fase 2 deixou de calcular**: T3 e o item 7 da DoD da Fase 2 passaram a exigir apenas que o intervalo seja *registrado*, e sem este critério o desconto ficaria registrado e nunca verificado — norma viva em `09_EVENT_MODEL.md` §3.1, em `01_ARCHITECTURE.md` §3 e em `03_EXERCISE_DESIGN.md` §3.5, sem nenhuma fase obrigada a executá-la.
 >
 > **O segundo veio de T3, e chegou aqui pela metade.** `rehearsal` tem *dois* efeitos declarados em `09_EVENT_MODEL.md` §3.1 — "Nenhum evento da epoch entra em cálculo" e "Epoch descartada do AAR" —, e o critério original de T3 os tratava como um só. São duas exigências, com duas fases: o cálculo é Fase 6 e está aqui; o descarte do AAR é Fase 10 e está em T14. Mandar as duas para cá manteria, com outro nome, o defeito que T3 acabou de perder — critério de AAR cobrado de uma fase que não o entrega.
 >
