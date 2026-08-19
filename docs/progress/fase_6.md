@@ -19,6 +19,48 @@ uma mudança de norma feita entre as duas.
 O resto deste registro — decisões, seções de implementação, DoD com prova — é
 escrito pela fase, quando ela existir.
 
+## 1. Plano da fase — sete peças
+
+| # | Peça | Estado |
+|---|---|---|
+| 1 | Biblioteca BARS: nove competências versionadas, contrato, integridade referencial | **fechada** |
+| 2 | Motor de objetivos: binding evento→objetivo na projeção, `objective_evidence` | |
+| 3 | `audit_query_performed` e as ações de declaração nos endpoints | |
+| 4 | Predicados de verificação e o motor que os avalia | **antes da 5** |
+| 5 | Métricas: os dois computadores, o insumo tipado, epoch como cálculo | **depois da 4** |
+| 6 | Calibração: Brier no escopo revisado, sinais, `TTIV` por limiar | |
+| 7 | Divergência entre avaliadores e a janela de asseguração prematura | |
+
+**Dependências que não são de conveniência.** A peça 4 vem antes da 5 porque os
+computadores de métrica consomem `verification_predicate_satisfied`.
+
+**O rebase já aconteceu**, antes da peça 3, e é o único: a `main` passou a
+carregar toda a base normativa desta fase — os `spec-change`
+`impacto-observavel-definido`, `acoes-de-declaracao-o-criterio`,
+`superficie-de-participante` e `isencao-de-bootstrap-de-token` —, e não há
+`spec-change` pendente. A âncora foi regravada junto, que é o que `WORKFLOW.md`
+exige e o que o predicado de auditoria não deriva sozinho.
+
+**A janela de asseguração prematura é da projeção `aar_timeline`, não da
+`metrics`.** A janela cruza declaração com verificação, e por `00` §3.2 só o AAR
+tem as duas metades. A Fase 10 renderiza a partir dela; a prova da DoD é teste
+nomeado sobre a saída da `aar_timeline`.
+
+### Reivindicação pendente para a peça 6
+
+`scripts/check_spec_examples.py` guarda em `IGNORADOS` dois blocos de
+`assessment_submitted` — `02_DOMAIN_ACADEMUS.md` §6.2 e `03_EXERCISE_DESIGN.md`
+§5.1 —, os dois com o motivo *"artefato de runtime da Fase 6, sem contrato"*.
+
+**O motivo caduca quando a peça 6 trouxer o contrato de assessment**, e caduco é
+o mesmo que ausente: ninguém reabre um `IGNORADOS` para conferir se a condição
+ainda se sustenta. A peça 6 dá aos dois o tratamento que a rubrica recebeu na
+peça 1 — contrato que os **reivindica**, e a entrada sai da lista.
+
+Registrado aqui porque a peça 1 já mostrou que a checagem existe e funciona: foi
+ela que pegou o probe de `check_spec_examples_probes.py` ancorado no bloco que
+deixou de ser ignorado.
+
 ### A lacuna que a peça 3 achou, e o `spec-change` que a fechou
 
 T9 exige que todo `event_type` de `observability_hooks.yaml` seja emitido pela
@@ -35,6 +77,7 @@ tabela nunca teve.
 do catálogo de `09` §4.1, corrigido pelo `spec-change`
 `facilitation-e-separate-incident`. Os dois registros tinham enumeração e não
 critério.
+
 
 ## 6. Pendências
 
