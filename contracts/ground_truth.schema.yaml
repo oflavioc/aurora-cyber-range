@@ -226,8 +226,29 @@ $defs:
   # erro de digitacao nunca dispara, o predicado nunca e satisfeito, e TTCV
   # nunca e computado.
   #
-  # E SO `state_effect` — 03 secao 3.1, acrescentado pelo spec-change
-  # `effect-class-marcas-temporais-e-seed`.
+  # E CONJUNCAO: `effect_class: state_effect` E `metric_side: verification` —
+  # 09 secao 4.0 e 00 secao 3.2. A primeira perna veio do spec-change
+  # `effect-class-marcas-temporais-e-seed`; a segunda, do spec-change
+  # `particao-das-metricas-pareadas`.
+  #
+  # NENHUMA DAS DUAS BASTA SOZINHA, e cada uma barra o que a outra deixa passar.
+  # So `effect_class` admite `communication_submitted` e
+  # `regulatory_notice_submitted`, que sao `state_effect` porque o ATO tem
+  # efeito externo (09 secao 4.1) — e sao o stop de TTCM, metrica do lado da
+  # declaracao: como folha, poriam o mesmo event_type nos dois lados e
+  # destruiriam a disjuncao de 00 secao 3.2. So `metric_side` admite
+  # `verification_predicate_satisfied`, que e `verification` por papel e
+  # `machine` por classe: a autorreferencia que 09 secao 4.0 proibe sem excecao.
+  #
+  # Em v1 sobram CINCO tipos referenciaveis: fact_materialized,
+  # attack_stage_reached, continuity_action_taken, vpn_access_revoked e
+  # identity_scope_disabled. O conjunto e montado em
+  # range-core/engine/loader/contract_rules.py, nunca escrito a mao aqui.
+  #
+  # PREDICADO SOBRE EVENTO DE COMUNICACAO fica de fora, e a recusa tem merito
+  # escrito em 09 secao 4.0: aqueles eventos sao classificados pelo ATO, e o
+  # CONTEUDO ja e tratado como afirmacao em 04 secao 7. Reabrir e decisao de
+  # escopo por spec-change, nao remendo de `metric_side` num pack.
   #
   # `containment: {all: [{event: containment_declared}]}` era pack valido. Nele
   # TTCD e TTCV medem o mesmo instante, o delta que 03 secao 3.2 chama de "o
@@ -249,7 +270,7 @@ $defs:
     properties:
       event:
         type: string
-        x-aurora-ref: event_catalog_state_effect
+        x-aurora-ref: event_catalog_predicate_leaf
       # 03 secao 3.1 mostra `payload: {principal: svc_academus}` — o predicado
       # pode exigir nao so o evento mas um evento sobre um principal.
       payload:
@@ -623,11 +644,11 @@ x-aurora-invalid-examples:
         name: 'Grupo Fictício X'
         sources: []
 
-  # A folha `event` do predicado resolve contra o SUBCONJUNTO `state_effect`,
-  # nao contra o catalogo inteiro (03 secao 3.1). Um typo continua sendo
-  # recusado, agora por essa regra.
+  # A folha `event` do predicado resolve contra o subconjunto da CONJUNCAO —
+  # `state_effect` E `metric_side: verification` (09 secao 4.0) —, nao contra o
+  # catalogo inteiro. Um typo continua sendo recusado, agora por essa regra.
   - reason: 'predicado referencia event_type fora do catalogo'
-    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
     instance:
       facts:
         - fact_id: GT-A-001
@@ -646,7 +667,7 @@ x-aurora-invalid-examples:
   # 03 secao 3.2 chama de "o achado" deixaria de existir, e NADA falharia — a
   # metrica seguiria sendo calculada, so que medindo a si mesma.
   - reason: 'contencao verificada por declaracao: TTCD e TTCV colapsam no mesmo instante'
-    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
     instance:
       facts:
         - fact_id: GT-A-001
@@ -663,8 +684,66 @@ x-aurora-invalid-examples:
   # de `decision_made` especificamente. Reclassifica-lo como `state_effect` no
   # futuro deixaria a fixture acima passando e nada acusaria — o predicado
   # passaria a ser satisfeito no instante do clique, antes de qualquer efeito.
+  # AS TRES FIXTURES DA CONJUNCAO — 09 secao 4.0, spec-change
+  # `particao-das-metricas-pareadas`. Cada uma isola uma forma de violacao, e
+  # sem as tres a conjuncao passaria por regra de uma perna so.
+  #
+  # (1) FALHA A PERNA DE CLASSE, passa a de lado. `verification_predicate_satisfied`
+  # e `metric_side: verification` e `effect_class: machine`. E a autorreferencia:
+  # um predicado referenciando o evento que ele proprio emite ao ser satisfeito.
+  - reason: 'predicado referencia o proprio veredito: autorreferencia'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: verification_predicate_satisfied
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
+  # (2) FALHA A PERNA DE CLASSE por outro caminho, e prova que os dois atributos
+  # sao ORTOGONAIS: `assessment_submitted` e `declaration` por classe e
+  # `verification` por papel — esta do lado da verificacao e ainda assim nao e
+  # folha, porque folha exige efeito no mundo.
+  - reason: 'predicado referencia submissao de avaliacao: verification por papel, declaration por classe'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: assessment_submitted
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
+  # (3) FALHA A PERNA DE LADO, passa a de classe — e e a unica que a regra
+  # anterior deixava entrar. `communication_submitted` e `state_effect` porque o
+  # ATO tem efeito externo (09 secao 4.1), e e o stop de TTCM, do lado da
+  # declaracao. Como folha, poria o mesmo event_type nos dois lados e destruiria
+  # a disjuncao de 00 secao 3.2.
+  - reason: 'predicado referencia evento de comunicacao: state_effect, mas do lado da declaracao'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: communication_submitted
+        service_restoration:
+          not_applicable: 'sem serviço derrubado'
+
   - reason: 'contencao verificada por escolha: satisfeita no clique, antes de existir efeito'
-    rejected_by: 'x-aurora-ref:event_catalog_state_effect'
+    rejected_by: 'x-aurora-ref:event_catalog_predicate_leaf'
     instance:
       facts:
         - fact_id: GT-A-001

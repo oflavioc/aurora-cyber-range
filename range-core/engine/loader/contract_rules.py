@@ -93,10 +93,15 @@ def _base_registries(contracts: dict, adapter_flags: dict) -> dict:
     for chave in _walk_defs(eventos, "event_type_"):
         catalogo.update(eventos["$defs"][chave]["enum"])
 
-    # `effect_class` — 09 secao 4.0. A tabela e uma SEGUNDA lista dos mesmos 32
-    # tipos, entao a cobertura exata e verificada aqui: sem isso ela divergiria
-    # do catalogo em silencio, que e a classe de defeito que o proprio
-    # `effect_class` existe para fechar.
+    # `effect_class` — 09 secao 4.0. A tabela e uma SEGUNDA lista dos mesmos
+    # tipos do catalogo, entao a cobertura exata e verificada aqui: sem isso ela
+    # divergiria do catalogo em silencio, que e a classe de defeito que o
+    # proprio `effect_class` existe para fechar.
+    #
+    # Dizia "os mesmos 32 tipos" e envelheceu: sao 33 desde `exercise_resumed`,
+    # do spec-change `exercise-resumed`. Numero em comentario e afirmacao de
+    # estado que ninguem verifica — o `catalogo` acima e a unica fonte, e por
+    # isso a frase agora nao carrega contagem nenhuma.
     registro = (eventos.get("x-aurora-registry") or {})
     classes = registro.get("effect_class") or {}
     validos = set(registro.get("effect_class_values") or [])
@@ -113,13 +118,63 @@ def _base_registries(contracts: dict, adapter_flags: dict) -> dict:
             partes.append(f"valor de effect_class fora do conjunto: {fora}")
         raise ContractRuleError("contracts/events.schema.yaml: " + "; ".join(partes))
 
-    state_effect = {n for n, c in classes.items() if c == "state_effect"}
+    # `metric_side` — 00 secao 3.2. Mesma forma, mesmo motivo: TERCEIRA lista
+    # dos mesmos tipos. A disjuncao entra junto porque e ela que a norma afirma,
+    # e afirmacao nao verificada e a porta pela qual um tipo entra nos dois
+    # lados sem que nada acuse.
+    lados = registro.get("metric_side") or {}
+    lados_validos = set(registro.get("metric_side_values") or [])
+    faltando = sorted(catalogo - set(lados))
+    sobrando = sorted(set(lados) - catalogo)
+    fora = sorted({v for v in lados.values() if v not in lados_validos})
+    if faltando or sobrando or fora:
+        partes = []
+        if faltando:
+            partes.append(f"sem metric_side: {faltando}")
+        if sobrando:
+            partes.append(f"metric_side para tipo fora do catalogo: {sobrando}")
+        if fora:
+            partes.append(f"valor de metric_side fora do conjunto: {fora}")
+        raise ContractRuleError("contracts/events.schema.yaml: " + "; ".join(partes))
+
+    # A disjuncao e propriedade de um mapeamento FUNCAO — cada tipo tem um lado
+    # so —, e um dict ja a garante por construcao. O que NAO e garantido, e e o
+    # que se verifica aqui, e que cada lado declarado exista de fato: lado
+    # declarado em `metric_side_values` e vazio no mapa e regra que nunca sera
+    # avaliada, da mesma familia do escopo sem papel de `check_api_surface.py`.
+    vazios = sorted(lados_validos - set(lados.values()))
+    if vazios:
+        raise ContractRuleError(
+            "contracts/events.schema.yaml: lado declarado e sem nenhum "
+            f"event_type: {vazios}.\n"
+            "    Lado vazio e particao que nao particiona nada."
+        )
+
+    # A CONJUNCAO da folha de predicado — 09 secao 4.0.
+    #
+    # Nenhuma das duas pernas basta sozinha. So `effect_class` admite
+    # `communication_submitted` e `regulatory_notice_submitted`, que sao o stop
+    # de TTCM e estao do lado da declaracao: como folha, poriam o mesmo
+    # event_type nos dois lados. So `metric_side` admite
+    # `verification_predicate_satisfied`, que e `verification` por papel e
+    # `machine` por classe — a autorreferencia que 09 secao 4.0 proibe.
+    #
+    # A CHAVE MUDA DE NOME junto com o conjunto. `event_catalog_state_effect`
+    # descreveria uma intersecao dizendo o nome de UMA das pernas, e nome que
+    # descreve metade do que a coisa e envelhece pior do que nome nenhum: o
+    # proximo leitor concluiria que basta ser `state_effect`. Os quatro
+    # `x-aurora-ref` de contracts/ground_truth.schema.yaml acompanham.
+    predicate_leaf = {
+        n
+        for n, c in classes.items()
+        if c == "state_effect" and lados.get(n) == "verification"
+    }
 
     flags = dict(adapter_flags)
 
     return {
         "event_catalog": catalogo,
-        "event_catalog_state_effect": state_effect,
+        "event_catalog_predicate_leaf": predicate_leaf,
         "adapter_flags": set(flags),
         "_flag_specs": flags,
     }
