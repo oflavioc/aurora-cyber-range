@@ -128,6 +128,20 @@ Métricas **simples** — classificadas em §3.0, com a cláusula que decidiu ca
 | **TTT** | `incident_declared` | `classification_declared` com severidade e escopo | (1) — atributo do incidente; acurácia é calibração (§3.0) |
 | **TTCM** | inject com `requires_response` | submissão correspondente | (2) — a submissão constitui a resposta |
 
+**Impacto observável, definido.** O *start* de `TTA` é *"o primeiro inject com impacto observável"*, e a expressão precisa de predicado: sem ele, qual inject abre a medição vira decisão de quem implementa, e `TTA` deixa de ser comparável entre exercícios. `00_MASTER_SPEC.md` §3.2 exige que a seleção de start seja cálculo do consumidor sobre o payload de `inject_fired`, e não recorte do montador — sem definição, o consumidor calcularia com um critério que nenhum documento fixa.
+
+**Um inject tem impacto observável quando declara ao menos um de:**
+
+1. **`effects`** — mutação de flag. Toda flag tem superfície **por construção do contrato**: `contracts/state_flags.schema.yaml` exige `effect_ui`, `wallboard_group` e `consumers` em toda declaração, e é o que torna esta perna estrutural em vez de costume — não existe flag que se mova sem lugar onde a mudança apareça.
+2. **`materializes_facts`** com fato que tenha **`projections`** — o fato passa a existir *e* a aparecer em pelo menos uma fonte de evidência.
+3. **`evidence_release`** — uma fonte é liberada para consulta.
+
+**É derivado, não declarado.** O predicado se avalia sobre o que o pack já escreve, na carga. Um campo novo no inject — `observable_impact: true` — seria segunda fonte para o mesmo fato, divergiria do conteúdo em silêncio, e poria em mãos de autoria a decisão de quando a métrica começa a correr.
+
+**O que fica de fora, pelo modelo das quatro verdades.** Inject cuja única declaração é **`reveals`** não tem impacto observável. `reveals` alimenta **crença do participante** — a terceira camada de `00_MASTER_SPEC.md` §3 —, e não o mundo nem a evidência descobrível. `TTA` mede a distância entre a primeira camada e a terceira: o mundo muda, e a equipe leva um tempo até declarar que mudou. Sala **informada** não é sala que **detectou**, e contar o inject narrativo como start mediria o tempo de reagir a um aviso — outra coisa, com lugar próprio em `TTCM`, para o que exige resposta.
+
+Pela mesma razão, **fato sem `projections` não conta**: `08_EVIDENCE_SIMULATOR.md` §2 o declara invisível ao time azul de propósito, para ensinar limite de detecção. Fato que ninguém pode descobrir não move a segunda camada, e abrir `TTA` nele mediria latência contra um relógio que a equipe não tinha como ver começar.
+
 ### 3.0 Derivação das nove siglas
 
 A conjunção de `00_MASTER_SPEC.md` §3.2, aplicada sigla a sigla. Esta tabela é o que `06_ACCEPTANCE_TESTS.md` T10 confere contra o critério; divergência reprova esta tabela, nunca o critério.

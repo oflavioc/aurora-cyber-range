@@ -95,10 +95,24 @@ inject que move flag tem impacto observável; inject que não move, não tem.
   ligando, sem flag — ficaria fora do *start* de `TTA` sem que ninguém tivesse
   decidido isso.
 
-**Não decidida.** O payload de `inject_fired` fica de fora do PR do contrato por
-causa dela: não se escreve o schema de um campo antes de saber de onde vem o
-valor. Ele nasce na branch da Fase 6, junto do emissor e do teste de emissão,
-que são todos código e cabem no mesmo PR.
+**DECIDIDA — ramo (b), com o predicado declarado na spec.** O `spec-change`
+`impacto-observavel-definido` define impacto observável em `03` §3, e a
+derivação passa a ser norma em vez de escolha de implementação.
+
+**O predicado ditado não sobreviveu à verificação, e a correção está no PR.** A
+primeira redação dizia *"inject cujos `effects` produzem ao menos um evento de
+`truth_layer: observable_evidence`"*. Medido na árvore: `effects` é mutação de
+flag e **não emite evento nenhum** — `01` §4.4 registra que os `effects` são
+resolvidos contra o pack pelo fold e não gravados no store. Ao pé da letra o
+predicado é vazio e `TTA` nunca começa; lido de forma frouxa, exclui o inject
+que derruba o portal, que é o impacto mais observável que a sala tem.
+
+O predicado aprovado tem três pernas — `effects`, `materializes_facts` com fato
+que tenha `projections`, e `evidence_release` — e a exclusão decidida recai
+sobre `reveals`, que alimenta crença do participante e não o mundo.
+
+O payload de `inject_fired` nasce na branch da Fase 6, junto do emissor e do
+teste de emissão, que são todos código e cabem no mesmo PR.
 
 **Vence em:** o commit em que o consumidor de `TTA` for desenhado — é ele que
 força a escolha, e antes dele a decisão seria tomada sem o caso de uso à vista.
