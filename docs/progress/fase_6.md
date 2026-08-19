@@ -61,22 +61,33 @@ Registrado aqui porque a peça 1 já mostrou que a checagem existe e funciona: f
 ela que pegou o probe de `check_spec_examples_probes.py` ancorado no bloco que
 deixou de ser ignorado.
 
-### A lacuna que a peça 3 achou, e o `spec-change` que a fechou
+## 2. Evidência da DoD, por item
 
-T9 exige que todo `event_type` de `observability_hooks.yaml` seja emitido pela
-ação correspondente. `separate_incident_declared` é evidência `auto` do OBJ-03
-no exemplo **normativo** de `03` §1.1 e de `09` §6 — e `03` §3.4, a tabela que
-`07` chama de requisito funcional, não tinha ação que o emitisse.
+O que a auditoria precisa achar sem reconstruir a cadeia por leitura.
 
-**Sem ação, OBJ-03 nunca é satisfeito, e o item de T9 seria insatisfazível por
-construção.** Fechado pelo `spec-change` `acoes-de-declaracao-o-criterio`, que
-acrescenta a linha e — mais importante — o **critério de pertencimento** que a
-tabela nunca teve.
+### T9 — *"AAR grava a versão de rubrica usada; comparação entre versões distintas é recusada sem mapeamento declarado"*
 
-É a segunda vez que este mesmo evento cai de um registro fechado: da primeira,
-do catálogo de `09` §4.1, corrigido pelo `spec-change`
-`facilitation-e-separate-incident`. Os dois registros tinham enumeração e não
-critério.
+A letra diz **AAR**, e o AAR é da Fase 10. A cadeia tem **duas metades**, e as
+duas estão nomeadas aqui para que a rastreabilidade não dependa de alguém
+deduzi-la:
+
+| Metade | Onde | O que faz | Prova |
+|---|---|---|---|
+| **grava e computa** | `range-core/objectives/projecao.py` — Fase 6, peça 2 | `EvidenciaDeObjetivo.rubric` carrega `<competency>.<version>`; `comparavel()` recusa entre versões | `tests/test_objectives_projecao.py::ComparacaoEntreVersoesDeRubrica` — as três: mesma versão compara, versões diferentes não, e a versão fica gravada |
+| **renderiza** | AAR — Fase 10 | imprime a versão usada por objetivo e a recusa de comparação | T14, na fase que entrega o AAR |
+
+**A recusa mora na projeção, e não no renderizador**, porque a versão usada é
+dado desta projeção. Na outra colocação, todo consumidor que comparasse duas
+rodadas precisaria lembrar da regra — e `WORKFLOW.md` registra que detecção por
+memória não é detecção.
+
+**O que ainda não existe, dito:** não há mecanismo de *mapeamento declarado*
+entre versões. `comparavel()` não o consulta porque ele não existe; quando
+existir, entra ali, e o nome da função é onde procurar. Enquanto não existir, a
+recusa é total, que é o lado seguro da frase de `03` §2.1.
+
+É a mesma forma da colocação da janela de asseguração prematura (§1): Fase 6
+computa, Fase 10 renderiza.
 
 
 ## 6. Pendências
