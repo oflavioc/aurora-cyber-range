@@ -188,6 +188,12 @@ estado restaurado; evento de rollback registrado
 - [ ] Brier calculado só dentro do escopo revisado; lacuna de cobertura em separado
 - [ ] Rubrica ausente ou em versão divergente impede carga do pack
 - [ ] Divergência ≥ 2 pontos entre avaliadores gera alerta
+- [ ] Cada uma das nove siglas é classificada pelo critério de `00_MASTER_SPEC.md` §3.2, e a classificação bate com `03_EXERCISE_DESIGN.md` §3.0
+- [ ] Todo `event_type` tem `metric_side` no catálogo; os quatro lados são disjuntos
+- [ ] A folha de predicado obedece à conjunção de `09_EVENT_MODEL.md` §4.0, com probe das três violações e do controle positivo
+- [ ] O computador de cada métrica recebe apenas o seu lado, mais a escrituração de epoch e os escalares do insumo tipado; só o AAR tem as duas metades de um par
+- [ ] Desconto por união, exclusão de `rehearsal` e seleção de start são cálculo do consumidor, e não recorte na montagem do insumo
+- [ ] `inject_fired` emite no payload os marcadores de start, com teste de emissão
 
 > Os itens do desconto por `technical_failure` e da exclusão por `rehearsal` entraram no `spec-change` `fase-2-escalacoes-e-exclusao`. O primeiro é **o outro lado da correção do item 7 da Fase 2**. Aquela fase passou a apenas registrar o intervalo; esta é a que calcula, porque é a das métricas pareadas. Sem este item, o requisito ficaria sem fase nenhuma obrigada a cumpri-lo: a norma continuaria em `09_EVENT_MODEL.md` §3.1, em `01_ARCHITECTURE.md` §3 e em `03_EXERCISE_DESIGN.md` §3.5 — este último já mapeado a esta fase por `00_MASTER_SPEC.md` §7 —, e nenhuma checklist binária o cobraria. Registrado e nunca verificado é como um requisito morre sem que nada fique vermelho. Critérios correspondentes em `06_ACCEPTANCE_TESTS.md` T10.
 >

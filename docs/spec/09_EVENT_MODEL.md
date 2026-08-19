@@ -132,9 +132,21 @@ Motivo: um `event_type` com erro de digitação nunca dispara. O marcador de evi
 
 `vpn_access_revoked` e `containment_declared` são ambos `participant_action`. O primeiro é `state_effect` — o acesso caiu, e teria caído mesmo que ninguém declarasse coisa alguma. O segundo é `declaration` — a equipe afirma ter contido, e a afirmação não muda o mundo.
 
-**Consequência normativa.** A folha `event` de um predicado de verificação só pode referenciar `event_type` com `effect_class: state_effect` — ver `03_EXERCISE_DESIGN.md` §3.1. Sem essa restrição, um pack pode declarar `containment: {all: [{event: containment_declared}]}`, e nele TTCD e TTCV passam a medir o mesmo instante. A consequência normativa 2 de `00_MASTER_SPEC.md` §3 — toda métrica de resposta é pareada, e o delta é o achado — seria anulada por autoria de cenário, sem que nada falhe.
+**Consequência normativa.** A folha `event` de um predicado de verificação só pode referenciar `event_type` que satisfaça **as duas** condições, ambas atributos declarados do catálogo: `effect_class: state_effect` **e** `metric_side: verification` (`00_MASTER_SPEC.md` §3.2) — ver também `03_EXERCISE_DESIGN.md` §3.1. Sem essa restrição, um pack pode declarar `containment: {all: [{event: containment_declared}]}`, e nele TTCD e TTCV passam a medir o mesmo instante. A consequência normativa 2 de `00_MASTER_SPEC.md` §3 — métrica pareada mede conclusão de ação datável por fora, e o delta é o achado — seria anulada por autoria de cenário, sem que nada falhe.
 
 `verification_predicate_satisfied` é `machine` por um motivo que não admite exceção: se fosse `state_effect`, um predicado poderia referenciar o evento que o próprio predicado emite ao ser satisfeito.
+
+**Nenhuma das duas condições basta sozinha, e cada uma barra o que a outra deixa passar.**
+
+Só `effect_class` — a regra anterior a `00_MASTER_SPEC.md` §3.2 — admite `communication_submitted` e `regulatory_notice_submitted`, que são `state_effect` porque o **ato** tem efeito externo (§4.1). Eles são o *stop* de `TTCM`, métrica do lado da declaração: admiti-los como folha põe o mesmo `event_type` nos dois lados e destrói a disjunção que §3.2 exige.
+
+Só `metric_side` admite `verification_predicate_satisfied`, que é `verification` por papel e `machine` por classe — e recairia exatamente na autorreferência que o parágrafo acima proíbe sem exceção. Por isso a regra é conjunção, e não escolha entre os dois atributos.
+
+Em v1 a conjunção deixa **cinco** tipos referenciáveis: `fact_materialized`, `attack_stage_reached`, `continuity_action_taken`, `vpn_access_revoked` e `identity_scope_disabled`. Os predicados de exemplo de `03_EXERCISE_DESIGN.md` §3.1 e de `04_SCENARIO_SCHEMA.md` §3 continuam válidos, e a leitura *"contido = nenhum estágio novo alcançado"* que §4.1 justifica continua exprimível.
+
+**A porta que fica fechada, e o portão que a abre.** Predicado sobre evento de comunicação — *"contido = regulador notificado"*, *"restaurado = público informado"* — passa a ser recusado, e a recusa **não é arbitrária**: §4.1 classifica esses dois eventos pelo **ato**, e é o ato que tem efeito externo; o **conteúdo** continua tratado como afirmação em `04_SCENARIO_SCHEMA.md` §7, que compara o número comunicado com o ground truth. Um predicado sobre eles mediria o ato — *"houve notificação"* — quando o que importa à contenção é o conteúdo, que já tem mecanismo próprio.
+
+Se um cenário futuro precisar dessa referência, o caminho é **spec-change** que reabra o escopo com o mérito examinado, e não `metric_side` remendado num pack. Quem escrever o primeiro pack na Fase 7 encontra aqui a razão da recusa e o caminho de contestá-la.
 
 ### 4.1 Catálogo v1
 
