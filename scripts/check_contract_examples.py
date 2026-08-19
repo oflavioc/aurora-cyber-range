@@ -57,6 +57,11 @@ from range_core.engine.loader.contract_rules import (  # noqa: E402
     ContractRuleError,
     build_registries,
 )
+from range_core.rubrics.library import (  # noqa: E402
+    RUBRICS_DIR,
+    RubricLibraryError,
+    load_library,
+)
 
 try:
     from jsonschema import Draft202012Validator
@@ -147,8 +152,13 @@ def main(argv: list[str] | None = None) -> int:
         for caminho_flags in sorted((REPO_ROOT / "domains").glob("*/flags.yaml")):
             for flag in (parse_yaml(caminho_flags) or {}).get("flags") or []:
                 flags_do_adapter[flag["name"]] = flag
-        registros = build_registries(contratos, flags_do_adapter)
-    except (ContractError, ContractRuleError) as exc:
+        # A biblioteca de rubricas e do CORE (00 secao 5.8), e nao de dominio:
+        # le-la aqui nao atravessa a fronteira que as flags atravessariam. Vem
+        # da arvore real, e nao dos exemplos, pelo mesmo motivo que
+        # `event_catalog`: e a fonte canonica, no mesmo commit.
+        biblioteca = load_library()
+        registros = build_registries(contratos, flags_do_adapter, biblioteca)
+    except (ContractError, ContractRuleError, RubricLibraryError) as exc:
         print(f"\nFALHAS: 1\n\n  {exc}\n", file=sys.stderr)
         return 1
 
@@ -213,6 +223,33 @@ def main(argv: list[str] | None = None) -> int:
             for e in erros:
                 falhas.append(
                     f"{rel(caminho)}: nao valida contra state_flags.schema.yaml\n"
+                    f"    {e.json_path}: {e.message}"
+                )
+
+    # INSTANCIAS REAIS — `range-core/rubrics/*.yaml`.
+    #
+    # Mesmo argumento que ja traz `domains/*/flags.yaml` para ca: contrato
+    # validado so contra as proprias fixtures prova consistencia interna e nao
+    # prova fidelidade. A biblioteca e o artefato que o pack referencia, e se
+    # ela nao valida, `required_rubrics` casa um id cujo conteudo o contrato
+    # recusaria.
+    #
+    # `load_library` ja rodou acima e passaria por identidade e niveis; o que
+    # falta e a FORMA, que e do contrato. As duas camadas, uma vez cada.
+    rubricas_schema = contratos.get("rubrics")
+    if rubricas_schema is not None:
+        validador_rubricas = Draft202012Validator(rubricas_schema, registry=registry)
+        arquivos = sorted(RUBRICS_DIR.glob("*.yaml"))
+        if not arquivos:
+            falhas.append("range-core/rubrics/*.yaml: nenhuma rubrica encontrada")
+        for caminho in arquivos:
+            instancias += 1
+            erros = sorted(
+                validador_rubricas.iter_errors(parse_yaml(caminho) or {}), key=str
+            )
+            for e in erros:
+                falhas.append(
+                    f"{rel(caminho)}: nao valida contra rubrics.schema.yaml\n"
                     f"    {e.json_path}: {e.message}"
                 )
 

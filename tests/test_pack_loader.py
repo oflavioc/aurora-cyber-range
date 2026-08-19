@@ -387,9 +387,38 @@ class OutrasRecusas(_ComCopia):
         self.planta(destino, "injects.yaml", "  - id: A02", "  - id: A01")
         self.recusa(destino, PackSite.RULE_VIOLATION)
 
+    # -- `04` §2: rubrica ausente OU em versao diferente impede a carga --------
+    #
+    # As duas metades da mesma frase, uma por teste. Sao a mesma regra por
+    # construcao — a versao esta dentro do id —, e por isso a segunda existe:
+    # se um dia alguem separar id de versao em dois campos, ela fica vermelha,
+    # que e o aviso certo.
+    #
+    # A prova de que a regra DISPARA esta nas fixtures de
+    # `contracts/scenario.schema.v2.yaml`; o que estes dois acrescentam e que o
+    # LOADER de producao recusa igual — a §1.4 do checkpoint da Fase 2 existe
+    # para que gate e loader nao divirjam, e teste que so exercita o gate nao
+    # prova a outra metade.
+
+    def test_rubrica_ausente_da_biblioteca_impede_a_carga(self):
+        destino = self.copia()
+        self.planta(
+            destino, "manifest.yaml", "  - incident_triage.v2", "  - threat_hunting.v1"
+        )
+        erro = self.recusa(destino, PackSite.RULE_VIOLATION)
+        self.assertIn("rubric_library", str(erro))
+
+    def test_rubrica_em_versao_que_a_biblioteca_nao_tem_impede_a_carga(self):
+        destino = self.copia()
+        self.planta(
+            destino, "manifest.yaml", "  - incident_triage.v2", "  - incident_triage.v1"
+        )
+        erro = self.recusa(destino, PackSite.RULE_VIOLATION)
+        self.assertIn("rubric_library", str(erro))
+
 
 class DoisParsers(unittest.TestCase):
-    """PyYAML e `tools/_common.py::parse_yaml` leem os mesmos seis contratos.
+    """PyYAML e `tools/_common.py::parse_yaml` leem os contratos igual.
 
     O loader passou a ler `contracts/` com PyYAML, enquanto o gate de CI os le
     com o parser estrito de `tools/`. Dois parsers sobre o mesmo artefato e risco
@@ -403,14 +432,19 @@ class DoisParsers(unittest.TestCase):
     nucleo nao pode.
     """
 
-    def test_os_seis_contratos_sao_lidos_igual(self):
+    def test_todo_contrato_e_lido_igual_pelos_dois_parsers(self):
         import sys
 
         sys.path.insert(0, str(REPO_ROOT / "tools"))
         from _common import parse_yaml  # noqa: E402
 
         caminhos = sorted((REPO_ROOT / "contracts").glob("*.yaml"))
-        self.assertEqual(len(caminhos), 6)
+        # O nome e a asercao carregavam o numero SEIS, e ele envelheceu na Fase 6
+        # com `rubrics.schema.yaml`. Contagem inscrita e afirmacao de estado que
+        # so o proprio teste verifica — mesma classe do "32 tipos" de
+        # `contract_rules.py`. O que importa e que HAJA contrato e que os dois
+        # parsers concordem sobre TODOS; o numero e do `glob`.
+        self.assertGreater(len(caminhos), 0)
         for caminho in caminhos:
             with self.subTest(contrato=caminho.name):
                 self.assertEqual(

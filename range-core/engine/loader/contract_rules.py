@@ -80,8 +80,10 @@ def _injects_and_options(documento: dict) -> tuple[set, set]:
     return injects, opcoes
 
 
-def _base_registries(contracts: dict, adapter_flags: dict) -> dict:
-    """A metade que NAO depende de pacote: catalogo de eventos e flags do adapter.
+def _base_registries(
+    contracts: dict, adapter_flags: dict, rubric_library: dict
+) -> dict:
+    """A metade que NAO depende de pacote: catalogo, flags do adapter, rubricas.
 
     Existe porque os dois chamadores divergem so na outra metade. O executor de
     fixtures resolve `pack_*` contra os exemplos dos contratos; o loader, contra
@@ -172,15 +174,34 @@ def _base_registries(contracts: dict, adapter_flags: dict) -> dict:
 
     flags = dict(adapter_flags)
 
+    # `rubric_library` — 00 secao 5.8 e 03 secao 2.1. E o registro contra o qual
+    # `required_rubrics` de scenario.schema.v2.yaml resolve, e e ele que executa
+    # *"rubrica ausente ou em versao diferente impede a carga"* (04 secao 2).
+    #
+    # Chega como DADO, pelo mesmo argumento que traz `adapter_flags` assim: quem
+    # carrega entrega. Aqui o argumento e mais fraco de um lado — a biblioteca e
+    # do CORE, entao le-la nao atravessaria fronteira nenhuma — e mais forte de
+    # outro: o teste que planta biblioteca com defeito precisa chamar esta mesma
+    # funcao, e constante lida no import nao admite isso.
+    #
+    # A VERSAO ESTA DENTRO DO ID. `incident_triage.v2` e `incident_triage.v1`
+    # sao entradas distintas, entao "versao diferente" recusa pelo mesmo
+    # mecanismo que "rubrica ausente" — e nao por uma segunda regra que alguem
+    # teria de lembrar de escrever.
+    rubricas = set(rubric_library)
+
     return {
         "event_catalog": catalogo,
         "event_catalog_predicate_leaf": predicate_leaf,
         "adapter_flags": set(flags),
+        "rubric_library": rubricas,
         "_flag_specs": flags,
     }
 
 
-def build_registries(contracts: dict, adapter_flags: dict) -> dict:
+def build_registries(
+    contracts: dict, adapter_flags: dict, rubric_library: dict
+) -> dict:
     """Monta os registros contra os quais `x-aurora-ref` resolve, PARA AS FIXTURES.
 
     `adapter_flags` chega como DADO — `nome -> spec` —, e nao por leitura de
@@ -203,7 +224,7 @@ def build_registries(contracts: dict, adapter_flags: dict) -> dict:
     pacote que vive fora de `contracts/`, senao o gate do CI passaria a julgar
     contrato contra dado de outra arvore.
     """
-    registros = _base_registries(contracts, adapter_flags)
+    registros = _base_registries(contracts, adapter_flags, rubric_library)
 
     fatos = set()
     for exemplo in contracts["ground_truth"].get("examples") or []:
@@ -234,6 +255,7 @@ def build_registries(contracts: dict, adapter_flags: dict) -> dict:
 def build_pack_registries(
     contracts: dict,
     adapter_flags: dict,
+    rubric_library: dict,
     *,
     injects_document: dict | None = None,
     objectives_document: dict | None = None,
@@ -253,7 +275,7 @@ def build_pack_registries(
     arquivo falta, deixaria passar exatamente o erro de digitacao que a
     `04_SCENARIO_SCHEMA.md` §6.2 chama de falha mais cara possivel.
     """
-    registros = _base_registries(contracts, adapter_flags)
+    registros = _base_registries(contracts, adapter_flags, rubric_library)
 
     injects, opcoes = _injects_and_options(injects_document or {})
 

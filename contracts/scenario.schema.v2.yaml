@@ -133,6 +133,17 @@ properties:
 
   # required_rubrics INCLUI A VERSAO. Rubrica ausente ou em versao diferente
   # impede a carga (04 secao 2).
+  #
+  # O `pattern` alcanca a FORMA do identificador; quem alcanca a EXISTENCIA e o
+  # `x-aurora-ref`, contra a biblioteca de range-core/rubrics/ (00 secao 5.8).
+  # Sao as duas metades da mesma regra, e a segunda faltava: ate a Fase 6,
+  # `required_rubrics: [incident_triage.v9]` era manifesto perfeitamente valido,
+  # e o pack carregava citando rubrica que nao existe — a falha aparece no
+  # debriefing, quando o AAR nao tem ancora para pontuar a competencia.
+  #
+  # A VERSAO ESTA DENTRO DO ID, entao "versao diferente" e recusada pelo mesmo
+  # mecanismo que "rubrica ausente": `incident_triage.v1` e `incident_triage.v2`
+  # sao entradas distintas do registro. Uma regra, os dois casos de 04 secao 2.
   required_rubrics:
     type: array
     minItems: 1
@@ -140,6 +151,7 @@ properties:
     items:
       type: string
       pattern: '^[a-z][a-z0-9_]*\.v[0-9]+$'
+      x-aurora-ref: rubric_library
 
   # Conjunto fechado por 08 secao 3, o mesmo de `projections` no ground truth.
   evidence_sources:
@@ -916,6 +928,37 @@ x-aurora-invalid-examples:
       personas: [reitoria, ti]
       required_flags: [academus.enrollment_offline]
       required_rubrics: [incident_triage.v2]
+
+  # AS DUAS METADES DE 04 SECAO 2, uma fixture cada. A primeira e "rubrica
+  # ausente"; a segunda e "versao diferente", e ela existe separada de proposito:
+  # sao a MESMA regra por construcao — a versao esta dentro do id —, e uma
+  # fixture so deixaria a segunda metade sem prova. Se um dia alguem separar id
+  # de versao em dois campos, esta fixture fica vermelha, que e o aviso certo.
+  - reason: 'required_rubrics citando rubrica que nao existe na biblioteca do core'
+    rejected_by: 'x-aurora-ref:rubric_library'
+    instance:
+      schema_version: 2
+      pack_id: ransomware-universidade
+      title: 'Ransomware na véspera da matrícula'
+      domain: academus
+      min_engine_version: '1.0'
+      duration_minutes: 240
+      personas: [reitoria, ti]
+      required_flags: [academus.enrollment_offline]
+      required_rubrics: [threat_hunting.v1]
+
+  - reason: 'required_rubrics em versao que a biblioteca nao tem: 04 secao 2 recusa igual'
+    rejected_by: 'x-aurora-ref:rubric_library'
+    instance:
+      schema_version: 2
+      pack_id: ransomware-universidade
+      title: 'Ransomware na véspera da matrícula'
+      domain: academus
+      min_engine_version: '1.0'
+      duration_minutes: 240
+      personas: [reitoria, ti]
+      required_flags: [academus.enrollment_offline]
+      required_rubrics: [incident_triage.v1]
 
   - reason: 'required_flags com flag nao declarada no adapter: impede boot do engine'
     rejected_by: 'x-aurora-ref:adapter_flags'
