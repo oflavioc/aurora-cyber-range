@@ -166,6 +166,25 @@ recusa é total, que é o lado seguro da frase de `03` §2.1.
 computa, Fase 10 renderiza.
 
 
+### Fronteira declarada — o avaliador e o laço contínuo
+
+A peça 4 entrega o **avaliador**: `avalia(no, mundo)` puro, e
+`avaliar_e_emitir(store, predicados, flags)` montando o mundo sobre a linhagem
+corrente e emitindo as transições.
+
+**O laço contínuo não é dela.** Quem chama o avaliador a cada evento é o
+`inject-engine`, e essa ligação é da **peça 5** — é lá que os computadores de
+métrica passam a consumir o veredito, e é o consumidor que decide a cadência.
+
+Está escrito aqui pela mesma razão dos dois blocos da peça 3: a auditoria lê a
+fronteira declarada, e não a deduz do relato. Sem esta linha, o avaliador seria
+lido como entrega incompleta, e a ligação na peça 5 como escopo crescido.
+
+**`flags` chega ao avaliador como dado, do fold**, e não é recalculado por ele:
+duas reconstruções do mesmo estado divergiriam, e a divergência apareceria
+exatamente como predicado meio-revertido — que é o que a peça 4 tornou
+inexprimível.
+
 ### Cláusula herdada pela peça 5 — o quarto negativo da contrassinatura
 
 `03_EXERCISE_DESIGN.md` §3.4 nomeia quatro negativos do predicado de completude.
@@ -200,6 +219,7 @@ Prefixo `P6-`.
 |---|---|---|
 | P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **Fase 6** — ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
+| P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -288,3 +308,26 @@ teste de emissão, que são todos código e cabem no mesmo PR.
 
 **Vence em:** o commit em que o consumidor de `TTA` for desenhado — é ele que
 força a escolha, e antes dele a decisão seria tomada sem o caso de uso à vista.
+
+#### P6-3 — folhas temporais declaráveis e não implementadas
+
+`contracts/ground_truth.schema.yaml` admite `predicate_before` e
+`predicate_after` na gramática de predicado. O avaliador da peça 4 **não os
+implementa**: eles comparam contra o relógio de exercício, que não é parte do
+mundo que ele monta.
+
+**A recusa mudou de instante, e não de existência.** `confere_folhas_temporais`
+recusa o pack **na carga**, nomeando a folha e o motivo — enquanto ainda dá para
+consertar o pack. Sem ela, o pack carregaria limpo e a falha chegaria **na
+avaliação**, no instante em que a contenção deveria ser conferida, que é o pior
+momento possível para descobrir uma ausência de implementação. É o padrão da
+guarda de boot do emissor.
+
+`PredicadoMalformado` permanece no avaliador como **segunda linha de defesa**,
+para o caso de um predicado chegar por outro caminho.
+
+**Vence em:** a implementação do suporte temporal, **ou** o primeiro pack que
+precisar de uma folha temporal — o que vier primeiro. Se vier o pack, é
+**decisão do proprietário** antes de qualquer improviso: o que o predicado
+temporal compara — `exercise_time`, `exercise_timestamp` ou marca de parede — é
+escolha normativa, e as três dão resultados diferentes depois de um rollback.
