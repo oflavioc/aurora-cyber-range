@@ -118,7 +118,7 @@ As tabelas desta seção são o **resultado de aplicar o critério de `00_MASTER
 |---|---|---|
 | Contenção | **TTCD** — `containment_declared` | **TTCV** — predicado de contenção satisfeito |
 | Restauração | **TTRD** — `service_restoration_declared` | **TTRV** — predicado de restauração satisfeito |
-| Integridade | **TTID** — `integrity_validation_declared` | **TTIV** — ver §3.3 |
+| Integridade | **TTID** — o `integrity_validation_declared` que **completa** a contrassinatura (§3.4) | **TTIV** — ver §3.3 |
 
 Métricas **simples** — classificadas em §3.0, com a cláusula que decidiu cada uma:
 
@@ -150,7 +150,7 @@ A conjunção de `00_MASTER_SPEC.md` §3.2, aplicada sigla a sigla. Esta tabela 
 |---|---|---|---|---|---|
 | **TTCD** | `containment_declared` | **sim** — acesso revogado, escopo desabilitado são ações da equipe | **sim** — `verification_predicates.containment` sobre `state_effect` | sim | **pareada** → `TTCV` |
 | **TTRD** | `service_restoration_declared` | **sim** — restabelecer serviço é ação da equipe | **sim** — `verification_predicates.service_restoration` | sim | **pareada** → `TTRV` |
-| **TTID** | `integrity_validation_declared` | **sim** — validar integridade é ação da equipe | **sim** — limiar de calibração contra defensibilidade (§3.3) | sim | **pareada** → `TTIV` |
+| **TTID** | o `integrity_validation_declared` que completa a contrassinatura (§3.4) | **sim** — validar integridade é ação da equipe | **sim** — limiar de calibração contra defensibilidade (§3.3) | sim | **pareada** → `TTIV` |
 | **TTA** | `incident_declared` | **não** — *"há incidente"* é atributo do mundo, não conclusão de ação | (não se alcança) | **não** — o instante em que passou a valer **é o start** da própria métrica | **simples** |
 | **TTT** | `classification_declared` | **não** — severidade e escopo são atributos do incidente | (não se alcança) | (não se alcança) | **simples** — ver abaixo |
 | **TTCM** | submissão correspondente ao inject `requires_response` | **sim** — responder é ação da equipe | **não** — a submissão **constitui** a resposta; nada fora dela decide que houve resposta | (não se alcança) | **simples** |
@@ -230,6 +230,32 @@ Isso **não a tira do par**, e a redação anterior sugeria o contrário ao cham
 | Submeter avaliação de caso | TI / Pró-Reitoria | `assessment_submitted` |
 
 Cada uma grava evento com autor, papel, ambos os relógios, epoch e justificativa livre.
+
+#### A contrassinatura da integridade — o predicado de completude
+
+`integrity_validation_declared` é o único ato de duas mãos desta tabela, e o desenho é **eventos encadeados, mesmo `event_type`**: cada mão grava o seu evento, e o segundo aponta para o primeiro por `correlation.causation_id`, campo que o envelope já tem (`09_EVENT_MODEL.md` §1). Nenhum `event_type` novo, nenhuma mudança de contrato.
+
+**Por que encadeado, e não um evento só emitido no fim.** Entre a primeira mão e a segunda existiria um estado pendente fora do event store, e `00_MASTER_SPEC.md` §5.5 e `01_ARCHITECTURE.md` §4.1 apoiam tudo em reconstruir do zero. Pior: o primeiro ato **se perderia** se o segundo não viesse — e declaração da Pró-Reitoria que **ninguém contrassinou** é achado de AAR, não ruído.
+
+**O evento que COMPLETA** é o `integrity_validation_declared` que satisfaz as quatro condições:
+
+1. `correlation.causation_id` aponta para um `integrity_validation_declared` **anterior**;
+2. o antecedente é de persona **Pró-Reitoria** e o que completa é de persona **TI** — a ordem é **fixa**;
+3. o antecedente **não** aponta, ele próprio, para outro `integrity_validation_declared` — o par tem duas mãos, e não três;
+4. os dois têm `actor_id` **distintos**.
+
+**A ordem é fixa porque a competência não é simétrica.** Validar integridade do dado acadêmico é juízo da Pró-Reitoria — calendário, diplomas, colação e matrícula são o painel dela em §6 —, e a contrassinatura de TI é a corroboração técnica de que a verificação sustenta o juízo. Invertida, TI declararia integridade de dado acadêmico, que não é competência dela, e a Pró-Reitoria assinaria embaixo. A palavra *contrassinatura* já está em §3.4 do lado de TI, e esta cláusula só torna a leitura imponível.
+
+A condição (4) existe porque (2) não a cobre: um mesmo operador com duas credenciais satisfaria as personas e assinaria sozinho.
+
+**Os três negativos, nomeados porque são testes:**
+
+- **declaração isolada não marca `TTID`.** Ela fica registrada, e a ausência de contrassinatura é achado do AAR — não é erro de emissão;
+- **contrassinatura sem antecedente é recusada na emissão.** `causation_id` que não aponte para um `integrity_validation_declared` anterior não grava;
+- **autocontrassinatura é recusada.** Mesmo `actor_id`, ou personas fora da ordem de (2);
+- **contrassinatura de antecedente já completado é recusada na emissão** — o par tem duas mãos e um fechamento. Sem esta, duas contrassinaturas de TI com `actor_id` distintos sobre a mesma declaração satisfariam as quatro condições, e o computador de `TTID` escolheria sozinho qual delas marca: a ambiguidade que este bloco existe para fechar, entrando por porta lateral.
+
+**`TTID` marca o evento que completa**, e não o primeiro. O cálculo é **do consumidor** sobre o insumo do lado da declaração, na forma que `00_MASTER_SPEC.md` §3.2 já exige da seleção de start: o par de eventos chega inteiro ao computador, e é ele quem aplica o predicado. Sem esta frase, o computador de `TTID` escolheria sozinho qual dos dois marca.
 
 **Declarar incidente separado é de TI**, e não de qualquer persona como declarar incidente. Reconhecer que **há** incidente é percepção, e qualquer um percebe; afirmar que são **dois** é conclusão sobre evidência — é o que OBJ-03 chama de *"não atribuir alteração de notas ao ransomware sem evidência correlacional"*. É também a segunda metade do mesmo ato de triagem que `TTT` mede: o `scoring` do OBJ-03 amarra as duas na mesma janela — *"excellent: `<= 25 min` e hipótese separada declarada"* —, e o instante que `TTT` marca é `classification_declared`, que é de TI.
 
@@ -338,13 +364,17 @@ Para a Linha B, **overconfidence é pedagogicamente mais interessante que falso 
 
 | Persona | Painel | Declarações |
 |---|---|---|
-| Reitoria | índice de saúde institucional, imprensa | `incident_declared` |
-| Pró-Reitoria Acadêmica | calendário, diplomas, colação, matrícula | `integrity_validation_declared`, `assessment_submitted` |
+| Reitoria | índice de saúde institucional, imprensa | `incident_declared` — que §3.4 abre a **qualquer persona** |
+| Pró-Reitoria Acadêmica | calendário, diplomas, colação, matrícula | `integrity_validation_declared` (com contrassinatura de TI), `assessment_submitted` (**também de TI**) |
 | TI | status de serviços, contenção, recuperação | todas as técnicas |
 | DPO | titulares afetados, rascunho de notificação | `regulatory_notice_submitted` |
 | Jurídico | exposição de responsabilidade | — |
 | Pesquisa | projetos afetados, PI | — |
 | Comunicação | fila de imprensa, posicionamento | `communication_submitted` |
+
+**Esta tabela é a fonte normativa do conjunto de personas**, do mesmo modo que §7 é a dos três papéis de facilitação. As sete são vocabulário fechado: persona nova exige `spec-change`, porque o RBAC da superfície de participante (`01_ARCHITECTURE.md` §6) resolve contra ela e porque `04_SCENARIO_SCHEMA.md` §2 exige que o manifesto declare as `personas` do pack a partir daqui.
+
+**As duas colunas têm fontes diferentes, e isso é dito para que nenhuma vire segunda fonte da outra.** `Painel` é desenho de tela, e é do adapter. `Declarações` é **derivada de §3.4**, que é a fonte do RBAC por ação: divergindo as duas, §3.4 prevalece e esta coluna está errada. As duas linhas acima foram reconciliadas por essa regra — antes elas afirmavam exclusividade que §3.4 nega.
 
 Cada persona vê apenas sua camada `reported`.
 

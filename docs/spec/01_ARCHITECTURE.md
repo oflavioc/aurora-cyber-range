@@ -257,7 +257,15 @@ flags:
 
 **participant-view** (`/plateia`) — projeção separada. Apenas `texto_para_plateia` do inject corrente, cronômetro de decisão, cronômetro de deadline de mídia.
 
-**gm-console** — três papéis (`03_EXERCISE_DESIGN.md` §6), seletor de pack, disparo manual e agendado, PAUSAR / CONTINUAR / ROLLBACK / RESET, estado de flags, registro, geração de AAR.
+**participant-api** — a superfície pela qual a **persona declara**. As ações de `03_EXERCISE_DESIGN.md` §3.4 são atos do **exercício**, e não do domínio: quem as autoriza é a persona, que é vocabulário de desenho de exercício. Por isso elas vivem no core, com RBAC por persona, e não na `academus-api`.
+
+**A persona vê pelo domínio e declara pelo núcleo.** Os painéis de `03_EXERCISE_DESIGN.md` §6 são telas do adapter — `domains/<adapter>/panels/` —, e é a tela do adapter que **chama** esta superfície. A separação não é organizacional: `domains/` não pode conhecer persona, e o verificador de superfície já a recusa como vocabulário de token no perfil de domínio. Uma rota de declaração no adapter exigiria desfazer essa guarda.
+
+Distinta do `gm-console`, que é facilitação (§7 de `03`), e do `participant-view` (`/plateia`), que é **projeção de sala** e não recebe ato de participante (`05_SECURITY_REQUIREMENTS.md` §8).
+
+**gm-console** — três papéis (`03_EXERCISE_DESIGN.md` §7), seletor de pack, disparo manual e agendado, PAUSAR / CONTINUAR / ROLLBACK / RESET, estado de flags, registro, geração de AAR.
+
+> A referência dizia `§6`, que é **Personas**; os três papéis de facilitação são **§7**. A troca estava na linha que descreve o console, e é a própria confusão que a entrada acima existe para desfazer — corrigida no mesmo `spec-change`, porque publicar a distinção nova ao lado da troca antiga a enfraqueceria.
 
 **telemetry-forwarder** — CEF via Syslog UDP/TCP para destino laboratorial configurável. **A telemetria é projeção de fato canônico**, não emissão independente; `precursor_events.jsonl` é gerado, não autoral (`08_EVIDENCE_SIMULATOR.md`). Modo Live e modo Replay. Campos `src`, `dst`, `suser`, `severity`, `outcome`, `cnt`, `cs1`–`cs4`.
 
