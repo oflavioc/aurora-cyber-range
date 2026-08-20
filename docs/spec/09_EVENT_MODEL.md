@@ -111,6 +111,16 @@ Rótulo sem consequência não serve. Cada motivo tem efeito definido:
 
 `adjudication` é o caso em que o facilitador anula uma decisão por uso de informação fora de banda. Precisa aparecer no debriefing.
 
+**O avaliador de predicados e a epoch.** A satisfação **pertence à epoch em que foi emitida** — o `simulation_epoch` do próprio `verification_predicate_satisfied`. Depois de um rollback, o avaliador **reavalia sobre a linhagem corrente** (`01_ARCHITECTURE.md` §4.1); se ela satisfaz, emite **na epoch nova**. A emissão continua sendo por transição: o que mudou não foi o gatilho, foi o mundo sobre o qual ele é lido.
+
+**O efeito é o mesmo nos quatro motivos, e isso é informação e não omissão.** O avaliador sempre reavalia sobre a corrente; o que difere entre eles é o que o **consumidor de métrica** faz com as epochs, e isso já está nas colunas acima. Uma coluna a mais nesta tabela teria quatro células iguais — e regra que não decide caso nenhum é pior que regra ausente, porque parece proteger.
+
+**Os três negativos, nomeados porque são testes:**
+
+- **predicado meio-revertido não existe.** As folhas `event` e as folhas de flag leem **o mesmo mundo** — a linhagem corrente. Sem esta seção, as primeiras liam o fluxo cru e as segundas o estado reconstruído, e um rollback deixava o predicado satisfeito pela metade;
+- **satisfação de epoch abandonada não conta na corrente.** O evento continua no store, legível e marcado (`01_ARCHITECTURE.md` §4.1), e o AAR o renderiza; o que ele não faz é sustentar `TTCV` da epoch nova;
+- **rollback atravessando o ato dessatisfaz na corrente.** Revogação de VPN desfeita pelo corte deixa de valer para a contenção, e a contenção volta a ser não verificada — que é o que o facilitador quis dizer ao rebobinar.
+
 ---
 
 ## 4. Catálogo de eventos
