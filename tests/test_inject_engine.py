@@ -757,5 +757,56 @@ def _envelope(evento) -> dict:
     return documento
 
 
+
+class MarcadoresDeStartNoPayload(_ComEngine):
+    """P6-2, ramo (b) — o teste de emissao que o `spec-change` prometeu.
+
+    `00` §3.2 exige que a SELECAO de start seja calculo do consumidor sobre o
+    payload de `inject_fired`. Isso so e possivel se o atributo estiver em CADA
+    disparo — e e o que esta suite afirma.
+
+    O predicado das tres pernas e avaliado na CARGA (`03` §3); aqui se prova que
+    o engine CARIMBA o que ela derivou, e nao que ele reavalia.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.engine.start()
+
+    def test_todo_inject_fired_carrega_os_dois_marcadores(self):
+        for inject in PACK_CARREGADO.injects:
+            with self.subTest(inject=inject.id):
+                evento = self.engine.fire(inject.id)
+                self.assertEqual(
+                    set(evento.payload), {"observable_impact", "requires_response"}
+                )
+
+    def test_o_carimbo_e_o_que_a_carga_derivou(self):
+        """Nao ha segunda avaliacao do predicado, e e isso que se afirma.
+
+        Duas avaliacoes divergiriam, e a divergencia apareceria como `TTA`
+        comecando em inject diferente entre duas reconstrucoes do mesmo fluxo.
+        """
+        for inject in PACK_CARREGADO.injects:
+            with self.subTest(inject=inject.id):
+                evento = self.engine.fire(inject.id)
+                self.assertIs(
+                    evento.payload["observable_impact"], inject.observable_impact
+                )
+                self.assertIs(
+                    evento.payload["requires_response"], inject.requires_response
+                )
+
+    def test_o_inject_de_ruido_nao_tem_impacto_observavel(self):
+        """`R01` nao move flag, nao materializa fato e nao libera evidencia.
+
+        E o caso que separa as tres pernas de `reveals`: ruido deliberado nao
+        abre `TTA`, porque nao ha o que detectar.
+        """
+        ruido = [i for i in PACK_CARREGADO.injects if i.noise]
+        self.assertEqual(len(ruido), 1)
+        evento = self.engine.fire(ruido[0].id)
+        self.assertFalse(evento.payload["observable_impact"])
+
 if __name__ == "__main__":
     unittest.main()

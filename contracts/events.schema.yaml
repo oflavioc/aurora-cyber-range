@@ -246,6 +246,22 @@ allOf:
         payload:
           $ref: '#/$defs/rollback_payload'
 
+  # SEGUNDO PAYLOAD POR event_type, e nasce pelo mesmo motivo que o primeiro:
+  # quando o consumidor nasce. O consumidor e o computador de metrica da Fase 6 —
+  # 00 secao 3.2 exige que a SELECAO DE START seja calculo dele sobre o payload,
+  # e nao recorte de quem monta o insumo. Sem estes dois campos, TTA e TTCM nao
+  # tem start e a selecao seria feita contra criterio nenhum.
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: inject_fired
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: '#/$defs/inject_fired_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
@@ -395,6 +411,42 @@ $defs:
   # erro de digitacao que em runtime vira campo que ninguem le — a mesma classe
   # do event_type inexistente de 09 secao 4.
   # -------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # PAYLOAD DE `inject_fired` — 03 secao 3, "Impacto observavel, definido", e
+  # 00 secao 3.2. Fecha a P6-2 pelo ramo (b): DERIVACAO DO MOTOR.
+  #
+  # `observable_impact` NAO e campo de pack. O predicado das tres pernas —
+  # `effects`, `materializes_facts` com fato que tenha `projections`, e
+  # `evidence_release` — e avaliado NA CARGA, e o inject-engine carimba o
+  # resultado. Um campo no pack seria segunda fonte para o mesmo fato,
+  # divergiria do conteudo em silencio, e poria em maos de autoria a decisao de
+  # quando a metrica comeca a correr.
+  #
+  # `requires_response` VEM do pack — `media_event.requires_response` de 04
+  # secao 7 —, e a assimetria e deliberada: quem sabe se um inject exige
+  # resposta e quem o escreveu; se ele tem impacto observavel e consequencia do
+  # que ele declara, e nao juizo a parte.
+  #
+  # FECHADO POR `additionalProperties: false`, como o de rollback: a lista de
+  # chaves e conhecida e pequena, e chave nova sem contrato vira campo que
+  # ninguem le.
+  # -------------------------------------------------------------------------
+  inject_fired_payload:
+    type: object
+    required:
+      - observable_impact
+      - requires_response
+    additionalProperties: false
+    properties:
+
+      # O start de TTA — 03 secao 3. Derivado, nunca declarado.
+      observable_impact:
+        type: boolean
+
+      # O start de TTCM. `false` quando o inject nao tem `media_event`.
+      requires_response:
+        type: boolean
+
   rollback_payload:
     type: object
     required:
@@ -877,6 +929,9 @@ x-aurora-invalid-examples:
       simulation_epoch: 1
       objective_ids: [OBJ-03]
 
+  # O `payload` ENTROU nesta fixture quando `inject_fired` ganhou schema proprio
+  # na Fase 6: sem ele, ela passou a carregar DOIS defeitos e deixou de isolar o
+  # que diz isolar. O defeito continua sendo a ausencia de `simulation_epoch`.
   - reason: 'sem simulation_epoch: rollback nao teria como marcar a linha temporal'
     rejected_by: schema
     instance:
@@ -888,6 +943,9 @@ x-aurora-invalid-examples:
       exercise_timestamp: '2026-08-13T10:12:04'
       wall_timestamp: '2026-08-13T11:47:31-03:00'
       clock_multiplier: 1
+      payload:
+        observable_impact: true
+        requires_response: false
 
   - reason: 'event_type de participante declarado na camada ground_truth'
     rejected_by: schema
