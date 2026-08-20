@@ -357,6 +357,27 @@ rotas:
   # sem payload de auditoria. `06` T7 exige a posicao exata; `06` T6 varre o
   # corpo procurando o que nao pode estar la.
   # -------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # A CONSULTA DA TRILHA — item 1 da DoD da Fase 6, e o PRIMEIRO `append` do
+  # adapter. Era o gatilho declarado da P4-2, fechada na parte 1 desta peca.
+  #
+  # `efeito: reversivel` porque ela GRAVA EVENTO: rota que grava evento move o
+  # exercicio, por definicao, e o proprio verificador recusa `efeito: nenhum`
+  # com `emite`. O que ela move e registro de observacao — `audit_query_performed`
+  # e `effect_class: observation` —, e registro se reconstroi do fluxo.
+  #
+  # A rota e a FERRAMENTA da Linha B, e nao a resposta: devolve o que esta na
+  # trilha, sem marcar nada como suspeito. Distinguir indevido de legitimo e o
+  # trabalho que OBJ-03 e OBJ-04 medem.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /audit/grade-changes
+    papeis: [secretaria]
+    flags: []
+    efeito: reversivel
+    emite: audit_query_performed
+    status: implementada
+
   - method: GET
     path: /audit/verify-chain
     papeis: [secretaria]

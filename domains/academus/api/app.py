@@ -78,6 +78,7 @@ from domains.academus.api.degradacao import (
     confere_flags_declaradas,
     degrada,
 )
+from domains.academus.api.emissor import Emissor
 from domains.academus.api.repositorio import Contexto, Escopo, Repositorio
 
 app = FastAPI(
@@ -198,6 +199,55 @@ async def lancar_nota(
     return registro
 
 
+@app.get("/audit/grade-changes")
+async def alteracoes_de_nota(
+    request: Request,
+    period_start: str,
+    period_end: str,
+    group_by: str | None = None,
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
+    """Item 1 da DoD da Fase 6 — consultar a trilha com filtro de periodo EMITE.
+
+    O PRIMEIRO `append` do adapter, e o gatilho declarado da P4-2. A guarda que
+    a pendencia pedia entrou antes desta rota: `check_api_surface.py` exige
+    `emite` de toda rota com `efeito` diferente de `nenhum`, e confere a camada
+    contra o perfil.
+
+    O EVENTO E DA CONSULTA, E NAO DO RESULTADO. `audit_query_performed` e
+    `effect_class: observation` (`09` §4.0): registra que alguem CONSULTOU, sem
+    afirmar nada sobre o que encontrou. `result_count` viaja no payload porque
+    `observability_hooks.yaml` o declara — e ele e o tamanho do que a equipe viu,
+    que e o que evidencia OBJ-03, e nao um juizo sobre os casos.
+
+    A EMISSAO E DEPOIS DA LEITURA, e falha de emissao NAO derruba a resposta:
+    a consulta ja aconteceu, e negar o resultado por causa do registro trocaria
+    um defeito de instrumentacao por um defeito de exercicio. O que nao pode
+    acontecer e a rota existir SEM emissor, e disso cuida a guarda de boot.
+    """
+    try:
+        inicio = datetime.fromisoformat(period_start)
+        fim = datetime.fromisoformat(period_end)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="periodo em formato invalido")
+    if fim <= inicio:
+        raise HTTPException(status_code=422, detail="periodo vazio ou invertido")
+
+    agrupar = group_by == "user"
+    linhas = repositorio.alteracoes_de_nota(inicio, fim, agrupar)
+
+    emissor = getattr(request.app.state, "emissor", None)
+    if emissor is not None:
+        emissor.registrar_consulta(
+            period_start=period_start,
+            period_end=period_end,
+            group_by=group_by,
+            result_count=len(linhas),
+            escopo=escopo_do_pedido(request),
+        )
+    return {"linhas": linhas, "total": len(linhas)}
+
+
 @app.get("/audit/verify-chain")
 async def verificar_trilha(
     repositorio: Repositorio = Depends(repositorio_do_pedido),
@@ -241,10 +291,38 @@ async def matricular(
     return registro
 
 
+def confere_emissor_declarado(superficie, emissor) -> None:
+    """Rota que declara `emite` exige emissor ligado. Recusa ALTA no boot.
+
+    A guarda e a mesma forma de `confere_flags_declaradas`, e pelo mesmo motivo:
+    a superficie declara que a rota GRAVA EVENTO, e sem emissor ela responderia
+    normalmente sem gravar nada. O exercicio inteiro se apoia em o registro
+    reconstruir o que houve (`00` §5.5) — uma rota instrumentada em silencio e
+    pior que uma rota nao instrumentada, porque a ausencia nao aparece.
+
+    Nao ha degradacao para "emite quando puder": ou o emissor esta ligado, ou o
+    boot para com a lista das rotas que ficariam mudas.
+    """
+    if emissor is not None:
+        return
+    mudas = [
+        f"{str(r.get('method', '')).upper()} {r.get('path')}"
+        for r in (superficie.get("rotas") or [])
+        if r.get("emite") and r.get("status") == "implementada"
+    ]
+    if mudas:
+        raise RuntimeError(
+            "rotas declaram `emite` e nao ha emissor ligado: " + ", ".join(mudas)
+            + ".\n    `montar(..., emissor=...)`. Rota instrumentada em silencio "
+            "e pior que rota nao instrumentada: a ausencia nao aparece."
+        )
+
+
 def montar(
     autenticacao: Autenticacao,
     repositorio: Repositorio,
     degradador: Degradador | None = None,
+    emissor: Emissor | None = None,
 ) -> FastAPI:
     """Liga autenticacao, persistencia e degradacao. Chamado pelo processo e pela suite.
 
@@ -264,6 +342,8 @@ def montar(
     app.state.autenticacao = autenticacao
     app.state.repositorio = repositorio
     app.state.degradador = degradador
+    app.state.emissor = emissor
+    confere_emissor_declarado(autenticacao.superficie, emissor)
     if degradador is not None:
         confere_flags_declaradas(
             autenticacao.superficie, degradador.leitura.declarations
