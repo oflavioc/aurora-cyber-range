@@ -220,6 +220,7 @@ Isso **não a tira do par**, e a redação anterior sugeria o contrário ao cham
 | Ação | Quem | Evento |
 |---|---|---|
 | Declarar incidente | qualquer persona | `incident_declared` |
+| Declarar incidente separado | TI | `separate_incident_declared` |
 | Declarar classificação | TI | `classification_declared` |
 | Declarar contenção | TI | `containment_declared` |
 | Declarar restauração por serviço | TI | `service_restoration_declared` |
@@ -229,6 +230,28 @@ Isso **não a tira do par**, e a redação anterior sugeria o contrário ao cham
 | Submeter avaliação de caso | TI / Pró-Reitoria | `assessment_submitted` |
 
 Cada uma grava evento com autor, papel, ambos os relógios, epoch e justificativa livre.
+
+**Declarar incidente separado é de TI**, e não de qualquer persona como declarar incidente. Reconhecer que **há** incidente é percepção, e qualquer um percebe; afirmar que são **dois** é conclusão sobre evidência — é o que OBJ-03 chama de *"não atribuir alteração de notas ao ransomware sem evidência correlacional"*. É também a segunda metade do mesmo ato de triagem que `TTT` mede: o `scoring` do OBJ-03 amarra as duas na mesma janela — *"excellent: `<= 25 min` e hipótese separada declarada"* —, e o instante que `TTT` marca é `classification_declared`, que é de TI.
+
+#### O que entra nesta tabela, e o que fica fora
+
+Esta tabela nunca teve critério, e por isso perdeu uma linha sem que nada acusasse. **Entra o ato de participante cujo conteúdo é uma afirmação sobre o incidente ou uma entrega formal** — declarar, classificar, submeter —, e que a aplicação só conhece se o participante o executar. Cada um exige **ação funcional**: uma superfície que o participante invoca, e um evento que ela grava.
+
+`participant_action` tem dezessete `event_type` (`01_ARCHITECTURE.md` §4.4). Nove estão nesta tabela. Os outros oito ficam de fora em três famílias, cada uma com a superfície que de fato tem:
+
+**Ato que muda o mundo simulado** — `vpn_access_revoked`, `identity_scope_disabled`, `continuity_action_taken`. §3.1 já os separa: são **ações com efeito no mundo**, não afirmações sobre ele. É por isso que eles são folha de predicado de verificação e os desta tabela não são.
+
+**Ato que nasce de superfície já declarada pelo pack** — `decision_made` não tem rota: nasce de um `decision_point`, cujas opções o cenário escreve (`04_SCENARIO_SCHEMA.md` §5). O participante escolhe entre alternativas oferecidas, e não origina a declaração. `capability_gap_declared` nasce **junto com ele**, quando a opção escolhida carrega `capability_gap` (§8.3): a superfície dele é a mesma opção do ponto de decisão.
+
+**Ato de observação** — `inject_viewed`, `audit_query_performed`, `evidence_source_opened`. Não afirmam nem entregam: registram que alguém acessou ou viu algo. São **instrumentação**, com rota própria — a consulta de auditoria que emite `audit_query_performed` é rota da `academus-api`, e o que ela grava é o acesso, não uma afirmação sobre o incidente.
+
+Nove mais três mais dois mais três fecham os dezessete. `bars_score_submitted`, `observed_marker_set` e `qualitative_note_added` não entram na conta: são `evaluator_assessment`, e a superfície deles é o gm-console do avaliador (§7) — ficam de fora **pela camada**, antes de qualquer critério de conteúdo.
+
+**Nenhum atributo do catálogo codifica este critério, e isso é informação e não lacuna.** `effect_class` erra: `communication_submitted` e `regulatory_notice_submitted` são `state_effect` — o **ato** tem efeito externo (`09_EVENT_MODEL.md` §4.1) — e estão nesta tabela. `metric_side` erra do outro lado: `assessment_submitted` é `verification`, porque alimenta o limiar de `TTIV` (`00_MASTER_SPEC.md` §3.2), o mesmo lado dos três que mudam o mundo. Cada atributo corta o catálogo para **o seu consumidor** — folha de predicado, insumo de métrica —, e esta tabela corta para o dela: o que exige ação funcional. São cortes irmãos, e não um corte usado três vezes.
+
+**Evento de declaração futuro se classifica pelo critério, não por acréscimo de linha.**
+
+**A recorrência é a razão de este parágrafo existir.** `separate_incident_declared` já caiu de um registro fechado uma vez: não constava do catálogo de `09_EVENT_MODEL.md` §4.1 enquanto era usado como evidência `auto` do OBJ-03, e a correção foi o `spec-change` `facilitation-e-separate-incident`. Agora caiu desta tabela, pelo mesmo motivo — nenhum dos dois registros tinha critério de pertencimento, só enumeração. Segunda vez, mesmo evento, mesma classe. O parágrafo existe para não haver terceira.
 
 ### 3.5 Congelamento por falha do range
 
