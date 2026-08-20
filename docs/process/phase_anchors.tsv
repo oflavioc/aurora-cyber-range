@@ -45,4 +45,4 @@
 3	8c6eca6f8b354c5b2511028341a0ed7a404bbd57	spec-change fechado antes da peca 1 da Fase 3; ultimo commit de `main` no nascimento da branch
 4	486df18243fbdb60e4e5b1f99d8523f8a0a976c0	REGRAVADA no rebase sobre o spec-change da P4-9 (`05` §8, casca do gm-console); a anterior era 6efca2e, o nascimento da branch
 5	fd34c4445c2fecf686453a8843e8bc725836581a	`main` no nascimento da branch `fase-5-dados-e-auditoria`; ultimo commit da Fase 4 mergeada (README e o gate do README)
-6	5b2f9d30b29953b430ca936fac397bc9bf13d391	`main` no rebase da branch `fase-6-objetivos-rubricas-metricas`, antes da peca 3; REGRAVADA — a anterior era 6894371, o nascimento. A main passou a carregar toda a base normativa da fase: os spec-change `impacto-observavel-definido`, `acoes-de-declaracao-o-criterio`, `superficie-de-participante` e `isencao-de-bootstrap-de-token`
+6	3cbf18fe65d9e1ea0cc361b4e91105d72f04c36c	`main` no SEGUNDO rebase da branch `fase-6-objetivos-rubricas-metricas`, antes do motor da peca 4; REGRAVADA — a anterior era 5b2f9d3, e antes dela 6894371, o nascimento. A main passou a conter o spec-change `linhagem-corrente-e-o-avaliador`, que a peca 4 executa
