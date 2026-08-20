@@ -197,6 +197,13 @@ class Perfil:
     nome: str
     papeis_iguais_aos_de_exercicio: bool
     chave_de_papeis: str
+    #: As camadas de `truth_layer` que ESTA superficie pode emitir. E ancora do
+    #: perfil, e nao argumento de chamada: o nucleo emite `facilitation` porque
+    #: comando de console e o facilitador agindo sobre a SIMULACAO (`09` §2); o
+    #: adapter e aplicacao instrumentada, e emite o que a equipe faz e o que o
+    #: ambiente revela. Um verificador que recebesse "camadas permitidas" por
+    #: argumento aceitaria o conjunto vazio e ficaria verde provando nada.
+    camadas_de_emissao: frozenset[str]
     familias: frozenset[str]
     chaves_de_topo: frozenset[str]
     chaves_de_rota_obrigatorias: frozenset[str]
@@ -209,16 +216,26 @@ PERFIL_DOMINIO = Perfil(
     nome="dominio",
     papeis_iguais_aos_de_exercicio=False,
     chave_de_papeis="papeis_de_dominio",
-    familias=frozenset({"flags", "degradacao", "escopo", "token", "imports"}),
+    # `09` §2: `participant_action` e produzida pela APLICACAO INSTRUMENTADA, e
+    # `observable_evidence` por projecoes de fato e pela aplicacao. `facilitation`
+    # NAO entra: comando de facilitacao nao mora no adapter.
+    camadas_de_emissao=frozenset({"participant_action", "observable_evidence"}),
+    familias=frozenset(
+        {"flags", "degradacao", "escopo", "token", "imports", "eventos"}
+    ),
     chaves_de_topo=frozenset({"token", "papeis_de_dominio", "rotas"}),
-    chaves_de_rota_obrigatorias=frozenset({"method", "path", "status", "flags"}),
-    chaves_de_rota_permitidas=CHAVES_COMUNS | {"flags", "degradacao", "escopo"},
+    chaves_de_rota_obrigatorias=frozenset(
+        {"method", "path", "status", "flags", "efeito"}
+    ),
+    chaves_de_rota_permitidas=CHAVES_COMUNS
+    | {"flags", "degradacao", "escopo", "efeito", "emite"},
 )
 
 PERFIL_NUCLEO = Perfil(
     nome="nucleo",
     papeis_iguais_aos_de_exercicio=True,
     chave_de_papeis="papeis_de_exercicio",
+    camadas_de_emissao=frozenset({CAMADA_DE_FACILITACAO}),
     familias=frozenset({"eventos", "irreversibilidade", "canais"}),
     chaves_de_topo=frozenset({"papeis_de_exercicio", "projecoes", "rotas"}),
     chaves_de_rota_obrigatorias=frozenset({"method", "path", "status", "efeito"}),
@@ -358,7 +375,9 @@ def verifica_chaves(documento: dict, declaradas: list[dict], perfil: Perfil) -> 
                 f"{perfil.nome!r}.\n"
                 "    Os dois perfis nao compartilham vocabulario por acaso: "
                 "`flags` na superficie do nucleo seria nome de dominio dentro do "
-                "core, e `emite` na do adapter anteciparia a instrumentacao."
+                "core. `emite` passou a existir tambem no adapter na peca 3 da "
+                "Fase 6, quando a instrumentacao chegou — era a P4-2, e o gatilho "
+                "dela era o primeiro `append` fora do inject-engine."
             )
         for campo in sorted(perfil.chaves_de_rota_obrigatorias - set(rota)):
             problemas.append(
@@ -368,8 +387,21 @@ def verifica_chaves(documento: dict, declaradas: list[dict], perfil: Perfil) -> 
     return problemas
 
 
-def verifica_eventos(declaradas: list[dict], catalogo: dict[str, str]) -> list[str]:
-    """`emite` e nome de evento do CATALOGO, e da camada certa."""
+def verifica_eventos(
+    declaradas: list[dict], catalogo: dict[str, str], perfil: Perfil
+) -> list[str]:
+    """`emite` e nome de evento do CATALOGO, e de camada que ESTE perfil admite.
+
+    A familia rodava so no nucleo, e a P4-2 nomeou o buraco: emitir sem declarar
+    `emite` nao tinha guarda em lugar nenhum, e o gatilho declarado era **o
+    primeiro `append` fora do inject-engine**. A peca 3 da Fase 6 e esse append —
+    `audit_query_performed` e as acoes de declaracao —, entao a familia passa a
+    rodar tambem no perfil de dominio.
+
+    A camada admitida vem do PERFIL. Antes era a constante `facilitation`, que e
+    a certa para o console e a errada para o adapter: a `academus-api` emite o
+    que a equipe declara e o que o ambiente revela, nunca comando de facilitacao.
+    """
     problemas: list[str] = []
     for rota in declaradas:
         chave = f"{str(rota.get('method', '')).upper()} {rota.get('path')}"
@@ -402,14 +434,15 @@ def verifica_eventos(declaradas: list[dict], catalogo: dict[str, str]) -> list[s
                 "digitacao nunca dispara, e ninguem percebe ate o exercicio ao "
                 "vivo."
             )
-        elif camada != CAMADA_DE_FACILITACAO:
+        elif camada not in perfil.camadas_de_emissao:
+            admitidas = ", ".join(f"`{c}`" for c in sorted(perfil.camadas_de_emissao))
             problemas.append(
-                f"{chave}: emite {emite!r}, que e `{camada}` e nao "
-                f"`{CAMADA_DE_FACILITACAO}`.\n"
+                f"{chave}: emite {emite!r}, que e `{camada}`, e a superficie "
+                f"{perfil.nome!r} so admite {admitidas}.\n"
                 "    Comando do console e o facilitador agindo sobre a SIMULACAO "
-                "(`09` §2). Emitir outra camada por aqui misturaria maquina de "
-                "exercicio com fato do incidente — a confusao que `00` §3 existe "
-                "para impedir."
+                "(`09` §2); o adapter e aplicacao INSTRUMENTADA. Trocar as duas "
+                "misturaria maquina de exercicio com fato do incidente — a "
+                "confusao que `00` §3 existe para impedir."
             )
     return problemas
 
@@ -1107,7 +1140,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
         if "eventos" in perfil.familias:
-            achados += verifica_eventos(declaradas, catalogo)
+            achados += verifica_eventos(declaradas, catalogo, perfil)
         if "irreversibilidade" in perfil.familias:
             achados += verifica_irreversibilidade(declaradas)
         if "canais" in perfil.familias:

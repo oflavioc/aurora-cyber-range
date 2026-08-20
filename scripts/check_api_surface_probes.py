@@ -563,7 +563,10 @@ PROBES_DE_EVENTO = [
     (
         "evento de OUTRA camada num comando de console",
         [_nucleo(efeito="irreversivel", emite="containment_declared", confirmacao=True)],
-        "e nao `facilitation`",
+        # A mensagem deixou de nomear `facilitation` como constante e passou a
+        # dizer o que O PERFIL admite — a camada virou propriedade do perfil na
+        # peca 3 da Fase 6. O eixo e o mesmo: emitir camada de outra superficie.
+        "so admite `facilitation`",
     ),
     (
         "rota que move o exercicio e nao emite evento",
@@ -932,8 +935,12 @@ def probe_do_perfil_trocado() -> bool:
     if not any("chave de topo 'token' desconhecida" in p for p in como_nucleo):
         print(f"FALHA: superficie de dominio lida como nucleo passou: {como_nucleo}")
         return False
-    if not any("campo obrigatorio 'efeito' ausente" in p for p in como_nucleo):
-        print(f"FALHA: rota de dominio sem `efeito` nao foi acusada: {como_nucleo}")
+    # O discriminante era `efeito`, e ele DEIXOU de discriminar na peca 3 da
+    # Fase 6: o perfil de dominio passou a exigi-lo tambem. Trocado por `flags`,
+    # que segue sendo so do dominio — o probe prova que os perfis nao sao
+    # intercambiaveis, e nao que um campo especifico existe.
+    if not any("campo 'flags' nao existe no perfil 'nucleo'" in p for p in como_nucleo):
+        print(f"FALHA: rota de dominio lida como nucleo nao foi acusada: {como_nucleo}")
         return False
 
     nucleo = parse_yaml(REPO_ROOT / "range-core" / "api_surface.yaml") or {}
@@ -941,7 +948,8 @@ def probe_do_perfil_trocado() -> bool:
     if not any("chave de topo 'projecoes' desconhecida" in p for p in como_dominio):
         print(f"FALHA: superficie do nucleo lida como dominio passou: {como_dominio}")
         return False
-    if not any("campo 'efeito' nao existe no perfil" in p for p in como_dominio):
+    # Mesma troca, pelo mesmo motivo: `projecao` continua sendo so do nucleo.
+    if not any("campo 'projecao' nao existe no perfil" in p for p in como_dominio):
         print(f"FALHA: `efeito` numa leitura de dominio nao foi acusado: {como_dominio}")
         return False
 
@@ -957,6 +965,25 @@ def probe_da_varredura_de_superficies() -> bool:
         return False
     print(f"OK: a varredura acha as {len(em_disco)} superficies, e a tabela as cobre")
     return True
+
+
+#: (rotulo, rotas, trecho esperado) — a familia `eventos` sob o PERFIL DE
+#: DOMINIO. O eixo que estes dois provam e a camada: o adapter e aplicacao
+#: instrumentada, e emitir `facilitation` por aqui seria console de facilitacao
+#: dentro do dominio.
+PROBES_DE_EVENTO_NO_DOMINIO = [
+    (
+        "adapter emitindo camada de facilitacao",
+        [{"method": "post", "path": "/x", "efeito": "reversivel",
+          "emite": "inject_fired"}],
+        "so admite",
+    ),
+    (
+        "adapter que move o exercicio e nao declara `emite`",
+        [{"method": "post", "path": "/x", "efeito": "reversivel"}],
+        "nao declara `emite`",
+    ),
+]
 
 
 def main_probes() -> int:
@@ -976,7 +1003,16 @@ def main_probes() -> int:
     resultados.append(probe_dos_extratores())
     # PECA 1 DA FASE 4 — o perfil do nucleo.
     resultados.extend(
-        _roda_familia(r, verifica_eventos(d, CATALOGO), e) for r, d, e in PROBES_DE_EVENTO
+        _roda_familia(r, verifica_eventos(d, CATALOGO, PERFIL_NUCLEO), e)
+        for r, d, e in PROBES_DE_EVENTO
+    )
+    # PECA 3 DA FASE 6 — a familia passou a rodar tambem no perfil de dominio,
+    # e a camada admitida virou propriedade do perfil. Sem estes dois, a
+    # generalizacao ficaria sem prova: o probe do nucleo continua verde mesmo
+    # que o dominio admita qualquer camada.
+    resultados.extend(
+        _roda_familia(r, verifica_eventos(d, CATALOGO, PERFIL_DOMINIO), e)
+        for r, d, e in PROBES_DE_EVENTO_NO_DOMINIO
     )
     resultados.extend(
         _roda_familia(r, verifica_irreversibilidade(d), e)
