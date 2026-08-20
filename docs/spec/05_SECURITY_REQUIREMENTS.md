@@ -118,8 +118,10 @@ Requisito de segurança, não de funcionalidade. Implementação obrigatória em
 Nenhum serviço exposto sem autenticação, exceto:
 
 - `wallboard` e `participant-view` — projeções de sala, que devem estar em rede isolada do exercício;
-- a **casca estática** do `gm-console` e a rota que troca credencial por token — o HTML, CSS e JavaScript que o navegador carrega **antes de existir token**, e o endpoint de autenticação em si.
+- a **casca estática** do `gm-console` e **as rotas que trocam credencial por token** — o HTML, CSS e JavaScript que o navegador carrega **antes de existir token**, e os endpoints de autenticação em si. São duas hoje: a do `gm-console` e a da `participant-api` (`01_ARCHITECTURE.md` §6).
 
 A segunda exceção é da **casca**, e não do serviço: nenhum dado de exercício trafega por ela. Injects, timeline, estado de simulação e os comandos de facilitação exigem token, e um caminho não declarado como público exige token por falha fechada.
+
+> A exceção dizia **"a rota"**, no singular, e descrevia o console porque ele era o único emissor quando foi escrita. Com a `participant-api` emitindo o próprio token, a leitura literal exigiria token da rota que existe para **produzir** o token: bootstrap impossível, por falha fechada. A exceção passa a ser de **classe** — trocar credencial por token —, com as instâncias nomeadas. Emissor novo se enquadra pela classe; a lista de instâncias é registro do que há, e não a fonte.
 
 Senhas de seed nunca são valores triviais reutilizáveis; são geradas a partir do `RANDOM_SEED` e impressas apenas no log de seed local.
