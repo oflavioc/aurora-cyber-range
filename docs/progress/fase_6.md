@@ -46,6 +46,65 @@ exige e o que o predicado de auditoria não deriva sozinho.
 tem as duas metades. A Fase 10 renderiza a partir dela; a prova da DoD é teste
 nomeado sobre a saída da `aar_timeline`.
 
+### A peça 3 fecha em dois blocos declarados
+
+**A fronteira é decisão de processo, e está aqui para que a auditoria não leia o
+bloco A como incompleto nem o B como escopo crescido.**
+
+| Bloco | Conteúdo |
+|---|---|
+| **A** | superfície de participante e seu perfil, emissor próprio com claims por superfície, as sete credenciais de ambiente (D5), `GET /audit/grade-changes`, a guarda de boot do emissor, e os hooks das ações normativas |
+| **B** | as nove rotas de declaração com RBAC pela coluna *Quem* de `03` §3.4, e o predicado de completude da contrassinatura com os quatro negativos como testes |
+
+**Por que dividida.** A peça 3 acumulou cinco `spec-change` — a nona ação, a
+superfície, a autenticação, a isenção de bootstrap, e o predicado de impacto
+observável antes deles. O corpo que sobrou não cabe numa sequência contínua sem
+que a qualidade caia perto do fim, e a queda cairia exatamente sobre a
+contrassinatura, que é a parte com quatro negativos a provar.
+
+**O bloco A declara as nove rotas como `planejada`.** Não é adiamento
+escondido: `scripts/check_api_surface.py` reprova rota `planejada` que já exista
+no código, então a promoção no bloco B é cobrada pelo mesmo verificador. É o
+mecanismo funcionando como desenhado — a obrigação escrita antes do código.
+
+### As três decisões que a peça 3 tomou
+
+**Superfície — saída B, terceira superfície no núcleo.** As três consideradas:
+(A) o núcleo cresce com uma chave `personas`; (B) superfície irmã, com perfil
+próprio; (C) as rotas no adapter, com a persona como dado.
+
+Escolhida a **B**, por três razões. (1) A opção A tornaria `irreversibilidade` e
+`confirmacao` campos presentes-às-vezes no perfil de facilitação — a doença que
+a P4-2 acabou de curar do outro lado. (2) Persona é vocabulário de exercício
+**por verificador**: `check_api_surface.py` a recusa no perfil de domínio, logo
+RBAC por persona só é imponível no núcleo, e a opção C exigiria desfazer essa
+guarda. (3) `SUPERFICIES` cresce por registro, que é o mecanismo desenhado.
+
+E a razão dura da **colocação**, que não é organizacional: a varredura de rotas é
+`rglob` sobre a `raiz_api` de cada superfície. Aninhada em `api/participante/`, a
+superfície nova ficaria **dentro da árvore que o perfil do núcleo varre**, e as
+rotas de declaração seriam julgadas pelo perfil errado — por
+`camadas_de_emissao: [facilitation]` e por `irreversibilidade`. Irmã é a única
+forma com árvores disjuntas.
+
+**Autenticação — emissão própria, claims por superfície.** O modelo já era esse:
+`token.claims` vive no `api_surface.yaml` de cada superfície. O que muda é o
+verificador comparar **cada emissor contra a superfície dele** — movimento irmão
+do `camadas_de_emissao`. A alternativa, uma claim `persona` opcional no
+`_payload` único, realizaria por desenho o risco que o próprio docstring daquela
+função guarda: literal único, claim para as duas vocações.
+
+Credenciais de **ambiente**, disciplina D5: sete, uma por persona, sem default,
+recusa alta. Sem `spec-change` para atribuição.
+
+**A semântica do `actor_id`, dita como decisão e não como garantia.** `actor_id`
+identifica **credencial, não humano**. A condição (4) da contrassinatura —
+`actor_id` distintos — pega **reuso de credencial**, e não dualidade humana:
+dualidade é controle **físico** da facilitação, na distribuição das sete
+credenciais. Credencial pessoal futura dá dentes à condição (4) **sem tocar a
+spec**, porque a condição já está escrita na forma certa. O limite fica
+declarado em vez de parecer garantia.
+
 ### Reivindicação pendente para a peça 6
 
 `scripts/check_spec_examples.py` guarda em `IGNORADOS` dois blocos de
