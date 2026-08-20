@@ -197,6 +197,15 @@ class Inject:
     effects: Mapping[str, FlagValue]
     decision_point: DecisionPoint | None
     noise: bool
+    #: DERIVADO NA CARGA — `03` §3, "Impacto observável, definido". Marca o
+    #: *start* de `TTA`, e é derivado em vez de declarado porque um campo no
+    #: pack seria segunda fonte para o mesmo fato e poria em mãos de autoria a
+    #: decisão de quando a métrica começa a correr.
+    observable_impact: bool
+    #: `media_event.requires_response` do pack — `04` §7. O *start* de `TTCM`.
+    #: Este VEM declarado: quem sabe se um inject exige resposta é quem o
+    #: escreveu, e o campo já existia antes desta fase.
+    requires_response: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,7 +309,9 @@ def load_pack(
     _verify_rules(documentos, scenario, contracts, adapter_flags)
     confere_folhas_temporais(documentos.get("ground_truth.yaml"))
 
-    injects = _build_injects(documentos.get("injects.yaml") or {})
+    injects = _build_injects(
+        documentos.get("injects.yaml") or {}, documentos.get("ground_truth.yaml")
+    )
 
     return LoadedPack(
         pack_id=manifest["pack_id"],
@@ -535,7 +546,49 @@ def _verify_rules(
         )
 
 
-def _build_injects(injects_document: Mapping) -> tuple[Inject, ...]:
+def _fatos_com_projecao(ground_truth: Mapping | None) -> frozenset[str]:
+    """`fact_id` dos fatos que aparecem em ALGUMA fonte de evidência.
+
+    Fato sem `projections` é invisível ao time azul **de propósito** — `08` §2 o
+    usa para ensinar limite de detecção. Ele não move a camada de evidência
+    observável, e por isso não conta para impacto observável: abrir `TTA` nele
+    mediria latência contra um relógio que a equipe não tinha como ver começar.
+    """
+    return frozenset(
+        fato["fact_id"]
+        for fato in (ground_truth or {}).get("facts") or []
+        if fato.get("projections")
+    )
+
+
+def _tem_impacto_observavel(bruto: Mapping, fatos_com_projecao: frozenset[str]) -> bool:
+    """O predicado de `03` §3 — três pernas, e a exclusão decidida.
+
+    **Derivado, e não declarado.** O `spec-change` `impacto-observavel-definido`
+    fixou as três: `effects`, `materializes_facts` com fato que tenha
+    `projections`, e `evidence_release`.
+
+    A perna de `effects` é **estrutural e não costume**: `state_flags.schema.yaml`
+    exige `effect_ui`, `wallboard_group` e `consumers` em toda flag, então não
+    existe flag que se mova sem lugar onde a mudança apareça.
+
+    **`reveals` fica de fora, e a exclusão é decidida.** Ele alimenta crença do
+    participante — a terceira camada de `00` §3 —, e não o mundo nem a evidência
+    descobrível. `TTA` mede a distância da primeira camada à terceira: sala
+    **informada** não é sala que **detectou**.
+    """
+    if bruto.get("effects"):
+        return True
+    if bruto.get("evidence_release"):
+        return True
+    return any(
+        fato in fatos_com_projecao for fato in (bruto.get("materializes_facts") or [])
+    )
+
+
+def _build_injects(
+    injects_document: Mapping, ground_truth: Mapping | None = None
+) -> tuple[Inject, ...]:
     """O modelo de inject, ja sobre documento validado pelas duas camadas.
 
     `effects` ausente vira mapeamento VAZIO, e a entrada existe mesmo assim: o
@@ -543,6 +596,7 @@ def _build_injects(injects_document: Mapping) -> tuple[Inject, ...]:
     `inject_effects`, e um inject sem effects e legitimo — inject de revelacao ou
     de midia nao move flag.
     """
+    fatos_com_projecao = _fatos_com_projecao(ground_truth)
     injects: list[Inject] = []
     for bruto in injects_document.get("injects") or []:
         ponto = bruto.get("decision_point")
@@ -553,6 +607,10 @@ def _build_injects(injects_document: Mapping) -> tuple[Inject, ...]:
                 t_relative_seconds=t_relative_seconds(bruto["t_relative"], bruto["id"]),
                 titulo_operacional=bruto["titulo_operacional"],
                 effects=dict(bruto.get("effects") or {}),
+                observable_impact=_tem_impacto_observavel(bruto, fatos_com_projecao),
+                requires_response=bool(
+                    (bruto.get("media_event") or {}).get("requires_response")
+                ),
                 decision_point=(
                     None
                     if ponto is None

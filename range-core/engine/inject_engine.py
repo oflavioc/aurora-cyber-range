@@ -305,7 +305,25 @@ class InjectEngine:
                 f"inject {inject_id!r} nao existe no pack {self._pack.pack_id!r}",
             )
         self._require_started(f"disparar {inject_id}")
-        return self._append(INJECT_FIRED, inject_id=inject.id)
+        # OS DOIS MARCADORES DE START, no payload — `00` §3.2 e `03` §3.
+        #
+        # O engine CARIMBA o que a carga derivou; ele nao reavalia o predicado.
+        # Duas avaliacoes do mesmo predicado divergiriam, e a divergencia
+        # apareceria como `TTA` comecando em inject diferente entre duas
+        # reconstrucoes do mesmo fluxo.
+        #
+        # Quem SELECIONA o start a partir daqui e o computador de metrica, e nao
+        # este metodo: `00` §3.2 exige que a selecao seja calculo do consumidor.
+        # O que o engine deve e por o atributo em CADA disparo, para que haja o
+        # que selecionar.
+        return self._append(
+            INJECT_FIRED,
+            inject_id=inject.id,
+            payload={
+                "observable_impact": inject.observable_impact,
+                "requires_response": inject.requires_response,
+            },
+        )
 
     def fire_due(self) -> tuple[Event, ...]:
         """Dispara o que `due_injects` reportar, na ordem do `t_relative`.
