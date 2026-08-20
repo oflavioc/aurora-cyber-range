@@ -66,7 +66,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import Engine, create_engine, select
+from sqlalchemy import Engine, create_engine, select, text
 from sqlalchemy.orm import Session
 
 from domains.academus.api.surface import PROPRIO, TITULAR
@@ -256,6 +256,71 @@ class Repositorio:
         """
         with Session(self._engine) as sessao:
             return trilha.verificar(sessao)
+
+    def alteracoes_de_nota(
+        self, inicio: datetime, fim: datetime, agrupar_por_usuario: bool
+    ) -> list[dict]:
+        """`GET /audit/grade-changes` — a trilha filtrada por período.
+
+        É a consulta que a Linha B exige: `02` §6 põe as alterações indevidas
+        dentro de uma massa de alterações legítimas, e distinguir umas das outras
+        é o trabalho analítico que OBJ-03 e OBJ-04 medem. Esta rota é a
+        ferramenta, e não a resposta — ela devolve o que está na trilha, sem
+        marcar nada como suspeito.
+
+        **Leitura, e nada além.** Sessão própria, somente leitura, pelo mesmo
+        argumento de `verificar_trilha`: se a consulta escrevesse, consultar a
+        trilha alteraria a trilha.
+
+        `agrupar_por_usuario` devolve contagem por ator em vez das linhas. Os
+        dois modos existem porque o hook de `observability_hooks.yaml` declara
+        `group_by` no payload: a consulta agrupada é a que evidencia OBJ-03 —
+        *"reconhecer incidentes concorrentes"* começa por ver que um usuário
+        concentra alterações fora de janela.
+        """
+        with Session(self._engine) as sessao:
+            if agrupar_por_usuario:
+                linhas = sessao.execute(
+                    text(
+                        "SELECT actor_user_id, COUNT(*) AS total "
+                        "FROM audit_trail "
+                        "WHERE category = :categoria "
+                        "  AND occurred_at >= :inicio AND occurred_at < :fim "
+                        "GROUP BY actor_user_id ORDER BY total DESC, actor_user_id"
+                    ),
+                    {
+                        "categoria": trilha.ALTERACAO_DE_NOTA,
+                        "inicio": inicio,
+                        "fim": fim,
+                    },
+                ).all()
+                return [
+                    {"actor_user_id": linha[0], "total": int(linha[1])}
+                    for linha in linhas
+                ]
+
+            linhas = sessao.execute(
+                text(
+                    "SELECT sequence, actor_user_id, occurred_at, object_id, "
+                    "       within_window, authorization_id "
+                    "FROM audit_trail "
+                    "WHERE category = :categoria "
+                    "  AND occurred_at >= :inicio AND occurred_at < :fim "
+                    "ORDER BY sequence"
+                ),
+                {"categoria": trilha.ALTERACAO_DE_NOTA, "inicio": inicio, "fim": fim},
+            ).all()
+            return [
+                {
+                    "sequence": int(linha[0]),
+                    "actor_user_id": linha[1],
+                    "occurred_at": str(linha[2]),
+                    "object_id": linha[3],
+                    "within_window": linha[4],
+                    "authorization_id": linha[5],
+                }
+                for linha in linhas
+            ]
 
     def matricular(self, student_id: str, class_id: str, escopo: Escopo) -> dict | None:
         """Matricula. O escopo vale sobre o ALUNO — a turma e livre.

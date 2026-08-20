@@ -11,9 +11,20 @@
 # passaria a conhecer o desenho de exercicio e a fronteira core/adapter vazaria.
 # O binding evento -> objetivo vive em scenarios/<pack>/objectives.yaml.
 #
-# ESQUELETO DA FASE 1: os dois hooks abaixo sao os que 09 secao 6 traz como
-# exemplo normativo. Os demais chegam com a API, na Fase 3 — declarar hook para
-# rota que ainda nao existe seria contrato sem implementacao.
+# NASCEU COMO ESQUELETO NA FASE 1, com os dois hooks que 09 secao 6 traz como
+# exemplo normativo. A frase seguinte dizia que "os demais chegam com a API, na
+# Fase 3" — e envelheceu: a Fase 3 entregou rotas que nao emitem evento nenhum,
+# e o PRIMEIRO `append` do adapter e a consulta da trilha, que e da Fase 6.
+#
+# `audit_query_performed` deixou de ser hook sem produtor na peca 3A da Fase 6:
+# `GET /audit/grade-changes` existe, e `domains/academus/api/emissor.py` grava.
+# Os `payload_fields` daqui sao EXATAMENTE os quatro que aquele metodo escreve —
+# acrescentar campo la sem declarar aqui faria o hook descrever um evento que
+# nao e o emitido.
+#
+# `vpn_access_revoked` continua sem produtor: o `federated-identity-simulator` e
+# da Fase 11. Declarado com destinatario em vez de omitido, pelo mesmo motivo
+# que a P5-2 registrou para a categoria de trilha sem produtor.
 
 hooks:
   - event_type: audit_query_performed
