@@ -101,6 +101,19 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "inject corrente pelo `inject_fired`. E LEITURA do catalogo, e nao "
         "emissao: este modulo nao chama `append` e nao tem store ao alcance",
     ),
+    "participant/api/emissor.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — o emissor da superficie de participante grava os tipos do "
+        "catalogo. E EMISSAO, ao contrario de `api/projecoes.py`: por isso ele "
+        "tem store ao alcance, e por isso o predicado de contrassinatura de `03` "
+        "§3.4 mora nele e nao no handler",
+    ),
+    "participant/api/app.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — as nove rotas nomeiam o `event_type` que cada uma emite, e "
+        "literal de catalogo no handler violaria o invariante 2. O handler NAO "
+        "chama `append`: ele passa o tipo ao emissor, que e quem grava",
+    ),
     "objectives/projecao.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — a projecao acha as marcacoes do avaliador por "

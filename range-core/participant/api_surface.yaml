@@ -55,14 +55,18 @@
 #               suas, e o verificador compara cada emissor com a superficie dele.
 #
 # ---------------------------------------------------------------------------
-# AS NOVE ROTAS NASCEM `planejada`, E ISSO E COBRADO
+# AS NOVE NASCERAM `planejada`, E FORAM PROMOVIDAS NO BLOCO B
 # ---------------------------------------------------------------------------
 #
-# O bloco A da peca 3 entrega a superficie, o perfil e o emissor; o bloco B
-# entrega as nove. Enquanto isso elas ficam `planejada` — e `planejada` nao e
-# esconderijo: o verificador REPROVA rota planejada que ja exista no codigo,
-# entao a promocao no bloco B e cobrada pelo mesmo mecanismo que cobraria o
-# esquecimento. A obrigacao esta escrita antes do codigo, que e o desenho.
+# O bloco A entregou a superficie, o perfil e o emissor, com as nove declaradas
+# `planejada`; o bloco B as implementou e promoveu no mesmo commit. Nao houve
+# janela: o verificador REPROVA rota planejada que ja exista no codigo, entao a
+# promocao foi cobrada pelo mesmo mecanismo que cobraria o esquecimento.
+#
+# A obrigacao esteve escrita antes do codigo, que e o desenho — e este paragrafo
+# esta no passado porque ele descreve o que aconteceu, e nao o que vai acontecer.
+# Comentario que promete futuro ja cumprido e a forma mais barata de um arquivo
+# comecar a mentir.
 
 personas:
   - reitoria
@@ -120,7 +124,7 @@ rotas:
     papeis: [reitoria, pro_reitoria, ti, dpo, juridico, pesquisa, comunicacao]
     efeito: reversivel
     emite: incident_declared
-    status: planejada
+    status: implementada
 
   # "Qualquer persona" de `03` secao 3.4 e escrito por EXTENSO, e nao por lista
   # vazia: `papeis: []` significa NINGUEM neste verificador, e a rota aberta se
@@ -132,28 +136,28 @@ rotas:
     papeis: [ti]
     efeito: reversivel
     emite: separate_incident_declared
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/classification
     papeis: [ti]
     efeito: reversivel
     emite: classification_declared
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/containment
     papeis: [ti]
     efeito: reversivel
     emite: containment_declared
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/service-restoration
     papeis: [ti]
     efeito: reversivel
     emite: service_restoration_declared
-    status: planejada
+    status: implementada
 
   # A UNICA de duas maos. Pro-Reitoria declara, TI contrassina, ordem fixa — o
   # predicado de completude esta em `03` secao 3.4, e o bloco B o implementa com
@@ -164,25 +168,25 @@ rotas:
     papeis: [pro_reitoria, ti]
     efeito: reversivel
     emite: integrity_validation_declared
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/communication
     papeis: [comunicacao]
     efeito: reversivel
     emite: communication_submitted
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/regulatory-notice
     papeis: [dpo]
     efeito: reversivel
     emite: regulatory_notice_submitted
-    status: planejada
+    status: implementada
 
   - method: POST
     path: /participant/assessment
     papeis: [ti, pro_reitoria]
     efeito: reversivel
     emite: assessment_submitted
-    status: planejada
+    status: implementada
