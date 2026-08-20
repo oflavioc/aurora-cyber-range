@@ -112,6 +112,21 @@ METODO_DECLARADO = {"websocket": "WS"}
 #: exercicio dentro do adapter.
 PAPEIS_DE_EXERCICIO = frozenset({"facilitador", "operador", "avaliador"})
 
+#: As sete personas — `03` §6, que o spec-change `superficie-de-participante`
+#: tornou FONTE NORMATIVA do conjunto, do mesmo modo que §7 e dos tres papeis.
+#:
+#: Sao a ancora da superficie de participante: `personas` do
+#: `range-core/participant/api_surface.yaml` tem de ser IGUAL a este conjunto.
+PERSONAS = frozenset(
+    {"reitoria", "pro_reitoria", "ti", "dpo", "juridico", "pesquisa", "comunicacao"}
+)
+
+#: As duas ancoras nao se tocam, e a disjuncao da superficie de participante com
+#: os papeis de facilitacao e CONSEQUENCIA disso — teorema, e nao segunda regra
+#: que alguem precise lembrar de escrever. Afirmado aqui para que deixar de ser
+#: verdade reprove na importacao, e nao em silencio.
+assert not (PERSONAS & PAPEIS_DE_EXERCICIO), "persona colidindo com papel de facilitacao"
+
 #: Onde as claims sao montadas. Caminho e nome sao constantes AQUI, e nao no
 #: YAML do adapter: um arquivo de `domains/` apontando para dentro do core
 #: inverteria a direcao que o invariante 1 protege.
@@ -195,7 +210,13 @@ class Perfil:
     """
 
     nome: str
-    papeis_iguais_aos_de_exercicio: bool
+    #: O conjunto com que a lista declarada tem de ser IGUAL, ou `None` quando a
+    #: lista e livre. Continua NAO sendo argumento de chamada: e um dos valores
+    #: fechados do modulo, e cada perfil se relaciona com ele de um jeito fixo.
+    #:
+    #: Perfil sem ancora de igualdade ganha, no lugar, a DISJUNCAO com
+    #: `PAPEIS_DE_EXERCICIO` — que e o caso do dominio.
+    ancora_de_papeis: frozenset[str] | None
     chave_de_papeis: str
     #: As camadas de `truth_layer` que ESTA superficie pode emitir. E ancora do
     #: perfil, e nao argumento de chamada: o nucleo emite `facilitation` porque
@@ -214,7 +235,7 @@ CHAVES_COMUNS = frozenset({"method", "path", "status", "papeis", "publica"})
 
 PERFIL_DOMINIO = Perfil(
     nome="dominio",
-    papeis_iguais_aos_de_exercicio=False,
+    ancora_de_papeis=None,
     chave_de_papeis="papeis_de_dominio",
     # `09` §2: `participant_action` e produzida pela APLICACAO INSTRUMENTADA, e
     # `observable_evidence` por projecoes de fato e pela aplicacao. `facilitation`
@@ -233,7 +254,7 @@ PERFIL_DOMINIO = Perfil(
 
 PERFIL_NUCLEO = Perfil(
     nome="nucleo",
-    papeis_iguais_aos_de_exercicio=True,
+    ancora_de_papeis=PAPEIS_DE_EXERCICIO,
     chave_de_papeis="papeis_de_exercicio",
     camadas_de_emissao=frozenset({CAMADA_DE_FACILITACAO}),
     familias=frozenset({"eventos", "irreversibilidade", "canais"}),
@@ -967,23 +988,28 @@ def verifica(
     problemas: list[str] = []
     por_chave = {(r["method"].upper(), r["path"]): r for r in declaradas}
 
-    if perfil.papeis_iguais_aos_de_exercicio:
-        # NUCLEO: os tres de `03` §7, e exatamente eles. Igualdade nas duas
-        # direcoes — sobrando, o console conheceria papel que a spec nao define;
-        # faltando, a lista deixaria de ancorar a disjuncao do outro lado.
-        for papel in sorted(papeis_declarados - PAPEIS_DE_EXERCICIO):
+    if perfil.ancora_de_papeis is not None:
+        # IGUALDADE nas duas direcoes, contra a ancora DO PERFIL. Sobrando, a
+        # superficie conheceria papel que a spec nao define; faltando, a lista
+        # deixaria de ancorar a disjuncao do outro lado.
+        fonte = (
+            "`03` §7"
+            if perfil.ancora_de_papeis == PAPEIS_DE_EXERCICIO
+            else "`03` §6"
+        )
+        for papel in sorted(papeis_declarados - perfil.ancora_de_papeis):
             problemas.append(
-                f"`{perfil.chave_de_papeis}` contem {papel!r}, que nao e papel de "
-                "facilitacao de `03` §7.\n"
+                f"`{perfil.chave_de_papeis}` contem {papel!r}, que nao esta em "
+                f"{fonte}.\n"
                 "    Papel de DOMINIO aqui poria vocabulario de negocio dentro do "
                 "core — a mesma fronteira do invariante 1, lida no sentido "
                 "inverso ao do adapter."
             )
-        for papel in sorted(PAPEIS_DE_EXERCICIO - papeis_declarados):
+        for papel in sorted(perfil.ancora_de_papeis - papeis_declarados):
             problemas.append(
-                f"`{perfil.chave_de_papeis}` nao declara {papel!r}, que `03` §7 "
+                f"`{perfil.chave_de_papeis}` nao declara {papel!r}, que {fonte} "
                 "define.\n"
-                "    A lista e a ancora da disjuncao com `papeis_de_dominio`: "
+                "    A lista e ancora de disjuncao para as outras superficies: "
                 "encolhe-la aqui afrouxaria a guarda do outro lado sem tocar nele."
             )
     else:
@@ -1063,7 +1089,14 @@ def verifica(
             )
 
         for papel in papeis:
-            if not perfil.papeis_iguais_aos_de_exercicio and papel in PAPEIS_DE_EXERCICIO:
+            # Papel de facilitacao numa ROTA de superficie que nao e a do
+            # console. Vale para o dominio e para a de participante: as duas tem
+            # ancora distinta de `PAPEIS_DE_EXERCICIO`, e nas duas um papel de
+            # facilitacao na rota seria desenho de exercicio no lugar errado.
+            if (
+                perfil.ancora_de_papeis != PAPEIS_DE_EXERCICIO
+                and papel in PAPEIS_DE_EXERCICIO
+            ):
                 problemas.append(
                     f"{chave[0]} {chave[1]}: papel {papel!r} e papel de "
                     "EXERCICIO (`03` §7), nao de dominio. O adapter passaria a "

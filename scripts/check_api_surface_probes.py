@@ -865,7 +865,10 @@ def probe_dos_papeis_do_nucleo() -> bool:
     sobrando = verifica(
         [], set(), {"facilitador", "operador", "avaliador", "aluno"}, set(), PERFIL_NUCLEO
     )
-    if not any("nao e papel de facilitacao" in p for p in sobrando):
+    # A mensagem deixou de nomear "papel de facilitacao" como categoria e passou
+    # a nomear A FONTE do perfil — `03` §7 para o nucleo, `03` §6 para a
+    # superficie de participante. O eixo e o mesmo: papel fora da ancora.
+    if not any("que nao esta em `03` §7" in p for p in sobrando):
         print(f"FALHA: papel de dominio na superficie do nucleo passou: {sobrando}")
         return False
 
