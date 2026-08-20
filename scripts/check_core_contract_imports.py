@@ -81,6 +81,14 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "constantes geradas de `event_type`: literal de catalogo dentro do core "
         "violaria o invariante 2",
     ),
+    "events/linhagem.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a linhagem compara contra `rollback_performed` para achar "
+        "o corte. O corpo veio de `state/simulation_state.py`, que ja tinha o "
+        "import pelo mesmo motivo: o spec-change `linhagem-corrente-e-o-avaliador` "
+        "exige UMA definicao, e ela mora em `events/` porque e de la que o fold "
+        "e o avaliador dependem — importar de `state/` inverteria a direcao",
+    ),
     "events/epoch.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — o calculo de epoch compara contra `rollback_performed`",
