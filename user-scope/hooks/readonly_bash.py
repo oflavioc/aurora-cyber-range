@@ -362,6 +362,31 @@ ALLOWED = [
     #     deveria: ele mora em `~/.claude/hooks/`, fora da arvore, pelo motivo
     #     escrito no cabecalho dele. Exercita-lo direto exigiria `printf` em
     #     ALLOWED, e o harness ja o exercita nas nove direcoes.
+    # ---------------------------------------------------------------------
+    # FASE 6, peca 5 — `check_insumo_de_metrica`, e a admissao no COMMIT QUE O
+    # CRIA, que e a regra escrita acima e ja violada quatro vezes.
+    #
+    # O criterio e o de sempre — o auditor nao consegue responder isto por
+    # leitura —, e aqui ele e literal. A pergunta e "existe um SEGUNDO montador
+    # em algum lugar da arvore?", e a resposta e uma varredura de AST sobre
+    # `range-core/` e `domains/` inteiros procurando invocacao de tres
+    # construtores. Por leitura, o auditor faria `grep` por tres nomes e teria de
+    # separar a olho IMPORT de CHAMADA — e import e a forma legitima, porque o
+    # consumidor precisa do tipo para anotar. O `grep` que reprovasse os dois
+    # daria falso positivo em todo computador de metrica.
+    #
+    # A propriedade em questao e declaradamente FRACA — `00` §3.2 chama a costura
+    # de fraca e diz por que: `NewType` nao e barreira de execucao, e o veredito
+    # chega como DADO. Verificador de garantia fraca que o auditor nao executa e
+    # garantia que ele aceita da palavra de quem a escreveu, que e pior que
+    # garantia fraca declarada.
+    #
+    # A prova negativa entra junto pelo motivo de sempre, e aqui ela carrega um
+    # eixo que os outros nao tem: alem dos seis negativos, ela prova o POSITIVO
+    # de que o consumidor que so importa e anota PASSA. Sem ele, uma checagem que
+    # reprovasse todo import passaria em todos os negativos e quebraria o
+    # primeiro computador de verdade — e o auditor nao teria como distinguir.
+    rf"|check_insumo_de_metrica|check_insumo_de_metrica_probes"
     # `check_venv_da_auditoria_probes` — B1 da Fase 6, e ele entra por si mesmo:
     # e a prova de que o interpretador do checkout auditado e alcancavel PELAS
     # REGRAS DESTE ARQUIVO. Sem executa-lo, o auditor aceitaria da palavra de
