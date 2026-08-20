@@ -1,0 +1,188 @@
+# SUPERFICIE DA `participant-api` — a persona declara por aqui.
+#
+# Autoridade: 01_ARCHITECTURE.md secao 6; 03_EXERCISE_DESIGN.md secoes 3.4 e 6;
+# 05_SECURITY_REQUIREMENTS.md secao 8.
+#
+# Lida por `scripts/check_api_surface.py` sob o PERFIL DE PARTICIPANTE, que
+# exige igualdade nas duas direcoes contra as rotas de fato implementadas em
+# `range-core/participant/api/`.
+#
+# ---------------------------------------------------------------------------
+# POR QUE ESTA SUPERFICIE E IRMA, E NAO ANINHADA — A RAZAO E MECANICA
+# ---------------------------------------------------------------------------
+#
+# A varredura de rotas e `rglob` sobre a `raiz_api` de CADA superficie, e a
+# `raiz_api` e o diretorio `api/` irmao do proprio `api_surface.yaml`.
+#
+# Aninhada em `range-core/api/participante/`, esta superficie ficaria DENTRO da
+# arvore que o perfil do NUCLEO varre — e as nove rotas de declaracao seriam
+# atribuidas ao perfil errado: julgadas por `camadas_de_emissao: [facilitation]`
+# e pelas familias `irreversibilidade` e `canais`, que sao do console.
+#
+# Irma e a UNICA forma com arvores disjuntas. Nao e preferencia de organizacao:
+# e a condicao para o verificador classificar certo.
+#
+# ---------------------------------------------------------------------------
+# POR QUE ELA EXISTE — 01 secao 6
+# ---------------------------------------------------------------------------
+#
+# As acoes de `03` secao 3.4 sao atos do EXERCICIO, e nao do dominio: quem as
+# autoriza e a PERSONA. `domains/` nao pode conhecer persona — o proprio
+# verificador a recusa como vocabulario de token no perfil de dominio —, e o
+# perfil do nucleo tem os tres papeis de FACILITACAO, que sao outra coisa.
+#
+# A persona VE pelo dominio e DECLARA pelo nucleo: os paineis de `03` secao 6
+# sao telas do adapter, e e a tela do adapter que CHAMA esta superficie.
+#
+# ---------------------------------------------------------------------------
+# OS CAMPOS
+# ---------------------------------------------------------------------------
+#
+# `personas`  — o conjunto das SETE de `03` secao 6, que o spec-change
+#               `superficie-de-participante` tornou fonte normativa. A lista tem
+#               de ser IGUAL a ancora do perfil, nas duas direcoes.
+#
+# `papeis`    — na ROTA, os nomes de persona que podem invoca-la, conforme a
+#               coluna `Quem` de `03` secao 3.4. A chave se chama `papeis` porque
+#               e comum aos tres perfis; o que muda entre eles e a ANCORA contra
+#               a qual ela resolve.
+#
+# `efeito`    — o que a rota faz ao exercicio. `emite` — o `event_type` gravado.
+#               A camada admitida aqui e `participant_action`, e so ela: esta
+#               superficie nao emite facilitacao nem projecao de evidencia.
+#
+# `token`     — as claims que ESTE emissor assina. Cada superficie declara as
+#               suas, e o verificador compara cada emissor com a superficie dele.
+#
+# ---------------------------------------------------------------------------
+# AS NOVE ROTAS NASCEM `planejada`, E ISSO E COBRADO
+# ---------------------------------------------------------------------------
+#
+# O bloco A da peca 3 entrega a superficie, o perfil e o emissor; o bloco B
+# entrega as nove. Enquanto isso elas ficam `planejada` — e `planejada` nao e
+# esconderijo: o verificador REPROVA rota planejada que ja exista no codigo,
+# entao a promocao no bloco B e cobrada pelo mesmo mecanismo que cobraria o
+# esquecimento. A obrigacao esta escrita antes do codigo, que e o desenho.
+
+personas:
+  - reitoria
+  - pro_reitoria
+  - ti
+  - dpo
+  - juridico
+  - pesquisa
+  - comunicacao
+
+# `juridico` e `pesquisa` nao aparecem em rota nenhuma, e `03` secao 6 diz por
+# que: a coluna `Declaracoes` das duas e `—`. Sao personas com painel e sem ato,
+# e a superficie declara o vocabulario inteiro em vez de so o que usa — a lista e
+# a ancora, e encolhe-la afrouxaria a igualdade que o perfil exige.
+
+token:
+  claims:
+    - sub
+    - persona
+    - exp
+
+# `persona` NO LUGAR de `role`, e nao ao lado. O token desta superficie nao
+# carrega papel de facilitacao: quem a invoca e participante, nunca facilitador.
+# E o emissor e proprio — nao o `_payload` do console —, porque uma funcao unica
+# assinando as duas vocacoes poria `persona` tambem no token de facilitacao, que
+# e exatamente o risco que o docstring daquela funcao guarda.
+
+rotas:
+
+  # -------------------------------------------------------------------------
+  # SESSAO — `05` secao 8, cuja segunda excecao passou a ser de CLASSE: "as
+  # rotas que trocam credencial por token". Esta e a segunda instancia, ao lado
+  # da do console. Sem a excecao em classe, a rota que EXISTE PARA PRODUZIR o
+  # token exigiria token, por falha fechada.
+  #
+  # A credencial vem do AMBIENTE, sem default, uma por persona — disciplina D5,
+  # a mesma do console. Recusa alta no boot se faltar.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /participant/session
+    publica: true
+    efeito: nenhum
+    status: implementada
+
+  # -------------------------------------------------------------------------
+  # AS NOVE DECLARACOES — `03` secao 3.4, coluna `Quem`.
+  #
+  # Todas `efeito: reversivel`: gravam evento e movem o exercicio, e o que elas
+  # movem e crenca declarada, que o rollback reconstroi como qualquer projecao.
+  # Nenhuma e irreversivel — irreversibilidade e familia do perfil do console,
+  # e comando de facilitacao, nao declaracao de participante.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /participant/incident
+    papeis: [reitoria, pro_reitoria, ti, dpo, juridico, pesquisa, comunicacao]
+    efeito: reversivel
+    emite: incident_declared
+    status: planejada
+
+  # "Qualquer persona" de `03` secao 3.4 e escrito por EXTENSO, e nao por lista
+  # vazia: `papeis: []` significa NINGUEM neste verificador, e a rota aberta se
+  # declara com `publica: true` — que aqui seria falso, porque token continua
+  # exigido.
+
+  - method: POST
+    path: /participant/incident/separate
+    papeis: [ti]
+    efeito: reversivel
+    emite: separate_incident_declared
+    status: planejada
+
+  - method: POST
+    path: /participant/classification
+    papeis: [ti]
+    efeito: reversivel
+    emite: classification_declared
+    status: planejada
+
+  - method: POST
+    path: /participant/containment
+    papeis: [ti]
+    efeito: reversivel
+    emite: containment_declared
+    status: planejada
+
+  - method: POST
+    path: /participant/service-restoration
+    papeis: [ti]
+    efeito: reversivel
+    emite: service_restoration_declared
+    status: planejada
+
+  # A UNICA de duas maos. Pro-Reitoria declara, TI contrassina, ordem fixa — o
+  # predicado de completude esta em `03` secao 3.4, e o bloco B o implementa com
+  # os quatro negativos como teste. As duas personas invocam a MESMA rota: o que
+  # distingue o primeiro ato do segundo e o `causation_id`, e nao o caminho.
+  - method: POST
+    path: /participant/integrity-validation
+    papeis: [pro_reitoria, ti]
+    efeito: reversivel
+    emite: integrity_validation_declared
+    status: planejada
+
+  - method: POST
+    path: /participant/communication
+    papeis: [comunicacao]
+    efeito: reversivel
+    emite: communication_submitted
+    status: planejada
+
+  - method: POST
+    path: /participant/regulatory-notice
+    papeis: [dpo]
+    efeito: reversivel
+    emite: regulatory_notice_submitted
+    status: planejada
+
+  - method: POST
+    path: /participant/assessment
+    papeis: [ti, pro_reitoria]
+    efeito: reversivel
+    emite: assessment_submitted
+    status: planejada

@@ -131,6 +131,10 @@ assert not (PERSONAS & PAPEIS_DE_EXERCICIO), "persona colidindo com papel de fac
 #: YAML do adapter: um arquivo de `domains/` apontando para dentro do core
 #: inverteria a direcao que o invariante 1 protege.
 MODULO_DO_TOKEN = "range-core/api/tokens.py"
+
+#: O emissor da superficie de participante. Proprio, e nao o de cima: claims por
+#: superficie e a decisao (b) da autenticacao da peca 3 — ver `fase_6.md`.
+MODULO_DO_TOKEN_DE_PARTICIPANTE = "range-core/participant/api/tokens.py"
 FUNCAO_DO_PAYLOAD = "_payload"
 
 #: O que um claim NAO pode se chamar. Os tres papeis, mais a palavra com que
@@ -218,6 +222,16 @@ class Perfil:
     #: `PAPEIS_DE_EXERCICIO` — que e o caso do dominio.
     ancora_de_papeis: frozenset[str] | None
     chave_de_papeis: str
+    #: O modulo que assina o token DESTA superficie, relativo a raiz. `None`
+    #: quando a superficie nao emite token. Antes era a constante
+    #: `MODULO_DO_TOKEN`, unica — e uma funcao unica assinando duas vocacoes poria
+    #: `persona` tambem no token de facilitacao, que e o risco que o docstring
+    #: daquela funcao guarda. Movimento irmao do `camadas_de_emissao`.
+    modulo_do_token: str | None
+    #: O que um claim DESTA superficie nao pode se chamar. Nao e o mesmo conjunto
+    #: para todas: `persona` e proibido no token de dominio e OBRIGATORIO no de
+    #: participante, porque la ele e o vocabulario certo.
+    vocabulario_proibido_em_claim: frozenset[str]
     #: As camadas de `truth_layer` que ESTA superficie pode emitir. E ancora do
     #: perfil, e nao argumento de chamada: o nucleo emite `facilitation` porque
     #: comando de console e o facilitador agindo sobre a SIMULACAO (`09` §2); o
@@ -237,6 +251,8 @@ PERFIL_DOMINIO = Perfil(
     nome="dominio",
     ancora_de_papeis=None,
     chave_de_papeis="papeis_de_dominio",
+    modulo_do_token=MODULO_DO_TOKEN,
+    vocabulario_proibido_em_claim=VOCABULARIO_DE_EXERCICIO,
     # `09` §2: `participant_action` e produzida pela APLICACAO INSTRUMENTADA, e
     # `observable_evidence` por projecoes de fato e pela aplicacao. `facilitation`
     # NAO entra: comando de facilitacao nao mora no adapter.
@@ -256,6 +272,8 @@ PERFIL_NUCLEO = Perfil(
     nome="nucleo",
     ancora_de_papeis=PAPEIS_DE_EXERCICIO,
     chave_de_papeis="papeis_de_exercicio",
+    modulo_do_token=None,
+    vocabulario_proibido_em_claim=frozenset(),
     camadas_de_emissao=frozenset({CAMADA_DE_FACILITACAO}),
     familias=frozenset({"eventos", "irreversibilidade", "canais"}),
     chaves_de_topo=frozenset({"papeis_de_exercicio", "projecoes", "rotas"}),
@@ -268,9 +286,34 @@ PERFIL_NUCLEO = Perfil(
 #: em disco fora daqui REPROVA, e entrada daqui sem arquivo tambem. Sem as duas
 #: direcoes, um `api_surface.yaml` novo seria julgado por um perfil padrao — e um
 #: perfil padrao e o lugar onde a regra certa nao roda.
+PERFIL_PARTICIPANTE = Perfil(
+    nome="participante",
+    # IGUALDADE com as sete de `03` §6. A disjuncao com os papeis de facilitacao
+    # vem de graca: o `assert` do modulo afirma que os dois conjuntos nao se
+    # tocam, entao ela e teorema e nao segunda regra.
+    ancora_de_papeis=PERSONAS,
+    chave_de_papeis="personas",
+    modulo_do_token=MODULO_DO_TOKEN_DE_PARTICIPANTE,
+    # `persona` NAO esta aqui: nesta superficie ele e o vocabulario correto. O
+    # que fica proibido sao os tres papeis de FACILITACAO — token de participante
+    # que carregasse `facilitador` seria console emitido pela porta do exercicio.
+    vocabulario_proibido_em_claim=PAPEIS_DE_EXERCICIO,
+    # `participant_action`, e SO ela. Esta superficie nao emite facilitacao — que
+    # e do console — nem evidencia observavel — que e projecao de fato.
+    camadas_de_emissao=frozenset({"participant_action"}),
+    # Sem `degradacao`, `escopo` nem `flags`: degradar declaracao de participante
+    # seria a maquina de exercicio interferindo no ato que ela mede. Sem
+    # `irreversibilidade` e `canais`: sao familias do console.
+    familias=frozenset({"eventos", "token", "imports"}),
+    chaves_de_topo=frozenset({"token", "personas", "rotas"}),
+    chaves_de_rota_obrigatorias=frozenset({"method", "path", "status", "efeito"}),
+    chaves_de_rota_permitidas=CHAVES_COMUNS | {"efeito", "emite"},
+)
+
 SUPERFICIES = {
     "range-core/api_surface.yaml": PERFIL_NUCLEO,
     "domains/academus/api_surface.yaml": PERFIL_DOMINIO,
+    "range-core/participant/api_surface.yaml": PERFIL_PARTICIPANTE,
 }
 
 #: Diretorios que a varredura de superficies ignora — nao sao a arvore.
@@ -747,20 +790,31 @@ def modulos_que_importam(raiz_api: Path, prefixo: str) -> set[str]:
 def verifica_token(
     claims_declaradas: list[str],
     claims_no_codigo: list[str] | None,
+    perfil: Perfil,
 ) -> list[str]:
-    """`token.claims` x o que o codigo assina. Tudo por parametro."""
+    """`token.claims` x o que o EMISSOR DESTA superficie assina.
+
+    Antes comparava a unica `_payload` contra toda superficie que declarasse
+    `token`. Com dois emissores isso reprova por construcao: o claim `role` do
+    console apareceria como "assinado e nao declarado" na superficie de
+    participante, e `persona` como "declarado e nao assinado" na de dominio.
+
+    O modulo e o vocabulario proibido passam a vir do PERFIL — o mesmo movimento
+    que `camadas_de_emissao` fez com a camada.
+    """
+    modulo = perfil.modulo_do_token or MODULO_DO_TOKEN
     problemas: list[str] = []
 
     if claims_no_codigo is None:
         return [
-            f"{MODULO_DO_TOKEN}: `{FUNCAO_DO_PAYLOAD}` nao existe.\n"
+            f"{modulo}: `{FUNCAO_DO_PAYLOAD}` nao existe.\n"
             "    Sem ela a comparacao de claims nao casa com nada e a checagem "
             "passa por VACUIDADE. Renomeou? Atualize a declaracao."
         ]
 
     for claim in sorted(set(claims_no_codigo) - set(claims_declaradas)):
         problemas.append(
-            f"claim {claim!r} e assinado por {MODULO_DO_TOKEN} e ausente de "
+            f"claim {claim!r} e assinado por {modulo} e ausente de "
             "`token.claims`.\n"
             "    E a direcao que importa: e por ela que persona de exercicio "
             "entraria no token sem nenhum verificador de import notar."
@@ -773,10 +827,14 @@ def verifica_token(
         )
 
     for claim in sorted(set(claims_declaradas) | set(claims_no_codigo)):
-        if claim.lower() in VOCABULARIO_DE_EXERCICIO:
+        if claim.lower() in perfil.vocabulario_proibido_em_claim:
             problemas.append(
-                f"claim {claim!r} e vocabulario de EXERCICIO (`03` §7). Token de "
-                "dominio nao carrega persona de exercicio — D2."
+                f"claim {claim!r} nao pode existir no token da superficie "
+                f"{perfil.nome!r}.\n"
+                "    Cada superficie tem o seu vocabulario proibido: `persona` "
+                "no token de dominio seria desenho de exercicio dentro do "
+                "adapter (D2); papel de facilitacao no de participante seria "
+                "console emitido pela porta do exercicio."
             )
 
     return problemas
@@ -1159,7 +1217,8 @@ def main(argv: list[str] | None = None) -> int:
         if "token" in perfil.familias:
             achados += verifica_token(
                 list((documento.get("token") or {}).get("claims") or []),
-                claims_assinadas(REPO_ROOT / MODULO_DO_TOKEN),
+                claims_assinadas(REPO_ROOT / (perfil.modulo_do_token or MODULO_DO_TOKEN)),
+                perfil,
             )
         if "degradacao" in perfil.familias:
             achados += verifica_degradacao(declaradas, tipos_de_flag)
