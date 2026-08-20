@@ -115,6 +115,10 @@ class PackSite:
     UNDECLARED_FLAG = "undeclared_flag"
     RULE_VIOLATION = "rule_violation"
     T_RELATIVE_MALFORMED = "t_relative_malformed"
+    #: Folha temporal declarada num predicado de verificacao. A gramatica do
+    #: contrato a admite (`ground_truth.schema.yaml` §predicate_before/after) e o
+    #: avaliador ainda nao a implementa — ver `docs/progress/fase_6.md`, P6-3.
+    TEMPORAL_LEAF_UNSUPPORTED = "temporal_leaf_unsupported"
 
 
 class PackError(Exception):
@@ -294,6 +298,7 @@ def load_pack(
     _verify_schema(documentos, scenario, contracts)
     _verify_engine_version(raiz, manifest)
     _verify_rules(documentos, scenario, contracts, adapter_flags)
+    confere_folhas_temporais(documentos.get("ground_truth.yaml"))
 
     injects = _build_injects(documentos.get("injects.yaml") or {})
 
@@ -417,6 +422,61 @@ def _verify_schema(
                 f"`contracts/scenario.schema.v2.yaml{ponteiro}` "
                 f"({len(erros)} erro(s)):\n{detalhe}",
             )
+
+
+#: As duas folhas que a gramatica admite e o avaliador ainda nao implementa.
+FOLHAS_TEMPORAIS = ("before", "after")
+
+
+def _folhas_temporais(no, caminho: str = "") -> list[str]:
+    """Caminhos das folhas temporais na arvore, em ordem de leitura."""
+    achadas: list[str] = []
+    if isinstance(no, Mapping):
+        for chave, valor in no.items():
+            aqui = f"{caminho}.{chave}" if caminho else str(chave)
+            if chave in FOLHAS_TEMPORAIS:
+                achadas.append(aqui)
+            else:
+                achadas.extend(_folhas_temporais(valor, aqui))
+    elif isinstance(no, (list, tuple)):
+        for indice, filho in enumerate(no):
+            achadas.extend(_folhas_temporais(filho, f"{caminho}[{indice}]"))
+    return achadas
+
+
+def confere_folhas_temporais(ground_truth: Mapping | None) -> None:
+    """Recusa NA CARGA o pack que declare folha temporal — P6-3.
+
+    A GRAMATICA AS ADMITE, E O AVALIADOR NAO AS IMPLEMENTA. Sem esta guarda, o
+    pack carrega limpo e detona **na avaliacao**, no meio do exercicio: o
+    avaliador levanta `PredicadoMalformado` no instante em que a contencao
+    deveria ser conferida, que e o pior momento possivel para descobrir uma
+    ausencia de implementacao.
+
+    A recusa muda de INSTANTE, e nao de existencia — e o padrao da guarda de
+    boot do emissor: falhar quando ainda da para consertar o pack, e nao quando
+    a sala esta cheia. `PredicadoMalformado` permanece no avaliador como segunda
+    linha de defesa, para o caso de um predicado chegar por outro caminho.
+
+    A mensagem nomeia A FOLHA e O MOTIVO, e nao so o fato: `06` T2 fixa essa
+    forma para a flag nao declarada, e a razao e a mesma — deteccao sem
+    localizacao nao permite intervir.
+    """
+    predicados = (ground_truth or {}).get("verification_predicates") or {}
+    achadas: list[str] = []
+    for nome, arvore in sorted(predicados.items()):
+        achadas.extend(f"{nome}.{c}" for c in _folhas_temporais(arvore))
+    if achadas:
+        raise PackError(
+            PackSite.TEMPORAL_LEAF_UNSUPPORTED,
+            "predicado com folha temporal: " + ", ".join(achadas) + ".\n"
+            "    `before` e `after` estao na gramatica de "
+            "`contracts/ground_truth.schema.yaml` e o avaliador ainda NAO os "
+            "implementa — eles comparam contra o relogio de exercicio, que nao e "
+            "parte do mundo que ele monta. Recusar aqui e recusar enquanto da "
+            "para consertar o pack; sem isto, a falha chega na avaliacao, no "
+            "meio do exercicio. Pendencia P6-3 em `docs/progress/fase_6.md`."
+        )
 
 
 def _verify_rules(

@@ -38,10 +38,12 @@ from pathlib import Path
 
 import yaml
 
+from contracts.generated.events import VPN_ACCESS_REVOKED
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.canonical import CANONICALIZATION_V1, content_hash_v1
 from range_core.engine.loader.pack_loader import (
     AdapterFlags,
+    confere_folhas_temporais,
     PackError,
     PackSite,
     load_pack,
@@ -415,6 +417,56 @@ class OutrasRecusas(_ComCopia):
         )
         erro = self.recusa(destino, PackSite.RULE_VIOLATION)
         self.assertIn("rubric_library", str(erro))
+
+
+class FolhasTemporais(unittest.TestCase):
+    """P6-3 — a gramatica as admite, e o avaliador ainda nao as implementa.
+
+    A recusa muda de INSTANTE: na carga, enquanto da para consertar o pack, e
+    nao na avaliacao, no meio do exercicio. E o padrao da guarda de boot do
+    emissor, e a mensagem nomeia A FOLHA, como `06` T2 exige da flag.
+    """
+
+    def test_folha_before_recusa_a_carga_nomeando_a_folha(self):
+        with self.assertRaises(PackError) as capturado:
+            confere_folhas_temporais(
+                {
+                    "verification_predicates": {
+                        "containment": {
+                            "all": [
+                                {"event": VPN_ACCESS_REVOKED},
+                                {"before": "T+01:00"},
+                            ]
+                        }
+                    }
+                }
+            )
+        erro = capturado.exception
+        self.assertEqual(erro.site, PackSite.TEMPORAL_LEAF_UNSUPPORTED)
+        self.assertIn("containment.all[1].before", str(erro))
+        self.assertIn("P6-3", str(erro))
+
+    def test_folha_after_aninhada_tambem_e_achada(self):
+        with self.assertRaises(PackError):
+            confere_folhas_temporais(
+                {"verification_predicates": {"x": {"not": {"after": "T+02:00"}}}}
+            )
+
+    def test_predicado_sem_folha_temporal_passa(self):
+        """Sem o positivo, a recusa acima nao prova que ela discrimina."""
+        self.assertIsNone(
+            confere_folhas_temporais(
+                {"verification_predicates": {"x": {"all": [{"event": "a"}]}}}
+            )
+        )
+
+    def test_pack_sem_ground_truth_nao_levanta_aqui(self):
+        """A ausencia e recusada por `required` do contrato, e nao por esta guarda.
+
+        Duas recusas para o mesmo defeito dariam duas mensagens, e a segunda
+        chegaria com o vocabulario errado.
+        """
+        self.assertIsNone(confere_folhas_temporais(None))
 
 
 class DoisParsers(unittest.TestCase):
