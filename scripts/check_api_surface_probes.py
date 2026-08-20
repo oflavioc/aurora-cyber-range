@@ -177,7 +177,11 @@ PROBES_DE_TOKEN = [
         "claim com vocabulario de EXERCICIO nos dois lados",
         ["sub", "role", "exp", "persona"],
         ["sub", "role", "exp", "persona"],
-        "vocabulario de EXERCICIO",
+        # A mensagem deixou de nomear "vocabulario de EXERCICIO" como categoria
+        # unica e passou a nomear A SUPERFICIE: o conjunto proibido virou do
+        # perfil, porque `persona` e proibido no dominio e correto no de
+        # participante. Mesmo eixo, mensagem por superficie.
+        "nao pode existir no token da superficie",
     ),
     (
         "a funcao que monta o payload desapareceu — vacuidade",
@@ -195,7 +199,7 @@ PROBES_DE_TOKEN = [
 
 
 def roda_token(rotulo, declaradas, no_codigo, esperado) -> bool:
-    problemas = verifica_token(declaradas, no_codigo)
+    problemas = verifica_token(declaradas, no_codigo, PERFIL_DOMINIO)
     if esperado is None:
         if problemas:
             print(f"FALHA: probe '{rotulo}' devia passar e acusou: {problemas}")
@@ -989,6 +993,37 @@ PROBES_DE_EVENTO_NO_DOMINIO = [
 ]
 
 
+def probe_do_vocabulario_por_superficie() -> bool:
+    """`persona` e proibido no token de dominio e CORRETO no de participante.
+
+    Sem este probe, `vocabulario_proibido_em_claim` poderia ser o mesmo conjunto
+    para todos os perfis e o verificador ficaria verde — a generalizacao sem
+    prova de que ela generaliza.
+    """
+    from check_api_surface import PERFIL_PARTICIPANTE
+
+    no_dominio = verifica_token(["sub", "persona", "exp"], ["sub", "persona", "exp"],
+                                PERFIL_DOMINIO)
+    if not any("nao pode existir no token da superficie" in p for p in no_dominio):
+        print(f"FALHA: `persona` passou no token de dominio: {no_dominio}")
+        return False
+
+    no_participante = verifica_token(["sub", "persona", "exp"],
+                                     ["sub", "persona", "exp"], PERFIL_PARTICIPANTE)
+    if no_participante:
+        print(f"FALHA: `persona` recusado na superficie dele: {no_participante}")
+        return False
+
+    facilitador = verifica_token(["sub", "facilitador", "exp"],
+                                 ["sub", "facilitador", "exp"], PERFIL_PARTICIPANTE)
+    if not any("nao pode existir no token da superficie" in p for p in facilitador):
+        print(f"FALHA: papel de facilitacao passou no token de participante: {facilitador}")
+        return False
+
+    print("OK: reprovou com violacao plantada - vocabulario de claim POR SUPERFICIE")
+    return True
+
+
 def main_probes() -> int:
     if main([]) != 0:
         print("FALHA: a arvore limpa ja reprova; os probes nao provariam nada")
@@ -999,6 +1034,7 @@ def main_probes() -> int:
     resultados.extend(roda_degradacao(*p) for p in PROBES_DE_DEGRADACAO)
     resultados.append(probe_papel_de_exercicio_na_lista_de_origem())
     resultados.append(probe_do_escopo())
+    resultados.append(probe_do_vocabulario_por_superficie())
     resultados.append(probe_dos_imports())
     resultados.append(probe_do_motivo_do_verde())
     resultados.append(probe_da_varredura())
