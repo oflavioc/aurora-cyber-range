@@ -33,6 +33,22 @@
 # OS CAMPOS
 # ---------------------------------------------------------------------------
 #
+# `efeito`      — o que a rota faz ao EXERCICIO: `nenhum` quando ela so le ou
+#                 so move business state, e um dos valores de efeito quando ela
+#                 grava evento. Obrigatorio em toda rota desde a peca 3 da Fase
+#                 6: regra que so vale quando o campo existe se desliga apagando
+#                 o campo.
+#
+# `emite`       — o `event_type` do catalogo que a rota grava. Exigido sempre que
+#                 `efeito` nao for `nenhum`, e recusado quando for. A camada
+#                 admitida aqui e `participant_action` ou `observable_evidence`:
+#                 esta e aplicacao INSTRUMENTADA (`09` §2), e nao console de
+#                 facilitacao.
+#
+#                 Os dois campos existiam so na superficie do nucleo. Passaram a
+#                 existir aqui quando a instrumentacao chegou — era a P4-2, cujo
+#                 gatilho declarado era o PRIMEIRO `append` fora do inject-engine.
+#
 # `papeis`      — papeis de DOMINIO. Nao confundir com os papeis de exercicio de
 #                 `03` secao 7 (facilitador / operador / avaliador): misturar os
 #                 dois poe desenho de exercicio dentro do adapter, que e a
@@ -200,6 +216,7 @@ rotas:
         status: 503
         mensagem: 'O sistema de matricula esta temporariamente fora do ar. Tente novamente mais tarde.'
     status: implementada
+    efeito: nenhum
 
   # -------------------------------------------------------------------------
   # ITEM 2 DA DoD — "academus.grades_readonly: true bloqueia POST de nota com
@@ -223,6 +240,7 @@ rotas:
         status: 409
         mensagem: 'O lancamento de notas esta suspenso por apuracao de integridade academica. Procure a coordenacao do curso.'
     status: implementada
+    efeito: nenhum
 
   # -------------------------------------------------------------------------
   # A TERCEIRA ROTA DEGRADADA. `07` Fase 3 pede degradacao real em PELO MENOS
@@ -249,6 +267,7 @@ rotas:
         status: 503
         mensagem: 'Sua sessao foi encerrada. Faca login novamente para continuar.'
     status: implementada
+    efeito: nenhum
 
   # -------------------------------------------------------------------------
   # AS TRES ENTIDADES de `07` Fase 3 precisam de leitura, e o RBAC precisa de
@@ -267,6 +286,7 @@ rotas:
     flags: []
     degradacao: []
     status: implementada
+    efeito: nenhum
 
   - method: GET
     path: /classes/{class_id}
@@ -276,6 +296,7 @@ rotas:
     flags: []
     degradacao: []
     status: implementada
+    efeito: nenhum
 
   # -------------------------------------------------------------------------
   # CONTINUA `planejada` NA PECA 4, POR DECISAO — e o motivo cabe aqui porque e
@@ -302,6 +323,7 @@ rotas:
     flags: []
     degradacao: []
     status: planejada
+    efeito: nenhum
 
   # -------------------------------------------------------------------------
   # A VERIFICACAO DA CADEIA — `02` secao 4 item 5 e `06` T7. Peca 3 da Fase 5.
@@ -341,3 +363,4 @@ rotas:
     flags: []
     degradacao: []
     status: implementada
+    efeito: nenhum
