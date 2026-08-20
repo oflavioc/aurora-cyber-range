@@ -45,4 +45,4 @@
 3	8c6eca6f8b354c5b2511028341a0ed7a404bbd57	spec-change fechado antes da peca 1 da Fase 3; ultimo commit de `main` no nascimento da branch
 4	486df18243fbdb60e4e5b1f99d8523f8a0a976c0	REGRAVADA no rebase sobre o spec-change da P4-9 (`05` §8, casca do gm-console); a anterior era 6efca2e, o nascimento da branch
 5	fd34c4445c2fecf686453a8843e8bc725836581a	`main` no nascimento da branch `fase-5-dados-e-auditoria`; ultimo commit da Fase 4 mergeada (README e o gate do README)
-6	6894371f7f3f2fc41413fc7e8446d1a2870ec4a1	`main` no nascimento da branch `fase-6-objetivos-rubricas-metricas`; ultimo commit do PR do contrato `metric_side`, que fecha o par de PRs do spec-change `particao-das-metricas-pareadas`
+6	5b2f9d30b29953b430ca936fac397bc9bf13d391	`main` no rebase da branch `fase-6-objetivos-rubricas-metricas`, antes da peca 3; REGRAVADA — a anterior era 6894371, o nascimento. A main passou a carregar toda a base normativa da fase: os spec-change `impacto-observavel-definido`, `acoes-de-declaracao-o-criterio`, `superficie-de-participante` e `isencao-de-bootstrap-de-token`
