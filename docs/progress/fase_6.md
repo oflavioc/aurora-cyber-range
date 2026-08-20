@@ -166,6 +166,31 @@ recusa é total, que é o lado seguro da frase de `03` §2.1.
 computa, Fase 10 renderiza.
 
 
+### Cláusula herdada pela peça 5 — o quarto negativo da contrassinatura
+
+`03_EXERCISE_DESIGN.md` §3.4 nomeia quatro negativos do predicado de completude.
+**Três são de emissão** e estão provados no bloco B da peça 3, com violação
+plantada em `tests/test_participant_contrassinatura.py`: antecedente ausente,
+autocontrassinatura, e antecedente já completado — mais a cadeia de três, que é
+a condição (3).
+
+**O quarto é do consumidor, e não da emissão:** *"declaração isolada não marca
+`TTID`"*. A declaração é **gravada** e fica registrada; a ausência de
+contrassinatura é achado do AAR, e não erro de quem declarou. Quem executa a
+cláusula é o **computador de métrica**, que é a peça 5.
+
+Testá-la no bloco B exigiria inventar o consumidor, que é a forma de um teste
+passar por motivo errado. O que o bloco B prova é o **positivo** que a sustenta —
+`test_declaracao_isolada_grava_e_fica_sem_sucessor`: a declaração existe no
+fluxo e não tem sucessor. Sem isso, a cláusula herdada não teria sobre o que
+operar.
+
+**Endereço na peça 5:** o computador do lado da declaração, ao selecionar o
+instante de `TTID`, aplica o predicado de `03` §3.4 e marca **o evento que
+completa**. Declaração sem sucessor não produz `TTID`, e a janela sem
+contrassinatura vai para a `aar_timeline`, junto da janela de asseguração
+prematura — as duas são leitura do AAR e da mesma natureza.
+
 ## 6. Pendências
 
 Abertas antes da fase, no `spec-change` `particao-das-metricas-pareadas`.
