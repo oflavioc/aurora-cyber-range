@@ -81,6 +81,13 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "constantes geradas de `event_type`: literal de catalogo dentro do core "
         "violaria o invariante 2",
     ),
+    "engine/verificacao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — o avaliador emite `verification_predicate_satisfied` e "
+        "reconhece `fact_materialized` ao montar o mundo. E EMISSAO, e por isso "
+        "ele tem store ao alcance: a leitura e total e o estreitamento e logica "
+        "dele, como `01` §4.1 passou a exigir de quem reconstroi o mundo corrente",
+    ),
     "events/linhagem.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — a linhagem compara contra `rollback_performed` para achar "
