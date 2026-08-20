@@ -294,6 +294,31 @@ jobs:
       - name: teste negativo do verificador das provas de container
         run: python scripts/check_provas_de_container_probes.py
 
+      # `00` secao 3.2 — a exigencia (3) da particao das metricas: cada tipo de
+      # insumo tem UM UNICO ponto de montagem, e o construtor aparece so ali.
+      #
+      # E VERIFICADOR E NAO TESTE, e a razao esta na propria secao: `NewType` nao
+      # e barreira de execucao. `EventosDeDeclaracao(fluxo_total)` escrito em
+      # qualquer modulo COMPILA E RODA, e o computador que o recebesse leria os
+      # dois lados do par sem que nada falhasse — a §3.2 fecha dizendo "a metrica
+      # continua sendo calculada. Nada falha". Nao ha teste que pegue isso: o
+      # defeito nao produz erro, produz numero errado.
+      #
+      # A checagem confere IMPORT contra CHAMADA, e a distincao e o ponto: o
+      # consumidor PRECISA importar o tipo para anotar o parametro dele, que e a
+      # exigencia (1). O que reprova e `ast.Call`.
+      #
+      # A exigencia (4) — cobertura e disjuncao do `metric_side` — NAO esta aqui
+      # de proposito: ela e conferida na carga dos contratos, em
+      # `range-core/engine/loader/contract_rules.py`. Duas autoridades para o
+      # mesmo fato e a forma que a §3.2 recusa ao proibir mapa proprio ao lado do
+      # catalogo.
+      - name: insumo tipado de metrica e ponto unico de montagem (00 secao 3.2)
+        run: python scripts/check_insumo_de_metrica.py
+
+      - name: teste negativo do verificador do insumo
+        run: python scripts/check_insumo_de_metrica_probes.py
+
       # B1 DA AUDITORIA DA FASE 6 — o interpretador do checkout auditado.
       #
       # A FORMA estava admitida e o INTERPRETADOR nao era alcancavel: o venv
