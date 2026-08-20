@@ -67,6 +67,14 @@ from range_core.events.envelope import (
     FlagValue,
 )
 
+from range_core.events.linhagem import (
+    ANCORA_ABANDONADA,
+    ANCORA_AUSENTE,
+    ANCORA_DESCONHECIDA,
+    ANCORA_POSTERIOR,
+    LinhagemInvalida,
+    escritas_sobreviventes,
+)
 from contracts.generated.events import (
     DECISION_MADE,
     EXERCISE_STARTED,
@@ -376,82 +384,47 @@ def _verify_pack_pin(events: Sequence[Event], declarations: Declarations) -> Non
 
 
 def _surviving_writes_mask(events: Sequence[Event]) -> list[bool]:
-    """Marca de quais posicoes as ESCRITAS entram neste fold.
+    """A linhagem corrente, traduzida para o vocabulario de sitio deste fold.
 
-    NAO E VEREDITO DE QUE O EVENTO NAO ACONTECEU, e a distincao nao e verbal.
-    O evento permanece no store, legivel e marcado, e permanece ativo nas outras
-    quatro projecoes (`01` §4.1, e a D2 do checkpoint). Esta mascara e local a
-    `simulation_state` e nao se exporta — exporta-la seria a heranca que
-    `01` §4.1 proibe.
+    A DEFINICAO MUDOU DE CASA, E A SPEC EXIGE QUE SEJA UMA SO
+    ----------------------------------------------------------
+    O corpo vivia aqui e era privado, com a frase *"esta mascara e local a
+    `simulation_state` e nao se exporta — exporta-la seria a heranca que `01`
+    §4.1 proibe"*. A frase era exata sob a redacao ANTIGA daquela secao, quando
+    este fold era o unico a reconstruir o mundo corrente.
 
-    O ALCANCE E POSICIONAL, e o limite disso esta dito
-    --------------------------------------------------
-    Um `rollback_performed` na posicao `i`, ancorado na posicao `a`, marca
-    `a < j < i`. Nada garante que TODO evento nesse intervalo pertenca a linha
-    abandonada: um `exercise_paused`, por exemplo, pode ser gravado entre o
-    facilitador decidir rebobinar e o rollback ser registrado. `09` §3 desenha o
-    intervalo com injects e uma declaracao, e nao diz o que mais cabe nele nem
-    proibe nada — entao NAO ha invariante de engine a invocar aqui, e inventar
-    um seria normatizar por conveniencia de implementacao.
+    O spec-change `linhagem-corrente-e-o-avaliador` generalizou de instancia
+    para classe: a exclusao vive no escopo de quem reconstroi o mundo corrente —
+    hoje este fold E o avaliador de predicados —, e **a linhagem tem UMA
+    definicao**. Duas divergiriam no pior lugar: o fold dizendo que a flag voltou
+    atras e o avaliador que o ato continua valendo.
 
-    O alcance largo e inofensivo NESTE fold, e so nele, por uma razao que vale
-    escrever: evento que nao declara escrita nao contribui de um jeito nem de
-    outro. `exercise_paused` marcado ou desmarcado produz o mesmo estado. E todo
-    evento que DECLARA escrita e esta antes do registro do rollback pertence a
-    linha abandonada por construcao — foi gravado antes de ela ser encerrada.
+    A definicao mora em `range_core.events.linhagem`, e a direcao da dependencia
+    e o motivo: `events/` e a camada de onde os dois ja dependem, e o avaliador
+    nao tem por que importar de `state/` para saber o que sobreviveu ao corte.
 
-    Se algum dia uma projecao precisar de "este evento foi abandonado" como
-    veredito geral, ela nao reusa isto: o criterio dela e outro, e o motivo
-    declarado dela em `09` §3.1 tambem.
-
-    Encadeados compoem sem caso especial — marcar de novo o que ja estava
-    marcado nao muda nada. O que NAO e aceito e ancorar num evento ja
-    abandonado: isso descreveria um corte para dentro de uma linha temporal que
-    deixou de existir, e resolver por conta propria seria inventar semantica.
+    ESTA FUNCAO E O TRADUTOR, E E SO ISSO
+    --------------------------------------
+    `LinhagemInvalida` nao conhece os onze `Site` — importa-los la inverteria a
+    direcao. Aqui as quatro recusas de ancora recuperam o sitio que os testes
+    deste fold afirmam, sem que o modulo de baixo passe a conhecer o vocabulario
+    do de cima.
     """
-    position_of: dict[str, int] = {}
-    for index, event in enumerate(events):
-        position_of[event.event_id] = index
+    try:
+        return escritas_sobreviventes(events)
+    except LinhagemInvalida as invalida:
+        raise MalformedStream(_SITIO_DA_LINHAGEM[invalida.motivo], str(invalida))
 
-    surviving = [True] * len(events)
 
-    for index, event in enumerate(events):
-        if event.event_type != ROLLBACK_PERFORMED:
-            continue
-
-        anchor_id = event.payload.get(TO_EVENT_ID)
-        if not isinstance(anchor_id, str):
-            raise MalformedStream(
-                Site.ANCHOR_MISSING,
-                f"{ROLLBACK_PERFORMED} {event.event_id} sem {TO_EVENT_ID!r} no "
-                "payload: o corte nao tem ancora, e ignorar o rollback deixaria "
-                "o estado exibindo um mundo que ele removeu"
-            )
-
-        anchor = position_of.get(anchor_id)
-        if anchor is None:
-            raise MalformedStream(
-                Site.ANCHOR_UNKNOWN,
-                f"{ROLLBACK_PERFORMED} {event.event_id} ancora em {anchor_id!r}, "
-                "que nao esta no fluxo"
-            )
-        if anchor > index:
-            raise MalformedStream(
-                Site.ANCHOR_AFTER_ROLLBACK,
-                f"{ROLLBACK_PERFORMED} {event.event_id} ancora em {anchor_id!r}, "
-                "posterior a ele: rollback so anda para tras"
-            )
-        if not surviving[anchor]:
-            raise MalformedStream(
-                Site.ANCHOR_ABANDONED,
-                f"{ROLLBACK_PERFORMED} {event.event_id} ancora em {anchor_id!r}, "
-                "que ja foi abandonado por rollback anterior"
-            )
-
-        for j in range(anchor + 1, index):
-            surviving[j] = False
-
-    return surviving
+#: `motivo` de `LinhagemInvalida` -> o `Site` deste fold. O mapa e explicito para
+#: que motivo novo la reprove AQUI, na chave ausente, em vez de virar um sitio
+#: generico escolhido por `.get`.
+_SITIO_DA_LINHAGEM = {
+    ANCORA_AUSENTE: Site.ANCHOR_MISSING,
+    ANCORA_DESCONHECIDA: Site.ANCHOR_UNKNOWN,
+    ANCORA_POSTERIOR: Site.ANCHOR_AFTER_ROLLBACK,
+    ANCORA_ABANDONADA: Site.ANCHOR_ABANDONED,
+}
 
 
 def _writes_of(event: Event, declarations: Declarations) -> Mapping[str, FlagValue]:

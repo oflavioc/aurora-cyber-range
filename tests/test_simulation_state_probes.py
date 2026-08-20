@@ -42,6 +42,20 @@ TESTS_PATH = Path(__file__).resolve().parent / "test_simulation_state.py"
 #: vez de plantar nada em silencio, que e o comportamento desejado.
 MUTAVEIS = (
     ("epoch", "range_core.events.epoch", REPO_ROOT / "range-core" / "events" / "epoch.py"),
+    # A LINHAGEM MUDOU DE CASA DE NOVO, e o harness quebrou alto outra vez — que
+    # e o comportamento que o paragrafo acima ja registrava. O corpo da mascara
+    # saiu do fold para `range_core.events.linhagem` no spec-change
+    # `linhagem-corrente-e-o-avaliador`, porque a spec passou a exigir UMA
+    # definicao para o fold e para o avaliador de predicados.
+    #
+    # As tres mutacoes de ancora e a do limite do intervalo apontam para ca. O
+    # que ficou no fold e o TRADUTOR de sitio, e mutar o tradutor prova outra
+    # coisa — por isso elas mudaram de alvo em vez de o alvo mudar de nome.
+    (
+        "linhagem",
+        "range_core.events.linhagem",
+        REPO_ROOT / "range-core" / "events" / "linhagem.py",
+    ),
     (
         "fold",
         "range_core.state.simulation_state",
@@ -55,18 +69,18 @@ MUTAVEIS = (
 # ---------------------------------------------------------------------------
 MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
     "limite do intervalo abandonado movido em um": (
-        [("fold", "for j in range(anchor + 1, index):", "for j in range(anchor + 2, index):")],
+        [("linhagem", "for j in range(anchor + 1, index):", "for j in range(anchor + 2, index):")],
         {
             "test_rollback_devolve_a_flag_escrita_ao_default",
             "test_rollback_atravessa_escrita_de_participant_action",
         },
     ),
     "raise de ancora posterior ao rollback removido": (
-        [("fold", "if anchor > index:", "if anchor > index and False:")],
+        [("linhagem", "if anchor > index:", "if anchor > index and False:")],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
     "raise de ancora ja abandonada removido": (
-        [("fold", "if not surviving[anchor]:", "if not surviving[anchor] and False:")],
+        [("linhagem", "if not surviving[anchor]:", "if not surviving[anchor] and False:")],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
     "conferencia de epoch de evento desligada": (
@@ -98,12 +112,16 @@ MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
             "test_participant_action_abandonada_permanece_no_fluxo",
         },
     ),
+    # O ALVO MUDOU DE FORMA junto com a casa da linhagem: o `raise` com o sitio
+    # literal virou uma ENTRADA DO MAPA de traducao. O eixo e o mesmo — trocar um
+    # discriminante e ser acusado —, e o alvo novo prova algo a mais: que o mapa
+    # discrimina, que e o risco que ele proprio introduziu.
     "discriminante trocado num sitio so": (
         [
             (
                 "fold",
-                "                Site.ANCHOR_UNKNOWN,\n",
-                "                Site.ANCHOR_MISSING,\n",
+                "    ANCORA_DESCONHECIDA: Site.ANCHOR_UNKNOWN,\n",
+                "    ANCORA_DESCONHECIDA: Site.ANCHOR_MISSING,\n",
             )
         ],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
