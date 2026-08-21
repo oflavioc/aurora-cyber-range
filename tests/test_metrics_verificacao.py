@@ -275,17 +275,36 @@ class MarcoZero(_ComExercicio):
     def test_t0_sai_do_exercise_started(self):
         self.assertEqual(marco_zero(self.insumo().epoch), self.t_zero)
 
-    def test_sem_exercise_started_em_calculo_levanta_em_vez_de_devolver_nulo(self):
-        """P6-4: alcancavel, e nao teorico — o ensaio descartado e o caso de uso.
+    def test_t0_sobrevive_ao_descarte_da_epoch_que_o_registrou(self):
+        """P6-4, decidida: T0 e atributo do EXERCICIO, e nao da epoch.
 
-        Levantar e a decisao: T0 nulo faria todo `desde_t0` virar `None`, e o AAR
-        imprimiria ausencia de medicao onde houve medicao.
+        `01` §3 o poe na mao do facilitador, e o `exercise_started` registra o
+        ato — nao e a fonte dele. O descarte de `09` §3.1 tira EVENTOS do
+        calculo, e T0 nao e um evento: e o zero contra o qual eles sao medidos.
         """
         self.rollback(MOTIVO_ENSAIO)
         self.satisfaz(PREDICADO_CONTENCAO)
 
+        self.assertEqual(marco_zero(self.insumo().epoch), self.t_zero)
+        self.assertTrue(self.medidas()["TTCV"].marcada)
+
+    def test_sem_exercise_started_nenhum_levanta_em_vez_de_devolver_nulo(self):
+        """A recusa continua; so o gatilho mudou.
+
+        Exercicio sem T0 nao produz metrica. `None` faria todo decorrido virar
+        nulo, e o AAR imprimiria ausencia de medicao onde houve medicao.
+        """
+        parede = iter(range(1_000_000, 1_100_000))
+        vazio = InMemoryEventStore(
+            ExerciseClock(self.t_zero, now=lambda: float(next(parede)))
+        )
+        lados = dict(registro()["x-aurora-registry"]["metric_side"])
+        _, insumo = monta(
+            vazio.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}
+        )
+
         with self.assertRaises(SemMarcoZero):
-            computa(self.insumo())
+            computa(insumo)
 
 
 class OsPredicadosConferemComOContrato(unittest.TestCase):

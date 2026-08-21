@@ -95,14 +95,16 @@ class JanelaInvertida(ValueError):
 
 
 class SemMarcoZero(ValueError):
-    """Nao ha `exercise_started` em calculo, e T0 nao pode ser derivado.
+    """Nao ha `exercise_started` no fluxo, e T0 nao pode ser derivado.
 
-    Alcancavel, e nao teorico: um rollback `rehearsal` na epoch 0 descarta a
-    epoch que contem o `exercise_started` — que e exatamente o caso de uso do
-    motivo, o ensaio que se joga fora. Ver a P6-4 no registro da fase.
+    Levanta em vez de devolver `None`: T0 ausente faria todo decorrido virar
+    nulo, e o AAR imprimiria ausencia de medicao onde houve medicao — a
+    degradacao silenciosa que a P2-19 recusou.
 
-    Levanta em vez de devolver `None`: T0 ausente faria todo `desde_t0` virar
-    nulo, e o AAR imprimiria ausencia de medicao onde houve medicao.
+    **O gatilho mudou com a P6-4.** Ele era o ensaio descartado, e deixou de ser:
+    T0 e atributo do exercicio e sobrevive ao descarte de qualquer epoch. O que
+    resta e o caso honesto — metrica computada sobre fluxo em que o exercicio
+    nunca comecou.
     """
 
 
@@ -200,15 +202,28 @@ def apenas(eventos: Sequence[Event], epochs: frozenset[int]) -> tuple[Event, ...
 
 
 def congelamentos(escrituracao: EscrituracaoDeEpoch) -> tuple[Congelamento, ...]:
-    """Os intervalos de `technical_failure`, **ja unidos** e em ordem.
+    """Os intervalos descontados, de **dois** motivos, ja unidos e em ordem.
 
     A uniao acontece aqui, uma vez, e nao em cada chamador: dois chamadores que
-    a fizessem por conta propria seriam duas implementacoes da mesma regra.
+    a fizessem por conta propria seriam duas implementacoes da mesma regra. E e
+    por ela que os dois motivos entram na MESMA tabela em vez de num caminho
+    paralelo — sobrepostos, o trecho comum e contado uma vez.
 
-    Intervalo registrado em epoch descartada NAO conta, e o caso e real: um
-    `technical_failure` dentro de uma epoch que um `rehearsal` posterior
-    descartou e evento daquela epoch, e a regra de `09` §3.1 nao abre excecao
-    por especie de evento.
+    `technical_failure` — o congelamento registrado por extremos no payload.
+    Intervalo registrado em epoch descartada NAO entra por aqui: ele ja esta
+    dentro do intervalo do ensaio, e a uniao o absorveria de qualquer forma.
+
+    `rehearsal` — **P6-4**. O ensaio descartado consumiu tempo de exercicio, e
+    esse tempo esta embutido no `exercise_timestamp` de tudo o que veio depois:
+    o relogio nao rebobina no rollback, so o rotulo `T+` rebobina. Como T0
+    sobrevive ao descarte, sem este desconto o ensaio inteiro entraria em toda
+    metrica medida desde T0.
+
+    E o multiplicador e a razao de o desconto ser POR EXTREMOS DE
+    `exercise_timestamp` e nao por tempo de parede: um ensaio de dez minutos a
+    20x consome duzentos minutos de exercicio, e sao os duzentos que precisam
+    sair. Medidos nos dois extremos, saem exatos, sem que o multiplicador
+    apareca na conta.
     """
     descartadas = epochs_descartadas(escrituracao)
     brutos = [
@@ -217,7 +232,49 @@ def congelamentos(escrituracao: EscrituracaoDeEpoch) -> tuple[Congelamento, ...]
         if evento.event_type == ROLLBACK_PERFORMED
         and evento.payload.get("reason") == MOTIVO_FALHA_TECNICA
     ]
+    brutos.extend(_intervalos_de_ensaio(escrituracao, descartadas))
     return uniao(brutos)
+
+
+def _intervalos_de_ensaio(
+    escrituracao: EscrituracaoDeEpoch, descartadas: frozenset[int]
+) -> list[Congelamento]:
+    """Um intervalo por epoch descartada por `rehearsal` — P6-4.
+
+    A epoch descartada vai do inicio dela ate o rollback que a fecha:
+
+    - **fim** e o `exercise_timestamp` do proprio rollback de `rehearsal`, que
+      carrega a epoch que encerra;
+    - **inicio** e o `exercise_timestamp` do rollback que fechou a epoch
+      ANTERIOR — ou **T0**, para a epoch 0, que nao tem anterior.
+
+    Os dois extremos saem da escrituracao e de T0, e nao de campo novo no
+    payload: `frozen_interval` e do `technical_failure`, onde o facilitador
+    registra o trecho em que o range esteve quebrado. Aqui o trecho e a epoch
+    inteira, e ela ja esta descrita pelos rollbacks que a delimitam — pedir ao
+    facilitador que o repita seria segunda fonte para o mesmo fato.
+    """
+    if not descartadas:
+        return []
+
+    fecha: dict[int, datetime] = {}
+    abre: dict[int, datetime] = {}
+    for evento in escrituracao:
+        if evento.event_type != ROLLBACK_PERFORMED:
+            continue
+        # O rollback carrega a epoch que ENCERRA, entao ele abre a seguinte.
+        abre[evento.simulation_epoch + 1] = instante(evento)
+        if evento.payload.get("reason") == MOTIVO_ENSAIO:
+            fecha[evento.simulation_epoch] = instante(evento)
+
+    intervalos: list[Congelamento] = []
+    for epoch in sorted(descartadas):
+        fim = fecha.get(epoch)
+        inicio = abre.get(epoch) if epoch > 0 else marco_zero(escrituracao)
+        if fim is None or inicio is None or fim <= inicio:
+            continue
+        intervalos.append(Congelamento(inicio=inicio, fim=fim))
+    return intervalos
 
 
 def uniao(intervalos: Iterable[Congelamento]) -> tuple[Congelamento, ...]:
@@ -311,22 +368,48 @@ def marco_zero(escrituracao: EscrituracaoDeEpoch) -> datetime:
     rotulo. Quem le o rotulo e `label_seconds`, do proprio relogio: o formato
     `T+HH:MM:SS` tem um dono so, e uma segunda leitura aqui seria a classe D4.
 
-    A identidade vale na epoch unica, que e onde este evento vive:
-    `exercise_time` rebobina no rollback e `exercise_timestamp` nao, mas o
-    `exercise_started` que abre o exercicio e anterior a qualquer rollback.
+    POR QUE A IDENTIDADE SE SUSTENTA AQUI, MEDIDO NO RELOGIO
+    ---------------------------------------------------------
+    `marks()` calcula `exercise_time = _label(elapsed - epoch_started_at)` e
+    `exercise_timestamp = T0 + elapsed`. A identidade so vale onde
+    `epoch_started_at == 0`, que e a **epoch 0** — e o `exercise_started` que
+    abre o exercicio e anterior a qualquer rollback, entao vive nela.
 
-    O PRIMEIRO em calculo, e nao o primeiro do fluxo: epoch descartada por
-    `rehearsal` nao entra em calculo, e `09` §3.1 nao abre excecao por especie.
+    O truncamento tambem fecha: `_label` trunca ao segundo e o `isoformat` do
+    timestamp usa `timespec="seconds"`. Os dois truncam o MESMO `elapsed` ao
+    mesmo segundo, e a subtracao devolve T0 exato.
+
+    T0 NAO PERTENCE A EPOCH NENHUMA — P6-4
+    ---------------------------------------
+    **Decisao do proprietario.** T0 e atributo do EXERCICIO: `01` §3 o poe na mao
+    do facilitador, e o `exercise_started` **registra o ato, nao e a fonte dele**.
+    Por isso a busca varre a escrituracao inteira e nao filtra por epoch
+    descartada — o descarte de `09` §3.1 tira EVENTOS do calculo, e T0 nao e um
+    evento: e o zero contra o qual os eventos sao medidos.
+
+    As duas alternativas caem por merito, e ficam escritas para nao voltarem:
+
+    - **T0 do `exercise_started` da epoch nova** encolheria `TTA`, `TTT` e `TTCM`
+      pelo tempo do ensaio, silenciosamente — as tres tem start proprio, e o
+      start deslocaria junto;
+    - **T0 do evento descartado, com o evento em calculo** contradiz `09` §3.1 na
+      letra: *"nenhum evento da epoch entra em calculo"*.
+
+    O tempo que o ensaio consumiu **nao fica dentro das metricas**: ele sai pelo
+    desconto por uniao, em `congelamentos`, que e o mecanismo que ja existia.
+
+    A RECUSA CONTINUA, e so a origem mudou: exercicio sem `exercise_started`
+    nenhum nao produz metrica.
     """
-    descartadas = epochs_descartadas(escrituracao)
-    for evento in no_calculo(escrituracao, descartadas):
+    for evento in escrituracao:
         if evento.event_type == EXERCISE_STARTED:
             return instante(evento) - timedelta(
                 seconds=label_seconds(evento.exercise_time)
             )
     raise SemMarcoZero(
-        "nenhum `exercise_started` em calculo: T0 nao pode ser derivado. "
-        "Acontece quando a epoch que o contem foi descartada por `rehearsal`, "
-        "e a decisao — de onde vem T0 depois de um ensaio descartado — e "
-        "normativa, nao de implementacao. Ver a P6-4 no registro da Fase 6."
+        "nenhum `exercise_started` no fluxo: T0 nao pode ser derivado, e "
+        "exercicio sem T0 nao produz metrica.\n"
+        "    Isto NAO acontece mais por descarte de epoch — T0 e atributo do "
+        "exercicio e sobrevive a `rehearsal` (P6-4). Acontece quando a metrica e "
+        "computada sobre um fluxo em que o exercicio nunca comecou."
     )
