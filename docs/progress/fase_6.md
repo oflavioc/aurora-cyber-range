@@ -530,6 +530,7 @@ Prefixo `P6-`.
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
 | P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
+| P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -895,3 +896,44 @@ implementação da mesma pergunta.
 quando o paralelismo começar e várias branches viverem ao mesmo tempo — o que
 vier primeiro. É **decisão do proprietário**: as três têm custos de natureza
 diferente, e a terceira admite que o guarda não guarda.
+
+#### P6-7 — rota que declara `emite` e não chama emissor nenhum
+
+O B2 fechou o item 1 da DoD com **duas** provas fortes cobrindo **dez** rotas, e
+isso só é possível por uma propriedade **estrutural**: as nove declarações passam
+todas por `_declara`, e `GET /audit/grade-changes` chama o emissor no próprio
+corpo. Mutar qualquer um dos dois pontos deixa a suíte vermelha — medido, cinco
+mutações em cada.
+
+**O que continua aberto é a classe, e não a instância.** Uma rota nova que declare
+`emite` em `api_surface.yaml` e não passe por nenhum dos dois pontos nasce sem
+prova de emissão, e nada acusa: `check_api_surface.py` confere que a rota
+**declara** `emite`, e não que ela **emite**.
+
+É a classe do achado original — verificação que parece existir —, agora com o
+gatilho conhecido.
+
+**A verificação por AST foi considerada e DESCARTADA**, com o motivo medido. O
+critério fraco *"o handler, ou função no mesmo módulo, referencia o emissor"* erra
+nos **dois** sentidos: referenciar não é chamar, e handler correto em outro módulo
+reprovaria. Fraqueza declarada com taxa de erro desconhecida é pior que ausência
+dita — e a medição que a matou foi a mesma que revelou a saída: um AST ingênuo
+reprovaria as nove rotas **estando elas corretas**, porque o handler chama
+`_declara` e não o emissor.
+
+**As duas formas, com o custo de cada lado:**
+
+| Forma | O que compra | O que custa |
+|---|---|---|
+| **Análise de fluxo** | responde à pergunta certa — *"esta rota, executada, emite?"* — sem convenção nenhuma | outra ordem de esforço: seguir cadeia de chamadas entre módulos, com alias, indireção e `getattr`. E um analisador incompleto volta a ser fraqueza com taxa de erro desconhecida, que é o que acabou de ser descartado |
+| **Convenção estrutural imposta por verificador** | transforma a pergunta difícil em fácil: *"toda rota que declara `emite` passa por um ponto de emissão nomeado"* é decidível por AST simples | é convenção — obriga rota futura a entrar por um dos pontos, e a que não entrar reprova mesmo estando correta. O custo é de desenho, não de detecção |
+
+A segunda é a forma que este repositório **já usa** em outros lugares: whitelist
+de superfície em `check_store_read_surface.py`, ponto único de montagem em
+`check_insumo_de_metrica.py`, ponto único de emissão no próprio `Emissor` — que
+já existe justamente para o handler não decidir camada, produtor e payload.
+
+**Vence em:** a próxima rota que declare `emite`, **ou** a Fase 8, quando o
+paralelismo multiplicar quem escreve rota — o que vier primeiro. É **decisão do
+proprietário**: a primeira compra exatidão e custa esforço; a segunda compra
+verificabilidade e custa liberdade de desenho.
