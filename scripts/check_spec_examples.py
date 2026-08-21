@@ -100,18 +100,19 @@ IGNORADOS = {
     ("01_ARCHITECTURE.md", "3. Relógios", 0): {
         "motivo": "fragmento do envelope — so as marcas temporais, sem os campos obrigatorios",
     },
-    ("02_DOMAIN_ACADEMUS.md", "6.2 Avaliação por calibração, não por recall", 0): {
-        "motivo": "submissao de assessment: artefato de runtime da Fase 6, sem contrato",
-    },
+    # `02` §6.2 e `03` §5.1 SAIRAM DAQUI na Fase 6, peca 6. O motivo escrito era
+    # "artefato de runtime da Fase 6, sem contrato", e a peca 6 chegou:
+    # `contracts/assessment.schema.yaml` existe e REIVINDICA os dois blocos.
+    #
+    # E o mesmo movimento que `03` §2.2 fez na peca 1, e pelo mesmo argumento:
+    # ignorado com motivo que ja nao vale e ignorado sem motivo, porque ninguem
+    # reabre um IGNORADOS para conferir se a condicao ainda se sustenta.
     # `03` §2.2 SAIU DAQUI na Fase 6. O motivo escrito era "chega na Fase 6", e a
     # Fase 6 chegou: `contracts/rubrics.schema.yaml` existe e REIVINDICA o bloco.
     # Ignorado com motivo que ja nao vale e ignorado sem motivo — e ninguem
     # reabre um IGNORADOS para conferir se a condicao ainda se sustenta.
     ("03_EXERCISE_DESIGN.md", "4. Ground truth, observável e reportado", 0): {
         "motivo": "information_distribution.yaml: arquivo de pack sem contrato — ver P1-20",
-    },
-    ("03_EXERCISE_DESIGN.md", "5.1 Submissão", 0): {
-        "motivo": "submissao de assessment: artefato de runtime da Fase 6, sem contrato",
     },
     ("05_SECURITY_REQUIREMENTS.md", "3. Dados", 0): {
         "motivo": "fragmento de uma linha, ilustrando marcacao de dado sintetico",
