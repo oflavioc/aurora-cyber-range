@@ -121,7 +121,7 @@ class _ComExercicio(unittest.TestCase):
         registro = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
         lados = dict(registro["x-aurora-registry"]["metric_side"])
         declaracao, _ = monta(
-            self.store.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}
+            self.store.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}, escopo_revisado=frozenset()
         )
         return declaracao
 

@@ -422,6 +422,7 @@ class OInsumoChegaInteiroEODescontoECalculo(unittest.TestCase):
             lados,
             limiar_de_calibracao=0.15,
             defensibilidade={},
+            escopo_revisado=frozenset(),
         )
 
     def test_a_escrituracao_chega_aos_dois_lados_antes_da_conta(self):

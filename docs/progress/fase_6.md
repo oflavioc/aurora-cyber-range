@@ -393,6 +393,36 @@ mecanismo comporta um caso que não vem de `line_b_cases`.
 **Vence em:** o commit em que o escore de calibração da Fase 6 pontuar o primeiro
 `assessment_submitted` contra o gabarito.
 
+##### VENCIDA na peça 6 — a medição, e a decisão que ela não toma
+
+O escore existe (`range-core/metrics/calibracao.py`), e com ele a pergunta que a
+pendência guardava deixou de ser especulativa: **o mecanismo comporta um caso que
+não vem de `line_b_cases`?**
+
+**Medido: não comporta, e faltam três coisas — não uma.**
+
+| O que o Brier de §5.3 exige | O que `classification_declared` tem |
+|---|---|
+| um **conjunto** de casos, para haver média | **uma** classificação por exercício — média de um elemento é o erro quadrático, e §5.3 chama o escore de *"comparável entre exercícios e entre equipes"* |
+| `confidence` 0–100 no ato | `03` §3 descreve o ato como *"severidade e escopo"*; **não há campo de confiança** |
+| `defensibility` no gabarito | `line_b_case` é a única entrada com `defensibility`, e ela é keyed por `case_id` `^GC-[0-9]+$` |
+
+Estender a §5 para admiti-la exigiria, portanto, **duas alterações de contrato** —
+um campo de confiança em `classification_declared` e uma entrada de
+defensibilidade fora de `line_b_cases` — além do texto da §5. Não é acréscimo de
+linha.
+
+**A decisão continua sendo do proprietário**, e as duas opções seguem as que a
+pendência escreveu: estender a §5 com o custo acima, ou deixar a acurácia da
+classificação com a rubrica `incident_triage` (§2.3) e **remover a menção a
+calibração** em `03` §3.0. As duas mexem em `docs/spec/`, então qualquer uma é
+`spec-change` com PR próprio — a Fase 6 não pode executá-la.
+
+**O que a peça 6 fez:** mediu, e deixou o código sem antecipar nenhuma das duas.
+`classification` é campo do contrato de assessment e **é gravado**; o que ele não
+faz é pontuar. Está dito no cabeçalho de `contracts/assessment.schema.yaml`, com
+apontador para esta pendência.
+
 #### P6-2 — o start de `TTA` não tem origem em contrato nenhum
 
 `03_EXERCISE_DESIGN.md` §3 define o *start* de `TTA` como *"primeiro inject com
