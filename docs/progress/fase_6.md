@@ -333,7 +333,7 @@ Prefixo `P6-`.
 | P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **Fase 6** — ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
-| P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **condição** — ver abaixo |
+| P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -459,18 +459,65 @@ e descartado leva junto o `exercise_started`, que vive nela — e **não há seg
 **É alcançável, e não teórico: é exatamente o caso de uso do motivo** — rodar um
 aquecimento e jogá-lo fora. Sem T0, `desde_t0` some de todas as siglas.
 
-**O que a peça 5 fez, e o que ela não decidiu.** `marco_zero` **levanta**
-`SemMarcoZero`, nomeando a situação. Não devolve nulo: T0 ausente faria toda
-métrica virar `None`, e o AAR imprimiria ausência de medição onde houve medição —
-a mesma família da degradação silenciosa que a P2-19 recusou.
+**DECIDIDA pelo operador: T0 é atributo do exercício, não da epoch.** Ele
+sobrevive ao descarte de qualquer epoch porque **não pertence a nenhuma**.
 
-O que não se decidiu é **de onde T0 vem depois de um ensaio descartado**, e as
-opções não são equivalentes: o `exercise_started` da epoch descartada (T0 do
-aquecimento), o instante do próprio `rollback_performed` de `rehearsal` (o
-exercício "de verdade" começa quando o ensaio termina), ou um `exercise_started`
-novo que a máquina de exercício passaria a emitir — que é mudança de contrato.
+**Fundamento.** `01_ARCHITECTURE.md` §3 — *"T0 definido pelo facilitador"*. O
+`exercise_started` **registra o ato, não é a fonte dele**. O descarte de `09`
+§3.1 tira **eventos** do cálculo, e T0 não é um evento: é o zero contra o qual
+os eventos são medidos.
 
-**Vence em:** o primeiro exercício que use `rehearsal` na epoch 0, **ou** a Fase
-10, quando o AAR precisar imprimir `T+` para ele — o que vier primeiro. É
-**decisão do proprietário**, pelo mesmo motivo da P6-3: as três opções dão
-números diferentes para todas as nove siglas, e a escolha é normativa.
+**As duas alternativas caem por mérito**, e ficam escritas para não voltarem:
+
+- **T0 do `exercise_started` da epoch nova** encolheria `TTA`, `TTT` e `TTCM`
+  pelo tempo do ensaio, **silenciosamente** — as três têm start próprio, e o
+  start deslocaria junto;
+- **T0 do evento descartado, com o evento em cálculo** contradiz `09` §3.1 na
+  letra: *"nenhum evento da epoch entra em cálculo"*.
+
+#### A condição de contorno do multiplicador, e como ela foi tratada
+
+Um ensaio a 5x ou 20x consome **tempo de exercício** que não é tempo do
+exercício de verdade: dez minutos de parede a 20x são duzentos minutos de
+`exercise_timestamp`. E o relógio **não rebobina** no rollback — só o rótulo
+`T+` rebobina —, então esses duzentos minutos ficam embutidos em tudo o que vem
+depois.
+
+Com T0 preservado, sem tratamento eles entrariam em toda métrica medida desde
+T0. **O tratamento é o mecanismo que já existia:** o intervalo da epoch
+descartada entra no **desconto por união** de `range-core/metrics/epoch.py`, como
+um motivo a mais na mesma tabela — nunca um caminho paralelo.
+
+Os dois extremos saem da escrituração, e não de campo novo no payload: **fim** é
+o `exercise_timestamp` do rollback de `rehearsal`, **início** é o do rollback que
+fechou a epoch anterior — ou T0, para a epoch 0. `frozen_interval` continua sendo
+do `technical_failure`, onde o facilitador registra o trecho em que o range
+esteve quebrado; aqui o trecho é a epoch inteira, e ela já está descrita pelos
+rollbacks que a delimitam.
+
+**Por que a mesma tabela importa:** um `technical_failure` dentro do ensaio é
+**absorvido pela união** em vez de descontado duas vezes. Em caminhos paralelos,
+o trecho comum sairia duplicado — o defeito exato que T10 proíbe ao exigir união
+em vez de soma. Há teste nomeado para isso.
+
+**E o multiplicador não aparece na conta.** Medir por extremos de
+`exercise_timestamp` já o incorpora, porque é ele que avança na cadência do
+multiplicador. Medir por parede exigiria o `clock_multiplier` de cada trecho, e
+um ensaio com troca de multiplicador no meio teria dois.
+
+#### A identidade de `01` §4.4 recupera o zero — verificado antes de implementar
+
+A exigência era parar e escalar se ela não recuperasse. **Ela recupera**, e o
+motivo é mecânico: `marks()` calcula `exercise_time = _label(elapsed −
+epoch_started_at)` e `exercise_timestamp = T0 + elapsed`. A identidade vale onde
+`epoch_started_at == 0`, que é a **epoch 0** — e o `exercise_started` que abre o
+exercício é anterior a qualquer rollback, logo vive nela.
+
+O truncamento fecha junto: `_label` trunca ao segundo e o `isoformat` do
+timestamp usa `timespec="seconds"`. Os dois truncam o **mesmo** `elapsed` ao
+mesmo segundo, e a subtração devolve T0 exato. Não há `spec-change` a fazer.
+
+**`marco_zero` continua levantando**, e só a origem mudou: exercício sem
+`exercise_started` nenhum não produz métrica. O gatilho deixou de ser o ensaio
+descartado e passou a ser o caso honesto — métrica computada sobre fluxo em que
+o exercício nunca começou.
