@@ -75,7 +75,7 @@ def evento(tipo: str, *, epoch: int = 0, hora: str = "09:00", **payload: object)
         event_type=tipo,
         truth_layer="facilitation",
         producer="teste",
-        exercise_time="T+00:00",
+        exercise_time="T+00:00:00",
         exercise_timestamp=f"{DIA}T{hora}:00",
         wall_timestamp=f"{DIA}T{hora}:00",
         clock_multiplier=1.0,
@@ -290,6 +290,85 @@ class CongelamentosSaemUnidosDaEscrituracao(unittest.TestCase):
     def test_evento_de_epoch_que_nao_e_rollback_nao_vira_congelamento(self):
         escrituracao = (evento(EXERCISE_STARTED, epoch=0),)
         self.assertEqual(congelamentos(escrituracao), ())
+
+
+class OEnsaioDescartadoSaiPeloDesconto(unittest.TestCase):
+    """P6-4 — T0 sobrevive ao descarte, e o tempo do ensaio sai pela uniao.
+
+    Sem este desconto, a decisao de manter T0 faria o ensaio inteiro entrar em
+    toda metrica medida desde T0: o relogio de exercicio NAO rebobina no
+    rollback, so o rotulo `T+` rebobina.
+
+    E ele entra na MESMA tabela de `congelamentos`, e nao num caminho paralelo —
+    e o que faz um `technical_failure` dentro do ensaio ser absorvido pela uniao
+    em vez de descontado duas vezes.
+    """
+
+    def test_a_epoch_zero_descartada_desconta_de_t0_ate_o_rollback(self):
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback(MOTIVO_ENSAIO, epoch=0, hora="09:40"),
+        )
+        self.assertEqual(congelamentos(escrituracao), (janela("09:00", "09:40"),))
+
+    def test_o_multiplicador_nao_aparece_na_conta(self):
+        """A condicao de contorno: dez minutos de parede a 20x sao 200 de exercicio.
+
+        Os dois extremos sao `exercise_timestamp`, que ja avanca na cadencia do
+        multiplicador — entao os 200 minutos saem exatos sem que a conta saiba
+        que houve multiplicador. Medir por parede exigiria o `clock_multiplier`
+        de cada trecho, e um ensaio com troca de multiplicador no meio teria dois.
+        """
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback(MOTIVO_ENSAIO, epoch=0, hora="12:20"),
+        )
+        [congelado] = congelamentos(escrituracao)
+
+        self.assertEqual(congelado.duracao, timedelta(minutes=200))
+
+    def test_o_ensaio_zera_a_metrica_medida_desde_t0(self):
+        """O efeito que a P6-4 existe para produzir, ponta a ponta."""
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback(MOTIVO_ENSAIO, epoch=0, hora="12:20"),
+        )
+        # Uma metrica marcada em 12:50, meia hora depois do fim do ensaio.
+        liquido = decorrido(em("09:00"), em("12:50"), congelamentos(escrituracao))
+
+        self.assertEqual(liquido, timedelta(minutes=30))
+
+    def test_epoch_descartada_que_nao_e_a_zero_comeca_no_rollback_anterior(self):
+        """A epoch N comeca onde a N-1 terminou, e nao em T0."""
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback("facilitation", epoch=0, hora="09:30"),
+            rollback(MOTIVO_ENSAIO, epoch=1, hora="10:00"),
+        )
+        self.assertEqual(congelamentos(escrituracao), (janela("09:30", "10:00"),))
+
+    def test_technical_failure_dentro_do_ensaio_e_absorvido_pela_uniao(self):
+        """A razao de os dois motivos entrarem na MESMA tabela.
+
+        Em caminhos paralelos, o trecho comum sairia duas vezes — que e
+        exatamente o defeito que T10 proibe ao exigir uniao em vez de soma.
+        """
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback(MOTIVO_FALHA_TECNICA, epoch=0, hora="09:20",
+                     congela=("09:10", "09:15")),
+            rollback(MOTIVO_ENSAIO, epoch=0, hora="09:40"),
+        )
+        self.assertEqual(congelamentos(escrituracao), (janela("09:00", "09:40"),))
+
+    def test_sem_ensaio_nenhum_o_desconto_nao_muda(self):
+        """O controle: o motivo novo nao pode descontar onde nao houve ensaio."""
+        escrituracao = (
+            evento(EXERCISE_STARTED, epoch=0, hora="09:00"),
+            rollback(MOTIVO_FALHA_TECNICA, epoch=0, hora="09:20",
+                     congela=("09:10", "09:15")),
+        )
+        self.assertEqual(congelamentos(escrituracao), (janela("09:10", "09:15"),))
 
 
 class OInsumoChegaInteiroEODescontoECalculo(unittest.TestCase):
