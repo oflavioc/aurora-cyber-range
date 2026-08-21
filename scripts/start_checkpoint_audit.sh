@@ -193,9 +193,28 @@ cd "$WT"
 # A metade que prova e `tests/test_procedencia_dos_pacotes.py`. Esta e a metade
 # que faz a prova passar: um venv proprio, com a arvore AUDITADA instalada.
 #
-# FORA DO WORKTREE, em `.aurora-worktrees/venv`: o worktree E o objeto da
-# auditoria, e um diretorio de 100 MB no meio dele apareceria em toda listagem
-# que o auditor fizesse. `.aurora-worktrees/` ja e ignorado pelo Git.
+# DENTRO DO WORKTREE, em `.aurora-audit/venv` — e isto INVERTE a decisao
+# anterior, que o punha em `.aurora-worktrees/venv`.
+#
+# A RAZAO DE ANTES CONTINUA VERDADEIRA, e por isso ela fica escrita: o worktree
+# E o objeto da auditoria, e um diretorio de 100 MB no meio dele aparece em
+# listagem. O que estava errado nao era a razao — era a conclusao.
+#
+# Venv descartavel dentro do worktree e INSTRUMENTO, e nao objeto auditado.
+# `git status` no worktree segue limpo (`.gitignore` cobre `.aurora-audit/`), e
+# o prefixo com ponto o tira do `ls` sem `-a`. O que se ganha em troca e o que
+# faltava: o interpretador passa a ser ALCANCAVEL pelo auditor.
+#
+# O B1 DA FASE 6, e ele e reincidencia por outra porta. `export PATH` nao chega
+# a ferramenta de Bash do auditor: ela nasce num shell novo a cada chamada,
+# inicializado pelo perfil, e `python` resolve para o interpretador da maquina —
+# medido. Com o venv aqui, a invocacao e por caminho relativo, que
+# `readonly_bash.py` admite em forma exata e que `_alvo_nao_contido` trata como
+# contido porque o cwd E o worktree.
+#
+# O `export PATH` ABAIXO CONTINUA, e nao e redundancia: ele serve ao proprio
+# lancador e a qualquer processo que ele inicie no mesmo shell. O que ele nao
+# faz — e agora esta dito — e atravessar para a ferramenta do auditor.
 #
 # RECRIADO A CADA RODADA. Venv reaproveitado carrega as dependencias do commit
 # ANTERIOR — a mesma classe de defeito que esta correcao existe para fechar,
@@ -209,7 +228,9 @@ cd "$WT"
 # decidiu ao recusar `gh` na allowlist do julgador: quem prepara o ambiente tem
 # rede, quem emite o veredito nao. Ver docs/process/WORKFLOW.md.
 # ---------------------------------------------------------------------------
-VENV="$ROOT/.aurora-worktrees/venv"
+INSTRUMENTOS="$WT/.aurora-audit"
+mkdir -p "$INSTRUMENTOS"
+VENV="$INSTRUMENTOS/venv"
 echo "Criando o venv da auditoria e instalando a arvore auditada (P3-4)..."
 rm -rf "$VENV"
 if ! python -m venv "$VENV" >/dev/null 2>&1; then
@@ -319,11 +340,16 @@ derruba_stack() {
 #      veredito falar de outra coisa; falha baixo o que faria o veredito dizer
 #      menos) — entao o caminho em que ela aparece e, sempre, o de seguir.
 #
-# O arquivo fica em `.aurora-worktrees/`, FORA do worktree e ja ignorado pelo
-# Git, pelo mesmo motivo do `pip.log` do venv: o worktree e o objeto da
-# auditoria, e um log dentro dele apareceria em toda listagem do auditor.
+# O arquivo fica em `.aurora-audit/`, DENTRO do worktree — invertido junto com o
+# venv, e pela mesma razao levada ate o fim: diagnostico FORA DO ALCANCE DE QUEM
+# DIAGNOSTICA e a mesma familia do defeito que o venv tinha.
+#
+# `_alvo_nao_contido` recusa leitura absoluta fora do worktree, entao um
+# `stack.log` em `.aurora-worktrees/` era um arquivo que o lancador escrevia
+# para o auditor ler e que o auditor nao podia ler. A mensagem de erro apontava
+# para ele, o que e pior que nao apontar para lugar nenhum.
 # ---------------------------------------------------------------------------
-STACK_LOG="$ROOT/.aurora-worktrees/stack.log"
+STACK_LOG="$INSTRUMENTOS/stack.log"
 rm -f "$STACK_LOG"
 
 diagnostica_stack() {
@@ -515,13 +541,13 @@ fi
 #
 # FALHA BAIXO, como as provas de container e ao contrario do venv: sem a medicao
 # os itens 1 e 2 voltam a NAO VERIFICADO, que e honesto. E a falha DIZ POR QUE —
-# `.aurora-worktrees/seed.log`, mesma decisao do `diagnostica_stack`: degradar e
+# `.aurora-audit/seed.log`, mesma decisao do `diagnostica_stack`: degradar e
 # decisao, degradar em silencio e defeito.
 # ---------------------------------------------------------------------------
 SEED_DB="aurora_seed"
 AURORA_SEED_DB="postgresql+psycopg://aurora_audit:efemero-da-auditoria@127.0.0.1:15432/$SEED_DB"
 SEED_RANDOM="20260818"
-SEED_LOG="$ROOT/.aurora-worktrees/seed.log"
+SEED_LOG="$INSTRUMENTOS/seed.log"
 MEDE_MOTIVO=""
 rm -f "$SEED_LOG"
 

@@ -25,6 +25,15 @@ build/
 .claude/agent-memory-local/
 .aurora-worktrees/
 
+# Instrumentos da auditoria, DENTRO do worktree — venv, pip.log, stack.log,
+# seed.log. O worktree e um checkout do commit candidato, entao sem esta linha
+# `git status` la dentro acusaria trabalho nao commitado que nao existe, e o
+# auditor leria sujeira onde ha instrumento.
+#
+# Venv descartavel dentro do objeto auditado e INSTRUMENTO e nao objeto: e o que
+# torna o interpretador do checkout alcancavel pelo auditor (B1 da Fase 6).
+.aurora-audit/
+
 # Runtime/generated artifacts
 # Estado do lancamento da auditoria: efemero, por maquina, e NAO pode ser
 # versionado — arquivo de estado versionado suja a arvore e bloqueia a
