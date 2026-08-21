@@ -1,33 +1,39 @@
 # Fase 6 — Objetivos, rubricas, métricas
 
-**Status: NÃO INICIADA** — sem branch, sem implementação e sem auditoria. Este
-registro existe apenas para abrigar as duas pendências abertas antes da fase,
-no `spec-change` `particao-das-metricas-pareadas`. A linha de status está aqui
-porque `check_readme_atual.py` decide *"a fase fechou?"* por ela, e registro sem
-status é registro que o verificador não consegue ler.
+**Status: EM ANDAMENTO** — peças 1 a 5 fechadas em código, peças 6 e 7 abertas,
+sem auditoria de checkpoint. A linha de status está aqui porque
+`check_readme_atual.py` decide *"a fase fechou?"* por ela, e registro sem status
+é registro que o verificador não consegue ler. `EM ANDAMENTO` não é uma das
+formas que aquele predicado conta como conclusão — `CONCLUÍDA` e `AUDITADA —
+PASS` são —, e é isso que se quer: a fase não fechou.
 
-**Registro em aberto.** A fase ainda não começou: não há branch, não há
-implementação e não há auditoria. Este arquivo existe antes dela por um motivo
-só — duas pendências nasceram no `spec-change` `particao-das-metricas-pareadas`,
-que é anterior à fase, e pendência sem lugar é pendência que ninguém encontra.
+> **A redação anterior desta linha dizia `NÃO INICIADA`**, e sobreviveu a cinco
+> peças. É exatamente a classe que o `check_progress_consistency.py` e o
+> `check_readme_atual.py` existem para caçar — documento que sobrevive à mudança
+> e a contradiz —, e ela passou porque os dois predicados perguntam *"a fase
+> fechou?"*, e `NÃO INICIADA` responde *"não"*, que continuava sendo verdade
+> sobre o fechamento enquanto era falso sobre o início. Corrigida na peça 5, com
+> a distinção registrada: **não fechou** e **não começou** não são a mesma
+> afirmação, e nenhum verificador olhava a segunda.
+
+**Por que este registro nasceu antes da fase.** Duas pendências vieram do
+`spec-change` `particao-das-metricas-pareadas`, que é anterior à fase, e
+pendência sem lugar é pendência que ninguém encontra.
 
 Registrá-las no `fase_5.md` seria pior: aquele registro está fechado e auditado,
 e acrescentar linha a um documento encerrado é reescrever história de uma fase
 que já passou. Elas não são achados da Fase 5; são consequências declaradas de
 uma mudança de norma feita entre as duas.
 
-O resto deste registro — decisões, seções de implementação, DoD com prova — é
-escrito pela fase, quando ela existir.
-
 ## 1. Plano da fase — sete peças
 
 | # | Peça | Estado |
 |---|---|---|
 | 1 | Biblioteca BARS: nove competências versionadas, contrato, integridade referencial | **fechada** |
-| 2 | Motor de objetivos: binding evento→objetivo na projeção, `objective_evidence` | |
-| 3 | `audit_query_performed` e as ações de declaração nos endpoints | |
-| 4 | Predicados de verificação e o motor que os avalia | **antes da 5** |
-| 5 | Métricas: os dois computadores, o insumo tipado, epoch como cálculo | **depois da 4** |
+| 2 | Motor de objetivos: binding evento→objetivo na projeção, `objective_evidence` | **fechada** |
+| 3 | `audit_query_performed` e as ações de declaração nos endpoints | **fechada** — blocos A e B |
+| 4 | Predicados de verificação e o motor que os avalia | **fechada** |
+| 5 | Métricas: os dois computadores, o insumo tipado, epoch como cálculo | **fechada** — §3 |
 | 6 | Calibração: Brier no escopo revisado, sinais, `TTIV` por limiar | |
 | 7 | Divergência entre avaliadores e a janela de asseguração prematura | |
 
@@ -209,6 +215,113 @@ instante de `TTID`, aplica o predicado de `03` §3.4 e marca **o evento que
 completa**. Declaração sem sucessor não produz `TTID`, e a janela sem
 contrassinatura vai para a `aar_timeline`, junto da janela de asseguração
 prematura — as duas são leitura do AAR e da mesma natureza.
+
+## 3. A peça 5 — as métricas
+
+Oito unidades, cada uma commitada e empurrada em verde. O que segue é o que a
+auditoria precisa achar sem reconstruir a cadeia por leitura.
+
+### 3.1 O que foi entregue, por unidade
+
+| # | Unidade | O que fecha |
+|---|---|---|
+| 1 | payload de `inject_fired` | **P6-2**, ramo (b): `observable_impact` derivado na carga, carimbado no disparo |
+| 2 | `metrics/insumo.py` | a partição de `00` §3.2 — tipos próprios, ponto único de montagem, escalares no insumo |
+| 3 | `scripts/check_insumo_de_metrica.py` | a exigência **(3)** de §3.2, que era leitura e virou gate |
+| 4 | `metrics/epoch.py` | epoch como cálculo do consumidor: união, `rehearsal`, e os outros dois motivos |
+| 5 | `metrics/verificacao.py` | `TTCV` e `TTRV` |
+| 6 | `metrics/declaracao.py` + `declarations/contrassinatura.py` | as seis siglas deste lado, e a cláusula herdada do `TTID` |
+| 7 | `tests/test_derivacao_das_nove_siglas.py` | a derivação de `03` §3.0 contra o critério de `00` §3.2 |
+| 8 | `LacoDeVerificacao` no `inject-engine` | o laço contínuo de `03` §3.1 — a fronteira que a peça 4 declarou |
+
+### 3.2 As decisões que a peça 5 tomou
+
+**A exigência (3) de `00` §3.2 não tinha mecanismo, e o docstring a afirmava.**
+A §3.2 lista quatro exigências de verificação. A (4) já estava em
+`contract_rules.py`; a (1) e a (2) são propriedades do módulo. A **(3)** —
+*"o construtor aparece só ali"* — exige checagem de superfície, e não existia:
+medido, nada em `scripts/` ou `tools/` citava os três tipos.
+
+A primeira redação do módulo a descrevia no presente. **Afirmação de mecanismo
+ausente é a classe da D19** — a casca do console que "tinha teste de vazamento"
+quando o que havia era a direção inversa. O verificador nasceu na unidade
+seguinte, e o docstring nomeou a ausência enquanto ela durou.
+
+**`Medida` é tipo compartilhado pelos dois lados, e isso não fura a partição.**
+`00` §3.2 particiona **insumo**, não resultado: um tipo de saída não carrega
+evento nenhum. E o AAR recebe as duas metades de cada par para computar o delta
+— dois formatos o fariam reconciliar antes de subtrair, e é ali que um
+`desde_t0` de um lado viraria um `decorrido` do outro.
+
+**O predicado de contrassinatura virou módulo, e o emissor foi refatorado.**
+`03` §3.4 manda o **consumidor** aplicá-lo. Escrito duas vezes seria D4, e a
+divergência apareceria como `TTID` marcado num par que a emissão recusou. O que
+ficou no emissor é a **mensagem**, porque `06` T2 exige que a recusa nomeie o
+motivo e um predicado booleano o obrigaria a redescobri-lo.
+
+**`09` §3.1 tem quatro linhas, e só duas tinham mecanismo.** `06` T10 nomeia
+`technical_failure` e `rehearsal`. `facilitation` e `adjudication` são norma viva
+— *"métricas recomputadas a partir da nova epoch"* — e estavam sem código.
+
+A assimetria da quarta é o achado: **`technical_failure` não descarta epoch
+nenhuma.** A linha diz *"relógio congelado"* e *"a equipe não é penalizada por
+bug do ambiente"*, e descartar as declarações anteriores penalizaria exatamente
+por isso — obrigaria a redeclarar. Só o tempo é descontado.
+
+**T0 não é a marca do `exercise_started`.** O evento é gravado alguns instantes
+depois do zero, e usar a marca dele embutiria a latência de emissão em toda
+métrica do exercício, sem nada acusar. `01` §4.4 dá a identidade que o recupera:
+`exercise_timestamp == T0 + exercise_time`. Foi o teste de T0 que pegou.
+
+### 3.3 Fronteiras declaradas — o que a peça 5 **não** entregou
+
+**`TTIV` é da peça 6.** É a única das nove siglas sem computador, e o plano da
+fase a nomeia por extenso na peça 6. Os escalares dela — `limiar_de_calibracao`
+e `defensibilidade` — **já chegam no insumo**, porque `00` §3.2 exige que cheguem
+como dado e não por consulta ao pack.
+
+A fronteira é **cobrada e não declarada**:
+`test_a_unica_sigla_sem_computador_e_ttiv_e_ela_e_da_peca_6` reprova no dia em
+que ela for cruzada.
+
+**`not_applicable` não é distinguido de "não verificado".** Daqui os dois são
+ausência de veredito, e a distinção exige o pack — o banido de `00` §3.2. Não se
+inventou campo de insumo para ela: enumerar vocabulário antes de o consumidor
+existir é prever o módulo, que é a razão pela qual `check_store_read_surface.py`
+esperou a API existir. Quem imprime *"TTRV não aplicável"* é o AAR.
+
+**O laço não alcança ações de participante, e a ausência é estrutural.** Medido:
+`vpn_access_revoked` e `identity_scope_disabled` — as folhas de `containment` no
+exemplo normativo de `03` §3.1 — **não são emitidos por nada na árvore**. A
+superfície das três ações com efeito no mundo (`01` §4.4) é de outra fase.
+
+E o `Emissor` das nove declarações não pode movê-las: por `09` §4.0, folha de
+predicado exige `state_effect` **e** `metric_side: verification`, e nenhuma das
+nove satisfaz a conjunção. A ligação seria no-op **por construção**, e há teste
+calculando a conjunção sobre o catálogo real — com o controle que impede o caso
+vazio de passar.
+
+> Uma versão anterior deste commit ligava o laço ao `Emissor`, com um comentário
+> que afirmava que aquela superfície emitia as folhas. Era falso, e a medição o
+> desfez. Fica registrado porque é a mesma disciplina que o resto da fase aplica
+> à spec: medir antes de afirmar.
+
+**O delta entre as duas metades é do `aar_timeline`.** Os computadores marcam
+instantes e entregam o decorrido desde T0 já descontado. `00` §3.2 põe o delta
+no AAR por nome, e é a mesma colocação da janela de asseguração prematura.
+
+### 3.4 Prova negativa das unidades
+
+Verificador tem `_probes.py`; **computador tem violação plantada na
+implementação**, fora da árvore, e o número de testes vermelhos é a medida:
+
+| Unidade | Violações plantadas | Reprovadas |
+|---|---|---|
+| `check_insumo_de_metrica` | 6, mais o positivo do consumidor que só anota | 6 |
+| `metrics/epoch.py` | 2 — união virando soma, `rehearsal` sem descarte | 2 |
+| `metrics/verificacao.py` | 4 — linhagem, T0 ingênuo, `rehearsal`, desconto | 4 |
+| `metrics/declaracao.py` | 5 — `TTID` no primeiro, `TTID` sem predicado, última declaração, qualquer inject, reinício de epoch | 5 |
+| derivação das nove siglas | 5, plantadas **na tabela**, em cópia da spec | 5 |
 
 ## 6. Pendências
 
