@@ -41,6 +41,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from contracts.generated.events import INTEGRITY_VALIDATION_DECLARED
+from range_core.declarations.contrassinatura import (
+    ABERTURA_INVALIDA,
+    CADEIA_DE_TRES,
+    JA_COMPLETADO,
+    MESMA_CREDENCIAL,
+    ORDEM_INVALIDA,
+    PERSONA_QUE_CONTRASSINA,
+    PERSONA_QUE_DECLARA_INTEGRIDADE,
+    SEM_ANTECEDENTE,
+    antecedente_de,
+    violacao,
+)
 from range_core.events.envelope import Correlation, Event
 from range_core.events.store import EventDraft, EventStore
 
@@ -50,11 +62,44 @@ CAMADA = "participant_action"
 #: `09` §1.1 — quem produziu.
 PRODUTOR = "participant-api"
 
-#: A ordem FIXA de `03` §3.4: Pró-Reitoria declara, TI contrassina. A competência
-#: não é simétrica — validar integridade de dado acadêmico é juízo da
-#: Pró-Reitoria, e a contrassinatura de TI é a corroboração técnica.
-PERSONA_QUE_DECLARA_INTEGRIDADE = "pro_reitoria"
-PERSONA_QUE_CONTRASSINA = "ti"
+#: AS MENSAGENS DE RECUSA, uma por condição de `03` §3.4.
+#:
+#: O predicado é compartilhado com o computador de `TTID`; o texto é desta
+#: superfície, porque é aqui que alguém tem uma requisição na mão e precisa saber
+#: o que corrigir. `06` T2 fixa a forma: nomear o quê e o porquê.
+RECUSAS = {
+    ABERTURA_INVALIDA: lambda persona, _antecedente: (
+        f"persona {persona!r} nao abre a validacao de integridade.\n"
+        f"    `03` §3.4: {PERSONA_QUE_DECLARA_INTEGRIDADE!r} declara e "
+        f"{PERSONA_QUE_CONTRASSINA!r} contrassina, em ordem FIXA. A "
+        "competencia nao e simetrica."
+    ),
+    SEM_ANTECEDENTE: lambda _persona, _antecedente: (
+        "contrassinatura sem antecedente: `causation_id` nao aponta para uma "
+        "declaracao de integridade anterior.\n"
+        "    `causation_id` que nao aponta para uma delas nao grava."
+    ),
+    CADEIA_DE_TRES: lambda _persona, _antecedente: (
+        "o antecedente ja e uma contrassinatura.\n"
+        "    O par tem duas maos, e nao tres."
+    ),
+    ORDEM_INVALIDA: lambda persona, antecedente: (
+        f"ordem invalida: {antecedente.persona!r} -> {persona!r}.\n"
+        f"    `03` §3.4 fixa {PERSONA_QUE_DECLARA_INTEGRIDADE!r} -> "
+        f"{PERSONA_QUE_CONTRASSINA!r}."
+    ),
+    MESMA_CREDENCIAL: lambda _persona, _antecedente: (
+        "autocontrassinatura: a mesma credencial assinou as duas maos.\n"
+        "    `actor_id` identifica credencial. Dualidade humana e "
+        "controle fisico da facilitacao, na distribuicao das sete."
+    ),
+    JA_COMPLETADO: lambda _persona, _antecedente: (
+        "o antecedente ja foi completado.\n"
+        "    O par tem duas maos e um fechamento. Sem esta recusa, duas "
+        "contrassinaturas sobre a mesma declaracao satisfariam as quatro "
+        "condicoes e o computador de TTID escolheria sozinho qual marca."
+    ),
+}
 
 
 class EmissaoRecusada(Exception):
@@ -133,63 +178,31 @@ class Emissor:
         ordem é fixa porque a competência não é simétrica. TI abrindo o par
         declararia integridade de dado acadêmico, que não é competência dela.
         """
+        # O PREDICADO É COMPARTILHADO, E AS MENSAGENS SÃO DAQUI.
+        #
+        # As quatro condições vivem em `range-core/declarations/contrassinatura.py`
+        # porque têm DOIS consumidores: esta recusa de emissão e o computador de
+        # `TTID`, que `03` §3.4 manda aplicar o mesmo predicado para escolher qual
+        # evento marca. Escritas nos dois lugares seriam a classe D4, e a
+        # divergência apareceria como `TTID` marcado num par que esta função
+        # recusou — ou ausente num par que ela gravou.
+        #
+        # O que fica aqui é a MENSAGEM, e é o que a separação preserva: `06` T2
+        # exige que a recusa nomeie o motivo, e um predicado booleano obrigaria
+        # esta função a redescobri-lo.
         anteriores = self._integridades()
-
-        if causation_id is None:
-            if persona != PERSONA_QUE_DECLARA_INTEGRIDADE:
-                raise EmissaoRecusada(
-                    f"persona {persona!r} nao abre a validacao de integridade.\n"
-                    f"    `03` §3.4: {PERSONA_QUE_DECLARA_INTEGRIDADE!r} declara e "
-                    f"{PERSONA_QUE_CONTRASSINA!r} contrassina, em ordem FIXA. A "
-                    "competencia nao e simetrica."
-                )
+        condicao = violacao(
+            persona=persona,
+            actor_id=actor_id,
+            causation_id=causation_id,
+            anteriores=anteriores,
+        )
+        if condicao is None:
             return
 
-        # (1) CONTRASSINATURA SEM ANTECEDENTE.
-        antecedente = next(
-            (e for e in anteriores if e.event_id == causation_id), None
+        antecedente = (
+            antecedente_de(causation_id, anteriores)
+            if causation_id is not None
+            else None
         )
-        if antecedente is None:
-            raise EmissaoRecusada(
-                f"contrassinatura sem antecedente: {causation_id!r} nao e uma "
-                "declaracao de integridade anterior.\n"
-                "    `causation_id` que nao aponta para uma delas nao grava."
-            )
-
-        # (3) O ANTECEDENTE NAO PODE SER, ELE PROPRIO, UM SEGUNDO — o par tem
-        # duas maos, e nao tres.
-        if antecedente.correlation.causation_id is not None:
-            raise EmissaoRecusada(
-                "o antecedente ja e uma contrassinatura.\n"
-                "    O par tem duas maos, e nao tres."
-            )
-
-        # (2) AUTOCONTRASSINATURA — por persona fora da ordem, ou por reuso de
-        # credencial. As duas metades, porque a primeira nao cobre a segunda: um
-        # operador com duas credenciais satisfaria as personas e assinaria
-        # sozinho. `actor_id` identifica CREDENCIAL, e nao humano — ver
-        # `docs/progress/fase_6.md`.
-        if (
-            antecedente.persona != PERSONA_QUE_DECLARA_INTEGRIDADE
-            or persona != PERSONA_QUE_CONTRASSINA
-        ):
-            raise EmissaoRecusada(
-                f"ordem invalida: {antecedente.persona!r} -> {persona!r}.\n"
-                f"    `03` §3.4 fixa {PERSONA_QUE_DECLARA_INTEGRIDADE!r} -> "
-                f"{PERSONA_QUE_CONTRASSINA!r}."
-            )
-        if antecedente.actor_id == actor_id:
-            raise EmissaoRecusada(
-                "autocontrassinatura: a mesma credencial assinou as duas maos.\n"
-                "    `actor_id` identifica credencial. Dualidade humana e "
-                "controle fisico da facilitacao, na distribuicao das sete."
-            )
-
-        # (4) ANTECEDENTE JA COMPLETADO — o par tem duas maos e UM fechamento.
-        if any(e.correlation.causation_id == causation_id for e in anteriores):
-            raise EmissaoRecusada(
-                "o antecedente ja foi completado.\n"
-                "    O par tem duas maos e um fechamento. Sem esta recusa, duas "
-                "contrassinaturas sobre a mesma declaracao satisfariam as quatro "
-                "condicoes e o computador de TTID escolheria sozinho qual marca."
-            )
+        raise EmissaoRecusada(RECUSAS[condicao](persona, antecedente))

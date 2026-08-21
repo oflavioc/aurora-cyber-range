@@ -64,15 +64,10 @@ ele recebe daqui e `NAO_VERIFICADA`, que e verdade sobre o insumo deste lado.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from contracts.generated.events import (
-    EXERCISE_STARTED,
-    VERIFICATION_PREDICATE_SATISFIED,
-)
+from contracts.generated.events import VERIFICATION_PREDICATE_SATISFIED
 
-from range_core.clock.exercise_clock import label_seconds
 from range_core.events.epoch import current_epoch
 from range_core.metrics.epoch import (
     Congelamento,
@@ -80,9 +75,11 @@ from range_core.metrics.epoch import (
     decorrido,
     epochs_descartadas,
     instante,
+    marco_zero,
     no_calculo,
 )
-from range_core.metrics.insumo import EscrituracaoDeEpoch, InsumoDeVerificacao
+from range_core.metrics.insumo import InsumoDeVerificacao
+from range_core.metrics.medida import Medida, nao_marcada
 
 #: A chave do payload de `verification_predicate_satisfied`. O valor e o nome do
 #: predicado em `ground_truth.yaml`, e o emissor e
@@ -104,68 +101,13 @@ SIGLA_POR_PREDICADO: dict[str, str] = {
 }
 
 
-class SemMarcoZero(ValueError):
-    """Nao ha `exercise_started` em calculo, e T0 nao pode ser derivado.
-
-    Alcancavel, e nao teorico: um rollback `rehearsal` na epoch 0 descarta a
-    epoch que contem o `exercise_started` — que e exatamente o caso de uso do
-    motivo, o ensaio que se joga fora. Ver a P6-4 no registro da fase.
-
-    Levanta em vez de devolver `None`: T0 ausente faria todo `desde_t0` virar
-    nulo, e o AAR imprimiria ausencia de medicao onde houve medicao.
-    """
-
-
-@dataclass(frozen=True)
-class Medida:
-    """Um instante marcado, com o decorrido desde T0 ja descontado.
-
-    `instante is None` e `NAO VERIFICADA` — nao ha veredito na linhagem
-    corrente. Nao e zero, e nao e `not_applicable`: ver o cabecalho.
-    """
-
-    sigla: str
-    instante: datetime | None
-    desde_t0: timedelta | None
-
-    @property
-    def verificada(self) -> bool:
-        return self.instante is not None
-
-
-def marco_zero(escrituracao: EscrituracaoDeEpoch) -> datetime:
-    """T0 — o zero do relogio de exercicio, RECUPERADO do `exercise_started`.
-
-    **NAO e o `exercise_timestamp` do evento.** `01` §3 poe T0 na mao do
-    facilitador, e o evento e gravado alguns instantes depois; usar a marca dele
-    como zero embutiria a latencia de emissao em toda metrica do exercicio, sem
-    nada acusar. Medido: foi o que a primeira versao desta funcao fazia, e o
-    teste de T0 a pegou.
-
-    `01` §4.4 da a identidade que o recupera exatamente —
-    `exercise_timestamp == T0 + exercise_time` —, entao T0 e a marca MENOS o
-    rotulo. Quem le o rotulo e `label_seconds`, do proprio relogio: o formato
-    `T+HH:MM:SS` tem um dono so, e uma segunda leitura aqui seria a classe D4.
-
-    A identidade vale na epoch unica, que e onde este evento vive:
-    `exercise_time` rebobina no rollback e `exercise_timestamp` nao, mas o
-    `exercise_started` que abre o exercicio e anterior a qualquer rollback.
-
-    O PRIMEIRO em calculo, e nao o primeiro do fluxo: epoch descartada por
-    `rehearsal` nao entra em calculo, e `09` §3.1 nao abre excecao por especie.
-    """
-    descartadas = epochs_descartadas(escrituracao)
-    for evento in no_calculo(escrituracao, descartadas):
-        if evento.event_type == EXERCISE_STARTED:
-            return instante(evento) - timedelta(
-                seconds=label_seconds(evento.exercise_time)
-            )
-    raise SemMarcoZero(
-        "nenhum `exercise_started` em calculo: T0 nao pode ser derivado. "
-        "Acontece quando a epoch que o contem foi descartada por `rehearsal`, "
-        "e a decisao — de onde vem T0 depois de um ensaio descartado — e "
-        "normativa, nao de implementacao. Ver a P6-4 no registro da Fase 6."
-    )
+#: A FORMA DO RESULTADO E COMPARTILHADA com o computador da declaracao —
+#: `range-core/metrics/medida.py` diz por que. A particao de `00` §3.2 e sobre
+#: INSUMO: um tipo de saida comum nao abre caminho para um lado ler o outro,
+#: porque ele nao carrega evento nenhum.
+#:
+#: `inicio` e T0 nas metricas deste lado: `03` §3 nao lhes da coluna de start, e
+#: a redacao-alvo do AAR em §3.2 as imprime em `T+`.
 
 
 def computa(insumo: InsumoDeVerificacao) -> tuple[Medida, ...]:
@@ -210,10 +152,11 @@ def _medida(
     sigla: str, veredito, t_zero: datetime, congelados: tuple[Congelamento, ...]
 ) -> Medida:
     if veredito is None:
-        return Medida(sigla=sigla, instante=None, desde_t0=None)
+        return nao_marcada(sigla)
     marcado = instante(veredito)
     return Medida(
         sigla=sigla,
-        instante=marcado,
-        desde_t0=decorrido(t_zero, marcado, congelados),
+        inicio=t_zero,
+        fim=marcado,
+        decorrido=decorrido(t_zero, marcado, congelados),
     )

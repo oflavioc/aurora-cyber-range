@@ -143,6 +143,14 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "O `reason` NAO vem daqui — e valor de payload, e o enum dele fica em "
         "`events.schema.yaml`, cruzado por teste em `tests/test_metrics_epoch.py`",
     ),
+    "metrics/declaracao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — o computador do lado da declaracao acha os starts e stops "
+        "de `03` §3 por `event_type`: `inject_fired`, `incident_declared`, as "
+        "duas submissoes que fecham `TTCM`, e as tres declaracoes de par. E "
+        "LEITURA do catalogo, e o insumo de `00` §3.2 nao tem por onde um store "
+        "entrar",
+    ),
     "metrics/verificacao.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — o computador do lado da verificacao acha o veredito pelo "
