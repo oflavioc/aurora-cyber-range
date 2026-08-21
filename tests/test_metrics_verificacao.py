@@ -33,16 +33,19 @@ from contracts.generated.events import (
 from range_core.clock.exercise_clock import ExerciseClock
 from range_core.events.envelope import Correlation
 from range_core.events.store import EventDraft, InMemoryEventStore
-from range_core.metrics.epoch import MOTIVO_ENSAIO, MOTIVO_FALHA_TECNICA
+from range_core.metrics.epoch import (
+    MOTIVO_ENSAIO,
+    MOTIVO_FALHA_TECNICA,
+    SemMarcoZero,
+    marco_zero,
+)
 from range_core.metrics.insumo import monta
 from range_core.metrics.verificacao import (
     NOME_DO_PREDICADO,
     PREDICADO_CONTENCAO,
     PREDICADO_RESTAURACAO,
     SIGLA_POR_PREDICADO,
-    SemMarcoZero,
     computa,
-    marco_zero,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -120,34 +123,34 @@ class MarcaOsDoisInstantes(_ComExercicio):
         veredito = self.satisfaz(PREDICADO_CONTENCAO)
         ttcv = self.medidas()["TTCV"]
 
-        self.assertTrue(ttcv.verificada)
-        self.assertEqual(ttcv.instante, datetime.fromisoformat(veredito.exercise_timestamp))
+        self.assertTrue(ttcv.marcada)
+        self.assertEqual(ttcv.fim, datetime.fromisoformat(veredito.exercise_timestamp))
 
     def test_restauracao_verificada_marca_ttrv(self):
         self.satisfaz(PREDICADO_RESTAURACAO)
-        self.assertTrue(self.medidas()["TTRV"].verificada)
+        self.assertTrue(self.medidas()["TTRV"].marcada)
 
     def test_um_predicado_nao_arrasta_o_outro(self):
         self.satisfaz(PREDICADO_CONTENCAO)
         medidas = self.medidas()
 
-        self.assertTrue(medidas["TTCV"].verificada)
-        self.assertFalse(medidas["TTRV"].verificada)
+        self.assertTrue(medidas["TTCV"].marcada)
+        self.assertFalse(medidas["TTRV"].marcada)
 
     def test_sem_veredito_a_medida_e_nao_verificada_e_nao_zero(self):
         """Zero pareceria medicao. `None` diz que nao houve veredito."""
         for sigla, medida in self.medidas().items():
             with self.subTest(sigla=sigla):
-                self.assertFalse(medida.verificada)
-                self.assertIsNone(medida.instante)
-                self.assertIsNone(medida.desde_t0)
-                self.assertNotEqual(medida.desde_t0, timedelta())
+                self.assertFalse(medida.marcada)
+                self.assertIsNone(medida.fim)
+                self.assertIsNone(medida.decorrido)
+                self.assertNotEqual(medida.decorrido, timedelta())
 
     def test_o_decorrido_e_medido_desde_t0(self):
         veredito = self.satisfaz(PREDICADO_CONTENCAO)
         esperado = datetime.fromisoformat(veredito.exercise_timestamp) - self.t_zero
 
-        self.assertEqual(self.medidas()["TTCV"].desde_t0, esperado)
+        self.assertEqual(self.medidas()["TTCV"].decorrido, esperado)
 
     def test_as_duas_siglas_saem_sempre_as_duas(self):
         """Metrica que some do AAR e pior que metrica ausente — `03` §3.0."""
@@ -170,7 +173,7 @@ class NaoAlcancaOLadoDaDeclaracao(_ComExercicio):
     def test_a_declaracao_nao_move_o_veredito(self):
         """Declarar contencao nao verifica contencao — `06` T10, segundo criterio."""
         self.grava(CONTAINMENT_DECLARED, "participant_action")
-        self.assertFalse(self.medidas()["TTCV"].verificada)
+        self.assertFalse(self.medidas()["TTCV"].marcada)
 
     def test_a_acao_com_efeito_no_mundo_chega_e_a_afirmacao_nao(self):
         """`03` §3.1: `vpn_access_revoked` e acao com efeito, e e deste lado."""
@@ -189,7 +192,7 @@ class SoALinhagemCorrenteSustenta(_ComExercicio):
         self.satisfaz(PREDICADO_CONTENCAO)
         self.rollback("facilitation")
 
-        self.assertFalse(self.medidas()["TTCV"].verificada)
+        self.assertFalse(self.medidas()["TTCV"].marcada)
 
     def test_o_veredito_abandonado_continua_legivel_no_fluxo(self):
         """`01` §4.1 — ele nao some; o que ele nao faz e sustentar a metrica."""
@@ -206,9 +209,9 @@ class SoALinhagemCorrenteSustenta(_ComExercicio):
         reemitido = self.satisfaz(PREDICADO_CONTENCAO)
         ttcv = self.medidas()["TTCV"]
 
-        self.assertTrue(ttcv.verificada)
+        self.assertTrue(ttcv.marcada)
         self.assertEqual(
-            ttcv.instante, datetime.fromisoformat(reemitido.exercise_timestamp)
+            ttcv.fim, datetime.fromisoformat(reemitido.exercise_timestamp)
         )
 
 
@@ -231,7 +234,7 @@ class EpochAtravessaAteONumero(_ComExercicio):
         veredito = self.satisfaz(PREDICADO_CONTENCAO)
         bruto = datetime.fromisoformat(veredito.exercise_timestamp) - self.t_zero
 
-        self.assertEqual(self.medidas()["TTCV"].desde_t0, bruto)
+        self.assertEqual(self.medidas()["TTCV"].decorrido, bruto)
 
     def test_congelamento_com_duracao_encurta_o_decorrido_pela_medida_exata(self):
         """O intervalo sai de marcas REAIS do fluxo, e nao de segundos chutados.
@@ -245,7 +248,7 @@ class EpochAtravessaAteONumero(_ComExercicio):
         veredito = self.satisfaz(PREDICADO_CONTENCAO)
         bruto = datetime.fromisoformat(veredito.exercise_timestamp) - self.t_zero
 
-        descontado = self.medidas()["TTCV"].desde_t0
+        descontado = self.medidas()["TTCV"].decorrido
         self.assertLess(descontado, bruto)
         self.assertEqual(descontado, bruto - congelado)
 
@@ -265,7 +268,7 @@ class EpochAtravessaAteONumero(_ComExercicio):
         self.rollback(MOTIVO_ENSAIO)
         self.comeca()
 
-        self.assertFalse(self.medidas()["TTCV"].verificada)
+        self.assertFalse(self.medidas()["TTCV"].marcada)
 
 
 class MarcoZero(_ComExercicio):

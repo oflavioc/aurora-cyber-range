@@ -60,9 +60,11 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from contracts.generated.events import ROLLBACK_PERFORMED
+from contracts.generated.events import EXERCISE_STARTED, ROLLBACK_PERFORMED
 
+from range_core.clock.exercise_clock import label_seconds
 from range_core.events.envelope import Event
+from range_core.events.epoch import current_epoch
 from range_core.metrics.insumo import EscrituracaoDeEpoch
 
 #: Os dois `reason` que produzem efeito de metrica. O enum completo vive em
@@ -72,6 +74,15 @@ from range_core.metrics.insumo import EscrituracaoDeEpoch
 #: sumir.
 MOTIVO_FALHA_TECNICA = "technical_failure"
 MOTIVO_ENSAIO = "rehearsal"
+MOTIVO_FACILITACAO = "facilitation"
+MOTIVO_ADJUDICACAO = "adjudication"
+
+#: OS MOTIVOS QUE REINICIAM A CONTAGEM DE EVENTOS. `09` §3.1 diz das duas linhas
+#: a mesma coisa com palavras diferentes — *"metricas recomputadas a partir da
+#: nova epoch, com nota"* e *"metricas da nova epoch, com registro do motivo da
+#: anulacao"*. As epochs ate a do rollback saem do calculo; a nota e o registro
+#: sao do AAR.
+MOTIVOS_QUE_REINICIAM = frozenset({MOTIVO_FACILITACAO, MOTIVO_ADJUDICACAO})
 
 
 class JanelaInvertida(ValueError):
@@ -80,6 +91,18 @@ class JanelaInvertida(ValueError):
     `exercise_timestamp` nao rebobina — e a razao de ele existir —, entao uma
     janela invertida so nasce de start e stop trocados no computador. Devolver
     zero ou um negativo esconderia isso dentro de um numero que o AAR imprime.
+    """
+
+
+class SemMarcoZero(ValueError):
+    """Nao ha `exercise_started` em calculo, e T0 nao pode ser derivado.
+
+    Alcancavel, e nao teorico: um rollback `rehearsal` na epoch 0 descarta a
+    epoch que contem o `exercise_started` — que e exatamente o caso de uso do
+    motivo, o ensaio que se joga fora. Ver a P6-4 no registro da fase.
+
+    Levanta em vez de devolver `None`: T0 ausente faria todo `desde_t0` virar
+    nulo, e o AAR imprimiria ausencia de medicao onde houve medicao.
     """
 
 
@@ -128,6 +151,52 @@ def no_calculo(
     montador teria de recortar por ele.
     """
     return tuple(e for e in eventos if e.simulation_epoch not in descartadas)
+
+
+def epochs_em_calculo(escrituracao: EscrituracaoDeEpoch) -> frozenset[int]:
+    """As epochs cujos eventos contam para as metricas — os QUATRO motivos.
+
+    `09` §3.1 da a cada `reason` um efeito proprio sobre as metricas, e os quatro
+    sao diferentes. Implementar so os dois que `06` T10 nomeia deixaria os outros
+    dois sem mecanismo, e eles sao norma viva:
+
+    - `rehearsal` — *"nenhum evento da epoch entra em calculo"*: a epoch sai;
+    - `facilitation` e `adjudication` — *"metricas recomputadas a partir da nova
+      epoch"*: tudo ate a epoch do rollback sai;
+    - `technical_failure` — a linha NAO manda descartar epoch nenhuma. Ela diz
+      *"relogio congelado"* e *"a equipe nao e penalizada por bug do ambiente"*, e
+      descartar as declaracoes anteriores penalizaria exatamente por isso: a
+      equipe teria de redeclarar o que ja declarara. So o TEMPO e descontado.
+
+    A assimetria entre os tres primeiros e o quarto e a informacao que a linha
+    *"o que difere entre eles e o que o consumidor de metrica faz com as epochs"*
+    carrega — e este e o consumidor.
+    """
+    corrente = current_epoch(escrituracao)
+    descartadas = epochs_descartadas(escrituracao)
+
+    piso = 0
+    for evento in escrituracao:
+        if (
+            evento.event_type == ROLLBACK_PERFORMED
+            and evento.payload.get("reason") in MOTIVOS_QUE_REINICIAM
+        ):
+            piso = max(piso, evento.simulation_epoch + 1)
+
+    return frozenset(
+        n for n in range(corrente + 1) if n >= piso and n not in descartadas
+    )
+
+
+def apenas(eventos: Sequence[Event], epochs: frozenset[int]) -> tuple[Event, ...]:
+    """Os eventos cujas epochs contam. O par de `epochs_em_calculo`.
+
+    Separado de `no_calculo` de proposito: aquele responde *"esta epoch foi
+    descartada?"*, e este *"esta epoch conta?"*. Sao perguntas diferentes desde
+    que `facilitation` entrou, e uma funcao so com dois sentidos e onde o
+    proximo leitor erra.
+    """
+    return tuple(e for e in eventos if e.simulation_epoch in epochs)
 
 
 def congelamentos(escrituracao: EscrituracaoDeEpoch) -> tuple[Congelamento, ...]:
@@ -225,4 +294,39 @@ def _intervalo(evento: Event) -> Congelamento:
     return Congelamento(
         inicio=datetime.fromisoformat(bruto["start"]),
         fim=datetime.fromisoformat(bruto["end"]),
+    )
+
+
+def marco_zero(escrituracao: EscrituracaoDeEpoch) -> datetime:
+    """T0 — o zero do relogio de exercicio, RECUPERADO do `exercise_started`.
+
+    **NAO e o `exercise_timestamp` do evento.** `01` §3 poe T0 na mao do
+    facilitador, e o evento e gravado alguns instantes depois; usar a marca dele
+    como zero embutiria a latencia de emissao em toda metrica do exercicio, sem
+    nada acusar. Medido: foi o que a primeira versao desta funcao fazia, e o
+    teste de T0 a pegou.
+
+    `01` §4.4 da a identidade que o recupera exatamente —
+    `exercise_timestamp == T0 + exercise_time` —, entao T0 e a marca MENOS o
+    rotulo. Quem le o rotulo e `label_seconds`, do proprio relogio: o formato
+    `T+HH:MM:SS` tem um dono so, e uma segunda leitura aqui seria a classe D4.
+
+    A identidade vale na epoch unica, que e onde este evento vive:
+    `exercise_time` rebobina no rollback e `exercise_timestamp` nao, mas o
+    `exercise_started` que abre o exercicio e anterior a qualquer rollback.
+
+    O PRIMEIRO em calculo, e nao o primeiro do fluxo: epoch descartada por
+    `rehearsal` nao entra em calculo, e `09` §3.1 nao abre excecao por especie.
+    """
+    descartadas = epochs_descartadas(escrituracao)
+    for evento in no_calculo(escrituracao, descartadas):
+        if evento.event_type == EXERCISE_STARTED:
+            return instante(evento) - timedelta(
+                seconds=label_seconds(evento.exercise_time)
+            )
+    raise SemMarcoZero(
+        "nenhum `exercise_started` em calculo: T0 nao pode ser derivado. "
+        "Acontece quando a epoch que o contem foi descartada por `rehearsal`, "
+        "e a decisao — de onde vem T0 depois de um ensaio descartado — e "
+        "normativa, nao de implementacao. Ver a P6-4 no registro da Fase 6."
     )
