@@ -36,10 +36,24 @@ inexistente passaria — e essa e a falha que `04` §6.2 chama de mais cara
 possivel. Ler para registro nao e validar, e a distincao esta dita porque a
 confusao entre as duas e o que faria alguem marcar a Fase 6 como adiantada.
 
-**Nao verificados aqui, e cada um tem fase com item de DoD proprio:**
-`verification_predicates` obrigatorios (Fase 6, T10), rubrica ausente ou em
-versao divergente (Fase 6, T9), politica de branch e reconvergencia (Fase 7,
-T12), migracao de `schema_version` N-1 (Fase 7).
+**O QUE A FASE 6 FECHOU AQUI**, e esta linha foi reescrita porque a anterior
+descrevia como pendente o que a propria fase entregou — M2 da auditoria:
+
+- **rubrica ausente ou em versao divergente** (T9): `x-aurora-ref: rubric_library`
+  em `scenario.schema.v2.yaml`, resolvido em `_verify_rules`, com dois testes;
+- **`verification_predicates` obrigatorios** (T10): `ground_truth.yaml` entrou em
+  `x-aurora-documents` e passa a ser validado contra o contrato dele, e
+  `required_for_complete_pack` virou codigo em `_verify_completude` — B1 da mesma
+  auditoria.
+
+**Nao verificados aqui**, e cada um tem fase com item de DoD proprio: politica de
+branch e reconvergencia (Fase 7, T12), migracao de `schema_version` N-1 (Fase 7).
+
+> A redacao anterior dizia que os dois primeiros nao eram verificados aqui, e
+> ficou FALSA dentro do modulo que a fase alterou — a metade da rubrica havia
+> sido implementada nesta mesma fase. E a classe da §1.6 do registro da Fase 1:
+> afirmacao que nasce verdadeira e envelhece com a entrega. O modo de corrigir e
+> este — reescrever a lista com o que ha, e nao acrescentar uma ressalva.
 
 POR QUE A RECUSA TEM SITIO, e nao so mensagem
 ----------------------------------------------

@@ -352,19 +352,74 @@ class ADivergenciaEntreAvaliadores(_ComExercicio):
 
 
 class ACompetenciaConfereComORubricario(unittest.TestCase):
-    """A competencia pontuada tem de ser uma das nove de `03` §2.3.
+    """Competencia arbitraria e RECUSADA — M1 da auditoria da Fase 6.
 
-    O payload de `bars_score_submitted` NAO a enumera de proposito — a lista vive
-    em `rubrics.schema.yaml`, e uma terceira copia divergiria. O cruzamento e
-    aqui, na mesma forma do `metric_side` contra o catalogo.
+    A versao anterior desta classe afirmava no nome e no docstring que *"a
+    competencia pontuada tem de ser uma das nove"* e verificava outra coisa: que
+    TRES LITERAIS ESCRITOS NELA MESMA estavam no enum da rubrica. Um
+    `competency: banana` atravessava contrato, projecao e alerta sem que nada
+    recusasse, e o teste seguia verde — ele media a si mesmo.
+
+    A correcao nao foi no teste. `bars_score_payload` passou a REFERENCIAR o enum
+    da rubrica por `$ref` entre contratos, e a enumeracao virou imposta. Estes
+    testes provam a imposicao, nas duas direcoes.
     """
 
-    def test_as_competencias_da_suite_existem_no_contrato_de_rubrica(self):
-        rubricas = parse_yaml(REPO_ROOT / "contracts" / "rubrics.schema.yaml")
-        declaradas = set(rubricas["properties"]["competency"]["enum"])
+    def payload(self, competencia: str, nota: int = 3) -> bool:
+        """`True` se o contrato ACEITA o payload."""
+        from jsonschema import Draft202012Validator
+        from range_core.engine.loader import contract_source
 
-        usadas = {"incident_triage", "escalation", "analytical_rigor"}
-        self.assertTrue(usadas <= declaradas)
+        contratos = contract_source.read_contracts()
+        validador = Draft202012Validator(
+            {
+                "$ref": "https://aurora-cyber-range.local/contracts/"
+                "events.schema.json#/$defs/bars_score_payload"
+            },
+            registry=contract_source.registry_for(contratos),
+        )
+        return validador.is_valid({"competency": competencia, "score": nota})
+
+    def nove(self) -> set[str]:
+        rubricas = parse_yaml(REPO_ROOT / "contracts" / "rubrics.schema.yaml")
+        return set(rubricas["properties"]["competency"]["enum"])
+
+    def test_sao_NOVE_competencias(self):
+        """`03` §2.3. Se virar dez, este teste cobra o motivo."""
+        self.assertEqual(len(self.nove()), 9)
+
+    def test_TODA_uma_das_nove_e_aceita(self):
+        """A direcao positiva, e ela e sobre AS NOVE — nao sobre tres escolhidas.
+
+        Iterar o enum e o que impede o teste de medir a si mesmo: a lista vem do
+        contrato, e competencia nova entra sozinha.
+        """
+        for competencia in sorted(self.nove()):
+            with self.subTest(competencia=competencia):
+                self.assertTrue(self.payload(competencia))
+
+    def test_competencia_ARBITRARIA_e_recusada(self):
+        """A direcao que faltava, e que e o M1.
+
+        Sem ela, o `$ref` poderia apontar para qualquer coisa — inclusive de volta
+        para `type: string` — e a suite continuaria verde.
+        """
+        for arbitraria in ("banana", "incident_triage_v2", "INCIDENT_TRIAGE", ""):
+            with self.subTest(competencia=arbitraria):
+                self.assertFalse(self.payload(arbitraria))
+
+    def test_o_payload_NAO_reenumera_as_nove(self):
+        """A razao de ser `$ref` e nao copia: terceira lista divergiria.
+
+        `03` §2.3 e `rubrics.schema.yaml` sao as duas fontes; uma terceira em
+        `events.schema.yaml` envelheceria no dia em que uma competencia entrasse.
+        """
+        eventos = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
+        competencia = eventos["$defs"]["bars_score_payload"]["properties"]["competency"]
+
+        self.assertIn("$ref", competencia)
+        self.assertNotIn("enum", competencia)
+        self.assertIn("rubrics.schema.json", competencia["$ref"])
 
     def test_a_escala_da_rubrica_e_a_do_payload(self):
         """`0-4` na rubrica, `minimum 0 / maximum 4` no payload.

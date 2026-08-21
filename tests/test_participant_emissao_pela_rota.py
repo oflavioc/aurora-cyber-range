@@ -37,6 +37,7 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from contracts.generated.events import ASSESSMENT_SUBMITTED
 from fastapi.testclient import TestClient
 from range_core.clock.exercise_clock import ExerciseClock
 from range_core.events.store import InMemoryEventStore
@@ -204,7 +205,7 @@ def _corpo_minimo(rota: dict) -> dict:
     outras oito aceitam payload livre — e isso é estado da árvore, não desenho:
     cada payload nasce quando o consumidor dele nasce.
     """
-    if rota["emite"] != "assessment_submitted":
+    if rota["emite"] != ASSESSMENT_SUBMITTED:
         return {}
     return {"case_id": "GC-029", "classification": "suspicious", "confidence": 72}
 
