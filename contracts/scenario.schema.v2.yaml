@@ -789,7 +789,7 @@ examples:
 x-aurora-document-examples:
 
   # Os injects que o exemplo de branches referencia existem aqui: os exemplos
-  # positivos dos seis contratos formam um mini-pacote coerente, e e contra ele
+  # positivos dos contratos formam um mini-pacote coerente, e e contra ele
   # que `at_inject`, `reconverge_at` e `next` resolvem em
   # scripts/check_contract_examples.py. Branch apontando para inject que o
   # exemplo irmao nao declara seria a propria falha que o contrato diz recusar.
