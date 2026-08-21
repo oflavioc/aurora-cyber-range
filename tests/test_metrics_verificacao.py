@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from contracts.generated.events import (
+    ASSESSMENT_SUBMITTED,
     CONTAINMENT_DECLARED,
     EXERCISE_STARTED,
     ROLLBACK_PERFORMED,
@@ -111,6 +112,7 @@ class _ComExercicio(unittest.TestCase):
             lados,
             limiar_de_calibracao=0.15,
             defensibilidade={},
+            escopo_revisado=frozenset(),
         )
         return verificacao
 
@@ -152,9 +154,13 @@ class MarcaOsDoisInstantes(_ComExercicio):
 
         self.assertEqual(self.medidas()["TTCV"].decorrido, esperado)
 
-    def test_as_duas_siglas_saem_sempre_as_duas(self):
-        """Metrica que some do AAR e pior que metrica ausente — `03` §3.0."""
-        self.assertEqual(set(self.medidas()), {"TTCV", "TTRV"})
+    def test_as_tres_siglas_saem_sempre(self):
+        """Metrica que some do AAR e pior que metrica ausente — `03` §3.0.
+
+        Sao TRES desde a peca 6: `TTIV` entrou, e o verificador dela nao e o
+        mundo (`03` §3.3).
+        """
+        self.assertEqual(set(self.medidas()), {"TTCV", "TTRV", "TTIV"})
 
 
 class NaoAlcancaOLadoDaDeclaracao(_ComExercicio):
@@ -300,11 +306,128 @@ class MarcoZero(_ComExercicio):
         )
         lados = dict(registro()["x-aurora-registry"]["metric_side"])
         _, insumo = monta(
-            vazio.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}
+            vazio.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}, escopo_revisado=frozenset()
         )
 
         with self.assertRaises(SemMarcoZero):
             computa(insumo)
+
+
+class TTIVCruzaOLimiarDeCalibracao(_ComExercicio):
+    """`03` §3.3 — o instante em que o conjunto de `assessment_submitted` atinge
+    `calibration.threshold`, medido contra a defensibilidade do gabarito."""
+
+    def insumo_com(self, limiar: float, defensibilidade, escopo):
+        lados = dict(registro()["x-aurora-registry"]["metric_side"])
+        _, verificacao = monta(
+            self.store.read_all(),
+            lados,
+            limiar_de_calibracao=limiar,
+            defensibilidade=defensibilidade,
+            escopo_revisado=frozenset(escopo),
+        )
+        return verificacao
+
+    def submete(self, caso: str, confianca: int):
+        return self.store.append(
+            EventDraft(
+                event_type=ASSESSMENT_SUBMITTED,
+                truth_layer="participant_action",
+                producer="teste",
+                correlation=Correlation(),
+                actor_id="analista-ti",
+                persona="ti",
+                payload={
+                    "case_id": caso,
+                    "classification": "suspicious",
+                    "confidence": confianca,
+                    "justificativa": "revisao",
+                },
+            )
+        )
+
+    def ttiv(self, limiar, defensibilidade, escopo):
+        medidas = {
+            m.sigla: m for m in computa(self.insumo_com(limiar, defensibilidade, escopo))
+        }
+        return medidas["TTIV"]
+
+    def test_sem_submissao_nenhuma_ttiv_nao_marca(self):
+        """O Brier comeca alto: caso do escopo nao avaliado conta como zero."""
+        self.assertFalse(self.ttiv(0.15, {"GC-001": 1.0}, {"GC-001"}).marcada)
+
+    def test_a_submissao_que_cruza_o_limiar_marca(self):
+        submissao = self.submete("GC-001", 100)
+        ttiv = self.ttiv(0.15, {"GC-001": 1.0}, {"GC-001"})
+
+        self.assertTrue(ttiv.marcada)
+        self.assertEqual(
+            ttiv.fim, datetime.fromisoformat(submissao.exercise_timestamp)
+        )
+
+    def test_marca_a_PRIMEIRA_que_cruza_e_nao_a_ultima(self):
+        """`03` §3 mede o tempo ATE a integridade estar validada.
+
+        Continuar submetendo depois de cruzar nao move o instante em que se
+        cruzou.
+        """
+        primeira = self.submete("GC-001", 100)
+        self.submete("GC-002", 50)
+
+        ttiv = self.ttiv(0.15, {"GC-001": 1.0, "GC-002": 0.5}, {"GC-001", "GC-002"})
+        self.assertEqual(
+            ttiv.fim, datetime.fromisoformat(primeira.exercise_timestamp)
+        )
+
+    def test_a_submissao_que_NAO_cruza_nao_marca(self):
+        """Confianca alta sobre caso legitimo: o Brier sobe, e nao desce."""
+        self.submete("GC-003", 100)
+        self.assertFalse(self.ttiv(0.15, {"GC-003": 0.0}, {"GC-003"}).marcada)
+
+    def test_cruzar_e_MENOR_OU_IGUAL_ao_limiar(self):
+        """`04` §2 chama o valor de *Brier maximo*, e maximo inclui o valor.
+
+        `confidence 50` sobre `defensibility 1.0` da `(0.5-1.0)^2 = 0.25`, e os
+        tres numeros sao EXATOS em binario — por isso a igualdade e testavel.
+
+        Com `confidence 60` o mesmo caso daria `0.16000000000000003`, e o teste
+        mediria o arredondamento em vez da regra. O limite fica dito: a
+        comparacao e `<=` sobre float, e igualdade exata na borda depende de o
+        valor ser representavel. Um epsilon aqui trocaria um arbitrio conhecido
+        por outro escondido, e `04` §2 nao o autoriza.
+        """
+        self.submete("GC-001", 50)
+        self.assertTrue(self.ttiv(0.25, {"GC-001": 1.0}, {"GC-001"}).marcada)
+
+    def test_um_fio_acima_do_limiar_nao_marca(self):
+        """O controle da borda: sem ele, um `<` no lugar de `<=` passaria."""
+        self.submete("GC-001", 50)
+        self.assertFalse(self.ttiv(0.2499, {"GC-001": 1.0}, {"GC-001"}).marcada)
+
+    def test_o_limiar_vem_do_INSUMO_e_nao_de_constante(self):
+        """Limiar de pack e dado, e `00` §3.2 exige que chegue assim."""
+        self.submete("GC-001", 50)
+
+        self.assertFalse(self.ttiv(0.1, {"GC-001": 1.0}, {"GC-001"}).marcada)
+        self.assertTrue(self.ttiv(0.9, {"GC-001": 1.0}, {"GC-001"}).marcada)
+
+    def test_escopo_vazio_nao_marca_por_brier_nulo(self):
+        """Sem caso no escopo nao ha media, e `None` nao cruza limiar nenhum.
+
+        Marcar aqui daria integridade validada a quem nao declarou escopo.
+        """
+        self.submete("GC-001", 100)
+        self.assertFalse(self.ttiv(0.15, {"GC-001": 1.0}, set()).marcada)
+
+    def test_ttiv_e_medido_desde_t0_como_as_outras_metades(self):
+        submissao = self.submete("GC-001", 100)
+        ttiv = self.ttiv(0.15, {"GC-001": 1.0}, {"GC-001"})
+
+        self.assertEqual(ttiv.inicio, self.t_zero)
+        self.assertEqual(
+            ttiv.decorrido,
+            datetime.fromisoformat(submissao.exercise_timestamp) - self.t_zero,
+        )
 
 
 class OsPredicadosConferemComOContrato(unittest.TestCase):

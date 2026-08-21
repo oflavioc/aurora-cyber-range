@@ -220,7 +220,7 @@ class OCaminhoFechaAteAMetrica(_ComLaco):
         registro = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
         lados = dict(registro["x-aurora-registry"]["metric_side"])
         _, verificacao = monta(
-            self.store.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}
+            self.store.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}, escopo_revisado=frozenset()
         )
         return {m.sigla: m for m in computa(verificacao)}
 

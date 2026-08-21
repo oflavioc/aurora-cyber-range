@@ -131,6 +131,37 @@ class Calibracao:
     nao_avaliados: tuple[str, ...] = field(default=())
 
 
+def brier(
+    submissoes: Sequence[Event],
+    *,
+    defensibilidade: Mapping[str, float],
+    escopo: frozenset[str],
+) -> float | None:
+    """A media dos quadrados de `03` §5.3, sobre o escopo revisado.
+
+    SEPARADO de `escore` porque tem DOIS consumidores: o escore completo, que o
+    reporta ao lado dos sinais, e o computador de `TTIV`, que o recalcula a cada
+    submissao para achar o instante em que ele cruza o limiar de calibracao
+    (`03` §3.3). Escrita duas vezes, a formula divergiria — a classe D4.
+
+    Ele pede `defensibilidade` e nao `CasoDeGabarito`: o Brier nao usa o
+    `conjunto`, e quem o exige e a lacuna de cobertura. Pedir o que nao se usa
+    faria o consumidor de `TTIV` carregar dado que ele nao tem — o insumo de
+    `00` §3.2 traz a defensibilidade por caso, e nao o conjunto.
+
+    `None` quando nao ha caso no escopo: nao ha media de conjunto vazio, e `0.0`
+    seria o MELHOR escore possivel para quem nao declarou escopo nenhum.
+    """
+    declaradas = _por_caso(submissoes)
+    quadrados = [
+        (declaradas.get(caso, CONFIANCA_DE_NAO_AVALIADO) / 100 - defensibilidade[caso])
+        ** 2
+        for caso in sorted(escopo)
+        if caso in defensibilidade
+    ]
+    return (sum(quadrados) / len(quadrados)) if quadrados else None
+
+
 def escore(
     submissoes: Sequence[Event],
     *,
@@ -153,7 +184,6 @@ def escore(
 
     no_escore: list[str] = []
     nao_avaliados: list[str] = []
-    quadrados: list[float] = []
     overconfidence: list[Sinal] = []
     underconfidence: list[Sinal] = []
 
@@ -170,7 +200,6 @@ def escore(
             nao_avaliados.append(caso)
 
         no_escore.append(caso)
-        quadrados.append((confianca / 100 - alvo.defensibilidade) ** 2)
 
         sinal = Sinal(
             caso=caso, confianca=confianca, defensibilidade=alvo.defensibilidade
@@ -181,7 +210,11 @@ def escore(
             underconfidence.append(sinal)
 
     return Calibracao(
-        brier=(sum(quadrados) / len(quadrados)) if quadrados else None,
+        brier=brier(
+            submissoes,
+            defensibilidade={c: a.defensibilidade for c, a in gabarito.items()},
+            escopo=escopo,
+        ),
         casos_no_escore=tuple(no_escore),
         overconfidence=tuple(overconfidence),
         underconfidence=tuple(underconfidence),

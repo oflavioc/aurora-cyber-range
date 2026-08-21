@@ -81,6 +81,7 @@ class _ComFluxo(unittest.TestCase):
             lados_do_catalogo(),
             limiar_de_calibracao=0.15,
             defensibilidade={"GC-029": 1.0},
+            escopo_revisado=frozenset({"GC-029"}),
         )
 
 
@@ -151,6 +152,13 @@ class EscalaresNoInsumo(_ComFluxo):
         self.assertEqual(verificacao.limiar_de_calibracao, 0.15)
         self.assertEqual(verificacao.defensibilidade["GC-029"], 1.0)
 
+    def test_o_verificador_recebe_o_escopo_revisado(self):
+        """O terceiro escalar, da peça 6. `03` §3.3 mede `TTIV` pelo Brier de
+        §5.3, e o Brier é sobre o escopo revisado — sem ele o verificador não tem
+        conjunto contra o qual medir. Ver P6-5."""
+        _, verificacao = self.monta()
+        self.assertEqual(verificacao.escopo_revisado, frozenset({"GC-029"}))
+
     def test_nenhum_insumo_tem_store_pack_ou_fluxo_total(self):
         """A forma do `project` do fold: não consulta porque não tem por onde."""
         declaracao, verificacao = self.monta()
@@ -158,7 +166,13 @@ class EscalaresNoInsumo(_ComFluxo):
             (declaracao, {"eventos", "epoch"}),
             (
                 verificacao,
-                {"eventos", "epoch", "limiar_de_calibracao", "defensibilidade"},
+                {
+                    "eventos",
+                    "epoch",
+                    "limiar_de_calibracao",
+                    "defensibilidade",
+                    "escopo_revisado",
+                },
             ),
         ):
             with self.subTest(insumo=type(insumo).__name__):
