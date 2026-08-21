@@ -225,6 +225,54 @@ class AConjuncaoReproduzATabela(unittest.TestCase):
         self.assertTrue(apontadas <= siglas)
 
 
+def _siglas_produzidas() -> set[str]:
+    """As siglas que os DOIS computadores de fato produzem, rodando-os.
+
+    Sobre um exercicio minimo — so o `exercise_started`, que e o que `marco_zero`
+    exige. Nenhuma metrica marca; o que se coleta e o CONJUNTO DE SIGLAS, e `03`
+    §3.0 registra que metrica que nao dispara sai como nao marcada em vez de
+    sumir. Se alguma sumisse aqui, seria porque o computador a omite.
+    """
+    from datetime import datetime
+
+    from contracts.generated.events import EXERCISE_STARTED
+    from range_core.clock.exercise_clock import ExerciseClock
+    from range_core.events.envelope import Correlation
+    from range_core.events.store import EventDraft, InMemoryEventStore
+    from range_core.metrics import declaracao, verificacao
+    from range_core.metrics.insumo import monta
+
+    import sys as _sys
+
+    _sys.path.insert(0, str(REPO_ROOT / "tools"))
+    from _common import parse_yaml
+
+    parede = iter(range(1_000_000, 1_100_000))
+    store = InMemoryEventStore(
+        ExerciseClock(datetime(2026, 8, 21, 9, 0, 0), now=lambda: float(next(parede)))
+    )
+    store.append(
+        EventDraft(
+            event_type=EXERCISE_STARTED,
+            truth_layer="facilitation",
+            producer="teste",
+            correlation=Correlation(),
+            payload={},
+        )
+    )
+    registro = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
+    lado_declaracao, lado_verificacao = monta(
+        store.read_all(),
+        dict(registro["x-aurora-registry"]["metric_side"]),
+        limiar_de_calibracao=0.15,
+        defensibilidade={},
+        escopo_revisado=frozenset(),
+    )
+    return {m.sigla for m in declaracao.computa(lado_declaracao)} | {
+        m.sigla for m in verificacao.computa(lado_verificacao)
+    }
+
+
 class ATabelaContraOCodigo(unittest.TestCase):
     """As siglas da spec cruzadas com as que os computadores produzem.
 
@@ -235,37 +283,20 @@ class ATabelaContraOCodigo(unittest.TestCase):
     def setUp(self) -> None:
         self.siglas_da_spec = {l["sigla"] for l in tabela()}
 
-    def test_as_siglas_do_computador_da_declaracao_estao_na_tabela(self):
-        from range_core.metrics.declaracao import computa  # noqa: F401
+    def test_as_nove_siglas_da_spec_sao_exatamente_as_produzidas(self):
+        """A cobertura, DERIVADA DA SAIDA e nao de uma lista escrita aqui.
 
-        producidas = {"TTCD", "TTRD", "TTID", "TTA", "TTT", "TTCM"}
-        self.assertTrue(producidas <= self.siglas_da_spec)
+        A primeira versao deste teste lia `SIGLA_POR_PREDICADO` do computador da
+        verificacao e concluia que `TTIV` nao tinha computador. Quando a peca 6
+        entregou `TTIV`, ele **nao reprovou** — porque `TTIV` nao e predicado e
+        entrou fora daquele mapa. O teste estava ancorado num detalhe de
+        implementacao, e a fronteira que ele existia para cobrar passou em branco.
 
-    def test_as_siglas_do_computador_da_verificacao_estao_na_tabela(self):
-        from range_core.metrics.verificacao import SIGLA_POR_PREDICADO
-
-        self.assertTrue(set(SIGLA_POR_PREDICADO.values()) <= self.siglas_da_spec)
-
-    def test_a_unica_sigla_sem_computador_e_ttiv_e_ela_e_da_peca_6(self):
-        """A fronteira do plano da fase, cobrada em vez de declarada.
-
-        `TTIV` e a unica das nove sem computador nesta peca, e o plano da Fase 6
-        a poe na peca 6 — *"Calibracao: Brier no escopo revisado, sinais, `TTIV`
-        por limiar"*. Quando a peca 6 fechar, este teste reprova, e e assim que
-        se descobre que a fronteira foi cruzada.
+        Agora ele RODA os dois computadores e coleta as siglas que eles de fato
+        produzem. Sigla nova na spec sem computador reprova; sigla produzida e
+        ausente da tabela reprova. Nenhuma lista intermediaria para envelhecer.
         """
-        from range_core.metrics.verificacao import SIGLA_POR_PREDICADO
-
-        com_computador = {"TTCD", "TTRD", "TTID", "TTA", "TTT", "TTCM"} | set(
-            SIGLA_POR_PREDICADO.values()
-        )
-        self.assertEqual(
-            self.siglas_da_spec - com_computador,
-            {"TTIV"},
-            "a lista de siglas sem computador mudou. Se `TTIV` ganhou o dele na "
-            "peca 6, atualize este teste; se outra sigla ficou sem, ha metrica "
-            "na spec que ninguem calcula.",
-        )
+        self.assertEqual(_siglas_produzidas(), self.siglas_da_spec)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -35,18 +35,26 @@ O avaliador da peca 4 reemite na epoch nova quando a linhagem corrente ainda
 satisfaz, e nao reemite dentro da mesma epoch — a emissao e por transicao. Entao
 ha no maximo um veredito por (predicado, epoch), e a selecao e determinada.
 
-`TTIV` NAO ESTA AQUI, E A FRONTEIRA E DO PLANO DA FASE
--------------------------------------------------------
-`TTIV` e a terceira metade de verificacao, e ela e da **peca 6** — o plano da
-fase a nomeia por extenso: *"Calibracao: Brier no escopo revisado, sinais, `TTIV`
-por limiar"*. Ela nao e predicado de estado do mundo (`03` §3.3): o instante e
-aquele em que o conjunto de `assessment_submitted` cruza o limiar de calibracao
-medido contra a defensibilidade, e o mecanismo do limiar nasce com o escore.
+`TTIV` — A METADE CUJO VERIFICADOR NAO E O MUNDO
+-------------------------------------------------
+`TTCV` e `TTRV` saem de predicado de estado do mundo. `TTIV` nao: `03` §3.3 diz
+que integridade validada e propriedade da **qualidade da avaliacao da equipe**, e
+fixa o instante como *"aquele em que o conjunto de `assessment_submitted` atinge
+`calibration.threshold`, medido contra a defensibilidade do gabarito"*.
 
-Os escalares dela JA CHEGAM no insumo — `limiar_de_calibracao` e
-`defensibilidade` —, e isso e deliberado: `00` §3.2 exige que eles cheguem como
-dado e nao por consulta ao pack, e a peca 6 encontra o caminho pronto. Escrito
-aqui para que a auditoria leia a fronteira em vez de deduzi-la da ausencia.
+**Isso nao a tira do par** — a §3.3 corrige explicitamente a redacao anterior que
+a chamava de assimetrica. Pelo criterio de `00` §3.2 o par exige conclusao de
+acao da equipe com instante decidido fora da declaracao, e as duas valem. O que
+muda e QUEM decide o instante, e nao se ha par.
+
+O BRIER VEM DE `metrics/calibracao.py`, e nao e reescrito aqui: `03` §3.3 aponta
+para §5, e duas implementacoes da mesma formula divergiriam — a classe D4. Este
+modulo faz o que so ele pode fazer: percorrer as submissoes na ordem do exercicio
+e achar a PRIMEIRA em que o escore cruza o limiar.
+
+Os tres escalares chegam pelo insumo — `limiar_de_calibracao`, `defensibilidade`
+e `escopo_revisado` —, e `00` §3.2 exige exatamente essa forma: como dado, e nao
+por consulta ao pack.
 
 `not_applicable` — O QUE ESTE MODULO NAO DISTINGUE, E POR QUE
 ---------------------------------------------------------------
@@ -66,9 +74,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from contracts.generated.events import VERIFICATION_PREDICATE_SATISFIED
+from contracts.generated.events import (
+    ASSESSMENT_SUBMITTED,
+    VERIFICATION_PREDICATE_SATISFIED,
+)
 
 from range_core.events.epoch import current_epoch
+from range_core.metrics.calibracao import brier
 from range_core.metrics.epoch import (
     Congelamento,
     congelamentos,
@@ -100,6 +112,11 @@ SIGLA_POR_PREDICADO: dict[str, str] = {
     PREDICADO_RESTAURACAO: "TTRV",
 }
 
+#: A terceira metade de verificacao. NAO esta em `SIGLA_POR_PREDICADO` porque
+#: nao e predicado: `03` §3.3 poe o verificador dela fora do mundo, e o teste que
+#: cruza aquele mapa com `verification_predicates` reprovaria se ela entrasse.
+SIGLA_DO_LIMIAR = "TTIV"
+
 
 #: A FORMA DO RESULTADO E COMPARTILHADA com o computador da declaracao —
 #: `range-core/metrics/medida.py` diz por que. A particao de `00` §3.2 e sobre
@@ -124,10 +141,57 @@ def computa(insumo: InsumoDeVerificacao) -> tuple[Medida, ...]:
     t_zero = marco_zero(insumo.epoch)
     eventos = no_calculo(insumo.eventos, descartadas)
 
-    return tuple(
+    por_predicado = tuple(
         _medida(sigla, _veredito(eventos, nome, corrente), t_zero, congelados)
         for nome, sigla in SIGLA_POR_PREDICADO.items()
     )
+    return por_predicado + (
+        _medida(
+            SIGLA_DO_LIMIAR,
+            _instante_do_limiar(
+                eventos,
+                defensibilidade=insumo.defensibilidade,
+                escopo=insumo.escopo_revisado,
+                limiar=insumo.limiar_de_calibracao,
+            ),
+            t_zero,
+            congelados,
+        ),
+    )
+
+
+def _instante_do_limiar(
+    eventos,
+    *,
+    defensibilidade,
+    escopo: frozenset[str],
+    limiar: float,
+):
+    """A submissao em que o Brier passa a valer `<= limiar` — `03` §3.3.
+
+    A PRIMEIRA, e nao a ultima: `03` §3 mede o tempo ATE a integridade estar
+    validada, e a equipe que continua submetendo depois de cruzar o limiar nao
+    move o instante em que ela cruzou.
+
+    O escore e RECALCULADO a cada prefixo, e nao acumulado num contador: `03` §5.3
+    conta caso do escopo nao avaliado como `confidence = 0`, entao o Brier CAI
+    conforme a equipe avalia bem — e um acumulador teria de saber desfazer o
+    "nao avaliado" de cada caso ao ve-lo chegar. Recalcular e O(n^2) sobre o
+    numero de submissoes e exato; o exercicio tem dezenas, nao milhoes.
+
+    Cruzar e `<=`, e nao `<`: `04` §2 chama o valor de *"Brier maximo para
+    considerar integridade validada"*, e maximo inclui o proprio valor.
+    """
+    submissoes = sorted(
+        (e for e in eventos if e.event_type == ASSESSMENT_SUBMITTED), key=instante
+    )
+    for quantas in range(1, len(submissoes) + 1):
+        escore = brier(
+            submissoes[:quantas], defensibilidade=defensibilidade, escopo=escopo
+        )
+        if escore is not None and escore <= limiar:
+            return submissoes[quantas - 1]
+    return None
 
 
 def _veredito(eventos, nome: str, corrente: int):

@@ -37,22 +37,24 @@ total, na montagem, e estreita **um argumento de um consumidor**. O fluxo inteir
 continua existindo e é o que o AAR dobra — ler tudo e então estreitar preserva a
 reconstrução; estreitar na leitura, não.
 
-A COSTURA FRACA, DITA — E AINDA SEM O VERIFICADOR
---------------------------------------------------
+A COSTURA FRACA, DITA — E O VERIFICADOR QUE A SUSTENTA
+------------------------------------------------------
 `NewType` não é barreira de execução: construir o tipo estreito a partir do fluxo
 total, fora daqui, compila. O que a norma exige em seu lugar é **checagem de
 superfície** sobre onde o construtor aparece — whitelist, não blocklist —, e ela
 é mais fraca que *"não tem flag ao alcance"* da D4, porque o veredito chega como
 **dado**.
 
-**Ela ainda não existe, e isto está escrito para que a ausência não seja lida
-como presença.** Este módulo satisfaz as exigências (1), (2) e (4) de `00` §3.2 —
-tipo próprio, o banido fora do insumo, e os lados vindos do `metric_side` com
-cobertura e disjunção checadas em `range-core/engine/loader/contract_rules.py`.
-A **(3)** é obrigação de verificador, e o verificador é a unidade seguinte da
-peça 5. Enquanto ele não existir, *"um único ponto de montagem"* é propriedade
-desta árvore por leitura, e não por gate — que é exatamente a distinção que a
-§3.2 faz ao chamar a costura de fraca.
+Ela é `scripts/check_insumo_de_metrica.py`, e cobre as exigências (1), (2) e (3)
+de `00` §3.2 — tipo próprio na forma declarada, os campos de cada insumo
+conferidos nas duas direções, e o construtor invocado só em `monta`. A **(4)** —
+cobertura e disjunção do `metric_side` — é conferida na carga, em
+`range-core/engine/loader/contract_rules.py`; duas autoridades para o mesmo fato
+seriam a forma que a própria §3.2 recusa.
+
+> Enquanto o verificador não existia, este bloco dizia isso com todas as letras.
+> A primeira redação o descrevia **no presente** sem que ele existisse — a classe
+> da D19 —, e a correção foi nomear a ausência até a unidade seguinte fechá-la.
 """
 
 from __future__ import annotations
@@ -93,17 +95,25 @@ class InsumoDeDeclaracao:
 class InsumoDeVerificacao:
     """O lado da verificação, com os escalares que ele precisa.
 
-    `limiar_de_calibracao` e `defensibilidade` chegam **como dado**, e não por
-    consulta ao pack: `00` §3.2 proíbe ter *por onde buscar mais do que lhe foi
-    dado*, e não ter o que lhe é necessário. Sem eles, o verificador de `TTIV`
-    não teria como marcar o instante em que o conjunto de `assessment_submitted`
-    cruza o limiar — que é o que `03` §3.3 define.
+    `limiar_de_calibracao`, `defensibilidade` e `escopo_revisado` chegam **como
+    dado**, e não por consulta ao pack: `00` §3.2 proíbe ter *por onde buscar
+    mais do que lhe foi dado*, e não ter o que lhe é necessário. Sem eles, o
+    verificador de `TTIV` não teria como marcar o instante em que o conjunto de
+    `assessment_submitted` cruza o limiar — que é o que `03` §3.3 define.
+
+    **`escopo_revisado` é o terceiro, e ele entrou com uma pendência.** `03` §5.1
+    declara o escopo em prosa — período, população, critério —, e o Brier de §5.3
+    precisa do conjunto de `case_id`. Resolver a prosa no conjunto **não é
+    computável** com o que a Fase 6 tem: `line_b_case` não carrega data nem
+    população. Quem resolve, e quando, é a **P6-5**. Aqui ele chega resolvido,
+    que é a forma que a §3.2 exige dos escalares.
     """
 
     eventos: EventosDeVerificacao
     epoch: EscrituracaoDeEpoch
     limiar_de_calibracao: float
     defensibilidade: Mapping[str, float]
+    escopo_revisado: frozenset
 
 
 def _por_lado(fluxo: Sequence[Event], lados: Mapping[str, str], lado: str) -> tuple:
@@ -127,6 +137,7 @@ def monta(
     *,
     limiar_de_calibracao: float,
     defensibilidade: Mapping[str, float],
+    escopo_revisado: frozenset,
 ) -> tuple[InsumoDeDeclaracao, InsumoDeVerificacao]:
     """O ÚNICO ponto de montagem dos dois insumos.
 
@@ -149,5 +160,6 @@ def monta(
             epoch=epoch,
             limiar_de_calibracao=limiar_de_calibracao,
             defensibilidade=dict(defensibilidade),
+            escopo_revisado=frozenset(escopo_revisado),
         ),
     )

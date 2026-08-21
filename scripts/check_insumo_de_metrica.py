@@ -129,6 +129,11 @@ CAMPOS_DECLARADOS: dict[str, dict[str, str]] = {
         "epoch": "EscrituracaoDeEpoch",
         "limiar_de_calibracao": "float",
         "defensibilidade": "Mapping[str, float]",
+        # O TERCEIRO ESCALAR, da peca 6. `03` §3.3 mede `TTIV` pelo Brier de §5.3,
+        # e o Brier e sobre o ESCOPO REVISADO — sem ele, o verificador nao tem o
+        # conjunto contra o qual medir. Quem resolve a prosa de `review_scope`
+        # neste conjunto e a P6-5; aqui ele chega resolvido, como dado.
+        "escopo_revisado": "frozenset",
     },
 }
 
