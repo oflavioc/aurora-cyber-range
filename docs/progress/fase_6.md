@@ -367,6 +367,7 @@ Prefixo `P6-`.
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
+| P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -554,3 +555,41 @@ mesmo segundo, e a subtração devolve T0 exato. Não há `spec-change` a fazer.
 `exercise_started` nenhum não produz métrica. O gatilho deixou de ser o ensaio
 descartado e passou a ser o caso honesto — métrica computada sobre fluxo em que
 o exercício nunca começou.
+
+#### P6-5 — `review_scope` é prosa, e ninguém a resolve em casos
+
+`03` §5.1 manda a equipe declarar **escopo revisado** — *"período, população,
+critério"* — antes de submeter, e §5.3 usa a declaração para separar duas coisas
+que o AAR precisa ver separadas: **erro de julgamento** (caso no escopo, avaliado
+errado) e **lacuna de cobertura** (indevido comprovado fora do escopo).
+
+O escore precisa, portanto, do **conjunto de `case_id` dentro do escopo**. Ele
+não é derivável do que a Fase 6 tem à mão.
+
+**Medido:** `line_b_case`, em `contracts/ground_truth.schema.yaml`, tem
+`case_id`, `defensibility`, `set` e `supporting_evidence` — e **nenhum atributo
+de data ou de população**. Os atributos que um período ou uma população filtram
+vivem nas linhas da trilha de auditoria, no banco semeado, e não no gabarito.
+
+**O que a peça 6 fez.** `escore()` recebe `escopo: frozenset[str]` como **dado**,
+pelo mesmo argumento com que `00` §3.2 manda os escalares chegarem ao verificador
+de `TTIV` em vez de por consulta ao pack. Derivá-lo aqui por inferência seria
+inventar um filtro que nenhum documento fixa — e o Brier passaria a medir a
+inferência junto com a equipe.
+
+**O que não se decidiu, e não é equivalente:**
+
+- **quem resolve** — a `academus-api`, que tem as linhas; o gerador do seed, que
+  as plantou; ou o próprio `review_scope`, se ele passar a carregar a lista
+  resolvida no ato da declaração;
+- **quando** — na abertura do escopo (a lista congela e o AAR sabe o que a equipe
+  disse que ia olhar) ou no fechamento do escore (a lista reflete o banco no
+  instante do cálculo, e muda se o banco mudar).
+
+As duas perguntas têm consequência de norma: a segunda decide se declarar escopo
+largo e revisar pouco é distinguível de declarar escopo estreito.
+
+**Vence em:** o primeiro exercício que compute Brier sobre um pack real, **ou** a
+Fase 10, quando o AAR precisar imprimir a lacuna de cobertura — o que vier
+primeiro. É **decisão do proprietário**, e a fronteira que ela atravessa é
+core × adapter, que é a que este projeto guarda com invariante.
