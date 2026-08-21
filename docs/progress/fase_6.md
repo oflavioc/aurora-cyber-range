@@ -533,6 +533,8 @@ Prefixo `P6-`.
 | P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **condição** — ver abaixo |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | **condição** — ver abaixo |
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
+| P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **condição** — ver abaixo |
+| P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **decisão** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -1012,3 +1014,82 @@ depender de disciplina.
 
 **Vence em:** a próxima auditoria de checkpoint — ela é a terceira oportunidade
 para a mesma divergência, e as duas anteriores ocorreram.
+
+#### P6-10 — hook declarado sem emissor, e o verificador que não existe
+
+**M2 da terceira auditoria.** `domains/academus/observability_hooks.yaml` declara
+`vpn_access_revoked` com `producer: federated-identity-simulator`, e esse
+simulador é da **Fase 11**. `06` T9 exige que todo `event_type` do arquivo seja
+emitido pela ação correspondente — e o critério é **da Fase 6**.
+
+**A leitura, com o custo dos dois lados.** A pergunta é se hook declarado sem
+emissor é pendência legítima até a fase do produtor, ou se ele não deveria estar
+declarado ainda:
+
+| Leitura | A favor | Contra |
+|---|---|---|
+| **Declarar com destinatário é legítimo** | é a mesma forma que `check_secoes_de_seguranca.py` já impõe a `05`: cada seção tem *mecanismo ou destinatário*, e destinatário declarado é melhor que ausência. O hook documenta o contrato do evento antes de o produtor existir, e a Fase 11 encontra a forma pronta | T9 não distingue *"declarado com destinatário"* de *"declarado"*. Enquanto não distinguir, o critério é **insatisfazível por construção** para este hook — a classe que a peça 3 já corrigiu com um `spec-change` quando `separate_incident_declared` não tinha ação |
+| **Não declarar até haver produtor** | T9 volta a ser satisfazível sem exceção, e o arquivo descreve só o que existe | perde-se a declaração antecipada, e o contrato do evento nasce junto com o produtor — que é quando ninguém está olhando para o desenho. E `05` §6 mostra que ausência sem motivo é pior que presença com destinatário |
+
+**A escolha tem consequência normativa**, e é por isso que não a tomo: se a
+primeira vence, T9 precisa de `spec-change` para admitir o destinatário; se a
+segunda, o hook sai do arquivo agora.
+
+**O agravante, e ele é independente da escolha.** **Não existe verificador
+cruzando os hooks com os emissores reais.** `check_contract_literals.py` confere
+que o `event_type` do hook está no catálogo — e não que alguém o emite. O
+`payload_fields` é cruzado com a assinatura do emissor **apenas para
+`audit_query_performed`**, e por um teste escrito à mão.
+
+Então hoje: hook com `event_type` válido e produtor inexistente **passa em todos
+os gates**. É a mesma família da P6-7 — declaração conferida, emissão não.
+
+**O mapa do verificador:**
+
+| Forma | O que compra | O que custa |
+|---|---|---|
+| **Cruzar hook × emissor por AST** | responde *"alguém emite este tipo?"* | esbarra na mesma dificuldade da P6-7: o emissor é um método por hook, e achar quem o chama é análise de fluxo |
+| **Cruzar hook × catálogo de produtores declarados** | barato e decidível: cada hook nomeia `producer`, e o repositório sabe quais produtores existem | não prova emissão — prova que o produtor existe. É guarda mais fraca, e a fraqueza tem de ficar dita |
+| **Exigir `fase_destinataria` no hook sem produtor** | torna a dívida legível e cobrável, na forma do registro de seções de segurança | é declaração, não detecção: hook que minta sobre o destinatário passa |
+
+**Vence em:** a decisão da leitura acima, **ou** a Fase 11, quando o produtor
+chegar — o que vier primeiro.
+
+#### P6-11 — payload cru alimenta o Brier
+
+**L1 da terceira auditoria, e a medição é o argumento.** Medido nesta árvore:
+
+```
+confidence: 900  ->  brier = 64.0
+```
+
+Sessenta e quatro vezes o pior escore possível de uma entrada válida. `TTIV`
+compara esse número com `calibration.threshold` — então um payload fora de faixa
+**desloca o instante de `TTIV`**, ou o impede para sempre. É a forma que esta
+fase existe para impedir: nada falha, a métrica continua sendo calculada.
+
+**O contrato já bane.** `assessment.schema.yaml` fixa `confidence` em 0–100
+inteiro. O que falta é aplicação: **o event store não valida payload**, e isso
+vale para todo evento.
+
+**A proposta, com o argumento — para decisão.** Três lugares, e eu recomendo o
+terceiro:
+
+| Onde | A favor | Contra |
+|---|---|---|
+| **Na rota** | mais cedo: a submissão inválida nunca vira evento, e o participante recebe `422` em vez de um escore estranho no AAR | não cobre evento que entre por outro caminho — importação, reconstrução, produtor futuro. E o store continua aceitando: a garantia vale para **esta** porta, não para a propriedade |
+| **No insumo** (`monta`) | um ponto para os dois lados, e é onde a partição já vive | **contradiz `00` §3.2**: o montador não pode ter regra própria. *"O número certo aparecendo por ausência de insumo em vez de por cálculo"* é o defeito que a seção nomeia, e descartar submissão inválida ali é exatamente isso |
+| **No computador** ✅ | é **cálculo do consumidor**, que é a forma que `00` §3.2 exige. `_por_caso` já ignora payload malformado — falta `confidence` fora de faixa ser malformado também. E a decisão fica **visível e testável**, em vez de embutida numa porta |
+
+**O que a terceira ainda deixa aberto, dito:** ignorar silenciosamente uma
+submissão fora de faixa a transforma em *"não avaliado"*, que pontua como
+`confidence = 0`. Isso é uma **decisão**, não uma consequência — e a alternativa
+é recusar alto, que faria um payload inválido derrubar o escore inteiro.
+
+Minha leitura: **ignorar e nomear**, como `Calibracao.nao_avaliados` já faz —
+o AAR precisa distinguir *"não avaliou"* de *"avaliou com payload inválido"*, e
+uma terceira lista é mais barata que qualquer das outras opções.
+
+**Vence em:** esta decisão. É a única pendência da fase que **não** espera
+condição externa — o mecanismo existe e o lugar está escolhido; falta a sua
+palavra sobre ignorar × recusar.

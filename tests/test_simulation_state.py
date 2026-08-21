@@ -44,12 +44,17 @@ import unittest
 from dataclasses import replace
 
 from contracts.generated.events import (
+    CLASSIFICATION_DECLARED,
+    CONTAINMENT_DECLARED,
     DECISION_MADE,
     EXERCISE_PAUSED,
     EXERCISE_STARTED,
     INCIDENT_DECLARED,
     INJECT_FIRED,
+    INTEGRITY_VALIDATION_DECLARED,
     ROLLBACK_PERFORMED,
+    SEPARATE_INCIDENT_DECLARED,
+    SERVICE_RESTORATION_DECLARED,
 )
 from range_core.events.envelope import Correlation, Event
 from range_core.state.simulation_state import (
@@ -267,6 +272,45 @@ class Propriedades(unittest.TestCase):
         self.assertIs(depois.flags[FLAG_WRITTEN], False)
         self.assertEqual(depois.simulation_epoch, 1)
         self.assertEqual(len(events), 3, "o fold nao remove evento do fluxo")
+
+    def test_declaracao_NUNCA_move_flag(self):
+        """M1 da terceira auditoria — a consequencia normativa 1 de `00` §3.
+
+        *"Declaracao do participante nunca altera ground truth."* O fluxo abaixo
+        traz as SEIS declaracoes que movem metrica, e o estado tem de sair
+        identico ao dos defaults.
+
+        NAO E REDUNDANTE com o teste abaixo. Aquele afirma que a declaracao
+        SOBREVIVE no fluxo apos rollback; este afirma que ela NAO ESCREVE, e a
+        diferenca aparece quando alguem acrescenta um ramo ao `_writes_of`:
+        aquele continua verde, este fica vermelho.
+
+        A prova de que ele fica vermelho esta em
+        `tests/test_simulation_state_probes.py`, com o ramo plantado.
+        """
+        declaracoes = [
+            CONTAINMENT_DECLARED,
+            INCIDENT_DECLARED,
+            CLASSIFICATION_DECLARED,
+            SERVICE_RESTORATION_DECLARED,
+            INTEGRITY_VALIDATION_DECLARED,
+            SEPARATE_INCIDENT_DECLARED,
+        ]
+        events = [started()] + [
+            event(f"e{n}", tipo, truth_layer="participant_action")
+            for n, tipo in enumerate(declaracoes, start=1)
+        ]
+
+        estado = project(events, declarations())
+        padrao = project([started()], declarations())
+
+        # A COMPARACAO CONTRA O PADRAO E A UNICA ASSERCAO, e e deliberado. A
+        # primeira versao acrescentava `flags[FLAG_WRITTEN] is False`, e com ela
+        # este teste passava a acusar TAMBEM a mutacao "estado deixa de ser
+        # total" — que e outra propriedade, com teste proprio. O harness
+        # reprovou por conjunto divergente, que e o que ele existe para fazer:
+        # teste que pega tudo nao localiza nada.
+        self.assertEqual(dict(estado.flags), dict(padrao.flags))
 
     def test_participant_action_abandonada_permanece_no_fluxo(self):
         """D2 do checkpoint, na metade verificavel aqui.
