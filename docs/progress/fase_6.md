@@ -529,6 +529,7 @@ Prefixo `P6-`.
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
 | P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
+| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -828,3 +829,69 @@ por que a terceira venceu, e somem se a pendência for apenas fechada:
 `check_insumo_de_metrica.py`, e `escore()` já o recebe como dado. A Fase 7 muda
 **de onde ele vem** — não a forma como chega ao consumidor, que `00` §3.2 já
 fixou.
+
+#### P6-6 — o sentinela de branch não enxerga escrita por `Bash`
+
+A D15 existe para pegar a corrida em que a branch muda no meio da sessão e o
+trabalho pensado sobre uma árvore é gravado noutra. **Ela funcionou nesta
+sessão** — recusou uma escrita minha quando criei a branch do `spec-change`,
+exigiu re-ancoragem explícita, e a re-ancoragem não tem atalho de um clique.
+
+**A medição, e ela é de configuração, não de simulação.** O hook é declarado em
+`~/.claude/settings.json` assim:
+
+```json
+{ "PreToolUse": [ { "matcher": "Edit|Write|NotebookEdit", ... } ] }
+```
+
+`Bash` **não está no matcher**. Não é que o sentinela avalie e libere — ele
+**nunca é invocado** para escrita feita por `Bash`. O mesmo vale para o hook de
+invariantes do projeto (`.claude/hooks/check_architecture.py`), declarado em
+`.claude/settings.json` com o matcher `Edit|Write`.
+
+> **Tentei a medição mais forte e ela não foi fiel, então não a apresento como
+> prova.** Disparei os cinco payloads contra o hook com a âncora posta em
+> desacordo de propósito; **todos** passaram, inclusive `Write` — que na sessão
+> real havia sido recusado. O motivo: o sentinela chaveia por `session_id`, e o
+> subprocess não o forneceu. O que sustenta esta pendência é a linha de
+> configuração acima, que é fato verificável.
+
+**O custo, medido no que dá para medir.** Nesta sessão, **não menos que 25**
+chamadas de `Bash` escreveram em arquivo rastreado — `sed -i` para os contadores
+do README e do probe, e `python - <<PY` com `write_text` para módulos, contratos,
+testes, o lançador e este próprio registro. O número exato **não é
+reconstruível da árvore**, e essa é a parte mais afiada do achado: o canal não
+deixa rastro que o repositório saiba auditar. Os dois canais interceptados
+deixam.
+
+**O que ele deixaria de pegar num caso ruim.** Exatamente o cenário da D15: a
+branch muda — por `git checkout` do operador, por um rebase, por um `worktree` —
+e a próxima edição por `sed -i` ou por heredoc grava na árvore errada, sem
+recusa e sem aviso. O trabalho pensado sobre a fase entraria num `spec-change`,
+ou o inverso, e o `spec_freeze` só o pegaria se por acaso os dois conjuntos
+tivessem sido tocados.
+
+**Não foi corrigido no PR #48, e a omissão é decisão.** Aquele PR conserta o
+buraco do interpretador do auditor; alargar um guarda dentro do PR que conserta
+outro é o acoplamento que este repositório recusa desde a regra de `spec-change`
+separado. E a correção não é uma linha: `Bash` no matcher faria o hook opinar
+sobre **todo** comando, e ele hoje decide por `file_path` — não há `file_path`
+num `sed -i`. Decidir por texto de comando é o problema que
+`readonly_bash.py` já resolve com allowlist, e replicá-lo aqui seria a segunda
+implementação da mesma pergunta.
+
+**As três formas, para quando a decisão vier:**
+
+1. **`Bash` no matcher do sentinela**, com detecção de escrita por texto de
+   comando — segunda implementação da pergunta que `readonly_bash.py` responde;
+2. **guarda no `PostToolUse`**, comparando a branch antes e depois — pega a
+   corrida em vez de preveni-la, e o dano já estaria gravado;
+3. **disciplina declarada**: escrita em arquivo rastreado passa por `Write`/`Edit`,
+   e `Bash` fica para comando. É a mais barata e é **disciplina**, que a §1.6 do
+   registro da Fase 1 separa de impedimento — e disciplina foi o que falhou nas
+   quatro reincidências da D16.
+
+**Vence em:** a primeira sessão que trabalhe em duas branches, **ou** a Fase 8,
+quando o paralelismo começar e várias branches viverem ao mesmo tempo — o que
+vier primeiro. É **decisão do proprietário**: as três têm custos de natureza
+diferente, e a terceira admite que o guarda não guarda.
