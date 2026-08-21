@@ -64,6 +64,7 @@ from range_core.clock.restauracao import restaurar
 from range_core.engine.inject_engine import Facilitator, InjectEngine
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
+from range_core.engine.verificacao import LacoDeVerificacao
 from range_core.events.postgres_store import PostgresEventStore
 from range_core.state.cache import RedisProjectionCache
 
@@ -134,6 +135,19 @@ def criar() -> FastAPI:
     )
     pack = load_pack(caminho_do_pack, contracts=contratos, adapter_flags=flags)
 
+    # O LAÇO CONTÍNUO de `03` §3.1, montado UMA vez e compartilhado.
+    #
+    # É aqui que ele deixa de ser opcional: o engine e o emissor de participante
+    # aceitam `None` porque teste e demo os montam sem pack de gabarito, e é esta
+    # composição — a de produção — que garante que o laço existe. Um segundo laço
+    # para a superfície de participante leria o mesmo store e daria a mesma
+    # resposta, mas nada garantiria que os dois carregam o mesmo pack.
+    laco = LacoDeVerificacao(
+        store=store,
+        predicados=pack.verification_predicates,
+        declarations=pack.declarations,
+    )
+
     exercicio = Exercicio(
         engine=InjectEngine(
             pack=pack,
@@ -141,6 +155,7 @@ def criar() -> FastAPI:
             store=store,
             facilitator=FACILITADOR,
             rollback_reasons=contract_source.rollback_reasons(contratos),
+            laco=laco,
         ),
         cache=RedisProjectionCache(redis.from_url(exige(VARIAVEL_DO_REDIS))),
         declarations=pack.declarations,

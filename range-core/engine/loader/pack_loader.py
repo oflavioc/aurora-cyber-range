@@ -235,6 +235,24 @@ class LoadedPack:
     #: gm-console da peca 4.
     textos_para_plateia: Mapping[str, str] = field(default_factory=dict)
 
+    #: `verification_predicates` do `ground_truth.yaml` — `03` §3.1.
+    #:
+    #: ELES SAO GABARITO, e a colocacao aqui e decidida e nao acidental. Quem os
+    #: le sabe o que E contencao neste incidente, que e metade do que a equipe
+    #: tem de descobrir.
+    #:
+    #: Entram no pack porque o LACO CONTINUO precisa deles: `03` §3.1 exige que o
+    #: motor avalie continuamente, e o motor recebe o pack. A alternativa — um
+    #: segundo carregamento do `ground_truth.yaml` no chamador — poria a leitura
+    #: do gabarito em dois lugares, e o segundo nasceria sem as guardas do
+    #: primeiro (`confere_folhas_temporais`, integridade referencial).
+    #:
+    #: A FRONTEIRA QUE ISSO NAO CRUZA: nenhuma rota serializa o pack. `/injects`
+    #: monta um dicionario com quatro campos por inject, e a participant-view
+    #: recebe `textos_para_plateia`, que e um mapa de strings. `05` §6 continua
+    #: valendo, e `check_api_surface.py` continua sendo quem o cobra por rota.
+    verification_predicates: Mapping[str, Mapping] = field(default_factory=dict)
+
     def by_id(self, inject_id: str) -> Inject | None:
         for inject in self.injects:
             if inject.id == inject_id:
@@ -325,6 +343,10 @@ def load_pack(
             str(bruto["id"]): str(bruto.get("texto_para_plateia") or "")
             for bruto in (documentos.get("injects.yaml") or {}).get("injects") or []
         },
+        verification_predicates=(documentos.get("ground_truth.yaml") or {}).get(
+            "verification_predicates"
+        )
+        or {},
         declarations=Declarations(
             pack_id=manifest["pack_id"],
             schema_version=manifest["schema_version"],
