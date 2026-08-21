@@ -88,6 +88,7 @@ from contracts.generated.events import (
 from range_core.clock.exercise_clock import ExerciseClock, label_seconds
 from range_core.clock.restauracao import paused_in
 from range_core.engine.loader.pack_loader import LoadedPack
+from range_core.engine.verificacao import LacoDeVerificacao
 from range_core.events.envelope import Correlation, Event
 from range_core.events.epoch import current_epoch
 from range_core.events.store import EventDraft, EventStore
@@ -208,6 +209,7 @@ class InjectEngine:
         store: EventStore,
         facilitator: Facilitator,
         rollback_reasons: Collection[str],
+        laco: LacoDeVerificacao | None = None,
     ) -> None:
         if REASON_TECHNICAL_FAILURE not in rollback_reasons:
             raise EngineError(
@@ -221,6 +223,7 @@ class InjectEngine:
         self._store = store
         self._facilitator = facilitator
         self._rollback_reasons = frozenset(rollback_reasons)
+        self._laco = laco
 
     # -- leitura -------------------------------------------------------------
 
@@ -284,9 +287,8 @@ class InjectEngine:
                 "o exercicio ja comecou. Recomecar e `exercise_reset`, que e "
                 "entregavel de outra fase",
             )
-        return self._append(
-            EXERCISE_STARTED,
-            payload=self._pack.pin_payload(),
+        return self._avalia(
+            self._append(EXERCISE_STARTED, payload=self._pack.pin_payload())
         )
 
     def fire(self, inject_id: str) -> Event:
@@ -316,13 +318,15 @@ class InjectEngine:
         # este metodo: `00` §3.2 exige que a selecao seja calculo do consumidor.
         # O que o engine deve e por o atributo em CADA disparo, para que haja o
         # que selecionar.
-        return self._append(
-            INJECT_FIRED,
-            inject_id=inject.id,
-            payload={
-                "observable_impact": inject.observable_impact,
-                "requires_response": inject.requires_response,
-            },
+        return self._avalia(
+            self._append(
+                INJECT_FIRED,
+                inject_id=inject.id,
+                payload={
+                    "observable_impact": inject.observable_impact,
+                    "requires_response": inject.requires_response,
+                },
+            )
         )
 
     def fire_due(self) -> tuple[Event, ...]:
@@ -363,15 +367,17 @@ class InjectEngine:
             )
         self._require_started(f"registrar decisao em {inject_id}")
 
-        return self._append(
-            DECISION_MADE,
-            inject_id=inject_id,
-            payload={OPTION_ID: option_id},
-            truth_layer=TRUTH_LAYER_PARTICIPANT,
-            producer=PRODUCER_CONSOLE,
-            actor_id=actor_id,
-            persona=persona,
-            causation_id=self._last_fired_event_id(inject_id),
+        return self._avalia(
+            self._append(
+                DECISION_MADE,
+                inject_id=inject_id,
+                payload={OPTION_ID: option_id},
+                truth_layer=TRUTH_LAYER_PARTICIPANT,
+                producer=PRODUCER_CONSOLE,
+                actor_id=actor_id,
+                persona=persona,
+                causation_id=self._last_fired_event_id(inject_id),
+            )
         )
 
     def pause(self) -> Event:
@@ -484,9 +490,50 @@ class InjectEngine:
         self._clock.start_new_epoch(
             self._clock.elapsed_seconds() - label_seconds(ancora.exercise_time)
         )
-        return evento
+        # DEPOIS do `start_new_epoch`, e a ordem e a garantia: o avaliador grava
+        # um evento, e gravar antes do rebobinamento o carimbaria com o
+        # `exercise_time` de antes do corte. `09` §3.1 manda reavaliar sobre a
+        # linhagem corrente apos o rollback — o mundo ja mudou aqui, e o relogio
+        # tambem precisa ter mudado.
+        return self._avalia(evento)
 
     # -- internos ------------------------------------------------------------
+
+    def _avalia(self, evento: Event) -> Event:
+        """O LACO CONTINUO de `03` §3.1, apos toda operacao que muda o mundo.
+
+        Devolve o evento que a operacao emitiu, e nao os vereditos: quem chamou
+        `fire` quer o `inject_fired`. Os vereditos vao para o store, que e onde o
+        computador de metrica os le — `00` §3.2, lado `verification`.
+
+        E OPCIONAL, e a ausencia e silenciosa de proposito. O engine e montado em
+        teste e em demo sem pack de gabarito, e um `None` aqui significa "nao ha
+        predicado a avaliar", nao "esqueceram de ligar". O que garante que a
+        producao o tem e a montagem em `range-core/api/processo.py`, que constroi
+        o laco a partir do pack carregado.
+
+        A FRONTEIRA, MEDIDA E NAO SUPOSTA: as folhas de `containment` no exemplo
+        normativo de `03` §3.1 sao `vpn_access_revoked` e
+        `identity_scope_disabled`, e **nada na arvore os emite ainda** — nenhum
+        modulo de `range-core/` ou `domains/` os grava. A superficie das tres
+        acoes com efeito no mundo (`01` §4.4) e de outra fase.
+
+        O `Emissor` das nove declaracoes NAO recebe o laco, e a ausencia e
+        estrutural em vez de esquecimento: por `09` §4.0, folha de predicado
+        exige `state_effect` **e** `metric_side: verification`, e nenhuma das
+        nove satisfaz a conjuncao — `communication_submitted` e
+        `regulatory_notice_submitted` sao `state_effect` mas `declaration` por
+        lado, e `assessment_submitted` e `declaration` por classe. Declaracao
+        nao muda o mundo, entao reavaliar depois dela seria um fold por
+        gravacao que nao pode mudar veredito nenhum.
+
+        Quando a superficie das tres acoes existir, ela recebe ESTE laco — o
+        mesmo objeto, e nao um segundo: dois lacos leriam o mesmo store e dariam
+        a mesma resposta, mas nada garantiria que carregam o mesmo pack.
+        """
+        if self._laco is not None:
+            self._laco.avaliar()
+        return evento
 
     def _who(self) -> dict:
         return {BY_USER: self._facilitator.user, ROLE: self._facilitator.role}

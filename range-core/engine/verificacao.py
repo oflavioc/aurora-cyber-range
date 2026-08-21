@@ -210,3 +210,62 @@ def avaliar_e_emitir(
             )
         )
     return emitidos
+
+
+# ---------------------------------------------------------------------------
+# O LAÇO CONTÍNUO — `03` §3.1, *"o motor avalia continuamente"*.
+#
+# A peça 4 entregou o avaliador e declarou a fronteira: quem o chama a cada
+# evento é a peça 5, porque **é o consumidor que decide a cadência**, e os
+# computadores de métrica são o consumidor.
+#
+# POR QUE É UM OBJETO, E NÃO UMA CHAMADA DENTRO DO ENGINE
+# --------------------------------------------------------
+# As folhas de `containment` no exemplo normativo de `03` §3.1 são
+# `vpn_access_revoked` e `identity_scope_disabled` — **ações com efeito no mundo
+# simulado**, que `03` §3.1 separa por nome das afirmações sobre ele.
+#
+# MEDIDO NA ÁRVORE: nada as emite ainda. A superfície das três ações de `01` §4.4
+# é de outra fase, e o `Emissor` das nove declarações não pode movê-las — por
+# `09` §4.0, folha de predicado exige `state_effect` **e**
+# `metric_side: verification`, e nenhuma das nove satisfaz a conjunção.
+#
+# Então hoje o único chamador é o engine. O laço é objeto, e não um método
+# privado dele, para que a superfície que vier receba **este mesmo** objeto: dois
+# laços leriam o mesmo store e dariam a mesma resposta, mas nada garantiria que
+# carregam o mesmo pack.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LacoDeVerificacao:
+    """Avalia os predicados do pack sobre a linhagem corrente, a cada gravação.
+
+    `flags` NÃO é parâmetro: ele é derivado do fold aqui dentro, a cada chamada.
+    Isso não contradiz o docstring de `avaliar_e_emitir` — o que aquele proíbe é
+    o avaliador RECALCULAR o estado por conta própria; aqui o estado vem do
+    `project`, que é o fold, e é a mesma reconstrução que toda projeção usa.
+
+    Recebê-lo pronto seria pior: o chamador teria de lembrar de reconstruí-lo
+    depois de gravar, e um chamador distraído avaliaria o mundo de antes do
+    próprio evento que acabou de emitir.
+    """
+
+    store: EventStore
+    predicados: Mapping[str, Mapping]
+    declarations: object
+
+    def avaliar(self) -> list[Event]:
+        """Devolve os vereditos emitidos — vazio no caso comum.
+
+        Sem predicado, não há o que avaliar, e a saída antecipada evita um fold
+        por gravação num pack que não os declara. Pack real sempre os tem —
+        `ground_truth.schema.yaml` os exige —, mas o engine é montado em teste e
+        em demo com packs mínimos.
+        """
+        if not self.predicados:
+            return []
+        from range_core.state.simulation_state import project
+
+        flags = project(self.store.read_all(), self.declarations).flags
+        return avaliar_e_emitir(self.store, self.predicados, flags)
