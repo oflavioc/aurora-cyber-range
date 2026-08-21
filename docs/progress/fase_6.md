@@ -220,6 +220,7 @@ Prefixo `P6-`.
 | P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **Fase 6** — ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
+| P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -331,3 +332,32 @@ precisar de uma folha temporal — o que vier primeiro. Se vier o pack, é
 **decisão do proprietário** antes de qualquer improviso: o que o predicado
 temporal compara — `exercise_time`, `exercise_timestamp` ou marca de parede — é
 escolha normativa, e as três dão resultados diferentes depois de um rollback.
+
+#### P6-4 — o ensaio descartado leva embora o `exercise_started`
+
+As métricas pareadas medem desde **T0**, e T0 é recuperado do `exercise_started`
+pela identidade de `01` §4.4 — `exercise_timestamp == T0 + exercise_time`.
+
+`09` §3.1 dá a `rehearsal` o efeito *"nenhum evento da epoch entra em cálculo"*, e
+o rollback de ensaio carrega a epoch que **encerra**. Um ensaio rodado na epoch 0
+e descartado leva junto o `exercise_started`, que vive nela — e **não há segundo
+`exercise_started`**, porque rollback não reabre exercício.
+
+**É alcançável, e não teórico: é exatamente o caso de uso do motivo** — rodar um
+aquecimento e jogá-lo fora. Sem T0, `desde_t0` some de todas as siglas.
+
+**O que a peça 5 fez, e o que ela não decidiu.** `marco_zero` **levanta**
+`SemMarcoZero`, nomeando a situação. Não devolve nulo: T0 ausente faria toda
+métrica virar `None`, e o AAR imprimiria ausência de medição onde houve medição —
+a mesma família da degradação silenciosa que a P2-19 recusou.
+
+O que não se decidiu é **de onde T0 vem depois de um ensaio descartado**, e as
+opções não são equivalentes: o `exercise_started` da epoch descartada (T0 do
+aquecimento), o instante do próprio `rollback_performed` de `rehearsal` (o
+exercício "de verdade" começa quando o ensaio termina), ou um `exercise_started`
+novo que a máquina de exercício passaria a emitir — que é mudança de contrato.
+
+**Vence em:** o primeiro exercício que use `rehearsal` na epoch 0, **ou** a Fase
+10, quando o AAR precisar imprimir `T+` para ele — o que vier primeiro. É
+**decisão do proprietário**, pelo mesmo motivo da P6-3: as três opções dão
+números diferentes para todas as nove siglas, e a escolha é normativa.

@@ -143,6 +143,14 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "O `reason` NAO vem daqui — e valor de payload, e o enum dele fica em "
         "`events.schema.yaml`, cruzado por teste em `tests/test_metrics_epoch.py`",
     ),
+    "metrics/verificacao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — o computador do lado da verificacao acha o veredito pelo "
+        "`verification_predicate_satisfied` e T0 pelo `exercise_started`. E "
+        "LEITURA do catalogo: nao chama `append` e nao tem store ao alcance — "
+        "por construcao, porque o insumo de `00` §3.2 nao tem por onde um store "
+        "entrar",
+    ),
     "engine/loader/contract_source.py": (
         frozenset({CONTRACTS}),
         "A EXCECAO, e a unica: importa o PACOTE para resolver o diretorio e ler "
