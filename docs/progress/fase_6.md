@@ -34,7 +34,7 @@ uma mudança de norma feita entre as duas.
 | 3 | `audit_query_performed` e as ações de declaração nos endpoints | **fechada** — blocos A e B |
 | 4 | Predicados de verificação e o motor que os avalia | **fechada** |
 | 5 | Métricas: os dois computadores, o insumo tipado, epoch como cálculo | **fechada** — §3 |
-| 6 | Calibração: Brier no escopo revisado, sinais, `TTIV` por limiar | |
+| 6 | Calibração: Brier no escopo revisado, sinais, `TTIV` por limiar | **fechada** — §4 |
 | 7 | Divergência entre avaliadores e a janela de asseguração prematura | |
 
 **Dependências que não são de conveniência.** A peça 4 vem antes da 5 porque os
@@ -356,6 +356,80 @@ implementação**, fora da árvore, e o número de testes vermelhos é a medida:
 | `metrics/declaracao.py` | 5 — `TTID` no primeiro, `TTID` sem predicado, última declaração, qualquer inject, reinício de epoch | 5 |
 | derivação das nove siglas | 5, plantadas **na tabela**, em cópia da spec | 5 |
 
+## 4. A peça 6 — a calibração
+
+Três unidades, mais o `spec-change` que a P6-1 exigiu.
+
+| # | Unidade | O que fecha |
+|---|---|---|
+| 1 | `contracts/assessment.schema.yaml` | a **reivindicação** que a peça 1 anotou: os dois blocos de `assessment_submitted` saem de `IGNORADOS` |
+| 2 | `range-core/metrics/calibracao.py` | Brier no escopo revisado, os três sinais de `03` §5.4, e a lacuna de cobertura |
+| 3 | `TTIV` em `metrics/verificacao.py` | `03` §3.3 — a metade cujo verificador não é o mundo. Com ela, as **nove** siglas têm computador |
+| — | `spec-change` #47 | a P6-1, resolvida: a acurácia da classificação é rubrica, não calibração |
+
+### 4.1 As decisões que a peça 6 tomou
+
+**Duas normas incidem sobre `assessment_submitted`, e o contrato compõe as duas.**
+`03` §5.1 dá à submissão cinco campos; `03` §3.4 a põe entre as nove ações de
+declaração e exige de cada uma *"justificativa livre"*. Um contrato fechado só
+sobre os cinco campos **recusaria o evento que a rota de produção emite** — e nada
+acusaria, porque o event store não valida payload.
+
+Não é redundância a resolver: `rationale` é o raciocínio **sobre o caso**,
+`justificativa` é a exigência da §3.4 sobre o **ato de declarar**.
+
+**A composição exigiu medir o `unevaluatedProperties`.** Fechá-lo dentro do `$def`
+base não funciona: a palavra fecha no escopo do subschema e não enxerga o que o
+pai avaliou. O `$def` base fica **aberto** e o fechamento mora em cada uso —
+`assessment_documento` para a submissão como a spec a escreve,
+`assessment_submitted_payload` para o evento gravado.
+
+**O Brier tem dois consumidores, e por isso foi extraído.** O escore completo o
+reporta ao lado dos sinais; o computador de `TTIV` o recalcula a cada submissão
+para achar o instante em que ele cruza o limiar. Escrito duas vezes, divergiria.
+
+**Os sinais não se compensam, e por isso são três listas.** Um número líquido
+daria **zero** para a equipe que errou dos dois lados — a leitura exatamente
+oposta da verdadeira, e o que `03` §5.4 proíbe por nome.
+
+### 4.2 Fronteiras e limites declarados
+
+**A lacuna de cobertura não entra no Brier**, e o conjunto — não a
+defensibilidade — é quem a decide: um pack com `defensibility: 0.7` num indevido
+continua produzindo lacuna, porque derivar o conjunto do número apontaria para o
+caso errado.
+
+**A borda de `TTIV` é `<=` sobre float, e o limite está dito.** `04` §2 chama o
+valor de *"Brier máximo"*, e máximo inclui o valor. Igualdade exata na borda
+depende de representabilidade binária — o teste usa `0.25`, que é exato. Um
+epsilon trocaria um arbítrio conhecido por outro escondido.
+
+**`review_scope` chega resolvido, e quem o resolve é a P6-5.**
+
+### 4.3 O teste de fronteira que não reprovou ao ser cruzado
+
+A peça 5 escreveu `test_a_unica_sigla_sem_computador_e_ttiv_e_ela_e_da_peca_6`
+para reprovar quando `TTIV` ganhasse computador. **A fronteira foi cruzada na peça
+6 e ele passou** — estava ancorado em `SIGLA_POR_PREDICADO`, e `TTIV` entrou fora
+daquele mapa porque não é predicado.
+
+**A lição:** teste de fronteira ancorado em detalhe de implementação mede o
+detalhe, e não a propriedade. Reescrito para **rodar os dois computadores** e
+comparar o conjunto de siglas produzidas com as nove da tabela, nas duas direções
+— sem lista intermediária para envelhecer.
+
+### 4.4 Prova negativa das unidades
+
+| Unidade | Violações plantadas | Reprovadas |
+|---|---|---|
+| `metrics/calibracao.py` | 6 — limiares, faixa de defensibilidade, não avaliado, conjunto da lacuna, Brier virando soma | 6 |
+| `metrics/verificacao.py` (com `TTIV`) | 5 — linhagem, T0, desconto, limiar estrito, `TTIV` na última | 5 |
+
+**A prova achou um buraco na própria suíte:** encolher `DEFENSIBILIDADE_BAIXA` de
+0.2 para 0.0 passava em tudo, porque todos os casos de overconfidence usavam
+`defensibility = 0.0` e a borda que `03` §5.4 escreve nunca era exercitada. Dois
+casos novos a fecham — 0.2 sinaliza, 0.21 não.
+
 ## 6. Pendências
 
 Abertas antes da fase, no `spec-change` `particao-das-metricas-pareadas`.
@@ -363,7 +437,7 @@ Prefixo `P6-`.
 
 | Id | O que é | Vence em |
 |---|---|---|
-| P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **Fase 6** — ver abaixo |
+| P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **VENCIDA E RESOLVIDA** — `spec-change` #47 |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
@@ -393,7 +467,7 @@ mecanismo comporta um caso que não vem de `line_b_cases`.
 **Vence em:** o commit em que o escore de calibração da Fase 6 pontuar o primeiro
 `assessment_submitted` contra o gabarito.
 
-##### VENCIDA na peça 6 — a medição, e a decisão que ela não toma
+##### VENCIDA E RESOLVIDA na peça 6 — a medição, e o caminho escolhido
 
 O escore existe (`range-core/metrics/calibracao.py`), e com ele a pergunta que a
 pendência guardava deixou de ser especulativa: **o mecanismo comporta um caso que
@@ -412,16 +486,36 @@ um campo de confiança em `classification_declared` e uma entrada de
 defensibilidade fora de `line_b_cases` — além do texto da §5. Não é acréscimo de
 linha.
 
-**A decisão continua sendo do proprietário**, e as duas opções seguem as que a
-pendência escreveu: estender a §5 com o custo acima, ou deixar a acurácia da
-classificação com a rubrica `incident_triage` (§2.3) e **remover a menção a
-calibração** em `03` §3.0. As duas mexem em `docs/spec/`, então qualquer uma é
-`spec-change` com PR próprio — a Fase 6 não pode executá-la.
+**RESOLVIDA pelo operador: remover a menção**, e deixar a acurácia da
+classificação com a rubrica `incident_triage` (§2.3). Executado no `spec-change`
+`acuracia-da-classificacao-e-rubrica` — PR #47, mergeado por rebase com os quatro
+checks verdes.
 
-**O que a peça 6 fez:** mediu, e deixou o código sem antecipar nenhuma das duas.
-`classification` é campo do contrato de assessment e **é gravado**; o que ele não
-faz é pontuar. Está dito no cabeçalho de `contracts/assessment.schema.yaml`, com
-apontador para esta pendência.
+**O fundamento é de duplicação, e não de custo.** Estender a §5 criaria um
+**segundo número sobre a mesma coisa** — rubrica e escore pontuando o mesmo
+julgamento, sem regra de precedência entre eles. É a forma do argumento que já
+mantém `TTT` sem par: duplicar mecanismo é pior que medir uma vez só. A correção
+fica menor que o defeito.
+
+**E a acurácia já tinha casa.** §1.3 põe `incident_triage` e `TTT` na **mesma
+linha** do OBJ-03; o exemplo normativo de §1.1 traz `rubric: incident_triage.v2`
+e `metric_binding: TTT` no mesmo objetivo. A §3.0 não criou endereço — apontou o
+que a spec já tinha. E a calibração também já tem o dela na mesma tabela: é a
+métrica do **OBJ-04**, não do OBJ-03.
+
+**A medição acima fica preservada de propósito.** Ela é a evidência de por que a
+outra opção caiu, e some se a pendência for apenas apagada — que é a forma pela
+qual uma decisão vira folclore: o resultado sobrevive e o argumento não.
+
+**A varredura achou TRÊS sítios, e não dois.** O terceiro estava em
+`00_MASTER_SPEC.md` §3.2 — o documento de autoridade, e o que define a cláusula
+(1) do critério de partição. Corrigir só `03` teria deixado a norma-mãe mandando
+para a §5 enquanto a norma-filha mandava para a rubrica. É a mesma varredura que
+faltou quando a peça 1 criou o sétimo contrato (§3.4).
+
+**O que a peça 6 fez no código:** nada que antecipasse a decisão. `classification`
+é campo do contrato de assessment e **é gravado**; o que ele não faz é pontuar.
+Está dito no cabeçalho de `contracts/assessment.schema.yaml`.
 
 #### P6-2 — o start de `TTA` não tem origem em contrato nenhum
 
