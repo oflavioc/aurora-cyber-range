@@ -119,6 +119,11 @@ class PackSite:
     #: contrato a admite (`ground_truth.schema.yaml` §predicate_before/after) e o
     #: avaliador ainda nao a implementa — ver `docs/progress/fase_6.md`, P6-3.
     TEMPORAL_LEAF_UNSUPPORTED = "temporal_leaf_unsupported"
+    #: Pack COMPLETO ao qual falta um dos documentos que
+    #: `x-aurora-registry.package_files.required_for_complete_pack` exige. B1 da
+    #: auditoria da Fase 6: aquele registro era citado em docstring e nao lido
+    #: por codigo nenhum.
+    INCOMPLETE_PACK = "incomplete_pack"
 
 
 class PackError(Exception):
@@ -318,6 +323,7 @@ def load_pack(
             )
 
     documentos = _read_documents(raiz, scope_from_contract(scenario))
+    _verify_completude(raiz, documentos, scenario)
     manifest = documentos["manifest.yaml"]
     content_hash = content_hash_v1(documentos)
 
@@ -425,6 +431,62 @@ def _version_tuple(versao: str) -> tuple[int, ...]:
     return tuple(int(parte) for parte in str(versao).split("."))
 
 
+def _verify_completude(
+    raiz: Path, documentos: Mapping[str, Mapping], scenario: Mapping
+) -> None:
+    """`required_for_complete_pack` deixa de ser prosa — B1 da Fase 6.
+
+    O registro existia no contrato desde a terceira auditoria e era citado em
+    DOIS docstrings; nenhum codigo o lia. Um pack completo sem `ground_truth.yaml`
+    carregava limpo, e `TTCV`/`TTRV` ficavam incomputaveis em runtime — que e o
+    que `03` §3.1 diz que o pack nao pode ter.
+
+    O QUE ESTE PASSO **NAO** FAZ, E E A RESSALVA QUE O DESENHO EXIGE
+    ----------------------------------------------------------------
+    Ele **nao** torna `ground_truth.yaml` obrigatorio para todo pack. `04` §9
+    manda entregar `vazamento-lgpd` e `pesquisa-comprometida` como *"apenas
+    manifesto, sem injects"*, e eles existem justamente para provar que o loader
+    lida com pacote incompleto. Endurecer aqui reintroduziria o M1 da terceira
+    auditoria, que foi quem separou as duas formas.
+
+    O CRITERIO E DERIVADO, E NAO UMA QUARTA LISTA
+    ----------------------------------------------
+    Pack **completo** e o que traz **pelo menos um** dos documentos de
+    `required_for_complete_pack`; nele, **todos** sao exigidos. Pack
+    **apenas-manifesto** nao traz nenhum, e continua carregando.
+
+    A derivacao evita a lista nova que teria de ser mantida em acordo com a
+    existente — e listas paralelas divergem, que e a classe que este mesmo
+    registro ja custou uma auditoria para fechar.
+
+    O MEIO-TERMO E O QUE ELE PEGA: pack com `injects.yaml` e sem
+    `ground_truth.yaml` nao e apenas-manifesto nem completo. Antes deste passo
+    ele carregava como se fosse legitimo.
+    """
+    exigidos = (
+        (scenario.get("x-aurora-registry") or {}).get("package_files") or {}
+    ).get("required_for_complete_pack") or []
+
+    presentes = [arquivo for arquivo in exigidos if arquivo in documentos]
+    if not presentes:
+        return
+
+    faltando = [arquivo for arquivo in exigidos if arquivo not in documentos]
+    if not faltando:
+        return
+
+    linhas = [
+        f"{raiz}: pack COMPLETO sem {', '.join(repr(a) for a in faltando)}.",
+        f"    Ele traz {', '.join(repr(a) for a in presentes)}, entao nao e "
+        "pacote apenas-manifesto — e `contracts/scenario.schema.v2.yaml` exige "
+        "os tres em "
+        "`x-aurora-registry.package_files.required_for_complete_pack`.",
+        "    Pacote APENAS-MANIFESTO continua sendo forma legitima (`04` §9): "
+        "ele nao traz NENHUM dos tres.",
+    ]
+    raise PackError(PackSite.INCOMPLETE_PACK, "\n".join(linhas))
+
+
 def _verify_schema(
     documentos: Mapping[str, Mapping],
     scenario: Mapping,
@@ -442,7 +504,18 @@ def _verify_schema(
     for arquivo, ponteiro in sorted((scenario.get("x-aurora-documents") or {}).items()):
         if arquivo not in documentos:
             continue
-        alvo = {"$ref": f"{base}{ponteiro}"} if ponteiro not in (None, "#") else {"$ref": base}
+        # PONTEIRO RELATIVO resolve neste contrato; URI ABSOLUTA resolve em
+        # outro — `ground_truth.yaml` e `objectives.yaml` tem contrato proprio, e
+        # e por isso que o mapa carrega `$ref` e nao so ponteiro (B1 da Fase 6).
+        if ponteiro and "://" in ponteiro:
+            alvo = {"$ref": ponteiro}
+            origem = ponteiro
+        elif ponteiro in (None, "#"):
+            alvo = {"$ref": base}
+            origem = f"contracts/scenario.schema.v2.yaml{ponteiro or ''}"
+        else:
+            alvo = {"$ref": f"{base}{ponteiro}"}
+            origem = f"contracts/scenario.schema.v2.yaml{ponteiro}"
         erros = sorted(
             Draft202012Validator(alvo, registry=registry).iter_errors(documentos[arquivo]),
             key=str,
@@ -451,8 +524,7 @@ def _verify_schema(
             detalhe = "\n".join(f"    {e.json_path}: {e.message}" for e in erros[:5])
             raise PackError(
                 PackSite.DOCUMENT_INVALID,
-                f"`{arquivo}` nao valida contra "
-                f"`contracts/scenario.schema.v2.yaml{ponteiro}` "
+                f"`{arquivo}` nao valida contra `{origem}` "
                 f"({len(erros)} erro(s)):\n{detalhe}",
             )
 

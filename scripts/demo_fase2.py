@@ -64,7 +64,13 @@ from range_core.engine.loader.pack_loader import (  # noqa: E402
 )
 from range_core.events.store import InMemoryEventStore  # noqa: E402
 
-PACK_PADRAO = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(REPO_ROOT / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6. Este DEMO roda no
+#: CI, entao a materializacao esta em caminho de gate: ela falha ALTO, e o motivo
+#: esta no cabecalho de `tests/fixtures/pack_completo.py`.
+PACK_PADRAO = materializa()
 
 #: O adapter de que o pack depende. O caminho vive AQUI, no chamador, e nao no
 #: nucleo: quem carrega o adapter entrega as flags como dado, e e por isso que

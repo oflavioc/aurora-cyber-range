@@ -34,20 +34,21 @@ build/
 # torna o interpretador do checkout alcancavel pelo auditor (B1 da Fase 6).
 .aurora-audit/
 
-# Destino da materializacao do pacote COMPLETO de cenario. Nasce por comando, e
-# NUNCA e versionado: o conteudo inclui `ground_truth.yaml`, que a secao abaixo
-# — e `05` secao 6 — poem fora deste repositorio publico.
+# Pacote COMPLETO materializado para o container — B1 da Fase 6.
 #
-# A ENTRADA CHEGA AQUI ANTES DO CODIGO QUE ESCREVE O DIRETORIO, e isso e
-# deliberado. Ela nasceu na branch da Fase 6, que ainda nao foi mergeada; enquanto
-# isso, todo trabalho FORA daquela branch — spec-change, correcao de mecanismo,
-# qualquer branch tirada da `main` — ve o diretorio como nao rastreado, com o
-# gabarito exposto a um `git add` amplo. Duas varreduras acidentais na sessao de
-# 21/08/2026 mostraram que a assimetria morde de verdade.
+# `docker-compose.yml` monta o pack por volume, e volume exige caminho fixo. O
+# conteudo inclui `ground_truth.yaml`, que `05` secao 6 poe fora do repositorio
+# publico: por isso o caminho e ignorado, e por isso o helper RECUSA destino
+# versionado em vez de confiar nesta linha. `.gitignore` e convencao que
+# `git add -f` atravessa.
 #
-# `.gitignore` e convencao, e `git add -f` a atravessa: quem executa a decisao e
-# `scripts/check_gabarito_fora_do_git.py`, que reprova `ground_truth.yaml`
-# versionado em qualquer lugar da arvore.
+# Nasce por comando: `python tests/fixtures/pack_completo.py .aurora-pack`
+#
+# A ENTRADA CHEGOU NA `main` ANTES DESTA BRANCH SER MERGEADA (`d26a371`), e isso
+# e deliberado. Enquanto a fase nao entra, todo trabalho FORA dela — spec-change,
+# correcao de mecanismo, qualquer branch tirada da `main` — ve o diretorio como
+# nao rastreado, com o gabarito exposto a um `git add` amplo. Duas varreduras
+# acidentais na sessao de 21/08/2026 mostraram que a assimetria morde de verdade.
 .aurora-pack/
 
 # Runtime/generated artifacts
