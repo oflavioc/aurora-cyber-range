@@ -34,6 +34,22 @@ build/
 # torna o interpretador do checkout alcancavel pelo auditor (B1 da Fase 6).
 .aurora-audit/
 
+# Destino da materializacao do pacote COMPLETO de cenario. Nasce por comando, e
+# NUNCA e versionado: o conteudo inclui `ground_truth.yaml`, que a secao abaixo
+# — e `05` secao 6 — poem fora deste repositorio publico.
+#
+# A ENTRADA CHEGA AQUI ANTES DO CODIGO QUE ESCREVE O DIRETORIO, e isso e
+# deliberado. Ela nasceu na branch da Fase 6, que ainda nao foi mergeada; enquanto
+# isso, todo trabalho FORA daquela branch — spec-change, correcao de mecanismo,
+# qualquer branch tirada da `main` — ve o diretorio como nao rastreado, com o
+# gabarito exposto a um `git add` amplo. Duas varreduras acidentais na sessao de
+# 21/08/2026 mostraram que a assimetria morde de verdade.
+#
+# `.gitignore` e convencao, e `git add -f` a atravessa: quem executa a decisao e
+# `scripts/check_gabarito_fora_do_git.py`, que reprova `ground_truth.yaml`
+# versionado em qualquer lugar da arvore.
+.aurora-pack/
+
 # Runtime/generated artifacts
 # Estado do lancamento da auditoria: efemero, por maquina, e NAO pode ser
 # versionado — arquivo de estado versionado suja a arvore e bloqueia a
