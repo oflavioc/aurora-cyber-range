@@ -9,6 +9,41 @@ import sys
 
 SAFE_ENV_PREFIX = r"(?:(?:PYTHONDONTWRITEBYTECODE|PYTHONHASHSEED|NODE_ENV)=[^\s]+\s+)*"
 
+#: O INTERPRETADOR DO CHECKOUT AUDITADO — B1 da auditoria da Fase 6.
+#:
+#: A REINCIDENCIA E O QUE MAIS IMPORTA AQUI, e por isso ela abre o comentario. A
+#: entrada de `unittest` mais abaixo nasceu do B1 da Fase 2 — o auditor nao
+#: conseguiu executar NENHUM teste e voltou a avaliar por leitura —, e aquele B1
+#: era ele proprio reincidencia do H3 da segunda auditoria da Fase 1.
+#:
+#: Esta e a MESMA CLASSE POR OUTRA PORTA: a FORMA estava admitida
+#: (`python -m unittest discover -s tests` casa), e o INTERPRETADOR nao era
+#: alcancavel. O lancador criava o venv fora do worktree e exportava `PATH`; a
+#: ferramenta de Bash do auditor nasce num shell novo a cada chamada,
+#: inicializado pelo perfil, e o export nao a alcanca — medido, com `python`
+#: resolvendo para o interpretador da maquina. O auditor voltou a avaliar por
+#: leitura, pela terceira vez, por um motivo que nenhuma das duas correcoes
+#: anteriores cobria.
+#:
+#: Sem este paragrafo escrito, a QUARTA ocorrencia entra por uma quarta porta.
+#: As tres ate aqui: comando ausente da lista (H3), forma ausente da lista (B1
+#: da Fase 2), interpretador inalcancavel com a forma presente (B1 da Fase 6).
+#:
+#: FORMA EXATA, E NAO FAMILIA — a mesma doutrina da entrada de `unittest`. O
+#: caminho e LITERAL e ancorado logo apos o inicio: `..`, caminho absoluto e
+#: qualquer outra grafia NAO casam. E o prefixo e OPCIONAL para nao duplicar a
+#: lista de sufixos: dois conjuntos de sufixos divergiriam, que e a classe D4.
+#:
+#: POR QUE ISTO NAO E O `py -3.12` QUE FOI RECUSADO. Aquele daria ao julgador um
+#: interpretador DA MAQUINA, com a contencao cega — a mesma classe do
+#: `check_prova_do_seed` medindo outro commit. Este resolve DENTRO do worktree,
+#: e `_alvo_nao_contido` passa a guarda-lo de fato: a regra ganha funcao em vez
+#: de ser contornada.
+#:
+#: `PATH=` no `SAFE_ENV_PREFIX` foi descartado pela razao da P2-19: poria caminho
+#: de busca arbitrario na mao de quem emite o veredito.
+PREFIXO_DO_VENV = r"(?:\.aurora-audit/venv/(?:bin|Scripts)/)?"
+
 #: COMANDOS ALLOWLISTADOS SEM NENHUMA FORMA DE ESCRITA — usados por UMA coisa
 #: so: a isencao de alvo INEXISTENTE em `_alvo_nao_contido`. Ver o docstring de
 #: la para o argumento; aqui fica o criterio de admissao, que e estreito.
@@ -61,13 +96,13 @@ ALLOWED = [
     # daria ao auditor a capacidade de carregar modulo arbitrario por nome, que e
     # execucao arbitraria com outro nome — e `discover -s <dir>` livre alcancaria
     # qualquer diretorio.
-    rf"^{SAFE_ENV_PREFIX}python\s+-m\s+unittest\s+discover\s+-s\s+tests\s*$",
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+-m\s+unittest\s+discover\s+-s\s+tests\s*$",
     rf"^{SAFE_ENV_PREFIX}npm\s+(test|run\s+test|run\s+lint|run\s+typecheck)\b",
     rf"^{SAFE_ENV_PREFIX}(ruff|mypy|black\s+--check|eslint|tsc\s+--noEmit)\b",
     rf"^{SAFE_ENV_PREFIX}range-cli\s+scenario\s+(validate|lint|dryrun)\b",
     rf"^{SAFE_ENV_PREFIX}range-cli\s+evidence\s+verify\b",
     rf"^{SAFE_ENV_PREFIX}docker\s+compose\s+(ps|logs|config)\b",
-    rf"^{SAFE_ENV_PREFIX}python\s+tools/(?:check_[A-Za-z0-9_.-]+\.py|codegen\.py\s+--check)\b",
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+tools/(?:check_[A-Za-z0-9_.-]+\.py|codegen\.py\s+--check)\b",
     # O harness negativo e a prova central da Fase 0: um verificador que nunca
     # falhou contra violacao plantada e so um script que sai com zero. Sem esta
     # entrada o auditor nao consegue executa-lo e passa a auditar por inferencia
@@ -125,7 +160,7 @@ ALLOWED = [
     # leitura. Admiti-lo daria ao auditor uma operacao de escrita longa para
     # confirmar um numero que a forma ja garante. Ver o limite declarado no
     # registro da Fase 2.
-    rf"^{SAFE_ENV_PREFIX}python\s+scripts/"
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+scripts/"
     rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes"
     rf"|check_spec_examples|check_spec_examples_probes"
     rf"|check_progress_consistency"
@@ -327,6 +362,15 @@ ALLOWED = [
     #     deveria: ele mora em `~/.claude/hooks/`, fora da arvore, pelo motivo
     #     escrito no cabecalho dele. Exercita-lo direto exigiria `printf` em
     #     ALLOWED, e o harness ja o exercita nas nove direcoes.
+    # `check_venv_da_auditoria_probes` — B1 da Fase 6, e ele entra por si mesmo:
+    # e a prova de que o interpretador do checkout auditado e alcancavel PELAS
+    # REGRAS DESTE ARQUIVO. Sem executa-lo, o auditor aceitaria da palavra de
+    # quem escreveu que a correcao do proprio buraco que o impediu de executar
+    # funciona — que e a forma mais circular possivel de atestacao.
+    #
+    # Ele NAO abre superficie: le a fonte versionada do hook e chama duas funcoes
+    # puras. Nao executa interpretador nenhum.
+    rf"|check_venv_da_auditoria_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao

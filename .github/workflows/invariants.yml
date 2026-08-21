@@ -294,6 +294,20 @@ jobs:
       - name: teste negativo do verificador das provas de container
         run: python scripts/check_provas_de_container_probes.py
 
+      # B1 DA AUDITORIA DA FASE 6 — o interpretador do checkout auditado.
+      #
+      # A FORMA estava admitida e o INTERPRETADOR nao era alcancavel: o venv
+      # nascia fora do worktree e o `PATH` exportado nao atravessa para a
+      # ferramenta de Bash do auditor. Ele voltou a avaliar por leitura, pela
+      # TERCEIRA vez e por uma porta que as duas correcoes anteriores nao
+      # cobriam — H3 da Fase 1 (comando ausente), B1 da Fase 2 (forma ausente).
+      #
+      # SO PROBES, e nao ha verificador ao lado: a pergunta e "as regras do hook
+      # alcancam o venv do worktree?", e ela e respondida por leitura das regras,
+      # nao por medicao de arvore. Roda aqui porque e stdlib pura.
+      - name: o interpretador do checkout auditado e alcancavel (B1 da Fase 6)
+        run: python scripts/check_venv_da_auditoria_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 
