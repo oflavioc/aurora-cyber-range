@@ -528,7 +528,7 @@ Prefixo `P6-`.
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
 | P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
-| P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **condição** — ver abaixo |
+| P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -800,7 +800,31 @@ inferência junto com a equipe.
 As duas perguntas têm consequência de norma: a segunda decide se declarar escopo
 largo e revisar pouco é distinguível de declarar escopo estreito.
 
-**Vence em:** o primeiro exercício que compute Brier sobre um pack real, **ou** a
-Fase 10, quando o AAR precisar imprimir a lacuna de cobertura — o que vier
-primeiro. É **decisão do proprietário**, e a fronteira que ela atravessa é
-core × adapter, que é a que este projeto guarda com invariante.
+**Vencia em:** o primeiro exercício que computasse Brier sobre um pack real, ou a
+Fase 10. Foi decidida antes, com o mapa das três opções à vista.
+
+##### DECIDIDA na peça 7 — `review_scope` carrega a lista, resolvida no fechamento
+
+**Decisão do operador: opção 3.** `review_scope` passa a carregar a lista de
+`case_id` que o escopo alcança, e ela é resolvida no **fechamento** do escore —
+não na abertura. **Entrega na Fase 7**, porque é mudança de contrato.
+
+**Por que o fechamento, e não a abertura.** É o fechamento que distingue **escopo
+largo com revisão rasa** de **escopo estreito** — e essa distinção é precisamente
+o que a calibração mede. Congelar na abertura tornaria a declaração inauditável
+contra o que foi de fato revisado: a equipe declararia intenção, e o Brier
+pontuaria a intenção.
+
+**As duas opções rejeitadas, com o custo preservado** — elas são a evidência de
+por que a terceira venceu, e somem se a pendência for apenas fechada:
+
+| Opção | O que oferecia | Por que caiu |
+|---|---|---|
+| **`academus-api` resolve** | tem as linhas da trilha e já tem o console de investigação | o conjunto resolvido chegaria ao core **vindo do adapter**. O invariante 1 **varre import, e não vocabulário** — a Fase 4 registrou isso ao separar papel de exercício de papel de domínio, e precisou de `check_api_surface.py` para guardar o que o invariante não alcança. Aqui a travessia seria **por dado**, e nenhum invariante a veria |
+| **Gerador do seed resolve** | plantou os casos e conhece os atributos | cai por **tempo**: ele resolve na geração, e o escopo é declarado em *runtime*. Escopo que a equipe escreve durante o exercício não teria como ser resolvido por quem já terminou de rodar |
+
+**O que a Fase 6 deixa pronto para ela.** `escopo_revisado` já é escalar do
+`InsumoDeVerificacao`, declarado em `CAMPOS_DECLARADOS` do
+`check_insumo_de_metrica.py`, e `escore()` já o recebe como dado. A Fase 7 muda
+**de onde ele vem** — não a forma como chega ao consumidor, que `00` §3.2 já
+fixou.
