@@ -12,7 +12,7 @@ A §2.1 do registro da Fase 2 declarou um limite e nomeou o gatilho dele:
 
 O gatilho disparou na peca do loader: `range-core/engine/loader/contract_source.py`
 importa o **pacote** `contracts` — nao o modulo de constantes — para resolver o
-diretorio e ler os seis `.yaml` em tempo de execucao. A superficie deixou de ser
+diretorio e ler os `.yaml` em tempo de execucao. A superficie deixou de ser
 um artefato gerado e passou a ser um diretorio inteiro.
 
 **O import e legitimo, e nao e ele que esta em jogo.** O invariante 1 proibe

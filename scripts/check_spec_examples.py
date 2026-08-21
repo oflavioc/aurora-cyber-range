@@ -127,7 +127,7 @@ IGNORADOS = {
         # `objectives` reivindica 09 secao 6 como autoridade — do BINDING
         # evento->objetivo, que e o bloco de indice 1. Este e
         # observability_hooks.yaml, arquivo de adapter: tem `hooks`, `trigger` e
-        # `payload_fields`, e nenhum dos seis contratos o cobre.
+        # `payload_fields`, e nenhum contrato de `contracts/` o cobre.
         "nao_e_instancia_de": "objectives",
     },
 }

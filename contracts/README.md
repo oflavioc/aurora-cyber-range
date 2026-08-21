@@ -1,6 +1,6 @@
 # Contratos
 
-Os seis contratos deste diretório são **JSON Schema 2020-12**, autorados em YAML.
+Os contratos deste diretório são **JSON Schema 2020-12**, autorados em YAML.
 
 Decisão D4 da Fase 1, registrada em `docs/progress/fase_1.md`. A forma anterior era
 YAML descritivo com vocabulário próprio (`required_fields`, `types`,
@@ -154,7 +154,7 @@ x-aurora-spec-examples:
 `event_catalog` e `adapter_flags` vêm das fontes canônicas. Os registros `pack_*`
 vêm dos **exemplos positivos dos próprios contratos**: eles formam um mini-pacote
 sintético, e é contra ele que as referências cruzadas resolvem. Isso obriga os
-exemplos dos seis contratos a serem **coerentes entre si** — um `projects_facts`
+exemplos dos contratos a serem **coerentes entre si** — um `projects_facts`
 que cite fato que nenhum exemplo declara é reprovado, que é a própria falha que o
 contrato diz recusar. Nenhum pacote de cenário existe antes da Fase 7, e inventar
 um só para o teste seria dado não versionado guiando verificação.

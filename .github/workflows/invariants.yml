@@ -821,6 +821,18 @@ jobs:
       # arvore. Sem este passo, a entrada `package-data` do `pyproject.toml`
       # ficaria sem prova — e o sintoma so apareceria no container.
       #
+      # SEM NUMERO INSCRITO, e a mudanca e da Fase 6. Esta linha dizia `== 6`, e
+      # a peca 1 criou o SETIMO contrato (`rubrics.schema.yaml`) sem varrer quem
+      # afirmava a contagem: o passo teria ficado vermelho no PR da fase, trinta
+      # commits depois de a causa entrar.
+      #
+      # Agora a propriedade e DERIVADA do diretorio — todo `.yaml` de
+      # `contracts/` vira um contrato lido, nenhum orfao e nenhum faltante —, e
+      # `contracts_dir()` e o mesmo resolvedor por `__path__` que o loader usa,
+      # entao nao ha segunda implementacao. A afirmacao de nao-vazio e o que
+      # preserva a prova do `package-data`: sem ela, um diretorio vazio faria
+      # `0 == 0` passar.
+      #
       # A TERCEIRA LINHA e da peca 4, e prova uma coisa mais estreita que as
       # outras duas: que `api_surface.yaml` e achado pelo `__path__` do pacote e
       # nao pelo CWD. Com instalacao EDITAVEL o `.pth` poe a raiz no `sys.path`,
@@ -831,7 +843,7 @@ jobs:
         working-directory: /tmp
         run: |
           python -c "import range_core.state.simulation_state, contracts.generated.events"
-          python -c "from range_core.engine.loader import contract_source; assert len(contract_source.read_contracts()) == 6"
+          python -c "from range_core.engine.loader import contract_source as cs; lidos = cs.read_contracts(); arquivos = sorted(p.name for p in cs.contracts_dir().glob('*.yaml')); assert arquivos, 'contracts/ sem .yaml: package-data nao veio'; assert len(lidos) == len(arquivos), (sorted(lidos), arquivos)"
           python -c "from domains.academus.api.surface import carregar; assert carregar().rota('GET', '/students/{student_id}').papeis"
           # A QUARTA LINHA e da peca 6, e so pode existir DEPOIS do passo de
           # build: ela serve o bundle DE VERDADE pela rota de verdade, com o CWD

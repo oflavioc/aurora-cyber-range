@@ -310,7 +310,40 @@ vazio de passar.
 instantes e entregam o decorrido desde T0 já descontado. `00` §3.2 põe o delta
 no AAR por nome, e é a mesma colocação da janela de asseguração prematura.
 
-### 3.4 Prova negativa das unidades
+### 3.4 A contagem inscrita, e a regra que sai daqui
+
+**Criar instância de um conjunto contado exige varrer quem afirma a contagem, no
+mesmo commit.**
+
+A peça 1 criou o **sétimo** contrato — `rubrics.schema.yaml` — e não varreu. O
+passo de CI que prova o `package-data` afirmava `len(read_contracts()) == 6`, e
+mais dez lugares em prosa diziam *"os seis contratos"*. O passo teria ficado
+vermelho no PR da fase, trinta commits depois de a causa entrar.
+
+**A leitura errada seria *"a branch não foi empurrada"*.** `push` não roda CI sem
+PR, e o número teria envelhecido do mesmo jeito num repositório que rodasse CI a
+cada push. O que falhou foi a varredura — e ela **já era ritual desta fase**: a
+contagem de `spec-change` foi corrigida por commit próprio quatro vezes, e o
+mesmo cuidado não atravessou para o conjunto de contratos.
+
+**A correção removeu o número, não o atualizou.** Trocar 6 por 7 marcaria a
+quarta ocorrência da mesma classe nesta fase e prepararia a quinta. O CI passa a
+afirmar a propriedade **derivada do diretório** — todo `.yaml` de `contracts/`
+vira um contrato lido, nenhum órfão e nenhum faltante —, usando o mesmo
+`contracts_dir()` que o loader usa, sem segunda implementação. A afirmação de
+não-vazio preserva a prova do `package-data`: sem ela, `0 == 0` passaria.
+
+E a pergunta desceu para a suíte, em `tests/test_cobertura_dos_contratos.py`. As
+duas provas não se substituem: o passo de CI roda em `/tmp` e prova **resolução
+fora da raiz**; o teste roda na suíte e prova **cobertura**, em segundos e para
+quem está editando.
+
+Os outros dois *"seis"* da árvore **não** foram tocados, e a distinção é o
+trabalho: os **seis verificadores de invariante** de `tools/` seguem sendo seis, e
+os **seis conjuntos da Linha B** de `02` §6.1 seguem sendo seis. Contagem que
+envelheceu e contagem que vale têm a mesma forma no `grep`.
+
+### 3.5 Prova negativa das unidades
 
 Verificador tem `_probes.py`; **computador tem violação plantada na
 implementação**, fora da árvore, e o número de testes vermelhos é a medida:

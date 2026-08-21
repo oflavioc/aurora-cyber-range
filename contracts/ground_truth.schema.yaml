@@ -476,7 +476,7 @@ examples:
 
       # Segundo fato do mesmo incidente. Existe aqui porque o exemplo de
       # evidence.schema.yaml projeta DOIS fatos num arquivo so, e os exemplos
-      # positivos dos seis contratos formam um mini-pacote que precisa ser
+      # positivos dos contratos formam um mini-pacote que precisa ser
       # coerente entre si — e contra ele que as referencias cruzadas resolvem
       # em scripts/check_contract_examples.py.
       - fact_id: GT-A-019
