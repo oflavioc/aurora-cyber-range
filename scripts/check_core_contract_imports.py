@@ -143,6 +143,13 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "O `reason` NAO vem daqui — e valor de payload, e o enum dele fica em "
         "`events.schema.yaml`, cruzado por teste em `tests/test_metrics_epoch.py`",
     ),
+    "aar/timeline.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a `aar_timeline` acha as notas de rubrica pelo "
+        "`bars_score_submitted` e as declaracoes de integridade pelo tipo delas. "
+        "E LEITURA do catalogo, e a projecao nao chama `append`: `01` §4.1 diz "
+        "que nenhuma projecao escreve no store",
+    ),
     "metrics/calibracao.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — o escore de `03` §5 recorta os `assessment_submitted` do "
