@@ -30,6 +30,7 @@ primeiro a descobrir seria o consumidor de outra fase.
 
 from __future__ import annotations
 
+import sys
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -65,7 +66,13 @@ from range_core.events.store import InMemoryEventStore
 from range_core.state.simulation_state import TO_EVENT_ID
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PACK = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(REPO_ROOT / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6. A fixture
+#: versionada nao tem `ground_truth.yaml` e nao pode ter (`05` §6), e um pacote
+#: com `injects.yaml` e COMPLETO pelo contrato. Ver `tests/fixtures/pack_completo.py`.
+PACK = materializa()
 FLAGS_DO_ADAPTER = Path("domains") / "academus" / "flags.yaml"
 
 CONTRATOS = contract_source.read_contracts()

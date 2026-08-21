@@ -156,7 +156,7 @@ services:
       AURORA_GM_PASSWORD: ${AURORA_GM_PASSWORD}
       AURORA_JWT_SECRET: ${AURORA_JWT_SECRET}
     volumes:
-      - ./tests/fixtures/pack_minimo:/pack:ro
+      - ./.aurora-pack:/pack:ro
     ports:
       - "127.0.0.1:${AURORA_RANGE_PORT:-8000}:8000"
     depends_on:
@@ -209,7 +209,7 @@ services:
       # P3-10 e funcao dele. Sem a variavel o processo RECUSA o boot.
       RANDOM_SEED: ${RANDOM_SEED}
     volumes:
-      - ./tests/fixtures/pack_minimo:/pack:ro
+      - ./.aurora-pack:/pack:ro
     ports:
       - "127.0.0.1:${AURORA_ACADEMUS_PORT:-8001}:8000"
     depends_on:

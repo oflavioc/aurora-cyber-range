@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
@@ -56,7 +57,11 @@ from range_core.state.simulation_state import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PACK = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(REPO_ROOT / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6.
+PACK = materializa()
 FLAGS_DO_ADAPTER = Path("domains") / "academus" / "flags.yaml"
 
 CONTRATOS = contract_source.read_contracts()
@@ -371,11 +376,35 @@ class OutrasRecusas(_ComCopia):
         erro = self.recusa(destino, PackSite.RULE_VIOLATION)
         self.assertIn("pack_objectives", str(erro))
 
-    def test_objectives_yaml_ausente_recusa_o_inject_que_cita_objetivo(self):
-        """Registro vazio e RECUSA, e nao permissao — ver `build_pack_registries`."""
+    def test_objectives_yaml_ausente_recusa_o_pack_como_INCOMPLETO(self):
+        """A recusa MUDOU DE SITIO no B1 da Fase 6, e mais cedo e melhor.
+
+        Antes, um pack com `injects.yaml` e sem `objectives.yaml` chegava a
+        integridade referencial e era recusado por `RULE_VIOLATION` — o inject
+        citava um objetivo que o registro vazio nao tinha. A recusa era certa
+        pelo motivo errado: o defeito nao e o inject, e o PACOTE, que se apresenta
+        como completo e nao traz o que o contrato exige do completo.
+
+        `required_for_complete_pack` passou a ser lido por codigo, e agora o
+        sitio e `INCOMPLETE_PACK`. A mensagem nomeia o DOCUMENTO que falta em vez
+        do objetivo que sobrou.
+        """
         destino = self.copia()
         (destino / "objectives.yaml").unlink()
-        self.recusa(destino, PackSite.RULE_VIOLATION)
+        erro = self.recusa(destino, PackSite.INCOMPLETE_PACK)
+        self.assertIn("objectives.yaml", str(erro))
+
+    def test_registro_vazio_de_objetivos_continua_sendo_recusa(self):
+        """A propriedade que o teste acima media, agora por caminho proprio.
+
+        `build_pack_registries` trata registro vazio como RECUSA e nao como
+        permissao. Com `objectives.yaml` PRESENTE e sem o objetivo citado, o pack
+        e completo — passa pelo passo novo — e a integridade referencial
+        continua sendo quem o pega.
+        """
+        destino = self.copia()
+        (destino / "objectives.yaml").write_text("objectives: {}\n", encoding="utf-8")
+        self.recusa(destino, PackSite.DOCUMENT_INVALID)
 
     def test_t_relative_fora_do_formato(self):
         destino = self.copia()
