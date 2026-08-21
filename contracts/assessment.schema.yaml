@@ -1,0 +1,260 @@
+# CONTRATO — Submissao de avaliacao de caso da Linha B
+#
+# Autoridade: 03_EXERCISE_DESIGN.md secao 5.1, 02_DOMAIN_ACADEMUS.md secao 6.2.
+#
+# POR QUE ELE NASCE NA FASE 6, E NAO ANTES
+# -----------------------------------------
+# Os dois blocos normativos acima estavam em `IGNORADOS` de
+# `scripts/check_spec_examples.py`, com o motivo "artefato de runtime da Fase 6,
+# sem contrato". A Fase 6 chegou, e o motivo CADUCOU — e caduco e o mesmo que
+# ausente, porque ninguem reabre um `IGNORADOS` para conferir se a condicao
+# ainda se sustenta.
+#
+# E o mesmo tratamento que a rubrica recebeu na peca 1: contrato que REIVINDICA
+# o bloco, e a entrada sai da lista. Foi a peca 1 que provou que a checagem
+# funciona — ela pegou o probe de `check_spec_examples_probes.py` ancorado no
+# bloco que deixou de ser ignorado.
+#
+# O ARQUIVO E A SUBMISSAO, E NAO O EVENTO
+# ----------------------------------------
+# Os blocos da spec sao `assessment:` no topo — a submissao como a equipe a
+# escreve, sem envelope. O `event_type` que a transporta e
+# `assessment_submitted`, e o payload dele REFERENCIA o `$defs/assessment` daqui
+# por `$ref` entre contratos. Uma segunda copia dos cinco campos em
+# `events.schema.yaml` divergiria em silencio — a classe D4.
+#
+# `review_scope` NAO TEM BLOCO NORMATIVO, E ISSO ESTA DITO
+# --------------------------------------------------------
+# `03` secao 5.1 e `02` secao 6.2 descrevem o escopo revisado em prosa —
+# "periodo, populacao, criterio" — e nenhum dos dois o escreve em YAML. O
+# contrato o define porque o ESCORE depende dele: `03` secao 5.3 separa o Brier
+# (casos dentro do escopo) da lacuna de cobertura (indevido comprovado fora
+# dele), e sem forma verificavel a separacao viraria decisao de implementacao.
+#
+# Os tres campos sao os tres que a prosa nomeia, sem inventar um quarto.
+#
+# `classification` NAO ENTRA NO BRIER, e a ausencia e P6-1
+# ---------------------------------------------------------
+# O campo existe no bloco normativo e e gravado; o que ele NAO faz e pontuar. O
+# Brier de `03` secao 5.3 escora sobre `confidence` contra `defensibility`, e a
+# acuracia da classificacao declarada e materia de calibracao que a secao 5 nao
+# cobre — ver a P6-1 em docs/progress/fase_6.md.
+#
+# Ver contracts/README.md para o subconjunto YAML e as extensoes x-aurora-*.
+
+$schema: 'https://json-schema.org/draft/2020-12/schema'
+$id: 'https://aurora-cyber-range.local/contracts/assessment.schema.json'
+title: Submissao de avaliacao de caso da Linha B
+x-aurora-contract: assessment
+x-aurora-schema-version: 1
+
+# O DOCUMENTO E `{assessment: ...}`, e a forma vem dos dois blocos normativos.
+# Envolve-lo assim, em vez de expor os cinco campos na raiz, e o que permite ao
+# contrato REIVINDICAR os blocos verbatim em vez de exigir que a spec mude.
+type: object
+required: [assessment]
+additionalProperties: false
+
+properties:
+  assessment:
+    $ref: '#/$defs/assessment_documento'
+
+$defs:
+
+  # OS CAMPOS, E O $def BASE FICA ABERTO. Medido: `unevaluatedProperties: false`
+  # AQUI DENTRO fecha no escopo deste subschema e nao enxerga o que o pai
+  # avaliou — o payload gravado, que compoe `justificativa` por `allOf`, era
+  # recusado por este mesmo $def. `additionalProperties: false` faria pior.
+  #
+  # Entao o fechamento mora em CADA USO, e nao aqui: `assessment_documento` para
+  # a submissao como a spec a escreve, `assessment_submitted_payload` para o
+  # evento gravado. Os dois fecham total; nenhum campo nao declarado passa em
+  # nenhum dos dois, e os campos continuam escritos UMA vez.
+  assessment:
+    type: object
+    required: [case_id, classification, confidence]
+    properties:
+
+      # O MESMO PADRAO de `line_b_case.case_id` em ground_truth.schema.yaml, e a
+      # igualdade nao e coincidencia: e por `case_id` que a submissao encontra o
+      # gabarito. Padrao divergente faria a juncao falhar por forma, e o caso
+      # sairia do Brier como "nao avaliado" — que e nota pior por defeito de
+      # digitacao, e nao por julgamento.
+      case_id:
+        type: string
+        pattern: '^GC-[0-9]+$'
+
+      # `03` secao 5.1, o comentario do bloco normativo.
+      classification:
+        enum:
+          - suspicious
+          - legitimate
+          - inconclusive
+
+      # 0-100, e INTEIRO: o bloco normativo escreve `72`, e `03` secao 5.4 fixa
+      # os limiares dos sinais em inteiros (`>= 80`, `<= 30`). O Brier divide por
+      # 100 para comparar com `defensibility`, que e 0-1.
+      confidence:
+        type: integer
+        minimum: 0
+        maximum: 100
+
+      # As evidencias que sustentam a submissao. NAO E OBRIGATORIA: `03` secao
+      # 5.2 espera "investigacao sem falsa acusacao" sobre o conjunto legitimo, e
+      # exigir evidencia para declarar `legitimate` com confianca baixa seria
+      # exigir prova de ausencia.
+      evidence:
+        type: array
+        items:
+          type: string
+          minLength: 1
+
+      # Livre, como a justificativa das declaracoes de `03` secao 3.4. Nao e
+      # obrigatoria pelo mesmo motivo de `evidence`.
+      rationale:
+        type: string
+
+  # A SUBMISSAO COMO A SPEC A ESCREVE — o que os dois blocos normativos trazem,
+  # e nada alem. E este $def que o documento raiz usa, e por ele que os blocos de
+  # `03` secao 5.1 e `02` secao 6.2 sao reivindicados.
+  assessment_documento:
+    allOf:
+      - $ref: '#/$defs/assessment'
+    unevaluatedProperties: false
+
+  # O PAYLOAD GRAVADO de `assessment_submitted` — a composicao de DUAS normas.
+  #
+  # `03` secao 5.1 da a submissao os cinco campos; `03` secao 5.4 poe
+  # `assessment_submitted` entre as nove acoes de declaracao, e a linha que fecha
+  # aquela tabela exige de CADA UMA "autor, papel, ambos os relogios, epoch e
+  # justificativa livre".
+  #
+  # Nao e redundancia a resolver aqui: `rationale` e o raciocinio SOBRE O CASO, e
+  # `justificativa` e a exigencia de secao 3.4 sobre o ATO de declarar. As duas
+  # sao normativas, e o emissor grava a segunda em todas as nove.
+  #
+  # A COMPOSICAO E POR `allOf`, e nao por copia dos cinco campos: copiados, os
+  # dois conjuntos divergiriam no dia em que um campo entrasse na submissao, e a
+  # divergencia apareceria como submissao que o contrato aceita e o envelope
+  # recusa. E a classe D4.
+  assessment_submitted_payload:
+    allOf:
+      - $ref: '#/$defs/assessment'
+    required: [justificativa]
+    unevaluatedProperties: false
+    properties:
+      justificativa:
+        type: string
+        minLength: 1
+
+  # O ESCOPO REVISADO — `03` secao 5.1, declarado ANTES de submeter.
+  #
+  # E ele que separa ERRO DE JULGAMENTO de LACUNA DE COBERTURA: caso fora do
+  # escopo nao entra no Brier, e indevido comprovado fora dele e reportado em
+  # separado (secao 5.3 e a terceira linha da tabela de secao 5.4).
+  #
+  # Sem esta declaracao, as duas falhas seriam indistinguiveis, e a equipe que
+  # nao olhou receberia a mesma leitura da que olhou e errou.
+  review_scope:
+    type: object
+    required: [period, population, criterion]
+    additionalProperties: false
+    properties:
+
+      # Periodo revisado. Texto livre e nao par de datas: `03` secao 5.1 diz
+      # "periodo" sem fixar forma, e inventar `{de, ate}` aqui seria o contrato
+      # decidindo o que a norma deixou aberto.
+      period:
+        type: string
+        minLength: 1
+
+      population:
+        type: string
+        minLength: 1
+
+      criterion:
+        type: string
+        minLength: 1
+
+x-aurora-authority:
+  - doc: '03_EXERCISE_DESIGN.md'
+    sections: [5]
+  - doc: '02_DOMAIN_ACADEMUS.md'
+    sections: [6]
+
+x-aurora-spec-examples:
+  - doc: '03_EXERCISE_DESIGN.md'
+    anchor: '5.1 Submissão'
+    pointer: ''
+    form: document
+  - doc: '02_DOMAIN_ACADEMUS.md'
+    anchor: '6.2 Avaliação por calibração, não por recall'
+    pointer: ''
+    form: document
+
+# ---------------------------------------------------------------------------
+# Exemplo POSITIVO — a submissao normativa de 03 secao 5.1, verbatim.
+# ---------------------------------------------------------------------------
+examples:
+  - assessment:
+      case_id: GC-029
+      classification: suspicious
+      confidence: 72
+      evidence: [DBA-28391, DBA-28402]
+      rationale: 'Alteracao fora da janela, sem autorizacao, conta incompativel com a disciplina, horario fora de expediente.'
+
+  # A submissao MINIMA: os tres obrigatorios. E o caso do avaliador que descarta
+  # um ruido de manutencao sem escrever prosa.
+  - assessment:
+      case_id: GC-101
+      classification: legitimate
+      confidence: 5
+
+x-aurora-invalid-examples:
+  - reason: 'case_id fora do padrao GC-<numero>'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: 29
+        classification: suspicious
+        confidence: 72
+
+  - reason: 'confidence acima de 100'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GC-029
+        classification: suspicious
+        confidence: 140
+
+  - reason: 'confidence fracionario: 03 secao 5.4 fixa os limiares em inteiros'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GC-029
+        classification: suspicious
+        confidence: 72.5
+
+  - reason: 'classification fora do conjunto de 03 secao 5.1'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GC-029
+        classification: fraudulento
+        confidence: 72
+
+  - reason: 'confidence ausente: sem ela nao ha Brier nem sinal comportamental'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GC-029
+        classification: suspicious
+
+  - reason: 'campo nao declarado na submissao'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GC-029
+        classification: suspicious
+        confidence: 72
+        defensibility: 1.0

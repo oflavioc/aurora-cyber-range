@@ -262,6 +262,34 @@ allOf:
         payload:
           $ref: '#/$defs/inject_fired_payload'
 
+  # TERCEIRO PAYLOAD POR event_type, e a regra continua a mesma: ele nasce
+  # quando o consumidor nasce. O consumidor e o escore de calibracao da Fase 6,
+  # peca 6 — 03 secao 5.3 escora o Brier sobre `confidence` contra
+  # `defensibility`, e sem contrato o `confidence` chegaria ao escore em qualquer
+  # forma, inclusive em 0-1 em vez de 0-100.
+  #
+  # O $ref ATRAVESSA CONTRATOS, de proposito: a forma da submissao e de
+  # `assessment.schema.yaml`, que e quem REIVINDICA os blocos normativos de
+  # `03` secao 5.1 e `02` secao 6.2. Uma segunda copia dos cinco campos aqui
+  # divergiria dela em silencio — a classe D4 —, e a divergencia apareceria como
+  # submissao que o contrato de assessment aceita e o envelope recusa.
+  #
+  # `review_scope` NAO entra neste payload. Ele e declarado ANTES de submeter, e
+  # vale para o conjunto: repeti-lo em cada `assessment_submitted` faria N copias
+  # do mesmo fato, e duas divergentes tornariam indefinido qual escopo o Brier
+  # usa. Quem o carrega e a abertura do escopo, e o consumidor o recebe pelo
+  # insumo — 00 secao 3.2, os escalares do lado.
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: assessment_submitted
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: 'https://aurora-cyber-range.local/contracts/assessment.schema.json#/$defs/assessment_submitted_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
