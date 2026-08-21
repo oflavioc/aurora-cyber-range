@@ -125,7 +125,7 @@ Métricas **simples** — classificadas em §3.0, com a cláusula que decidiu ca
 | Sigla | Start | Stop | Cláusula que a mantém simples |
 |---|---|---|---|
 | **TTA** | primeiro inject com impacto observável | `incident_declared` | (1) e (3) — atributo do mundo, e o instante já é o start |
-| **TTT** | `incident_declared` | `classification_declared` com severidade e escopo | (1) — atributo do incidente; acurácia é calibração (§3.0) |
+| **TTT** | `incident_declared` | `classification_declared` com severidade e escopo | (1) — atributo do incidente; acurácia é rubrica (§3.0) |
 | **TTCM** | inject com `requires_response` | submissão correspondente | (2) — a submissão constitui a resposta |
 
 **Impacto observável, definido.** O *start* de `TTA` é *"o primeiro inject com impacto observável"*, e a expressão precisa de predicado: sem ele, qual inject abre a medição vira decisão de quem implementa, e `TTA` deixa de ser comparável entre exercícios. `00_MASTER_SPEC.md` §3.2 exige que a seleção de start seja cálculo do consumidor sobre o payload de `inject_fired`, e não recorte do montador — sem definição, o consumidor calcularia com um critério que nenhum documento fixa.
@@ -166,7 +166,11 @@ Parear `TTT` exigiria predicado de verificação para a classificação, e ele s
 
 **É esse o argumento, e ele basta.** Verificador que depende do que a declaração diz não verifica a declaração.
 
-A acurácia de um atributo declarado é, por categoria, matéria de **calibração** — relação entre confiança declarada e força da evidência, §5 — e não distância entre dois instantes. Isso classifica; **não afirma que a §5, como está, cobre `classification_declared`**: ela escora o Brier sobre os casos de Linha B, e a classificação não é um deles. Estender a §5 é decisão própria, registrada como **P6-1**, e esta seção não depende dela.
+A acurácia de um atributo declarado não é distância entre dois instantes, e por isso não é métrica de tempo. Ela é **matéria de rubrica** — e esta seção não está criando casa para ela, está apontando a que a spec já tinha. §1.3 põe `incident_triage` e `TTT` na **mesma linha** do OBJ-03, e o exemplo normativo de §1.1 traz `rubric: incident_triage.v2` e `metric_binding: TTT` no mesmo objetivo: a rubrica para o julgamento, a métrica para o tempo.
+
+**Não é matéria da §5.** Admitir a classificação no Brier criaria um **segundo número sobre a mesma coisa** — rubrica e escore pontuando o mesmo julgamento, sem regra de precedência entre eles. É a forma do argumento que mantém `TTT` sem par: duplicar mecanismo é pior que medir uma vez só. E a calibração já tem objetivo próprio em §1.3 — ela é a métrica do **OBJ-04**, não do OBJ-03.
+
+O custo também não seria só de texto. A §5 escora o Brier sobre um **conjunto** de casos, cada um com `confidence` declarada e `defensibility` no gabarito; `classification_declared` não tem nenhuma das três — é um ato por exercício, sem campo de confiança, e sem entrada de defensibilidade fora de `line_b_cases`.
 
 `TTT` mede o tempo até haver classificação, e só.
 
