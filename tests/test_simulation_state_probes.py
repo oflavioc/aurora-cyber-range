@@ -93,6 +93,38 @@ MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
         ],
         {"test_cada_sitio_recusa_pelo_proprio_motivo"},
     ),
+    # M1 DA TERCEIRA AUDITORIA — a consequencia normativa 1 de `00` §3.
+    #
+    # *"Declaracao do participante nunca altera ground truth."* Antes desta
+    # entrada, acrescentar um ramo de declaracao ao `_writes_of` deixava a suite
+    # INTEIRA verde: nenhum teste afirmava a ausencia de escrita, so a
+    # sobrevivencia do evento no fluxo. A regra que sustenta o modelo das quatro
+    # verdades caia sem nada acusar.
+    #
+    # O ramo plantado e o mais inocente possivel — devolve a PRIMEIRA flag dos
+    # defaults com `True`. Se ate ele derruba o teste, ramo nenhum passa.
+    #
+    # A mutacao tem DUAS substituicoes porque o modulo nao importa
+    # `CONTAINMENT_DECLARED`: plantar so o ramo daria `NameError`, e erro de
+    # carga nao e o mesmo que teste vermelho — o harness distingue os dois.
+    "declaracao passa a escrever flag no fold": (
+        [
+            (
+                "fold",
+                "    DECISION_MADE,\n",
+                "    CONTAINMENT_DECLARED,\n    DECISION_MADE,\n",
+            ),
+            (
+                "fold",
+                "    if event.event_type == DECISION_MADE:",
+                "    if event.event_type == CONTAINMENT_DECLARED:\n"
+                "        return {k: True for k in list(declarations.flag_defaults)[:1]}\n"
+                "\n"
+                "    if event.event_type == DECISION_MADE:",
+            ),
+        ],
+        {"test_declaracao_NUNCA_move_flag"},
+    ),
     "pino do pack desligado": (
         [("fold", "if atual != esperado:", "if atual != esperado and False:")],
         {"test_p6_pack_divergente_do_pino_e_recusado"},

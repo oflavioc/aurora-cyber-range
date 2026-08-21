@@ -24,16 +24,37 @@ asseguracao prematura. O que este modulo entrega junto do instante e o
 **decorrido desde T0, ja descontado** — sem ele, o AAR teria de refazer o
 desconto para cada metade, e duas implementacoes da mesma regra divergem.
 
-SO A LINHAGEM CORRENTE SUSTENTA A METRICA
-------------------------------------------
-`09` §3.1: *"satisfacao de epoch abandonada nao conta na corrente"*. O evento
-continua no store, legivel e marcado — `01` §4.1 —, e o AAR o renderiza; o que
-ele nao faz e sustentar `TTCV` da epoch nova. Por isso o veredito e selecionado
-por `simulation_epoch == corrente`, e nao por "o primeiro que aparecer".
+UM CRITERIO DE EPOCH PARA OS DOIS LADOS — H1 DA TERCEIRA AUDITORIA
+--------------------------------------------------------------------
+`epochs_em_calculo` e o MESMO que o computador da declaracao consome, e a
+unificacao foi decisao normativa: `09` §3.1 manda *"metricas recomputadas a
+partir da nova epoch"* (`facilitation`) e *"metricas da nova epoch"*
+(`adjudication`) **sem excecao por lado**.
 
-O avaliador da peca 4 reemite na epoch nova quando a linhagem corrente ainda
-satisfaz, e nao reemite dentro da mesma epoch — a emissao e por transicao. Entao
-ha no maximo um veredito por (predicado, epoch), e a selecao e determinada.
+Antes, este lado lia so o descarte de `rehearsal`. `assessment_submitted` de
+epoch ANULADA continuava alimentando o Brier, e `TTIV` marcava em instante de
+linha temporal rebobinada — nada falhava, e a metrica continuava sendo
+calculada. Tres razoes fecharam a decisao:
+
+1. `09` §3.1 poe `adjudication` como o facilitador ANULANDO decisao por
+   informacao fora de banda, e exige que isso apareca no debriefing. `TTIV`
+   marcando em instante rebobinado e o oposto;
+2. a tabela nao tem excecao por lado, e tratar `assessment_submitted` como imune
+   criaria uma que ela nao tem;
+3. **por simetria**: `TTID` reinicia na anulacao. `TTIV` medindo de outra linha
+   faria o delta do par — *o achado* de `03` §3.2 — comparar DUAS linhas
+   temporais.
+
+A LINHAGEM CORRENTE, QUE E OUTRA REGRA E CONTINUA
+---------------------------------------------------
+`09` §3.1 tambem diz *"satisfacao de epoch abandonada nao conta na corrente"*, e
+isso vale para o VEREDITO especificamente: o avaliador reemite na epoch nova
+quando a linhagem corrente ainda satisfaz, e nao reemite dentro da mesma epoch.
+Por isso o veredito e selecionado por `simulation_epoch == corrente`.
+
+As duas regras convivem e nao se substituem. `epochs_em_calculo` nao estreita nada
+no `technical_failure` — a linha dele nao manda descartar epoch —, e e ali que o
+filtro de corrente segue sendo o unico a excluir veredito antigo.
 
 `TTIV` — A METADE CUJO VERIFICADOR NAO E O MUNDO
 -------------------------------------------------
@@ -83,12 +104,12 @@ from range_core.events.epoch import current_epoch
 from range_core.metrics.calibracao import brier
 from range_core.metrics.epoch import (
     Congelamento,
+    apenas,
     congelamentos,
     decorrido,
-    epochs_descartadas,
+    epochs_em_calculo,
     instante,
     marco_zero,
-    no_calculo,
 )
 from range_core.metrics.insumo import InsumoDeVerificacao
 from range_core.metrics.medida import Medida, nao_marcada
@@ -135,11 +156,10 @@ def computa(insumo: InsumoDeVerificacao) -> tuple[Medida, ...]:
     o insumo trouxe. `00` §3.2 exige essa colocacao — recortados na montagem, o
     numero certo apareceria por ausencia de insumo em vez de por calculo.
     """
-    descartadas = epochs_descartadas(insumo.epoch)
     corrente = current_epoch(insumo.epoch)
     congelados = congelamentos(insumo.epoch)
     t_zero = marco_zero(insumo.epoch)
-    eventos = no_calculo(insumo.eventos, descartadas)
+    eventos = apenas(insumo.eventos, epochs_em_calculo(insumo.epoch))
 
     por_predicado = tuple(
         _medida(sigla, _veredito(eventos, nome, corrente), t_zero, congelados)

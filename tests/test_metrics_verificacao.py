@@ -462,5 +462,87 @@ class OsPredicadosConferemComOContrato(unittest.TestCase):
         self.assertEqual(NOME_DO_PREDICADO, DO_EMISSOR)
 
 
+class TTIVObedeceAOSMESMOSEFEITOSDeEpoch(_ComExercicio):
+    """H1 da terceira auditoria — UM criterio de epoch para os DOIS lados.
+
+    `09` §3.1 manda "metricas recomputadas a partir da nova epoch"
+    (`facilitation`) e "metricas da nova epoch" (`adjudication`), **sem excecao
+    por lado**. O computador da declaracao ja obedecia; o da verificacao lia so o
+    descarte de `rehearsal`, e `assessment_submitted` de epoch anulada continuava
+    alimentando o Brier — `TTIV` marcava em instante de linha temporal rebobinada.
+
+    E o defeito na forma que esta fase existe para impedir: nada falha, a metrica
+    continua sendo calculada.
+    """
+
+    def insumo_com(self, limiar, defensibilidade, escopo):
+        lados = dict(registro()["x-aurora-registry"]["metric_side"])
+        _, verificacao = monta(
+            self.store.read_all(), lados, limiar_de_calibracao=limiar,
+            defensibilidade=defensibilidade, escopo_revisado=frozenset(escopo),
+        )
+        return verificacao
+
+    def submete(self, caso: str, confianca: int):
+        return self.store.append(
+            EventDraft(
+                event_type=ASSESSMENT_SUBMITTED, truth_layer="participant_action",
+                producer="teste", correlation=Correlation(),
+                actor_id="analista-ti", persona="ti",
+                payload={"case_id": caso, "classification": "suspicious",
+                         "confidence": confianca, "justificativa": "x"},
+            )
+        )
+
+    def ttiv(self, limiar=0.15, defensibilidade=None, escopo=("GC-001",)):
+        insumo = self.insumo_com(limiar, defensibilidade or {"GC-001": 1.0}, escopo)
+        return {m.sigla: m for m in computa(insumo)}["TTIV"]
+
+    def test_facilitation_anula_a_submissao_da_epoch_anterior(self):
+        """*"Metricas recomputadas a partir da nova epoch"* — sem excecao por lado."""
+        self.submete("GC-001", 100)
+        self.rollback("facilitation")
+
+        self.assertFalse(self.ttiv().marcada)
+
+    def test_adjudication_anula_igual(self):
+        """`09` §3.1 poe `adjudication` como o facilitador ANULANDO decisao por
+        informacao fora de banda, e diz que precisa aparecer no debriefing.
+        `TTIV` marcando em instante rebobinado e o oposto disso."""
+        self.submete("GC-001", 100)
+        self.rollback("adjudication")
+
+        self.assertFalse(self.ttiv().marcada)
+
+    def test_a_submissao_da_epoch_NOVA_conta(self):
+        """O controle: sem ele, as duas acima passariam por reprovar sempre."""
+        self.submete("GC-001", 0)
+        self.rollback("facilitation")
+        nova = self.submete("GC-001", 100)
+        ttiv = self.ttiv()
+
+        self.assertTrue(ttiv.marcada)
+        self.assertEqual(ttiv.fim, datetime.fromisoformat(nova.exercise_timestamp))
+
+    def test_technical_failure_NAO_anula_a_submissao(self):
+        """A assimetria de `09` §3.1: a equipe nao e penalizada por bug do
+        ambiente, e anular o que ela ja submeteu a obrigaria a resubmeter."""
+        self.submete("GC-001", 100)
+        self.rollback(MOTIVO_FALHA_TECNICA, congela=(self.t_zero, self.t_zero))
+
+        self.assertTrue(self.ttiv().marcada)
+
+    def test_a_SIMETRIA_com_TTID_e_o_ponto(self):
+        """`TTID` reinicia na anulacao; `TTIV` medindo de outra linha faria o
+        delta do par — *o achado* de `03` §3.2 — comparar duas linhas temporais.
+        """
+        self.submete("GC-001", 100)
+        self.rollback("adjudication")
+        medidas = {m.sigla: m for m in computa(self.insumo_com(0.15, {"GC-001": 1.0}, {"GC-001"}))}
+
+        self.assertFalse(medidas["TTIV"].marcada)
+        self.assertFalse(medidas["TTCV"].marcada)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
