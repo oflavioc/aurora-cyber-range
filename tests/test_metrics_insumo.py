@@ -111,6 +111,11 @@ class EpochVaiInteiraParaOsDois(_ComFluxo):
     """Não é recorte na montagem — é insumo próprio, e o desconto é cálculo."""
 
     def test_a_escrituracao_e_a_mesma_nos_dois_insumos(self):
+        # COM `frozen_interval`: o `if/then` de `rollback_payload` o exige quando
+        # `reason` e `technical_failure`, e a fixture sem ele descrevia um evento
+        # que o contrato recusa. Passava porque o store em memoria nao valida
+        # payload — e fixture invalida que passa e a que vira armadilha para o
+        # proximo leitor, que e quem monta o computador que le este campo.
         self.grava(
             ROLLBACK_PERFORMED,
             "facilitation",
@@ -118,6 +123,10 @@ class EpochVaiInteiraParaOsDois(_ComFluxo):
             reason="technical_failure",
             by_user="fac",
             role="facilitador",
+            frozen_interval={
+                "start": "2026-08-20T09:05:00",
+                "end": "2026-08-20T09:25:00",
+            },
         )
         declaracao, verificacao = self.monta()
         self.assertEqual(declaracao.epoch, verificacao.epoch)

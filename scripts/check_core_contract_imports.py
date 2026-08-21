@@ -135,6 +135,14 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "`observed_marker_set`. E LEITURA do catalogo, como `api/projecoes.py`: "
         "este modulo nao chama `append` e nao tem store ao alcance",
     ),
+    "metrics/epoch.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — o desconto de `00` §3.2 acha os congelamentos e as epochs "
+        "descartadas pelo `rollback_performed`. E LEITURA do catalogo, como "
+        "`objectives/projecao.py`: nao chama `append` e nao tem store ao alcance. "
+        "O `reason` NAO vem daqui — e valor de payload, e o enum dele fica em "
+        "`events.schema.yaml`, cruzado por teste em `tests/test_metrics_epoch.py`",
+    ),
     "engine/loader/contract_source.py": (
         frozenset({CONTRACTS}),
         "A EXCECAO, e a unica: importa o PACOTE para resolver o diretorio e ler "
