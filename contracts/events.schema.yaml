@@ -490,13 +490,28 @@ $defs:
   # A ESCALA E `0-4` E VEM DA RUBRICA, nao daqui: `rubrics.schema.yaml` fixa
   # `scale: '0-4'` e exige EXATAMENTE cinco ancoras. Este contrato repete os
   # limites porque o payload precisa de guarda propria — mas a autoridade e a
-  # rubrica, e `tests/test_aar_divergencia.py` cruza os dois.
+  # rubrica, e `tests/test_aar_timeline.py` cruza os dois.
   #
-  # `competency` NAO e enumerado aqui, e a ausencia e decidida. A lista das nove
-  # vive em `rubrics.schema.yaml`, que e o contrato da rubrica; uma segunda
-  # enumeracao seria a TERCEIRA copia — 03 secao 2.3 e o contrato ja sao duas — e
-  # divergiria em silencio no dia em que uma competencia entrasse. O cruzamento e
-  # por teste, e a forma e a mesma do `metric_side` contra o catalogo.
+  # `competency` REFERENCIA A RUBRICA, e nao a reenumera — M1 da auditoria da
+  # Fase 6, e a correcao mudou de forma por causa dele.
+  #
+  # A redacao anterior deixava `competency` como `string` livre e justificava a
+  # ausencia dizendo *"o cruzamento e por teste"*. O cruzamento existia na
+  # direcao ERRADA: o teste afirmava que tres literais escritos nele mesmo
+  # estavam no enum da rubrica, e nao que toda competencia pontuada e uma das
+  # nove. Um `competency: banana` atravessava contrato, projecao e alerta sem que
+  # nada recusasse.
+  #
+  # `$ref` ENTRE CONTRATOS resolve os dois lados de uma vez: nao ha terceira
+  # copia — `03` secao 2.3 e `rubrics.schema.yaml` seguem sendo as duas — e a
+  # enumeracao passa a ser IMPOSTA em vez de conferida por um teste que podia
+  # medir a si mesmo. E o mesmo mecanismo que `ground_truth.yaml` e
+  # `assessment.schema.yaml` ja usam.
+  #
+  # O QUE ELE NAO ALCANCA, dito: o event store nao valida payload — isto vale
+  # para TODO evento, e nao so para este. A guarda e de contrato, e morde onde os
+  # contratos sao aplicados: `check_contract_examples`, `check_spec_examples`, e o
+  # teste que valida o evento gravado contra o envelope.
   # -------------------------------------------------------------------------
   bars_score_payload:
     type: object
@@ -505,8 +520,7 @@ $defs:
     properties:
 
       competency:
-        type: string
-        minLength: 1
+        $ref: 'https://aurora-cyber-range.local/contracts/rubrics.schema.json#/properties/competency'
 
       # INTEIRO, e nao numero: as ancoras de 03 secao 2.2 sao 0..4, e meia nota
       # nao tem ancora. `2.5` seria pontuacao sem descricao de comportamento, que
