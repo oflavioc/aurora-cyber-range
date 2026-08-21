@@ -1466,7 +1466,7 @@ def main() -> int:
                     "docs/progress/fase_9.md")
 
     # observability_hooks.yaml carrega event_type e nao era varrido por gate
-    # nenhum: nem os seis contratos o validam, nem a varredura de codigo alcanca
+    # nenhum: nem os contratos de `contracts/` o validam, nem a varredura alcanca
     # .yaml. Era a falha que 09 secao 4 chama de "a mais cara possivel", saindo
     # rc=0. M4 da segunda auditoria da Fase 1.
     hooks_ruins = (

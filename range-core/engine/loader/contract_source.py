@@ -45,9 +45,9 @@ Duas razoes, e a segunda sozinha ja decidiria.
    `scenario-designer` — e a spec ja aceitou esse argumento uma vez, quando
    `scripts/check_spec_examples.py` trouxe PyYAML para ler `docs/spec/`.
 
-Passam a existir DOIS parsers lendo os mesmos seis contratos, e isso e risco
+Passam a existir DOIS parsers lendo os mesmos contratos, e isso e risco
 real de divergencia. Por isso `tests/test_pack_loader.py::DoisParsers` afirma
-que os dois produzem a MESMA arvore para os seis — o que tambem fecha, por
+que os dois produzem a MESMA arvore para todos eles — o que tambem fecha, por
 consequencia, o limite que `fase_1.md` §7.4 declarou sem verificar:
 `parse_yaml` nunca tinha sido comparado com parser conforme.
 """

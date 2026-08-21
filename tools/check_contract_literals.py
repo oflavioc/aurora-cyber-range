@@ -178,7 +178,7 @@ def main() -> int:
         #
         # Este arquivo CARREGA event_type e nao era varrido por ninguem: a
         # varredura de codigo cobre .py e WEB_SUFFIXES, nunca .yaml, e nenhum
-        # dos seis contratos o valida (01 secao 2 fixa o conjunto em seis).
+        # contrato de `contracts/` o valida.
         # `audit_query_perfomed` aqui saia rc=0 em todos os gates.
         #
         # E exatamente a falha que 09 secao 4 chama de "a mais cara possivel":

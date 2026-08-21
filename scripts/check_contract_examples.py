@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Executa os exemplos positivos e negativos dos contratos de `contracts/`.
 
-Item 1 da DoD da Fase 1: *"os seis contratos existem e VALIDAM exemplos
+Item 1 da DoD da Fase 1: *"os contratos existem e VALIDAM exemplos
 positivos e negativos"*. Conter exemplo nao e validar exemplo — o item esteve
 marcado como cumprido por presenca, que e a mesma classe do B1 da primeira
 auditoria da Fase 0: o mecanismo existia, a propriedade nao.
