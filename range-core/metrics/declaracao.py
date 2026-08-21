@@ -104,6 +104,16 @@ def computa(insumo: InsumoDeDeclaracao) -> tuple[Medida, ...]:
     Todo o consumo de epoch acontece AQUI, em codigo visivel — `00` §3.2 —, e
     passa por `epochs_em_calculo`, que aplica os QUATRO efeitos de `09` §3.1 e
     nao apenas os dois que `06` T10 nomeia.
+
+    > **A redacao anterior afirmava os quatro efeitos como se fossem do SISTEMA,
+    > e eram deste lado so.** Quando ela foi escrita, o computador da verificacao
+    > lia apenas o descarte de `rehearsal` — `assessment_submitted` de epoch
+    > anulada seguia alimentando o Brier, e `TTIV` marcava em linha temporal
+    > rebobinada. A frase nascia verdadeira sobre este modulo e FALSA sobre a
+    > propriedade que ela parecia afirmar, e foi o H1 da terceira auditoria.
+    >
+    > Desde ele, `epochs_em_calculo` e o criterio dos DOIS lados — e a frase
+    > passou a valer no escopo em que era lida.
     """
     congelados = congelamentos(insumo.epoch)
     t_zero = marco_zero(insumo.epoch)
