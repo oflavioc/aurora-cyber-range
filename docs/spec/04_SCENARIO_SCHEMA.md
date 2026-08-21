@@ -83,6 +83,8 @@ line_b_cases:
 
 Sem `verification_predicates`, o pack não carrega — TTCV e TTRV seriam incomputáveis.
 
+`since: self` é definido em `03_EXERCISE_DESIGN.md` §3.1.
+
 ## 4. Política de versionamento
 
 - Engine declara `ENGINE_VERSION` e `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]`

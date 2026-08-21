@@ -200,6 +200,18 @@ verification_predicates:
       - flag_false: academus.lms_degraded
 ```
 
+**`since: self` — o instante a partir do qual a ausência é exigida.**
+
+`absence_of` com `since: self` significa *"não há fato desta classe **a partir do instante em que este predicado passou a ser avaliado na linhagem corrente**"* — e **não** desde o início do exercício.
+
+**Contenção afirma o presente, e não o passado.** *"Não está mais vazando"* é o que a equipe conclui e o que o predicado verifica; *"nunca vazou"* é outra afirmação, e falsa em todo cenário que materialize o fato antes das ações de resposta. Sem esta cláusula, o predicado normativo acima é **insatisfazível por construção** no pack que esta seção ilustra — o `ransomware-universidade` materializa exfiltração em `T-17d`, antes de qualquer ação da equipe. E a métrica não falha: ela deixa de marcar.
+
+**`self` é a única forma definida em v1.** O campo aceita string no contrato, e qualquer outro valor é recusado na carga enquanto não houver semântica declarada para ele — recusa alta, nomeando a folha, e não avaliação silenciosa.
+
+**A forma sem `since` mantém ausência total**, e é legítima para outros usos — um fato que o cenário afirme nunca ter ocorrido. Mas **o predicado de contenção desta seção exige `since: self`**, e a guarda de carga recusa a forma normativa escrita sem ele. Sem essa exigência, um pack escreve contenção sem `since`, cai no defeito original, e a correção desta seção não o alcança.
+
+**A linhagem corrente é a mesma de `09_EVENT_MODEL.md` §3.1.** Depois de um rollback, o instante de referência é o da reavaliação na epoch nova — o predicado volta a perguntar *"a partir de agora"*, e não *"a partir de antes do corte"*. É a mesma regra que impede o predicado meio-revertido: um `since: self` congelado no primeiro instante de avaliação sobreviveria ao corte, e o meio-revertido voltaria por esta porta.
+
 O motor avalia continuamente e emite `verification_predicate_satisfied` no instante em que a condição passa a valer. Sem esta seção, o pack não carrega.
 
 ### 3.2 O delta é o achado, nos dois sentidos
