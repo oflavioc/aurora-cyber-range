@@ -531,6 +531,8 @@ Prefixo `P6-`.
 | P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
 | P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **condição** — ver abaixo |
+| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | **condição** — ver abaixo |
+| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -937,3 +939,76 @@ já existe justamente para o handler não decidir camada, produtor e payload.
 paralelismo multiplicar quem escreve rota — o que vier primeiro. É **decisão do
 proprietário**: a primeira compra exatidão e custa esforço; a segunda compra
 verificabilidade e custa liberdade de desenho.
+
+#### P6-8 — justificativa ausente devolve `409`
+
+`_declara` captura `EmissaoRecusada` e responde **409** para todas as causas. O
+comentário da própria função reserva o 409 a *"o pedido é bem formado e o ESTADO o
+recusa"* e enumera **três**, todas de contrassinatura: antecedente ausente, fora
+de ordem, e par já fechado.
+
+**Justificativa ausente não é nenhuma delas.** É campo obrigatório faltando —
+pedido malformado —, e o código honesto seria **422**, que é o que as duas rotas
+de período inválido já devolvem no adapter.
+
+**O mérito está decidido; o que falta é medição.** Não foi corrigido junto do B2
+por duas razões, e as duas são de escopo e não de dúvida:
+
+1. **Mudar status no meio de uma correção de auditoria é escopo crescendo** — a
+   mesma razão pela qual o guarda do sentinela não foi alargado dentro do PR do
+   venv;
+2. **`409` é superfície contratada.** Quem consome a API pode depender dele, e
+   `api_surface.yaml` não declara status — então a dependência, se existir, é
+   invisível ao verificador.
+
+**O que falta medir antes de mudar:** quem depende do status hoje. O `gm-console`
+e a `participant-view` são os consumidores conhecidos; um `grep` por `409` na
+árvore de cliente responde metade, e a outra metade é se algum teste o afirma.
+
+**O teste afirma `409`**, e isso é deliberado: teste que descreve o que deveria
+ser, e não o que é, não pega regressão. A discrepância está no docstring dele.
+
+**Vence em:** a medição dos consumidores, **ou** a Fase 10, quando o AAR passar a
+ler recusas — o que vier primeiro.
+
+#### P6-9 — a cópia instalada do hook do auditor não é sincronizada por ninguém
+
+**H1 da auditoria da Fase 6, e é a segunda ocorrência.** A primeira foi nesta
+mesma sessão: `phase0_negative_tests.py` acusou divergência entre
+`user-scope/hooks/readonly_bash.py` e a cópia em `~/.claude/hooks/`, e eu copiei
+à mão.
+
+**A consequência é real e não é cosmética.** Na auditoria, o hook instalado —
+sem a entrada de `check_insumo_de_metrica` — **bloqueou** o verificador central
+da peça 5, e o harness negativo saiu `rc=1`. O auditor não conseguiu executar o
+mecanismo que fecha a exigência (3) de `00` §3.2.
+
+**E o mecanismo que deveria acusar isso lê o lado errado.**
+`check_allowlist_do_auditor.py` sai `RC=0` porque lê a **fonte versionada** —
+ele responde *"a fonte declara o script?"*, e não *"o auditor consegue
+executá-lo?"*. As duas perguntas pareciam a mesma até esta auditoria.
+
+**O commit fez a parte dele**: a entrada está na fonte e o CI roda os dois
+scripts. O defeito está **fora da árvore**, e é por isso que nenhum gate o
+alcança — é a mesma classe da P6-6, o guarda que não cobre o canal por onde a
+coisa acontece.
+
+**As três formas, com o custo:**
+
+| Forma | O que compra | O que custa |
+|---|---|---|
+| **O lançador sincroniza** | a auditoria nunca roda com hook velho, e o passo fica ao lado do que já monta venv e worktree | o lançador passa a **escrever em `~/.claude/`**, fora da árvore. Hoje ele só escreve em `.aurora-worktrees/` e no worktree; ampliar isso é dar-lhe alcance sobre a configuração do usuário |
+| **O `phase0` falhar mais cedo** | o operador descobre antes de abrir a sessão, e não no meio dela | não conserta — apenas antecipa. E `phase0_negative_tests.py` **já acusa**: foi ele que pegou nas duas vezes. O que falta não é detecção, é o passo ficar **antes** do lançador abrir a janela |
+| **O lançador RECUSAR quando divergem** | falha alta, sem escrever nada fora da árvore, e na forma que o repositório já usa para venv e âncora | exige ação manual do operador a cada mudança do hook — disciplina, que a §1.6 da Fase 1 separa de impedimento e que falhou nas quatro reincidências da D16 |
+
+**A terceira é a que mais se parece com o resto do aparato** — o lançador já
+recusa alto por âncora desatualizada, por árvore suja e por venv que não instala.
+Mas ela deixa a sincronia como disciplina, e disciplina é o que falhou duas vezes
+aqui.
+
+**Não decidida.** As três têm custos de natureza diferente: a primeira amplia o
+alcance de escrita do lançador, a segunda não conserta, e a terceira admite
+depender de disciplina.
+
+**Vence em:** a próxima auditoria de checkpoint — ela é a terceira oportunidade
+para a mesma divergência, e as duas anteriores ocorreram.
