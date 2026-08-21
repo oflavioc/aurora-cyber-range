@@ -290,6 +290,31 @@ allOf:
         payload:
           $ref: 'https://aurora-cyber-range.local/contracts/assessment.schema.json#/$defs/assessment_submitted_payload'
 
+  # QUARTO PAYLOAD POR event_type, e a regra continua: nasce quando o consumidor
+  # nasce. O consumidor e o alerta de divergencia entre avaliadores da Fase 6,
+  # peca 7 — `03` secao 2.4: *"divergencia >= 2 pontos na mesma competencia gera
+  # alerta no AAR"*.
+  #
+  # Sem contrato, `score` chegaria ao alerta em qualquer forma. A diferenca de
+  # dois pontos numa escala `0-4` e outra coisa numa escala `0-100`, e o alerta
+  # dispararia sempre ou nunca — sem que nada acusasse, porque o store nao valida
+  # payload.
+  #
+  # QUEM AVALIOU NAO ENTRA NO PAYLOAD: e o `actor_id` do envelope, que
+  # `truth_layer: evaluator_assessment` ja torna obrigatorio (09 secao 1.1).
+  # Repeti-lo aqui seria segunda copia do mesmo fato, e a divergencia entre as
+  # duas apareceria como alerta atribuido ao avaliador errado.
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: bars_score_submitted
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: '#/$defs/bars_score_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
@@ -459,6 +484,38 @@ $defs:
   # chaves e conhecida e pequena, e chave nova sem contrato vira campo que
   # ninguem le.
   # -------------------------------------------------------------------------
+  # -------------------------------------------------------------------------
+  # PAYLOAD DE `bars_score_submitted` — 03 secao 2.
+  #
+  # A ESCALA E `0-4` E VEM DA RUBRICA, nao daqui: `rubrics.schema.yaml` fixa
+  # `scale: '0-4'` e exige EXATAMENTE cinco ancoras. Este contrato repete os
+  # limites porque o payload precisa de guarda propria — mas a autoridade e a
+  # rubrica, e `tests/test_aar_divergencia.py` cruza os dois.
+  #
+  # `competency` NAO e enumerado aqui, e a ausencia e decidida. A lista das nove
+  # vive em `rubrics.schema.yaml`, que e o contrato da rubrica; uma segunda
+  # enumeracao seria a TERCEIRA copia — 03 secao 2.3 e o contrato ja sao duas — e
+  # divergiria em silencio no dia em que uma competencia entrasse. O cruzamento e
+  # por teste, e a forma e a mesma do `metric_side` contra o catalogo.
+  # -------------------------------------------------------------------------
+  bars_score_payload:
+    type: object
+    required: [competency, score]
+    additionalProperties: false
+    properties:
+
+      competency:
+        type: string
+        minLength: 1
+
+      # INTEIRO, e nao numero: as ancoras de 03 secao 2.2 sao 0..4, e meia nota
+      # nao tem ancora. `2.5` seria pontuacao sem descricao de comportamento, que
+      # e o que a rubrica BARS existe para impedir.
+      score:
+        type: integer
+        minimum: 0
+        maximum: 4
+
   inject_fired_payload:
     type: object
     required:

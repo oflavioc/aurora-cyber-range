@@ -35,7 +35,7 @@ uma mudança de norma feita entre as duas.
 | 4 | Predicados de verificação e o motor que os avalia | **fechada** |
 | 5 | Métricas: os dois computadores, o insumo tipado, epoch como cálculo | **fechada** — §3 |
 | 6 | Calibração: Brier no escopo revisado, sinais, `TTIV` por limiar | **fechada** — §4 |
-| 7 | Divergência entre avaliadores e a janela de asseguração prematura | |
+| 7 | Divergência entre avaliadores e a janela de asseguração prematura | **fechada** — §5 |
 
 **Dependências que não são de conveniência.** A peça 4 vem antes da 5 porque os
 computadores de métrica consomem `verification_predicate_satisfied`.
@@ -429,6 +429,93 @@ comparar o conjunto de siglas produzidas com as nove da tabela, nas duas direç�
 0.2 para 0.0 passava em tudo, porque todos os casos de overconfidence usavam
 `defensibility = 0.0` e a borda que `03` §5.4 escreve nunca era exercitada. Dois
 casos novos a fecham — 0.2 sinaliza, 0.21 não.
+
+## 5. A peça 7 — a `aar_timeline`
+
+`range-core/aar/` era esqueleto vazio desde a Fase 1. A peça 7 o preenche com a
+projeção que `01` §4.1 lista há cinco fases e ninguém tinha escrito.
+
+### 5.1 Por que a janela mora aqui, e não num computador
+
+A janela de asseguração prematura **cruza declaração com verificação**: vai de
+`TTCD` a `TTCV`. **Nenhum dos dois computadores pode calculá-la**, porque nenhum
+tem as duas metades — e isso é a partição inteira de `00` §3.2, não uma escolha
+de organização.
+
+*"`aar_timeline` é o escopo que recebe as duas metades de cada par e computa os
+deltas."* A colocação é consequência direta da regra que impede `TTCD` de ser
+computado a partir de `TTCV`.
+
+**A prova de que a Fase 6 computa e a Fase 10 renderiza** é
+`test_a_janela_NAO_sai_de_computador_de_metrica_nenhum`: ele afirma que o
+veredito não chega ao insumo da declaração, que a declaração não chega ao da
+verificação, **e** que a janela sai mesmo assim. Sem ele, *"o AAR faz isso"*
+seria afirmação sobre uma fase que ainda não chegou.
+
+**Ler o fluxo não fura a partição.** `00` §3.2 particiona o insumo **dos
+computadores de métrica**; a `aar_timeline` não é um deles. As `Medida` chegam
+prontas, com o decorrido já descontado — refazê-las aqui seria a terceira
+implementação do desconto por união.
+
+### 5.2 As três janelas, e o que cada uma carrega
+
+| Janela | Condição | Carrega incompatíveis? |
+|---|---|---|
+| **asseguração prematura** | declaração **<** verificação | **sim** — os `ground_truth` dentro dela |
+| **lacuna de consciência situacional** | declaração **>** verificação | **não** |
+| **sem contrassinatura** | integridade declarada e nunca completada | não — e fica **aberta** |
+
+**A lacuna não carrega incompatíveis, e isso é decisão com argumento.** A equipe
+estava contida e não sabia: os eventos do intervalo não contradizem declaração
+nenhuma, porque não havia declaração ainda. Chamá-los de incompatíveis inverteria
+o achado — §3.2 dá a essa janela outra leitura, *"manteve degradação
+desnecessária"*, e ela é sobre **custo**, não sobre contradição.
+
+**Só `ground_truth` entra na lista.** §3.2 diz *"os `ground_truth` eventos"*, e
+não *"os eventos"*. O que torna a declaração prematura é o **mundo** ter
+continuado a se mover; listar ação de participante misturaria a primeira camada
+de `00` §3 com a terceira.
+
+**A janela sem contrassinatura fica ABERTA.** `fim = None`, porque o segundo ato
+nunca veio. Fechá-la no fim do exercício inventaria um fato — a declaração não
+passou a estar contrassinada quando o exercício acabou.
+
+**O predicado de contrassinatura tem agora TRÊS consumidores** — o emissor, o
+computador de `TTID` e esta projeção — e **uma** implementação. Foi o que a peça 6
+já tinha exigido ao extraí-lo.
+
+### 5.3 A generalização aos três pares, declarada
+
+`03` §3.2 escreve **contenção**, e o exemplo também. Este módulo aplica aos
+**três** pares, e a razão está escrita no cabeçalho em vez de deduzida da ausência
+de restrição: a seção se chama *"o delta é o achado, nos dois sentidos"*, `03` §3
+define três pares, e a forma é idêntica nos três. Restringir a contenção exigiria
+uma razão, e não há — integridade declarada antes de verificável é a mesma
+leitura, sobre a coisa que `02` §6.2 diz custar mais caro.
+
+### 5.4 A divergência não resolve, e a distância é entre extremos
+
+`03` §2.4: *"não resolve automaticamente; sinaliza para o debriefing"*. Por isso o
+alerta carrega os **dois extremos e quem os deu**, e não uma nota consolidada —
+consolidar seria resolver.
+
+**A distância é a amplitude, e não a diferença entre consecutivos.** Três
+avaliadores em 0, 1 e 2: nenhum par consecutivo alcança dois pontos, e o conjunto
+alcança. A §2.4 fala da divergência **na competência**.
+
+O payload de `bars_score_submitted` nasceu aqui, pela regra de sempre — o
+consumidor nasce e o contrato com ele. **`competency` não é enumerado nele**: a
+lista das nove vive em `rubrics.schema.yaml`, e uma terceira cópia (a §2.3 e o
+contrato já são duas) divergiria em silêncio. O cruzamento é por teste.
+
+### 5.5 Prova negativa
+
+| Violação plantada | Vermelhos |
+|---|---|
+| limiar de divergência sobe para 3 | 2 |
+| incompatíveis deixam de filtrar por `ground_truth` | 1 |
+| a lacuna passa a carregar incompatíveis | 1 |
+| a janela sem contrassinatura confia na emissão | 1 |
 
 ## 6. Pendências
 
