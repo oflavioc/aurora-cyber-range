@@ -51,6 +51,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import sys
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -69,7 +70,11 @@ from range_core.events.store import InMemoryEventStore
 from range_core.state.cache import InMemoryProjectionCache
 
 RAIZ = Path(__file__).resolve().parents[1]
-PACK = RAIZ / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(RAIZ / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6.
+PACK = materializa()
 CREDENCIAL = "credencial-de-teste-longa"
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres!!"
 

@@ -42,7 +42,11 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from _common import parse_yaml  # noqa: E402
 
-PACK = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(REPO_ROOT / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6.
+PACK = materializa()
 CONTRATOS = contract_source.read_contracts()
 MOTIVOS = contract_source.rollback_reasons(CONTRATOS)
 FLAGS = AdapterFlags.from_document(

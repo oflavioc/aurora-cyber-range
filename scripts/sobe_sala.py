@@ -58,7 +58,11 @@ from range_core.engine.loader.pack_loader import AdapterFlags, load_pack  # noqa
 from range_core.events.store import InMemoryEventStore  # noqa: E402
 from range_core.state.cache import InMemoryProjectionCache  # noqa: E402
 
-PACK = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
+sys.path.insert(0, str(REPO_ROOT / "tests" / "fixtures"))
+from pack_completo import materializa  # noqa: E402
+
+#: PACOTE COMPLETO materializado em temporario — B1 da Fase 6.
+PACK = materializa()
 FLAGS = Path("domains") / "academus" / "flags.yaml"
 
 

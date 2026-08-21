@@ -752,6 +752,21 @@ jobs:
       # a partir de um unico token capturado. Sao valores descartaveis que nao
       # saem deste job, como a senha do Postgres de servico — `05` §8 proibe
       # senha trivial REUTILIZAVEL, e estas nao servem para mais nada.
+      # O PACOTE COMPLETO, MATERIALIZADO ANTES DE O CONTAINER SUBIR — B1 da
+      # Fase 6. `docker-compose.yml` monta o pack por volume (D13), e o volume
+      # precisa existir em disco antes do `up`.
+      #
+      # A fixture versionada NAO e um pacote completo: ela tem `injects.yaml` e
+      # nao tem `ground_truth.yaml`, que `05` secao 6 poe fora do repositorio
+      # publico. O helper o materializa em `.aurora-pack/`, que o `.gitignore`
+      # cobre e que o proprio helper recusaria se fosse rastreado.
+      #
+      # FALHA ALTO: sem o pacote, o `up` subiria contra um pack que o loader
+      # agora recusa, e o erro apareceria como container morrendo — longe da
+      # causa.
+      - name: pacote completo materializado para o container (B1 da Fase 6)
+        run: python tests/fixtures/pack_completo.py .aurora-pack
+
       - name: a stack de containers sobe, com as duas APIs
         env:
           AURORA_PG_PORT: "15432"

@@ -21,10 +21,30 @@ x-aurora-schema-version: 2
 # ---------------------------------------------------------------------------
 # ESTRUTURA DO PACOTE — 04 secao 1.
 # ---------------------------------------------------------------------------
+# O VALOR E UM `$ref`. Ponteiro que comeca com `#` resolve DENTRO deste
+# contrato; URI absoluta resolve em OUTRO. A segunda forma entrou no B1 da
+# auditoria da Fase 6, e o motivo esta abaixo.
 x-aurora-documents:
   manifest.yaml: '#'
   injects.yaml: '#/$defs/injects_document'
   branches.yaml: '#/$defs/branches_document'
+
+  # B1 DA AUDITORIA DA FASE 6 — `ground_truth.yaml` e `objectives.yaml` estavam
+  # em `required_for_complete_pack` e FORA deste mapa. O loader os lia — para as
+  # folhas temporais, para os fatos com projecao, para os registros de
+  # integridade referencial — e NUNCA os validava contra o contrato deles.
+  #
+  # `ground_truth.schema.yaml` exige `facts` e `verification_predicates`;
+  # `objectives.schema.yaml` exige `objectives`. Um pack completo sem
+  # `verification_predicates` carregava limpo, e `TTCV`/`TTRV` ficavam
+  # incomputaveis — a falha que `03` §3.1 diz que o pack nao pode ter, chegando
+  # em runtime em vez de na carga.
+  #
+  # FORAM DOIS E NAO UM, e a diferenca e a varredura: o achado nomeava
+  # `ground_truth.yaml`, e medir o conjunto inteiro
+  # (`required_for_complete_pack` menos as chaves deste mapa) mostrou os dois.
+  ground_truth.yaml: 'https://aurora-cyber-range.local/contracts/ground_truth.schema.json#'
+  objectives.yaml: 'https://aurora-cyber-range.local/contracts/objectives.schema.json#'
 
 # PACOTE COMPLETO x PACOTE APENAS-MANIFESTO — 04 secoes 1 e 9.
 #
