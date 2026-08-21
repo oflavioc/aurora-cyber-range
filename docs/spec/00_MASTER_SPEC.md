@@ -72,7 +72,7 @@ Falhando qualquer uma, a métrica é **simples**. A conjunção é o critério. 
 
 #### O que cada cláusula decide, e o que ela não decide
 
-A **(1)** separa *"contivemos"* de *"a severidade é alta"*. Atributo do incidente tem acurácia, e acurácia é calibração — confiança contra defensibilidade, `03_EXERCISE_DESIGN.md` §5 —, não distância entre dois instantes. A **(2)** separa a conclusão que alguém de fora pode datar daquela que o próprio ato constitui. A **(3)** impede par degenerado, em que a segunda metade duplicaria um extremo que a métrica já marca.
+A **(1)** separa *"contivemos"* de *"a severidade é alta"*. Atributo do incidente tem acurácia, e acurácia não é distância entre dois instantes: é **julgamento**, e julgamento é avaliado por **rubrica** (`03_EXERCISE_DESIGN.md` §2). A **(2)** separa a conclusão que alguém de fora pode datar daquela que o próprio ato constitui. A **(3)** impede par degenerado, em que a segunda metade duplicaria um extremo que a métrica já marca.
 
 **Em v1, (1) decide `TTT` e `TTA`, (2) decide `TTCM`, e (3) não decide sozinha nenhum caso** — acompanha (1) em `TTA`. Está registrada como guarda de sigla futura, e não como cláusula que hoje segura alguma coisa. Dizer o contrário daria à conjunção uma solidez que ela ainda não tem.
 
