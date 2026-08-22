@@ -28,12 +28,16 @@ from contracts.generated.events import (
 )
 from range_core.clock.exercise_clock import ExerciseClock
 from range_core.engine.verificacao import (
+    InstanteDeReferencia,
     Mundo,
     PredicadoMalformado,
+    SemGramaticaTemporal,
     avalia,
     avaliar_e_emitir,
+    instante_de_referencia,
 )
 from range_core.events.envelope import Correlation
+from range_core.events.linhagem import eventos_da_linhagem_corrente
 from range_core.events.store import EventDraft, InMemoryEventStore
 
 #: O predicado de contenção do exemplo normativo de `03` §3.1, reduzido às duas
@@ -46,6 +50,17 @@ CONTENCAO = {"all": [{"event": VPN_ACCESS_REVOKED}, {"event": IDENTITY_SCOPE_DIS
 #: de `tests/test_pack_loader.py`, onde o que está sob teste **é** a conferência
 #: contra o adapter real.
 UMA_FLAG = "fixture.uma_flag"
+
+#: Um instante de referência qualquer, para os testes do avaliador PURO. Ele não
+#: deriva linhagem — quem deriva é `instante_de_referencia`, e a classe
+#: `InstanteDeReferenciaDaLinhagem` a exercita contra o fluxo real.
+_REFERENCIA = InstanteDeReferencia(
+    event_id="ev-referencia",
+    exercise_time="00:00",
+    exercise_timestamp="2026-08-20T09:00:00Z",
+    simulation_epoch=0,
+    origem=EXERCISE_STARTED,
+)
 
 
 def _relogio() -> ExerciseClock:
@@ -126,6 +141,156 @@ class AvaliadorPuro(unittest.TestCase):
         """Falso silencioso faria a contenção nunca verificar, sem explicação."""
         with self.assertRaises(PredicadoMalformado):
             avalia({"before": "T+01:00"}, self.mundo())
+
+
+#: O predicado de contenção do exemplo normativo de `03` §3.1, INTEIRO — as duas
+#: folhas `event` e a folha `absence_of` com o qualificador. É a forma que o
+#: spec-change #49 fixou, e a que a fixture do pacote completo passou a usar.
+CONTENCAO_NORMATIVA = {
+    "all": [
+        {"event": VPN_ACCESS_REVOKED},
+        {"event": IDENTITY_SCOPE_DISABLED},
+        {"absence_of": {"fact_class": "exfiltration", "since": "self"}},
+    ]
+}
+
+
+class QualificadorSince(unittest.TestCase):
+    """`since: self` — `03` §3.1, spec-change #49.
+
+    O QUE ESTA CLASSE PROVA, e o que ela DECLARA não provar
+    --------------------------------------------------------
+    Prova que o predicado normativo da §3.1 **satisfaz**: um pack que declara
+    exfiltração em `T-17d` e escreve a contenção na forma da spec verifica
+    contenção quando os dois atos ocorrem. Antes disto o campo era lido e
+    descartado (H1 da quarta auditoria), e a ausência valia sobre a linhagem
+    inteira — o predicado da própria spec era insatisfazível por construção.
+
+    **Não** prova a comparação temporal, e o motivo é medido: `Mundo.fatos`
+    carrega CLASSES, não instantes, e `fact.exercise_time` (`'T-17d 02:14'`) não
+    tem gramática — é `minLength: 1` no contrato. Situar um fato em relação ao
+    instante de referência exige as duas coisas, e é a P6-3: uma gramática de
+    `exercise_time` decide `since`, `before` e `after` de uma vez.
+
+    Por isso a classe presente no mundo **recusa alto** em vez de responder:
+    responder seria inventar semântica temporal, e a resposta plausível
+    (ausência total) é exatamente o defeito que o #49 corrigiu.
+    """
+
+    def mundo(self, tipos=(), fatos=(), flags=None, referencia=_REFERENCIA) -> Mundo:
+        return Mundo(frozenset(tipos), frozenset(fatos), flags or {}, referencia)
+
+    def test_o_predicado_normativo_da_secao_3_1_satisfaz(self):
+        """O caso canônico: exfiltração em `T-17d`, contenção verificada.
+
+        O fato está no `ground_truth.yaml` do pack e **não** na linhagem — nada
+        emite `fact_materialized` na árvore de hoje. Sob a leitura anterior o
+        resultado seria o mesmo por acidente; o que mudou é que agora o campo é
+        LIDO, e o teste abaixo mostra o que ele faz quando o fato chega.
+        """
+        self.assertTrue(
+            avalia(
+                CONTENCAO_NORMATIVA,
+                self.mundo({VPN_ACCESS_REVOKED, IDENTITY_SCOPE_DISABLED}),
+            )
+        )
+
+    def test_sem_os_atos_de_contencao_o_predicado_NAO_satisfaz(self):
+        """Sem este negativo, o positivo acima passaria com um `all` vazio."""
+        self.assertFalse(avalia(CONTENCAO_NORMATIVA, self.mundo()))
+
+    def test_a_classe_no_mundo_recusa_por_falta_de_gramatica(self):
+        """Recusa alta, nomeando o instante de referência e a pendência.
+
+        É a mesma forma do `before`/`after`: falso silencioso faria a contenção
+        nunca verificar sem explicação, e verdadeiro silencioso a faria verificar
+        com vazamento em curso. As duas são piores que recusar.
+        """
+        with self.assertRaises(SemGramaticaTemporal) as capturado:
+            avalia(
+                CONTENCAO_NORMATIVA,
+                self.mundo(
+                    {VPN_ACCESS_REVOKED, IDENTITY_SCOPE_DISABLED},
+                    fatos={"exfiltration"},
+                ),
+            )
+        mensagem = str(capturado.exception)
+        self.assertIn("exfiltration", mensagem)
+        self.assertIn("exercise_time", mensagem)
+        self.assertIn("P6-3", mensagem)
+        self.assertIn(_REFERENCIA.event_id, mensagem)
+
+    def test_ausencia_TOTAL_sem_since_continua_lendo_o_mundo_inteiro(self):
+        """A forma sem `since` não é afetada: `03` §3.1 a mantém legítima."""
+        no = {"absence_of": {"fact_class": "exfiltration"}}
+        self.assertTrue(avalia(no, self.mundo()))
+        self.assertFalse(avalia(no, self.mundo(fatos={"exfiltration"})))
+
+    def test_valor_nao_definido_recusa_alto_no_avaliador(self):
+        """Segunda linha de defesa — a primeira é a guarda de carga.
+
+        Campo desconhecido não some em silêncio, que é o que `verificacao.py`
+        fazia com `since` inteiro antes do H1.
+        """
+        with self.assertRaises(PredicadoMalformado) as capturado:
+            avalia(
+                {"absence_of": {"fact_class": "exfiltration", "since": "T+01:00"}},
+                self.mundo(),
+            )
+        self.assertIn("T+01:00", str(capturado.exception))
+
+    def test_sem_instante_de_referencia_recusa(self):
+        """`since: self` sem linhagem em curso não tem "a partir de quando"."""
+        with self.assertRaises(SemGramaticaTemporal):
+            avalia(
+                {"absence_of": {"fact_class": "exfiltration", "since": "self"}},
+                self.mundo(referencia=None),
+            )
+
+
+class InstanteDeReferenciaDaLinhagem(_ComFluxo):
+    """De onde sai o "a partir de quando" — `03` §3.1, parágrafo da linhagem.
+
+    A §3.1 diz que depois de um rollback o instante de referência é **o da
+    reavaliação na epoch nova**. Sem isso, um `since: self` congelado no primeiro
+    instante de avaliação sobreviveria ao corte, e o predicado meio-revertido
+    voltaria por esta porta — a mesma que `09` §3.1 fecha para as outras folhas.
+    """
+
+    def correntes(self):
+        """A linhagem, e não o fluxo cru — a mesma forma que `mundo_corrente` toma."""
+        return eventos_da_linhagem_corrente(self.store.read_all())
+
+    def test_na_epoch_zero_e_o_exercise_started(self):
+        referencia = instante_de_referencia(self.correntes())
+        self.assertEqual(referencia.origem, EXERCISE_STARTED)
+        self.assertEqual(referencia.simulation_epoch, 0)
+
+    def test_depois_do_rollback_e_o_rollback_da_linhagem_corrente(self):
+        ancora = self.store.read_all()[0]
+        self.ato(VPN_ACCESS_REVOKED)
+        corte = self.rollback(ancora.event_id)
+        referencia = instante_de_referencia(self.correntes())
+        self.assertEqual(referencia.origem, ROLLBACK_PERFORMED)
+        self.assertEqual(referencia.event_id, corte.event_id)
+
+    def test_o_rollback_ABANDONADO_nao_e_o_instante_de_referencia(self):
+        """Encadeado: o corte que outro corte descartou não fixa referência.
+
+        Sem esta direção, a referência viria do fluxo cru, e a linhagem deixaria
+        de ser a lógica — que é o que este módulo inteiro existe para impedir.
+        """
+        ancora = self.store.read_all()[0]
+        self.ato(VPN_ACCESS_REVOKED)
+        descartado = self.rollback(ancora.event_id)
+        corte = self.rollback(ancora.event_id)
+        referencia = instante_de_referencia(self.correntes())
+        self.assertEqual(referencia.event_id, corte.event_id)
+        self.assertNotEqual(referencia.event_id, descartado.event_id)
+
+    def test_sem_exercise_started_nao_ha_referencia(self):
+        """Antes do início, `since: self` não tem a partir de quando."""
+        self.assertIsNone(instante_de_referencia([]))
 
 
 class NegativoUm_MeioRevertido(_ComFluxo):

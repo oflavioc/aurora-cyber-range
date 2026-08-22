@@ -197,6 +197,14 @@ def _gabarito_sintetico() -> str:
 
     NÃO HÁ `line_b_cases`: o contrato os declara opcionais, e inventar casos aqui
     seria escrever gabarito de um exercício que não existe.
+
+    A CONTENÇÃO USA A FORMA NORMATIVA de `03` §3.1 — `absence_of` com
+    `since: self` — e não uma que a evite. A fixture do pacote completo é o
+    pack que o loader carrega nos testes de carga: se ela contornar a forma que
+    a spec escreve, a guarda de `since` fica provada só contra árvores montadas
+    à mão, e a forma que o exercício real usa nunca atravessa o loader. Era o
+    ponto do H1 da quarta auditoria — a divergência sobreviveu a 684 testes
+    verdes porque nenhum deles exercitava o campo.
     """
     flag = _flag_que_a_fixture_move()
     return (
@@ -214,6 +222,9 @@ def _gabarito_sintetico() -> str:
         "  containment:\n"
         "    all:\n"
         f"      - flag_false: {flag}\n"
+        "      - absence_of:\n"
+        "          fact_class: exfiltration\n"
+        "          since: self\n"
         "  service_restoration:\n"
         "    not_applicable: 'A fixture nao modela restauracao de servico.'\n"
     )

@@ -138,6 +138,12 @@ class PackSite:
     #: auditoria da Fase 6: aquele registro era citado em docstring e nao lido
     #: por codigo nenhum.
     INCOMPLETE_PACK = "incomplete_pack"
+    #: `absence_of.since` com valor que `03` §3.1 nao define — `self` e a unica
+    #: forma de v1. H1 da quarta auditoria da Fase 6.
+    SINCE_UNDEFINED_VALUE = "since_undefined_value"
+    #: Predicado de CONTENCAO com `absence_of` sem `since` — a forma que a §3.1
+    #: exige, e sem a qual o pack cai no defeito que o `spec-change` #49 corrigiu.
+    CONTAINMENT_ABSENCE_WITHOUT_SINCE = "containment_absence_without_since"
 
 
 class PackError(Exception):
@@ -346,6 +352,7 @@ def load_pack(
     _verify_engine_version(raiz, manifest)
     _verify_rules(documentos, scenario, contracts, adapter_flags)
     confere_folhas_temporais(documentos.get("ground_truth.yaml"))
+    confere_qualificador_since(documentos.get("ground_truth.yaml"))
 
     injects = _build_injects(
         documentos.get("injects.yaml") or {}, documentos.get("ground_truth.yaml")
@@ -595,6 +602,103 @@ def confere_folhas_temporais(ground_truth: Mapping | None) -> None:
             "parte do mundo que ele monta. Recusar aqui e recusar enquanto da "
             "para consertar o pack; sem isto, a falha chega na avaliacao, no "
             "meio do exercicio. Pendencia P6-3 em `docs/progress/fase_6.md`."
+        )
+
+
+#: `03` §3.1 — a unica forma de `since` definida em v1.
+SINCE_SELF = "self"
+
+#: O predicado cuja forma normativa EXIGE o qualificador. A exigencia e da §3.1,
+#: e e da chave: `service_restoration` nao afirma o presente, e ausencia total ali
+#: continua legitima.
+PREDICADO_QUE_EXIGE_SINCE = "containment"
+
+
+def _folhas_absence_of(no, caminho: str = "") -> list[tuple[str, object]]:
+    """`(caminho, alvo)` de cada folha `absence_of` da arvore, em ordem de leitura."""
+    achadas: list[tuple[str, object]] = []
+    if isinstance(no, Mapping):
+        for chave, valor in no.items():
+            aqui = f"{caminho}.{chave}" if caminho else str(chave)
+            if chave == "absence_of":
+                achadas.append((aqui, valor))
+            else:
+                achadas.extend(_folhas_absence_of(valor, aqui))
+    elif isinstance(no, (list, tuple)):
+        for indice, filho in enumerate(no):
+            achadas.extend(_folhas_absence_of(filho, f"{caminho}[{indice}]"))
+    return achadas
+
+
+def confere_qualificador_since(ground_truth: Mapping | None) -> None:
+    """Recusa NA CARGA as duas formas que `03` §3.1 nao admite — H1 da 4a auditoria.
+
+    AS DUAS PERNAS SAO DEFEITOS PERMANENTES, e nao ausencia de implementacao
+    ------------------------------------------------------------------------
+    E o que separa esta guarda da `confere_folhas_temporais`: aquela recusa o que
+    o avaliador ainda nao faz, e morre quando ele fizer. Estas duas continuam
+    valendo depois de qualquer implementacao.
+
+    1. **VALOR NAO DEFINIDO.** `self` e a unica forma de v1. Avaliar
+       `since: exercise_start` exigiria semantica que ninguem declarou, e a
+       forma plausivel de "resolver" — ignorar o valor — e exatamente o defeito
+       que o `spec-change` #49 corrigiu.
+
+    2. **CONTENCAO COM `absence_of` SEM `since`.** A §3.1 exige o campo no
+       predicado de contencao, e a razao esta escrita la: sem a exigencia, um
+       pack escreve contencao sem `since`, cai no defeito original — ausencia
+       TOTAL, insatisfazivel em todo cenario que materialize o fato antes da
+       resposta — e a correcao da spec **nao o alcanca**. A forma curta em
+       string entra aqui: ela nao carrega qualificador, e sem esta direcao seria
+       o desvio por escrita.
+
+    A ORDEM DE PRECEDENCIA e deliberada: valor nao definido primeiro. Um pack com
+    os dois defeitos tem um problema de VALOR, e nomear a chave faltando antes
+    mandaria o autor acrescentar um campo que ele ja escreveu errado.
+
+    NAO HA PERNA PARA `self`: o avaliador o implementa. Recusar a forma normativa
+    faria o cenario canonico da propria spec deixar de carregar, que e pior que o
+    defeito que a recusa corrigiria — e foi correcao de rota do proprietario.
+    """
+    predicados = (ground_truth or {}).get("verification_predicates") or {}
+    valor_nao_definido: list[str] = []
+    contencao_sem_since: list[str] = []
+
+    for nome, arvore in sorted(predicados.items()):
+        for caminho, alvo in _folhas_absence_of(arvore):
+            onde = f"{nome}.{caminho}"
+            if isinstance(alvo, Mapping) and "since" in alvo:
+                if alvo["since"] != SINCE_SELF:
+                    valor_nao_definido.append(f"{onde} (since: {alvo['since']!r})")
+            elif nome == PREDICADO_QUE_EXIGE_SINCE:
+                contencao_sem_since.append(onde)
+
+    if valor_nao_definido:
+        raise PackError(
+            PackSite.SINCE_UNDEFINED_VALUE,
+            "`absence_of.since` com valor nao definido: "
+            + ", ".join(valor_nao_definido)
+            + ".\n"
+            f"    `03_EXERCISE_DESIGN.md` §3.1 define `{SINCE_SELF}` como a UNICA "
+            "forma de v1, e recusa qualquer outro valor na carga enquanto nao "
+            "houver semantica declarada para ele. Recusar aqui e recusar "
+            "enquanto da para consertar o pack; avaliar seria inventar."
+        )
+
+    if contencao_sem_since:
+        raise PackError(
+            PackSite.CONTAINMENT_ABSENCE_WITHOUT_SINCE,
+            "predicado de contencao com `absence_of` sem qualificador: "
+            + ", ".join(contencao_sem_since)
+            + ".\n"
+            f"    `03_EXERCISE_DESIGN.md` §3.1 exige `since: {SINCE_SELF}` na "
+            "folha `absence_of` do predicado de CONTENCAO. Sem ele a ausencia "
+            "vale sobre a linhagem inteira — o predicado passa a afirmar que o "
+            "fato NUNCA ocorreu, e nenhum cenario que materialize exfiltracao "
+            "antes da resposta consegue satisfazer contencao. A metrica nao "
+            "falha: ela deixa de marcar, que e o modo mais caro de errar.\n"
+            "    A forma curta em string tambem cai aqui: ela nao carrega "
+            "qualificador. Fora da contencao, ausencia total continua legitima."
         )
 
 
