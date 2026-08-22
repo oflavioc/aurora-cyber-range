@@ -333,6 +333,25 @@ jobs:
       - name: o interpretador do checkout auditado e alcancavel (B1 da Fase 6)
         run: python scripts/check_venv_da_auditoria_probes.py
 
+      # B1 DA QUARTA AUDITORIA DA FASE 6 — `06` T9, primeiro criterio.
+      #
+      # `observability_hooks.yaml` declarava `vpn_access_revoked` com um produtor
+      # da Fase 11, e NADA perguntava se alguem o emitia: o literal esta no
+      # catalogo (invariante 2) e a rota declara `emite` (check_api_surface), mas
+      # hook com `event_type` valido e produtor inexistente passava nos dois.
+      #
+      # E a forma que `04` §6.2 e `09` §4 chamam de "a falha mais cara possivel":
+      # o evento que nunca dispara e que ninguem percebe ate o exercicio ao vivo.
+      #
+      # Confere IGUALDADE nas duas direcoes, mais produtor e `payload_fields`. O
+      # limite esta impresso na propria saida: ela ve a CONSTRUCAO do evento, e
+      # nao o fluxo que a alcanca — isso e a P6-7, e continua aberta.
+      - name: hook declarado x emissor real (06 T9)
+        run: python scripts/check_hooks_com_emissor.py
+
+      - name: teste negativo do verificador de hooks
+        run: python scripts/check_hooks_com_emissor_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 

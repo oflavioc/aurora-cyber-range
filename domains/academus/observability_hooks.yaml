@@ -22,17 +22,27 @@
 # acrescentar campo la sem declarar aqui faria o hook descrever um evento que
 # nao e o emitido.
 #
-# `vpn_access_revoked` continua sem produtor: o `federated-identity-simulator` e
-# da Fase 11. Declarado com destinatario em vez de omitido, pelo mesmo motivo
-# que a P5-2 registrou para a categoria de trilha sem produtor.
+# `vpn_access_revoked` SAIU DAQUI — B1 da quarta auditoria da Fase 6.
+#
+# Ele estava declarado com `producer: federated-identity-simulator`, que e da
+# Fase 11, e a justificativa era a da P5-2: destinatario declarado e melhor que
+# ausencia. O argumento vale para SECAO DE REQUISITO, e nao aqui — e a diferenca
+# e o que `06` T9 exige deste arquivo: *"cada `event_type` declarado em
+# `observability_hooks.yaml` e emitido pela acao correspondente"*, com a etiqueta
+# **(Fase 6)**. Enquanto o hook ficasse, o criterio era insatisfazivel por
+# construcao, e a fase nao fechava.
+#
+# NAO SE PERDE NADA QUE ESTE ARQUIVO GUARDASSE: o `event_type` continua no
+# catalogo de `contracts/events.schema.yaml`, com `effect_class` e `metric_side`,
+# e e de la que a Fase 11 le o contrato do evento. O que saiu foi a afirmacao de
+# que a instrumentacao EXISTE.
+#
+# O hook volta no commit que trouxer o `federated-identity-simulator`, e
+# `scripts/check_hooks_com_emissor.py` recusa se ele voltar antes do emissor.
+# Esta linha nao depende de alguem se lembrar: e a direcao (a) do verificador.
 
 hooks:
   - event_type: audit_query_performed
     trigger: "GET /audit/grade-changes com filtro de período e agrupamento por usuário"
     producer: academus-api
     payload_fields: [period_start, period_end, group_by, result_count]
-
-  - event_type: vpn_access_revoked
-    trigger: "POST /identity/revoke com escopo vpn"
-    producer: federated-identity-simulator
-    payload_fields: [scope, principal]

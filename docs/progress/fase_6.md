@@ -533,7 +533,7 @@ Prefixo `P6-`.
 | P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **condição** — ver abaixo |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | **condição** — ver abaixo |
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
-| P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **condição** — ver abaixo |
+| P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **VENCIDA E RESOLVIDA** — decisão do operador, e o verificador existe |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **decisão** — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
@@ -1110,6 +1110,54 @@ os gates**. É a mesma família da P6-7 — declaração conferida, emissão nã
 
 **Vence em:** a decisão da leitura acima, **ou** a Fase 11, quando o produtor
 chegar — o que vier primeiro.
+
+##### VENCIDA — a segunda leitura, e o verificador que o agravante exigia
+
+**Decisão do operador: o hook sai.** `vpn_access_revoked` foi removido de
+`domains/academus/observability_hooks.yaml`, e volta no commit que trouxer o
+`federated-identity-simulator`. T9 volta a ser satisfazível sem exceção, e o
+arquivo descreve só o que existe.
+
+**O que a decisão custou, e é pouco:** nada do que este arquivo guardava se
+perde. O `event_type` continua no catálogo de `contracts/events.schema.yaml`, com
+`effect_class` e `metric_side` — é de lá que a Fase 11 lê o contrato do evento. O
+que saiu foi a **afirmação de que a instrumentação existe**, e ela era falsa.
+
+**O argumento da primeira leitura não se aplicava aqui, e essa é a distinção que
+faltava na tabela acima.** *"Destinatário declarado é melhor que ausência"* vale
+para `check_secoes_de_seguranca.py` porque o objeto lá é uma **seção de
+requisito**: ela existe quer haja mecanismo ou não, e declarar quem a trará é a
+única alternativa ao silêncio. Um hook não é isso — ele é a **declaração de que
+uma ação instrumentada existe**. Declarar um que não existe não é registrar
+dívida: é afirmar um fato falso sobre a árvore.
+
+**O agravante era independente da escolha, e virou mecanismo.**
+`scripts/check_hooks_com_emissor.py` cruza cada `observability_hooks.yaml` com as
+emissões reais de `domains/`, por AST, em quatro direções:
+
+| Direção | O que fecha |
+|---|---|
+| declarado × emitido | o critério de T9, literal — foi ela que reprovou a árvore antes da remoção |
+| emitido × declarado | o arquivo descreve o que o adapter faz, e não uma lista de desejos |
+| `producer` | o hook nomeia quem grava, e não outro serviço |
+| `payload_fields` | as chaves do payload literal, para todo hook — antes existia só para `audit_query_performed`, num teste à mão |
+
+**A forma escolhida foi a primeira do mapa acima — cruzar por AST — e não a
+segunda.** O mapa dizia que ela *"esbarra na mesma dificuldade da P6-7: achar
+quem chama o emissor é análise de fluxo"*. Medido ao escrever: a dificuldade é
+real para **quem chama**, e não para **quem constrói**. `EventDraft(event_type=
+<CONSTANTE>)` é decidível por varredura, e é o que separa *"hook sem emissor em
+lugar nenhum"* — o defeito do B1 — de *"emissor que nenhuma rota alcança"*, que
+continua sendo a P6-7 e está impresso na saída do próprio verificador.
+
+**O limite declarado, então:** um `Emissor` com método que ninguém chama passa
+aqui. A checagem vê a construção do evento, não o fluxo que a alcança.
+
+**O que a prova negativa cobre:** as quatro direções, mais a **vacuidade** —
+`domains/` sem `observability_hooks.yaml` nenhum tem de **reprovar**, porque
+"nada a conferir" virando "ok" é o modo de falha desta checagem, e é o erro que
+os dois predicados de base aposentados cometeram. Sete defeitos plantados, sete
+reprovados, com o adapter coerente e a árvore real passando.
 
 #### P6-11 — payload cru alimenta o Brier
 
