@@ -352,6 +352,23 @@ jobs:
       - name: teste negativo do verificador de hooks
         run: python scripts/check_hooks_com_emissor_probes.py
 
+      # P6-7, FECHADA — B2 da sexta auditoria. A `academus-api` declarava
+      # `emite: audit_query_performed` e a fabrica de producao montava SEM
+      # emissor: a unica rota instrumentada da fase respondia normalmente e nao
+      # gravava nada. A guarda de boot existia para impedir isso e nao impediu,
+      # porque lia o objeto errado (B1) — gate estatico e guarda de execucao
+      # falham por motivos independentes.
+      #
+      # A pergunta e sobre A FABRICA, e nao sobre o fluxo dentro dos handlers:
+      # "a funcao que o `uvicorn --factory` chama constroi o produtor que a
+      # superficie deste servico promete?". Decidivel por AST, e o proprio
+      # verificador imprime o que nao prova.
+      - name: a fabrica liga o emissor que a superficie declara (P6-7)
+        run: python scripts/check_fabrica_liga_emissor.py
+
+      - name: teste negativo do verificador da fabrica
+        run: python scripts/check_fabrica_liga_emissor_probes.py
+
       - name: teste negativo dos seis verificadores
         run: python scripts/phase0_negative_tests.py
 

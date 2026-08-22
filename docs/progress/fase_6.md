@@ -573,7 +573,7 @@ Prefixo `P6-`.
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
 | P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
-| P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **condição** — ver abaixo |
+| P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **VENCIDA na metade que mordeu** — B2 da sexta auditoria, e o verificador da fábrica |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | **condição** — ver abaixo |
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
 | P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **VENCIDA E RESOLVIDA** — decisão do operador, e o verificador existe |
@@ -1040,6 +1040,45 @@ já existe justamente para o handler não decidir camada, produtor e payload.
 paralelismo multiplicar quem escreve rota — o que vier primeiro. É **decisão do
 proprietário**: a primeira compra exatidão e custa esforço; a segunda compra
 verificabilidade e custa liberdade de desenho.
+
+##### VENCIDA NA METADE QUE MORDEU — e a pergunta cara não era a que faltava
+
+**O B2 da sexta auditoria decidiu a pendência mostrando que ela estava mirando o
+lugar errado.** Tudo acima discute *"o handler chama o emissor?"* — a pergunta
+que exige análise de fluxo. O defeito real foi mais simples e mais grave: a
+fábrica de produção da `academus-api` montava **sem emissor nenhum**. Não havia
+handler a analisar, porque não havia emissor na aplicação.
+
+`GET /audit/grade-changes` respondia `200` em produção e não gravava nada — o
+item 1 da DoD desta fase, falso no único caminho que o container executa.
+
+**A forma da correção é a segunda do mapa acima** — convenção estrutural imposta
+por verificador —, e ela ficou mais barata do que o mapa previa, porque a
+convenção não recai sobre as rotas: recai sobre **a fábrica**, que é uma por
+serviço. `scripts/check_fabrica_liga_emissor.py` pergunta *"a função que o
+`uvicorn --factory` chama constrói o produtor que a superfície deste serviço
+promete?"*, e isso é um `ast.Call` dentro de um `FunctionDef`.
+
+**A primeira versão do verificador estava errada, e a árvore não.** Ela exigia
+`emissor=` de toda fábrica e reprovou o `range-api`, que emite pelo
+`InjectEngine` — a convenção de um adapter imposta ao núcleo. O produtor passou a
+ser declarado **por serviço**, e a lição fica: verificador que generaliza a
+convenção de um caso reprova o que está certo, e é assim que um gate vira ruído
+que alguém desliga.
+
+**O `participant-api` entrou como estado declarado**, e não como buraco: ele tem
+`montar` e não tem fábrica — não há serviço dele no `docker-compose.yml`. A
+entrada com produtor `None` faz a checagem **reprovar no dia em que uma fábrica
+nascer ali**, que é exatamente quando a decisão de quem grava precisa acontecer.
+
+**O que continua aberto, dito e não escondido:** a metade original — *"este
+handler, executado, emite?"*. O verificador imprime essa fronteira na própria
+saída. Hoje quem a cobre é `tests/test_api_emissao_pela_rota.py`, que exercita a
+rota real por `TestClient` e afirma sobre o evento no store.
+
+**Vence, agora, em:** a próxima rota que declare `emite` **em um serviço cuja
+fábrica já constrói o produtor** — aí a pergunta que sobra é a do fluxo, e ela
+volta a ser decisão do proprietário entre as duas formas do mapa acima.
 
 #### P6-8 — justificativa ausente devolve `409`
 
