@@ -396,6 +396,21 @@ ALLOWED = [
     # Ele NAO abre superficie: le a fonte versionada do hook e chama duas funcoes
     # puras. Nao executa interpretador nenhum.
     rf"|check_venv_da_auditoria_probes"
+    # FASE 6, B1 DA QUARTA AUDITORIA — `check_hooks_com_emissor`, admitido no
+    # COMMIT QUE O CRIA, que e a regra da D16 e ja violada quatro vezes.
+    #
+    # O criterio e o de sempre, e aqui ele e literal: o auditor da quarta rodada
+    # respondeu esta pergunta A MAO — leu o YAML, leu o emissor, e concluiu que
+    # `vpn_access_revoked` nao tinha produtor. Foi conclusao certa, e e
+    # exatamente a conferencia manual que o M2 da Fase 5 recusou como forma de
+    # auditar: ela nao escala para o segundo adapter nem para o decimo hook.
+    #
+    # A resposta e uma varredura de AST sobre `domains/` inteiro cruzada com o
+    # YAML de cada adapter, nas quatro direcoes. A prova negativa entra junto
+    # pelo motivo de sempre, e carrega o eixo da VACUIDADE: `domains/` sem hook
+    # nenhum tem de REPROVAR, e sem esse caso a checagem passaria por nao ter o
+    # que conferir.
+    rf"|check_hooks_com_emissor|check_hooks_com_emissor_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
