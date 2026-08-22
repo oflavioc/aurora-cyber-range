@@ -363,6 +363,19 @@ def _imprime_saidas(doc: dict) -> None:
         print(f"\n--- prova `{rotulo}`  (rc={registro.get('rc')!r})  {comando}")
         print(str(registro.get("saida", "")).rstrip())
 
+    # O DIAGNOSTICO VEM POR ULTIMO, e so existe quando alguma coisa falhou — M1
+    # da sexta auditoria. Diagnostico gravado e nao impresso e a mesma perda com
+    # mais passos: `docker` esta fora da allowlist do auditor por desenho, entao
+    # o que nao chega aqui ele nao alcanca de jeito nenhum.
+    diagnostico = doc.get("diagnostico") or {}
+    for chave, titulo in (
+        ("ps", "os containers, antes do `down`"),
+        ("logs", "os logs dos containers, antes do `down`"),
+    ):
+        if diagnostico.get(chave):
+            print(f"\n--- {titulo} ----------------------------------")
+            print(str(diagnostico[chave]).rstrip())
+
 
 def relata(falhas: list[Falha], doc: dict | None, raiz: Path) -> int:
     if not falhas:
