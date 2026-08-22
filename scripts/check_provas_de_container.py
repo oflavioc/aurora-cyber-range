@@ -340,6 +340,16 @@ def _imprime_saidas(doc: dict) -> None:
     ele proprio a leitura que o auditor tem de fazer — e a P4-10 nao troca um
     NAO VERIFICADO por um "confie na minha checagem".
     """
+    # O PACOTE VEM PRIMEIRO PORQUE ELE ACONTECE PRIMEIRO — B1 da quinta
+    # auditoria. Sem esta impressao, a falha de materializacao chegaria ao
+    # auditor como um `up` que nao subiu, e a causa ficaria a dois passos.
+    # `.get` porque arquivo gravado antes desta mudanca nao tem a chave: ausencia
+    # aqui e "gravador antigo", e nao defeito.
+    pack = doc.get("pack") or {}
+    if pack.get("saida"):
+        print("\n--- o pacote completo, materializado para o volume -------------")
+        print(str(pack["saida"]).rstrip())
+
     stack = doc.get("stack") or {}
     if stack.get("saida"):
         print("\n--- a stack de containers, subindo -----------------------------")

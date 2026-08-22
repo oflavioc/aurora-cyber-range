@@ -33,6 +33,22 @@ O volume morre no `down -v`. Sem isso, a segunda rodada encontraria o event
 store da primeira e `engine.start()` recusaria — o DEMO exige um exercicio que
 ainda nao comecou, e isso esta no cabecalho dele.
 
+O PACOTE COMPLETO E MATERIALIZADO AQUI, ANTES DO `up` — B1 da quinta auditoria
+-------------------------------------------------------------------------------
+A Fase 6 criou uma PRECONDICAO DE BOOT — `criar()` faz `exige(AURORA_PACK)` e
+`load_pack(...)` —, e o compose monta o pack por volume. Quem sobe stack passou a
+ter de materializa-lo antes. O CI foi atualizado; este script nao, e o resultado
+era deterministico: `/pack` vazio, os dois containers mortos na largada, as duas
+provas em `rc=125`, e os itens 1 e 4 da DoD NAO VERIFICADOS em toda rodada.
+
+A CLASSE, porque ja e a terceira ocorrencia na fase: **criar exigencia obriga a
+varrer todos os caminhos que a executam.** As irmas foram o "seis contratos" que
+o CI continuava afirmando depois do setimo, e o venv da auditoria ausente da
+branch. A regra que ja existia — *"criar instancia de conjunto contado exige
+varrer quem afirma a contagem"* — ganha a sua: **criar precondicao de boot exige
+varrer quem sobe a stack**, e a lista tem cinco lugares (CI, este gravador, o
+lancador, o compose e os scripts que rodam a sala).
+
 O ARQUIVO E SEMPRE ESCRITO, INCLUSIVE QUANDO TUDO FALHA
 --------------------------------------------------------
 Falha da stack vira `rc != 0` gravado, com a saida do `docker compose` junto. O
@@ -103,6 +119,28 @@ SEED = "20260817"
 
 TEMPO_LIMITE_STACK = 600
 TEMPO_LIMITE_PROVA = 600
+
+#: O PACOTE COMPLETO, MATERIALIZADO ANTES DO `up` — B1 da quinta auditoria.
+#:
+#: `docker-compose.yml` monta `./.aurora-pack:/pack:ro` nos dois servicos, e
+#: `range-core/api/processo.py` faz `exige(AURORA_PACK)` e `load_pack(...)`
+#: dentro de `criar()`, que e a fabrica que o `uvicorn --factory` chama NO BOOT.
+#: Com o diretorio vazio, os dois containers morrem na largada, as duas provas
+#: saem `rc=125` e os itens 1 e 4 da DoD da Fase 4 ficam NAO VERIFICADO — em toda
+#: rodada, deterministicamente.
+#:
+#: O caminho e relativo ao diretorio do compose, e o compose e o do WORKTREE:
+#: entao o destino e `<worktree>/.aurora-pack`, e nao o da arvore principal.
+#: Materializar na principal deixaria o `up` daqui olhando para um diretorio
+#: vazio do mesmo jeito.
+#:
+#: E O MESMO COMANDO DO CI, e nao uma segunda implementacao — `invariants.yml`
+#: roda `python tests/fixtures/pack_completo.py .aurora-pack` antes do `up` dele.
+#: Chamar o helper por SUBPROCESSO, com o interpretador do venv da auditoria,
+#: mantem as duas rotas literalmente iguais e usa o helper DO COMMIT AUDITADO.
+DIRETORIO_DO_PACK = ".aurora-pack"
+HELPER_DO_PACK = ("tests", "fixtures", "pack_completo.py")
+TEMPO_LIMITE_PACK = 120
 
 
 def _agora() -> str:
@@ -202,19 +240,48 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
         "commit": commit,
         "quando": _agora(),
         "gerado_por": "scripts/grava_provas_de_container.py",
+        "pack": {"rc": None, "saida": ""},
         "stack": {"rc": None, "saida": ""},
         "provas": [],
     }
 
     try:
+        # O PACOTE ANTES DA STACK. Sem ele o `up` sobe contra `/pack` vazio e os
+        # dois containers morrem no boot — ver DIRETORIO_DO_PACK.
+        destino_pack = worktree / DIRETORIO_DO_PACK
         inicio = time.monotonic()
-        rc, texto = _executa(
-            [*_compose(worktree), "up", "-d", "--build", "--wait",
-             "range-api", "academus-api"],
+        rc_pack, texto_pack = _executa(
+            [interpretador, str(worktree.joinpath(*HELPER_DO_PACK)), str(destino_pack)],
             cwd=worktree,
             env=env,
-            limite=TEMPO_LIMITE_STACK,
+            limite=TEMPO_LIMITE_PACK,
         )
+        doc["pack"] = {
+            "rc": rc_pack,
+            "destino": str(destino_pack),
+            "segundos": round(time.monotonic() - inicio, 1),
+            "saida": texto_pack,
+        }
+
+        inicio = time.monotonic()
+        if rc_pack != 0:
+            # A STACK NAO SOBE, e isso e melhor que subir. Com o pack ausente os
+            # containers morreriam no boot e a saida do `up` falaria de
+            # healthcheck — a causa apareceria a dois passos de distancia, que e
+            # exatamente como este defeito custou uma auditoria inteira.
+            rc, texto = rc_pack, (
+                "NAO SUBIU: o pacote completo nao foi materializado em "
+                f"{destino_pack}. A causa esta em `pack`, e nao aqui — sem o "
+                "pack, `criar()` recusa no boot e os containers morrem."
+            )
+        else:
+            rc, texto = _executa(
+                [*_compose(worktree), "up", "-d", "--build", "--wait",
+                 "range-api", "academus-api"],
+                cwd=worktree,
+                env=env,
+                limite=TEMPO_LIMITE_STACK,
+            )
         doc["stack"] = {
             "rc": rc,
             "segundos": round(time.monotonic() - inicio, 1),
@@ -255,8 +322,8 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
                         "rc": 125,
                         "saida": (
                             "NAO EXECUTADA: a stack de containers nao subiu "
-                            f"(docker compose up saiu {rc}). A saida dela esta em "
-                            "`stack`."
+                            f"(rc={rc}). A saida esta em `stack` — e, quando a "
+                            "causa for o pacote completo, em `pack`."
                         ),
                     }
                 )

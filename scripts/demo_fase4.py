@@ -41,8 +41,14 @@ coisa que roda contra a stack. Ele para com a mensagem que diz o que fazer, em
 vez de disfarcar.
 
 USO
+    python tests/fixtures/pack_completo.py .aurora-pack   # o volume /pack
     docker compose up -d
     python scripts/demo_fase4.py
+
+A PRIMEIRA LINHA E PRE-REQUISITO DE BOOT, e nao preparo opcional — B1 da quinta
+auditoria da Fase 6. O compose monta `./.aurora-pack:/pack:ro` e `criar()` faz
+`exige(AURORA_PACK)`: com o diretorio vazio os containers morrem na largada, e o
+sintoma chega como healthcheck estourado, a dois passos da causa.
 """
 
 from __future__ import annotations

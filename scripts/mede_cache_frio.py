@@ -30,8 +30,12 @@ Um `SET` para N leituras significa que alguma coisa serializa. N `SET` para N
 leituras e a pendencia acontecendo, com numero.
 
 USO
+    python tests/fixtures/pack_completo.py .aurora-pack   # o volume /pack
     docker compose up -d
     python scripts/mede_cache_frio.py [N]
+
+A PRIMEIRA LINHA E PRE-REQUISITO DE BOOT — B1 da quinta auditoria da Fase 6. Sem
+o pack materializado, `criar()` recusa e a stack nao sobe.
 """
 
 from __future__ import annotations
