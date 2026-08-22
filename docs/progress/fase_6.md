@@ -526,7 +526,7 @@ Prefixo `P6-`.
 |---|---|---|
 | P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **VENCIDA E RESOLVIDA** — `spec-change` #47 |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
-| P6-3 | `before` e `after` são declaráveis na gramática de predicado e o avaliador não os implementa | **condição** — ver abaixo |
+| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe | **condição** — ver abaixo |
 | P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
 | P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
@@ -674,7 +674,7 @@ teste de emissão, que são todos código e cabem no mesmo PR.
 **Vence em:** o commit em que o consumidor de `TTA` for desenhado — é ele que
 força a escolha, e antes dele a decisão seria tomada sem o caso de uso à vista.
 
-#### P6-3 — folhas temporais declaráveis e não implementadas
+#### P6-3 — uma gramática de `exercise_time`, e as três folhas que dependem dela
 
 `contracts/ground_truth.schema.yaml` admite `predicate_before` e
 `predicate_after` na gramática de predicado. O avaliador da peça 4 **não os
@@ -696,6 +696,62 @@ precisar de uma folha temporal — o que vier primeiro. Se vier o pack, é
 **decisão do proprietário** antes de qualquer improviso: o que o predicado
 temporal compara — `exercise_time`, `exercise_timestamp` ou marca de parede — é
 escolha normativa, e as três dão resultados diferentes depois de um rollback.
+
+##### A TERCEIRA FOLHA — `since` entrou aqui, e não abriu pendência própria
+
+**H1 da quarta auditoria**, e a leitura que decidiu foi do proprietário: o
+instante do fato é o **declarado** (`fact.exercise_time`), e não o do evento
+`fact_materialized`. O fato é o objeto do ground truth; o instante do evento é
+quando o simulador contou — metadado de emissão. Fundar `since` no segundo faria
+a semântica de contenção depender de **quando o produtor grava**, que é
+implementação de outra fase decidindo norma desta.
+
+**Por que uma pendência e não duas.** `since`, `before` e `after` comparam contra
+o mesmo campo. Duas gramáticas para `exercise_time` — uma para o qualificador,
+outra para as folhas — divergiriam, e a divergência apareceria como predicado que
+verifica num caminho e não no outro. É a D4 da Fase 1 outra vez: uma decisão, três
+folhas, uma gramática. Por isso o que seria a **P6-12 é esta seção**, e não uma
+linha nova na tabela.
+
+**O que trava, medido e não suposto:**
+
+| | Medição |
+|---|---|
+| produtor de `fact_materialized` | **não existe**. O tipo está no catálogo, é lido em `verificacao.py` ao montar o mundo, e a única escrita no repositório é à mão, em `tests/test_aar_timeline.py` |
+| o instante declarado | `fact.exercise_time` é `minLength: 1` no contrato, e o exemplo normativo traz `'T-17d 02:14'` — **não há gramática**, e o `_T_RELATIVE` do loader (`HH:MM`) não representa dia negativo |
+| o mundo | `Mundo.fatos` carrega **classes**, não instantes. Situar um fato exige carregar o instante junto, o que só faz sentido depois da gramática |
+
+**É a medição do produtor ausente que torna o adiamento legítimo**, e ela é o que
+precisa sobreviver a esta seção: sem produtor, `Mundo.fatos` é vazio em produção,
+e **nenhum comportamento de hoje depende da escolha**. O que se adia é a
+comparação, não a semântica — a semântica está na `03` §3.1 desde o
+`spec-change` #49.
+
+**O que foi implementado agora**, e por que não esperou:
+
+- **o instante de referência**, derivado da linhagem corrente —
+  `instante_de_referencia`: o `rollback_performed` da corrente, ou o
+  `exercise_started` na epoch 0. É a metade da §3.1 que **não** depende de
+  gramática, e é ela que faz o predicado normativo carregar e satisfazer;
+- **a guarda de carga**, com as duas pernas que são defeito permanente: valor
+  não definido, e contenção com `absence_of` sem `since` — a forma curta em
+  string incluída, senão a exigência seria contornável por escrita;
+- **a segunda linha no avaliador**: `since` desconhecido recusa alto, e a classe
+  presente no mundo levanta `SemGramaticaTemporal` em vez de responder. As duas
+  respostas plausíveis são piores — falso faz a contenção nunca verificar,
+  verdadeiro a faz verificar com vazamento em curso.
+
+**Não houve perna para `since: self` na guarda**, e essa foi correção de rota do
+proprietário sobre o desenho que eu havia trazido. Recusar a forma normativa na
+carga faria o `ransomware-universidade` — o cenário que a spec inteira ilustra —
+**deixar de carregar**: pior que o defeito que corrigiria. O H1 fazia `TTCV` não
+marcar num cenário; a guarda faria o cenário não existir.
+
+**Vence em:** a gramática de `exercise_time`. Ela fecha as três folhas de uma
+vez, e o gatilho continua sendo o que já estava escrito acima — o primeiro pack
+que precise, ou a implementação do suporte temporal. Acrescenta-se um terceiro: o
+primeiro produtor de `fact_materialized`, que baterá em `SemGramaticaTemporal` na
+primeira execução. É deliberado que bata: a decisão precisa acontecer ali.
 
 #### P6-4 — o ensaio descartado leva embora o `exercise_started`
 
