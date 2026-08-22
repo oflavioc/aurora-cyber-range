@@ -82,6 +82,23 @@ class RotaDeclarada:
     #: `papel -> regra`. Papel ausente nao tem restricao de objeto.
     escopo: Mapping[str, str]
 
+    #: `event_type` que a rota GRAVA, ou `None` — B1 da sexta auditoria.
+    #:
+    #: O campo existe em `api_surface.yaml` desde a peca 3 e NAO CHEGAVA AQUI: o
+    #: parser o descartava. A guarda de boot foi entao escrita contra o
+    #: DICIONARIO CRU do YAML, e ligada ao objeto normalizado — duas formas da
+    #: mesma declaracao, e o `AttributeError` que derrubou 49 testes.
+    #:
+    #: Declaracao que o objeto nao carrega e declaracao que so o gate le. O
+    #: BOOT precisa dela: e ele quem recusa a rota muda.
+    emite: str | None = None
+
+    #: `implementada` ou `planejada`. Pelo mesmo motivo: a guarda so cobra
+    #: emissor de rota que EXISTE — cobrar da planejada travaria o boot por uma
+    #: rota que ainda nao tem codigo, e e o eixo que `check_api_surface.py`
+    #: guarda do outro lado.
+    status: str = "implementada"
+
     def regra_de_escopo(self, papel: str) -> str | None:
         return self.escopo.get(papel)
 
@@ -131,6 +148,8 @@ def carregar() -> Superficie:
                 for d in (bruta.get("degradacao") or [])
             ),
             escopo=dict(bruta.get("escopo") or {}),
+            emite=(str(bruta["emite"]) if bruta.get("emite") else None),
+            status=str(bruta.get("status") or "implementada"),
         )
         rotas[(rota.method, rota.path)] = rota
 

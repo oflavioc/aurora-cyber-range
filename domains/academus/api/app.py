@@ -302,13 +302,22 @@ def confere_emissor_declarado(superficie, emissor) -> None:
 
     Nao ha degradacao para "emite quando puder": ou o emissor esta ligado, ou o
     boot para com a lista das rotas que ficariam mudas.
+
+    ELA LE O `Superficie`, E NAO UM DICIONARIO — B1 da sexta auditoria. A versao
+    anterior fazia `superficie.get("rotas")` sobre o objeto que `montar` lhe
+    passa, que e um `dataclass` com `slots`: `AttributeError` em todo boot sem
+    emissor, e em 49 testes. Ela havia sido escrita contra o YAML CRU e provada
+    contra dicionarios escritos a mao — a forma que a producao nunca produz.
+
+    A irma `confere_flags_declaradas` sempre leu `superficie.rotas.values()`. As
+    duas guardas do mesmo boot liam formas diferentes do mesmo objeto.
     """
     if emissor is not None:
         return
     mudas = [
-        f"{str(r.get('method', '')).upper()} {r.get('path')}"
-        for r in (superficie.get("rotas") or [])
-        if r.get("emite") and r.get("status") == "implementada"
+        f"{r.method} {r.path}"
+        for r in superficie.rotas.values()
+        if r.emite and r.status == "implementada"
     ]
     if mudas:
         raise RuntimeError(

@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from contracts.generated.events import AUDIT_QUERY_PERFORMED, INCIDENT_DECLARED
 from domains.academus.api.app import confere_emissor_declarado
+from domains.academus.api.surface import RotaDeclarada, Superficie
 
 
 @dataclass
@@ -34,24 +35,62 @@ class EmissorEspiao:
         self.chamadas.append(kwargs)
 
 
-SUPERFICIE_COM_EMISSAO = {
-    "rotas": [
-        {
-            "method": "get",
-            "path": "/audit/grade-changes",
-            "status": "implementada",
-            "emite": AUDIT_QUERY_PERFORMED,
-        }
-    ]
-}
+def _rota(**kwargs) -> RotaDeclarada:
+    """Uma `RotaDeclarada` como o parser a produz — e não um dicionário.
 
-SUPERFICIE_SEM_EMISSAO = {
-    "rotas": [{"method": "get", "path": "/students/{id}", "status": "implementada"}]
-}
+    B1 DA SEXTA AUDITORIA MORA AQUI. Esta suíte montava `{"rotas": [{...}]}` à
+    mão, e a guarda passava: dicionário tem `.get`. A produção entrega um
+    `Superficie` — `dataclass` com `slots` —, e a guarda quebrava com
+    `AttributeError` em todo boot sem emissor. **O teste mais verde da peça 3 era
+    o que provava menos.**
+
+    Os campos vêm do construtor real, então acrescentar campo obrigatório a
+    `RotaDeclarada` deixa esta suíte vermelha — que é o comportamento certo.
+    """
+    base = dict(
+        method="GET",
+        path="/x",
+        papeis=frozenset({"secretaria"}),
+        publica=False,
+        flags=(),
+        degradacao=(),
+        escopo={},
+    )
+    base.update(kwargs)
+    return RotaDeclarada(**base)  # type: ignore[arg-type]
+
+
+def _superficie(*rotas: RotaDeclarada) -> Superficie:
+    return Superficie(
+        papeis_de_dominio=frozenset({"secretaria"}),
+        claims=("sub", "role", "exp"),
+        rotas={(r.method, r.path): r for r in rotas},
+    )
+
+
+SUPERFICIE_COM_EMISSAO = _superficie(
+    _rota(
+        method="GET",
+        path="/audit/grade-changes",
+        status="implementada",
+        emite=AUDIT_QUERY_PERFORMED,
+    )
+)
+
+SUPERFICIE_SEM_EMISSAO = _superficie(
+    _rota(method="GET", path="/students/{id}", status="implementada")
+)
 
 
 class GuardaDeBoot(unittest.TestCase):
-    """`00` §5.5 — rota instrumentada em silêncio é pior que não instrumentada."""
+    """`00` §5.5 — rota instrumentada em silêncio é pior que não instrumentada.
+
+    A suíte que exercita a guarda pelo caminho da PRODUÇÃO — `montar` sobre o
+    `Superficie` lido de `api_surface.yaml` — é
+    `tests/test_api_emissao_pela_rota.py::AGuardaDeBootSobreASuperficieREAL`.
+    Estes casos ficam porque montam formas que o arquivo real não tem: rota
+    planejada que emite, e superfície sem emissão nenhuma.
+    """
 
     def test_rota_com_emite_e_sem_emissor_recusa_o_boot(self):
         with self.assertRaises(RuntimeError) as capturado:
@@ -81,16 +120,14 @@ class GuardaDeBoot(unittest.TestCase):
         planejada que já existe no código reprova. Aqui, a planejada que ainda
         não existe não pode exigir infraestrutura.
         """
-        superficie = {
-            "rotas": [
-                {
-                    "method": "post",
-                    "path": "/futura",
-                    "status": "planejada",
-                    "emite": INCIDENT_DECLARED,
-                }
-            ]
-        }
+        superficie = _superficie(
+            _rota(
+                method="POST",
+                path="/futura",
+                status="planejada",
+                emite=INCIDENT_DECLARED,
+            )
+        )
         self.assertIsNone(confere_emissor_declarado(superficie, None))
 
 

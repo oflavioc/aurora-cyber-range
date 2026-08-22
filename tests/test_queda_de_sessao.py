@@ -81,6 +81,7 @@ from range_core.state.simulation_state import (
     Declarations,
 )
 
+from _academus_app import emissor_de_teste
 from _academus_banco import exige_banco, repositorio_limpo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -271,6 +272,7 @@ class EstavelNoRollback(unittest.TestCase):
                     ),
                     seed=SEED,
                 ),
+                emissor_de_teste(),
             )
         )
 
@@ -488,11 +490,17 @@ class AGuardaRodaNoBoot(unittest.TestCase):
                 self.autenticacao,
                 self.repositorio,
                 self._degradador(_declaracoes({}, sem=FLAG)),
+                emissor_de_teste(),
             )
 
     def test_montar_com_a_arvore_de_hoje_SOBE(self):
         self.assertIsNotNone(
-            montar(self.autenticacao, self.repositorio, self._degradador(_declaracoes({})))
+            montar(
+                self.autenticacao,
+                self.repositorio,
+                self._degradador(_declaracoes({})),
+                emissor_de_teste(),
+            )
         )
 
     def test_SEM_degradador_a_guarda_nao_roda(self):
@@ -503,7 +511,9 @@ class AGuardaRodaNoBoot(unittest.TestCase):
         degradador — nao esta nesse caso, e recusar ali seria exigir declaracao
         de flag de quem nao consulta flag nenhuma.
         """
-        self.assertIsNotNone(montar(self.autenticacao, self.repositorio))
+        self.assertIsNotNone(
+            montar(self.autenticacao, self.repositorio, None, emissor_de_teste())
+        )
 
 
 if __name__ == "__main__":

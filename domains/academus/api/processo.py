@@ -49,6 +49,7 @@ from domains.academus.api.degradacao import (
     LeituraDeEstado,
     cache_do_ambiente,
 )
+from domains.academus.api.emissor import Emissor
 from domains.academus.api.repositorio import Repositorio, engine_do_ambiente
 from domains.academus.api.surface import carregar as carregar_superficie
 from range_core.api.processo import (
@@ -60,6 +61,7 @@ from range_core.api.processo import (
 )
 from range_core.api.tokens import jwt_secret
 from range_core.clock.exercise_clock import ExerciseClock
+from range_core.clock.restauracao import clock_do_store
 from range_core.determinism import random_seed
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
@@ -86,12 +88,24 @@ def criar() -> FastAPI:
     )
     pack = load_pack(caminho_do_pack, contracts=contratos, adapter_flags=flags)
 
-    # SO LE. O adapter nao emite evento nesta fase — a P4-2 registra que o
-    # primeiro `append` fora do inject-engine e da Fase 5 —, entao o clock do
-    # construtor nao carimba nada. O valor fixo torna isso visivel: se algum dia
-    # este processo passar a escrever, o carimbo de 1970 aparece no primeiro
-    # evento em vez de passar despercebido.
-    store = PostgresEventStore(ExerciseClock(datetime(1970, 1, 1)), dsn)
+    # O ADAPTER PASSOU A ESCREVER, E O COMENTARIO ANTERIOR PREVIU ISTO.
+    #
+    # Ele dizia: *"so le… o valor fixo torna isso visivel: se algum dia este
+    # processo passar a escrever, o carimbo de 1970 aparece no primeiro evento
+    # em vez de passar despercebido."* A peca 3 desta fase o fez escrever
+    # (`audit_query_performed`), e o dia chegou — B2 da sexta auditoria.
+    #
+    # DUAS CONSTRUCOES DO STORE, e a primeira so LE: o construtor exige clock
+    # porque o store carimba no `append`, e o clock sai do fluxo que so o store
+    # sabe ler. E a mesma ordem do `range-api`, e a MESMA funcao — `clock_do_store`
+    # mudou de casa para `range_core.clock.restauracao` justamente para nao haver
+    # duas reconstrucoes do mesmo estado.
+    #
+    # Sem isto, ligar o emissor teria carimbado os eventos do adapter com T0 de
+    # 1970: `exercise_time` absurdo, e nenhum teste de rota pegaria — eles
+    # afirmam sobre o payload, nao sobre o envelope.
+    provisorio = PostgresEventStore(ExerciseClock(datetime(1970, 1, 1)), dsn)
+    store = PostgresEventStore(clock_do_store(provisorio), dsn)
 
     return montar(
         autenticacao=Autenticacao(
@@ -110,4 +124,14 @@ def criar() -> FastAPI:
             ),
             seed=random_seed(),
         ),
+        # O EMISSOR, LIGADO — B2 da sexta auditoria. `api_surface.yaml` declara
+        # `emite: audit_query_performed` para `GET /audit/grade-changes` desde a
+        # peca 3, e esta fabrica montava sem ele: a unica rota instrumentada da
+        # fase respondia normalmente e nao gravava nada, em producao.
+        #
+        # A guarda de `montar` existia para impedir exatamente isso e nao
+        # impedia, porque lia o objeto errado (B1). As duas metades do mesmo
+        # defeito: a declaracao sem wiring, e a guarda que nao alcancava a
+        # declaracao.
+        emissor=Emissor(store=store),
     )
