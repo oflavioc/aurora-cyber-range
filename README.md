@@ -216,6 +216,12 @@ cp .env.example .env
 # de propósito: um segredo errado que se anuncia é menos perigoso que um que funciona
 
 docker compose --profile build run --rm web-build        # constrói as três telas
+
+# o pacote de cenário, que o compose monta por volume em /pack. Ele NÃO é
+# versionado — contém ground truth — e nasce por comando; sem ele a API recusa
+# subir, porque o pack é pré-requisito de boot e não configuração opcional
+python tests/fixtures/pack_completo.py .aurora-pack
+
 docker compose up -d --build --wait range-api academus-api
 
 python scripts/demo_fase4.py                             # a sequência do DEMO, com asserção em cada passo

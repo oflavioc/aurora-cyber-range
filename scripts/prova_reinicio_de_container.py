@@ -43,8 +43,14 @@ inverso; e subir com T0 = agora derruba os dois, porque o `exercise_time`
 voltaria para perto de zero.
 
 USO
+    python tests/fixtures/pack_completo.py .aurora-pack   # o volume /pack
     docker compose up -d
     python scripts/prova_reinicio_de_container.py
+
+A PRIMEIRA LINHA E PRE-REQUISITO DE BOOT — B1 da quinta auditoria da Fase 6. E o
+`docker restart` desta prova a exige DUAS vezes: o container que volta refaz
+`criar()`, entao um `/pack` esvaziado no meio quebraria a segunda metade do teste
+com um sintoma que nao se parece com a causa.
 """
 
 from __future__ import annotations

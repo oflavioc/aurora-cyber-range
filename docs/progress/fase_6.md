@@ -343,6 +343,49 @@ trabalho: os **seis verificadores de invariante** de `tools/` seguem sendo seis,
 os **seis conjuntos da Linha B** de `02` §6.1 seguem sendo seis. Contagem que
 envelheceu e contagem que vale têm a mesma forma no `grep`.
 
+#### A regra irmã, e ela nasceu da terceira ocorrência — B1 da quinta auditoria
+
+**Criar precondição de boot exige varrer quem sobe a stack, no mesmo commit.**
+
+A da §3.4 é sobre **afirmação**: quem diz um número tem de ser encontrado. Esta é
+sobre **execução**: quem executa a coisa tem de ser encontrado. A forma do erro é
+a mesma — criar de um lado e não varrer o outro —, e por isso as duas moram
+juntas; o que muda é o conjunto a varrer, e ele não sai do mesmo `grep`.
+
+**As três ocorrências desta fase, em ordem:** o sétimo contrato com o CI ainda
+afirmando seis; o venv da auditoria que mudou de casa e deixou um sítio para
+trás; e agora o pacote completo — a fase tornou o pack **pré-requisito de boot**
+(`criar()` faz `exige(AURORA_PACK)`, e o compose o monta por volume), atualizou o
+CI, e **não atualizou o gravador das provas de container**, que é por P4-10 o
+único caminho pelo qual os itens 1 e 4 da DoD da Fase 4 deixam de ser NÃO
+VERIFICADO. A falha é determinística: `/pack` vazio, containers mortos na
+largada, provas em `rc=125`, em toda rodada futura.
+
+**A varredura, feita agora, e o que ela achou além do gravador.** O universo é
+"quem sobe stack ou boota a API", e ele tem **sete** lugares:
+
+| Lugar | Estado |
+|---|---|
+| `.github/workflows/invariants.yml` | ✅ materializa no passo anterior ao `up` — era o único |
+| `scripts/grava_provas_de_container.py` | ❌ **o B1** — corrigido neste commit |
+| `README.md` §Quick start | ❌ **achado novo** — é o caminho que uma pessoa nova executa primeiro, e ela subiria `/pack` vazio |
+| `scripts/demo_fase4.py`, `mede_cache_frio.py`, `prova_reinicio_de_container.py` | ❌ **três achados** — não sobem a stack, mas o bloco `USO` de cada um manda subir, e a instrução estava incompleta |
+| `scripts/sobe_sala.py` | ✅ já importa `materializa` |
+| `scripts/demo_fase2.py` | ✅ idem, e o helper declara que essa materialização está em caminho de gate |
+| lançador + `docker-compose.audit.yml` | **não se aplica**, e está declarado: a stack efêmera da auditoria tem só Postgres e Redis, sem API e sem `AURORA_PACK` |
+
+**Quatro dos sete estavam errados, e só um era executável.** A distinção importa
+para não inflar o achado: o gravador *falha*; os outros três *ensinam a falhar*.
+Os dois custam a mesma tarde de quem os segue.
+
+**O que NÃO virou verificador, e por quê.** Um gate que cruzasse "quem chama
+`docker compose up`" com "quem materializa o pack" é escrevível, e não o escrevi:
+o universo tem sete elementos, três dos quais são prosa de cabeçalho, e o
+predicado teria de decidir por texto se um bloco `USO` "conta" como caminho de
+execução. Seria a forma que este projeto já recusou uma vez — verificador que
+casa prosa e passa a ser desligado. O que fecha esta classe é a varredura no
+commit que cria a precondição, e ela agora é regra escrita, ao lado da irmã.
+
 ### 3.5 Prova negativa das unidades
 
 Verificador tem `_probes.py`; **computador tem violação plantada na
