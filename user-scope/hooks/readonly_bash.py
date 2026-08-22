@@ -411,6 +411,19 @@ ALLOWED = [
     # nenhum tem de REPROVAR, e sem esse caso a checagem passaria por nao ter o
     # que conferir.
     rf"|check_hooks_com_emissor|check_hooks_com_emissor_probes"
+    # P6-7 FECHADA — `check_fabrica_liga_emissor`, admitido no COMMIT QUE O CRIA.
+    #
+    # O criterio e o de sempre, e a sexta auditoria o demonstrou: o auditor
+    # ACHOU o B2 por leitura — abriu `processo.py`, contou os argumentos de
+    # `montar` e concluiu certo. Foi trabalho bem feito e nao escala: a pergunta
+    # e "toda fabrica de servico constroi o produtor que a superficie dela
+    # promete?", e ela cresce com o numero de servicos.
+    #
+    # A prova negativa entra junto, e carrega a direcao que a torna mais que uma
+    # exigencia universal: superficie que NAO declara `emite` nao deve produtor
+    # nenhum. Sem esse caso, a checagem viraria "toda fabrica precisa de
+    # emissor" e passaria em todos os negativos por reprovar tudo.
+    rf"|check_fabrica_liga_emissor|check_fabrica_liga_emissor_probes"
     rf"|demo_fase2)"
     rf"\.py(?:\s+2>\s*/dev/null)?\s*$",
     # Smoke tests de hook do PHASE_0_CHECKLIST. Nome de arquivo sem barra, entao
