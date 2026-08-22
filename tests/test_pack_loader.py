@@ -45,6 +45,7 @@ from range_core.engine.loader.canonical import CANONICALIZATION_V1, content_hash
 from range_core.engine.loader.pack_loader import (
     AdapterFlags,
     confere_folhas_temporais,
+    confere_qualificador_since,
     PackError,
     PackSite,
     load_pack,
@@ -496,6 +497,140 @@ class FolhasTemporais(unittest.TestCase):
         chegaria com o vocabulario errado.
         """
         self.assertIsNone(confere_folhas_temporais(None))
+
+
+class QualificadorSince(unittest.TestCase):
+    """As duas pernas da guarda de `since` — `03` §3.1, spec-change #49.
+
+    A secao define `self` como a UNICA forma de v1, e exige `since: self` no
+    predicado de contencao. As duas pernas sao defeitos legitimos e permanentes:
+    valor nao definido nao vira semantica por adivinhacao, e contencao sem
+    `since` cai no defeito que o #49 corrigiu — o predicado passaria a exigir
+    ausencia TOTAL, e o pack que materializa exfiltracao antes da resposta nunca
+    verificaria contencao. A correcao da spec nao alcanca quem nao escreve o
+    campo; a guarda alcanca.
+
+    NAO HA PERNA PARA `self`: o avaliador o implementa (`verificacao.py`), e
+    recusar a forma normativa na carga faria o cenario canonico da propria spec
+    deixar de rodar — pior que o defeito que corrigiria.
+    """
+
+    CONTENCAO_NORMATIVA = {
+        "verification_predicates": {
+            "containment": {
+                "all": [
+                    {"event": VPN_ACCESS_REVOKED},
+                    {"absence_of": {"fact_class": "exfiltration", "since": "self"}},
+                ]
+            },
+            "service_restoration": {"all": [{"flag_false": "x"}]},
+        }
+    }
+
+    def test_valor_nao_definido_recusa_a_carga_nomeando_a_folha_e_o_valor(self):
+        with self.assertRaises(PackError) as capturado:
+            confere_qualificador_since(
+                {
+                    "verification_predicates": {
+                        "containment": {
+                            "all": [
+                                {
+                                    "absence_of": {
+                                        "fact_class": "exfiltration",
+                                        "since": "exercise_start",
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            )
+        erro = capturado.exception
+        self.assertEqual(erro.site, PackSite.SINCE_UNDEFINED_VALUE)
+        self.assertIn("containment.all[0].absence_of", str(erro))
+        self.assertIn("exercise_start", str(erro))
+        self.assertIn("self", str(erro))
+
+    def test_contencao_com_absence_of_sem_since_recusa(self):
+        """A forma normativa da §3.1 exige o campo; sem ele, ausencia TOTAL."""
+        with self.assertRaises(PackError) as capturado:
+            confere_qualificador_since(
+                {
+                    "verification_predicates": {
+                        "containment": {
+                            "all": [{"absence_of": {"fact_class": "exfiltration"}}]
+                        }
+                    }
+                }
+            )
+        erro = capturado.exception
+        self.assertEqual(erro.site, PackSite.CONTAINMENT_ABSENCE_WITHOUT_SINCE)
+        self.assertIn("containment.all[0].absence_of", str(erro))
+        self.assertIn("since: self", str(erro))
+
+    def test_a_forma_CURTA_em_string_na_contencao_tambem_recusa(self):
+        """Sem esta direcao, a forma curta e o desvio: ela nao carrega `since`.
+
+        `absence_of: exfiltration` valida no contrato (`predicate_absence_of`
+        admite string), e a exigencia da §3.1 seria contornavel por escrita.
+        """
+        with self.assertRaises(PackError) as capturado:
+            confere_qualificador_since(
+                {
+                    "verification_predicates": {
+                        "containment": {"all": [{"absence_of": "exfiltration"}]}
+                    }
+                }
+            )
+        self.assertEqual(
+            capturado.exception.site, PackSite.CONTAINMENT_ABSENCE_WITHOUT_SINCE
+        )
+
+    def test_fora_da_contencao_a_ausencia_TOTAL_continua_legitima(self):
+        """`03` §3.1: a forma sem `since` e legitima para outros usos.
+
+        Sem este positivo, a perna acima nao prova que ela discrimina — provaria
+        so que a guarda reprova todo `absence_of`.
+        """
+        self.assertIsNone(
+            confere_qualificador_since(
+                {
+                    "verification_predicates": {
+                        "containment": {"all": [{"event": VPN_ACCESS_REVOKED}]},
+                        "service_restoration": {
+                            "all": [{"absence_of": {"fact_class": "data_loss"}}]
+                        },
+                    }
+                }
+            )
+        )
+
+    def test_a_forma_NORMATIVA_passa(self):
+        """O controle positivo: o predicado que a §3.1 escreve carrega."""
+        self.assertIsNone(confere_qualificador_since(self.CONTENCAO_NORMATIVA))
+
+    def test_valor_nao_definido_FORA_da_contencao_tambem_recusa(self):
+        """`self` e a unica forma definida em v1 — a regra e da folha, nao da chave."""
+        with self.assertRaises(PackError) as capturado:
+            confere_qualificador_since(
+                {
+                    "verification_predicates": {
+                        "service_restoration": {
+                            "not": {
+                                "absence_of": {
+                                    "fact_class": "data_loss",
+                                    "since": "T+01:00",
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        self.assertEqual(capturado.exception.site, PackSite.SINCE_UNDEFINED_VALUE)
+        self.assertIn("service_restoration.not.absence_of", str(capturado.exception))
+
+    def test_pack_sem_ground_truth_nao_levanta_aqui(self):
+        self.assertIsNone(confere_qualificador_since(None))
 
 
 class DoisParsers(unittest.TestCase):

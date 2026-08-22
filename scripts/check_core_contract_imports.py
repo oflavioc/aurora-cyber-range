@@ -86,7 +86,12 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "mesma razao — o avaliador emite `verification_predicate_satisfied` e "
         "reconhece `fact_materialized` ao montar o mundo. E EMISSAO, e por isso "
         "ele tem store ao alcance: a leitura e total e o estreitamento e logica "
-        "dele, como `01` §4.1 passou a exigir de quem reconstroi o mundo corrente",
+        "dele, como `01` §4.1 passou a exigir de quem reconstroi o mundo corrente. "
+        "Desde o H1 da quarta auditoria da Fase 6 ele compara tambem contra "
+        "`rollback_performed` e `exercise_started`, para derivar o instante de "
+        "referencia de `since: self` — `03` §3.1. E a mesma comparacao que "
+        "`events/linhagem.py` ja fazia, e nao um segundo calculo de linhagem: o "
+        "avaliador recebe a linhagem pronta e so LE qual evento a abriu",
     ),
     "events/linhagem.py": (
         frozenset({"contracts.generated.events"}),

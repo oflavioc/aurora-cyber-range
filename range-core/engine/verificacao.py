@@ -47,7 +47,9 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 from contracts.generated.events import (
+    EXERCISE_STARTED,
     FACT_MATERIALIZED,
+    ROLLBACK_PERFORMED,
     VERIFICATION_PREDICATE_SATISFIED,
 )
 from range_core.events.envelope import Correlation, Event, FlagValue
@@ -64,6 +66,93 @@ PRODUTOR = "inject-engine"
 #: predicados satisfeitos produziriam eventos indistinguíveis, e `TTCV` e `TTRV`
 #: leriam o mesmo instante.
 NOME_DO_PREDICADO = "predicate"
+
+
+#: `03` §3.1 — a única forma de `since` definida em v1. Outro valor é recusado na
+#: carga, e recusado aqui como segunda linha.
+SINCE_SELF = "self"
+
+
+class SemGramaticaTemporal(Exception):
+    """A pergunta é legítima e a resposta exigiria gramática que não existe.
+
+    **Não é `PredicadoMalformado`**, e a distinção importa: o predicado está bem
+    escrito, e é o motor que não sabe situar um fato no tempo. `fact.exercise_time`
+    é `'T-17d 02:14'` no exemplo normativo e `minLength: 1` no contrato — não há
+    gramática, e o `_T_RELATIVE` do loader (`HH:MM`) não representa dia negativo.
+
+    **Recusa alta, pelo mesmo argumento das folhas `before`/`after`:** as duas
+    respostas plausíveis são piores que recusar. Falso faria a contenção nunca
+    verificar sem explicação; verdadeiro a faria verificar com vazamento em
+    curso. A pendência é a **P6-3**, que passou a cobrir as três folhas: uma
+    gramática de `exercise_time` decide `since`, `before` e `after` de uma vez, e
+    duas gramáticas divergentes para o mesmo campo seriam pior que nenhuma.
+
+    **Ela é inalcançável na árvore de hoje, e isso é medido, não suposto:** nada
+    emite `fact_materialized` — o tipo é lido aqui e a única escrita no
+    repositório é à mão, num teste. Quem escrever o produtor bate nela na
+    primeira execução, que é onde a decisão da gramática precisa acontecer.
+    """
+
+
+@dataclass(frozen=True)
+class InstanteDeReferencia:
+    """O instante a partir do qual `since: self` exige ausência — `03` §3.1.
+
+    Carrega os três relógios do envelope, e não um só, porque **qual deles a
+    comparação usa é a decisão normativa da P6-3** — `exercise_time`,
+    `exercise_timestamp` ou marca de parede dão resultados diferentes depois de
+    um rollback. Guardar um só aqui seria tomar a decisão por omissão.
+
+    `origem` diz QUAL evento o fixou. Sem ele, "epoch 0" e "depois do corte"
+    ficam indistinguíveis na mensagem de recusa, e é justamente essa distinção
+    que a §3.1 normatiza.
+    """
+
+    event_id: str
+    exercise_time: str
+    exercise_timestamp: str
+    simulation_epoch: int
+    origem: str
+
+
+def instante_de_referencia(
+    correntes: Sequence[Event],
+) -> InstanteDeReferencia | None:
+    """Onde a avaliação passou a acontecer NA LINHAGEM CORRENTE — `03` §3.1.
+
+    Recebe os eventos **já filtrados pela linhagem**, como `mundo_corrente`, e
+    pelo mesmo motivo: a filtragem é passo anterior e explícito em
+    `avaliar_e_emitir`, para que ela seja legível como cálculo e não como recorte
+    de quem monta. Filtrar de novo aqui seria a segunda reconstrução que o
+    docstring de `avaliar_e_emitir` proíbe.
+
+    **O `rollback_performed` corrente vence o `exercise_started`**, e é a norma:
+    *"depois de um rollback, o instante de referência é o da reavaliação na epoch
+    nova"*. Um `since: self` congelado no primeiro instante de avaliação
+    sobreviveria ao corte, e o predicado meio-revertido voltaria por esta porta.
+    O corte abandonado não aparece — ele não está na linhagem.
+
+    Devolve `None` antes do `exercise_started`: não há "a partir de quando", e
+    inventar um faria `since: self` responder sobre um exercício que não começou.
+    """
+    for evento in reversed(list(correntes)):
+        if evento.event_type == ROLLBACK_PERFORMED:
+            return _referencia(evento)
+    for evento in correntes:
+        if evento.event_type == EXERCISE_STARTED:
+            return _referencia(evento)
+    return None
+
+
+def _referencia(evento: Event) -> InstanteDeReferencia:
+    return InstanteDeReferencia(
+        event_id=evento.event_id,
+        exercise_time=evento.exercise_time,
+        exercise_timestamp=evento.exercise_timestamp,
+        simulation_epoch=evento.simulation_epoch,
+        origem=evento.event_type,
+    )
 
 
 class PredicadoMalformado(Exception):
@@ -88,6 +177,7 @@ class Mundo:
     tipos: frozenset[str]
     fatos: frozenset[str]
     flags: Mapping[str, FlagValue]
+    referencia: InstanteDeReferencia | None = None
 
 
 def avalia(no: Mapping, mundo: Mundo) -> bool:
@@ -101,6 +191,21 @@ def avalia(no: Mapping, mundo: Mundo) -> bool:
     mundo desta função. Chegam como `PredicadoMalformado` até existir consumidor
     que os traga — recusa alta é o que impede um predicado temporal de passar por
     "não satisfeito" e a contenção nunca verificar sem explicação.
+
+    `absence_of.since` É LIDO, e as três saídas são explícitas
+    ---------------------------------------------------------
+    Era o H1 da quarta auditoria: o campo estava no contrato, no exemplo
+    normativo de `03` §3.1, e **sumia aqui** — `alvo["fact_class"]` descartava o
+    resto do nó. A ausência passava a valer sobre a linhagem inteira, e o
+    predicado que a própria spec escreve ficava insatisfazível no pack que ela
+    ilustra: nada falhava, a métrica só deixava de marcar.
+
+    | Forma | O que acontece |
+    |---|---|
+    | sem `since` | ausência TOTAL, e continua legítima (`03` §3.1) |
+    | `since: self`, classe fora do mundo | **satisfaz** — é o caso normativo |
+    | `since: self`, classe no mundo | `SemGramaticaTemporal` — ver a exceção |
+    | outro valor | `PredicadoMalformado` — a guarda de carga é a primeira linha |
     """
     if "all" in no:
         return all(avalia(filho, mundo) for filho in no["all"])
@@ -116,8 +221,49 @@ def avalia(no: Mapping, mundo: Mundo) -> bool:
         return not bool(mundo.flags.get(no["flag_false"]))
     if "absence_of" in no:
         alvo = no["absence_of"]
-        classe = alvo if isinstance(alvo, str) else alvo["fact_class"]
-        return classe not in mundo.fatos
+        if isinstance(alvo, str):
+            # Forma curta: nomeia só a classe, e não carrega qualificador.
+            # Ausência TOTAL, legítima fora da contenção (`03` §3.1).
+            return alvo not in mundo.fatos
+        classe = alvo["fact_class"]
+        since = alvo.get("since")
+        if since is None:
+            return classe not in mundo.fatos
+        if since != SINCE_SELF:
+            raise PredicadoMalformado(
+                f"`absence_of.since` com valor nao definido: {since!r}.\n"
+                f"    `03` §3.1 define {SINCE_SELF!r} como a UNICA forma de v1. A "
+                "guarda de carga recusa este pack antes do boot; chegar aqui "
+                "significa que o predicado veio por outro caminho, e avaliar um "
+                "qualificador que ninguem definiu seria inventar semantica."
+            )
+        if mundo.referencia is None:
+            raise SemGramaticaTemporal(
+                f"`absence_of` com `since: {SINCE_SELF}` sem instante de "
+                "referencia: nao ha `exercise_started` na linhagem corrente.\n"
+                "    A ausencia e exigida A PARTIR do instante em que o predicado "
+                "passou a ser avaliado, e antes do inicio esse instante nao "
+                "existe. Responder aqui seria afirmar sobre um exercicio que nao "
+                "comecou."
+            )
+        if classe in mundo.fatos:
+            raise SemGramaticaTemporal(
+                f"`absence_of` com `since: {SINCE_SELF}` sobre a classe "
+                f"{classe!r}, que ESTA na linhagem corrente.\n"
+                f"    Instante de referencia: evento {mundo.referencia.event_id} "
+                f"({mundo.referencia.origem}), `exercise_time` "
+                f"{mundo.referencia.exercise_time!r}, epoch "
+                f"{mundo.referencia.simulation_epoch}.\n"
+                "    Situar o fato em relacao a ele exige comparar contra "
+                "`fact.exercise_time`, que hoje e string sem gramatica "
+                "(`ground_truth.schema.yaml`: `minLength: 1`; o exemplo "
+                "normativo traz `'T-17d 02:14'`). Recusa alta: responder FALSO "
+                "faria a contencao nunca verificar, e VERDADEIRO a faria "
+                "verificar com vazamento em curso. Pendencia P6-3 em "
+                "`docs/progress/fase_6.md` — a mesma das folhas `before` e "
+                "`after`, e uma gramatica so decide as tres."
+            )
+        return True
     raise PredicadoMalformado(
         f"no de predicado nao reconhecido: {sorted(no)}.\n"
         "    As nove formas estao em `contracts/ground_truth.schema.yaml`. "
@@ -145,6 +291,7 @@ def mundo_corrente(
         tipos=frozenset(e.event_type for e in eventos),
         fatos=frozenset(fatos),
         flags=MappingProxyType(dict(flags)),
+        referencia=instante_de_referencia(eventos),
     )
 
 
