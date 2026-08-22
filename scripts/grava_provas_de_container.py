@@ -142,6 +142,22 @@ DIRETORIO_DO_PACK = ".aurora-pack"
 HELPER_DO_PACK = ("tests", "fixtures", "pack_completo.py")
 TEMPO_LIMITE_PACK = 120
 
+#: O DIAGNOSTICO, quando alguma coisa falha — M1 da sexta auditoria.
+#:
+#: `docker compose up --wait` diz QUE um container saiu 1; ele nao diz POR QUE. A
+#: sexta rodada morreu exatamente ai: `range-api exited (1)`, e o auditor
+#: registrou que nao tinha como atribuir a causa — `docker` esta fora da
+#: allowlist dele por desenho, entao o que ele nao recebe gravado ele nao alcanca
+#: de jeito nenhum.
+#:
+#: E o analogo do `diagnostica_stack` do lancador, com as duas propriedades que
+#: aquele ja tinha e esta faltando aqui: roda ANTES do `down -v`, e roda no
+#: caminho em que o processo SEGUE. Invertida a ordem, `ps` e `logs` medem
+#: containers ja removidos, e a causa morre pelo caminho que este bloco existe
+#: para fechar.
+LINHAS_DE_LOG = 200
+TEMPO_LIMITE_DIAGNOSTICO = 120
+
 
 def _agora() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -228,6 +244,31 @@ def _compose(worktree: Path) -> list[str]:
     ]
 
 
+def _diagnostica(worktree: Path, env: dict[str, str]) -> dict:
+    """`ps --all` e `logs` dos containers — ver LINHAS_DE_LOG.
+
+    Nao levanta: ele roda no `finally`, e um diagnostico que derrubasse a
+    gravacao trocaria "nao sei por que falhou" por "nao sei nem que falhou".
+    """
+    registro: dict = {}
+    for chave, comando in (
+        ("ps", ["ps", "--all"]),
+        ("logs", ["logs", "--no-color", "--tail", str(LINHAS_DE_LOG)]),
+    ):
+        try:
+            rc, texto = _executa(
+                [*_compose(worktree), *comando],
+                cwd=worktree,
+                env=env,
+                limite=TEMPO_LIMITE_DIAGNOSTICO,
+            )
+        except Exception as erro:  # pragma: no cover - defesa do proprio finally
+            registro[chave] = f"NAO COLETADO: {erro!r}"
+        else:
+            registro[chave] = texto if rc == 0 else f"(rc={rc})\n{texto}"
+    return registro
+
+
 def grava(worktree: Path, interpretador: str, saida: Path) -> int:
     commit = _sha(worktree)
     senha_pg = secrets.token_urlsafe(24)
@@ -244,6 +285,11 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
         "stack": {"rc": None, "saida": ""},
         "provas": [],
     }
+
+    # PESSIMISTA DE PROPOSITO: so vira `False` no fim do `try`, depois de todas
+    # as provas passarem. Assim o caminho de EXCECAO tambem diagnostica — que e
+    # justamente o caminho em que ninguem sabe o que houve.
+    falhou = True
 
     try:
         # O PACOTE ANTES DA STACK. Sem ele o `up` sobe contra `/pack` vazio e os
@@ -322,8 +368,9 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
                         "rc": 125,
                         "saida": (
                             "NAO EXECUTADA: a stack de containers nao subiu "
-                            f"(rc={rc}). A saida esta em `stack` — e, quando a "
-                            "causa for o pacote completo, em `pack`."
+                            f"(rc={rc}). A saida esta em `stack`; a causa, em "
+                            "`diagnostico` (`ps` e `logs` dos containers) — e, "
+                            "quando for o pacote completo, em `pack`."
                         ),
                     }
                 )
@@ -343,7 +390,13 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
                     "saida": ptexto,
                 }
             )
+
+        falhou = any(p.get("rc") != 0 for p in doc["provas"])
     finally:
+        # ANTES DO `down -v`, e a ordem e a propriedade — M1 da sexta auditoria.
+        # Invertida, `ps` e `logs` medem containers que ja nao existem.
+        if falhou:
+            doc["diagnostico"] = _diagnostica(worktree, env)
         # `-v` REMOVE O VOLUME, e e o que torna a stack efemera de verdade: sem
         # ele a rodada seguinte encontraria o `exercise_started` desta, e
         # `engine.start()` recusaria — o DEMO exige um exercicio que ainda nao
