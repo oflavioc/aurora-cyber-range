@@ -236,7 +236,7 @@ Nenhuma projeção escreve no store. Toda projeção é reconstruível do zero.
 
 ## 6. Instrumentação
 
-`domains/<adapter>/observability_hooks.yaml` mapeia ação da aplicação a `event_type` do catálogo:
+A instrumentação é declarada **por produtor**, e não por diretório: todo serviço que emite evento de aplicação instrumentada declara os seus hooks num `observability_hooks.yaml` ao lado da superfície dele — `domains/<adapter>/observability_hooks.yaml` para o adapter, `range-core/participant/observability_hooks.yaml` para a `participant-api` (`01_ARCHITECTURE.md` §6). O arquivo mapeia ação da aplicação a `event_type` do catálogo:
 
 ```yaml
 hooks:
@@ -250,6 +250,12 @@ hooks:
     producer: federated-identity-simulator
     payload_fields: [scope, principal]
 ```
+
+> A forma anterior escopava o arquivo em `domains/<adapter>/`, e o escopo excluía um produtor que já existe: a `participant-api` é do core (`01_ARCHITECTURE.md` §6), e é ela que emite as **nove** ações de declaração de `03_EXERCISE_DESIGN.md` §3.4.
+>
+> **A consequência era medível, e foi medida.** `06_ACCEPTANCE_TESTS.md` T9 — *"cada `event_type` declarado em `observability_hooks.yaml` é emitido pela ação correspondente"* — cobria **um** `event_type` de trinta e três, porque o mecanismo que impõe o critério é estruturalmente cego ao produtor que emite as declarações. E `separate_incident_declared`, que `03_EXERCISE_DESIGN.md` §1.1 e o exemplo **desta seção** usam como evidência `auto` do OBJ-03, não tinha onde ser declarado: o `objectives.yaml` da Fase 7 nasceria com uma evidência `auto` que nenhum hook sustenta.
+>
+> Evidência `auto` é definida por **produtor identificável** (`03_EXERCISE_DESIGN.md` §1.2), e não pelo diretório em que o produtor mora. A forma anterior confundia os dois porque, quando ela foi escrita, o único produtor instrumentado era um adapter — omissão com forma de desenho, a mesma classe do `exercise_resumed`.
 
 E `scenarios/<pack>/objectives.yaml` faz o binding. **A forma normativa do arquivo é a de `03_EXERCISE_DESIGN.md` §1.1**; o bloco abaixo é uma instância completa dela, mostrada aqui pelo que interessa a esta seção — o `event_type` do hook aparecendo em `evidence.auto`:
 
