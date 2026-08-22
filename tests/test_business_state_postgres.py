@@ -50,6 +50,7 @@ from domains.academus.api.repositorio import Contexto, Escopo, Repositorio
 from domains.academus.api.surface import carregar
 from domains.academus.models.registros import Enrollment, Grade, Student
 
+from _academus_app import emissor_de_teste
 from _academus_banco import URL, banco_limpo, exige_banco
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -85,7 +86,11 @@ class AtravessaProcesso(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = banco_limpo()
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao, Repositorio(self.engine)))
+        self.cliente = TestClient(
+            montar(
+                self.autenticacao, Repositorio(self.engine), None, emissor_de_teste()
+            )
+        )
 
     def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}

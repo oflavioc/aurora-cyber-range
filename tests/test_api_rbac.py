@@ -50,6 +50,7 @@ from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao, autoriza
 from domains.academus.api.surface import carregar
 
+from _academus_app import emissor_de_teste
 from _academus_banco import exige_banco, repositorio_limpo
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
@@ -68,7 +69,9 @@ OUTRO_PROFESSOR = "P-3002"
 class RBAC(unittest.TestCase):
     def setUp(self) -> None:
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao, repositorio_limpo()))
+        self.cliente = TestClient(
+            montar(self.autenticacao, repositorio_limpo(), None, emissor_de_teste())
+        )
 
     def _cabecalho(self, papel: str, sub: str = "U-1") -> dict[str, str]:
         token = self.autenticacao.emitir_token(sub, papel)
@@ -181,7 +184,9 @@ class EscopoDeObjeto(unittest.TestCase):
 
     def setUp(self) -> None:
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao, repositorio_limpo()))
+        self.cliente = TestClient(
+            montar(self.autenticacao, repositorio_limpo(), None, emissor_de_teste())
+        )
 
     def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}

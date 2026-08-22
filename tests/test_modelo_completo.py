@@ -50,6 +50,7 @@ from domains.academus.models.registros import (
 )
 from domains.academus.seed import demonstracao
 
+from _academus_app import emissor_de_teste
 from _academus_banco import TABELAS, banco_limpo, exige_banco
 
 SEGREDO = "segredo-de-teste-do-modelo-completo"
@@ -266,7 +267,9 @@ class RotasContinuamRespondendo(unittest.TestCase):
     def setUp(self) -> None:
         self.motor = banco_limpo()
         self.autenticacao = Autenticacao(superficie=carregar(), segredo=SEGREDO)
-        self.cliente = TestClient(montar(self.autenticacao, Repositorio(self.motor)))
+        self.cliente = TestClient(
+            montar(self.autenticacao, Repositorio(self.motor), None, emissor_de_teste())
+        )
 
     def _cabecalho(self, sub: str, papel: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}

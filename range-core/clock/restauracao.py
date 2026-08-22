@@ -217,3 +217,26 @@ def restaurar(
         epoch_started_at=valores.epoch_started_at,
         now=now,
     )
+
+
+def clock_do_store(store) -> ExerciseClock:
+    """O clock do exercicio em curso, ou um novo se o store estiver vazio.
+
+    Store vazio e o primeiro boot: nao ha exercicio para restaurar, e o T0 sera
+    gravado pelo `exercise_started` que o console emitir. Com eventos, os cinco
+    valores saem do FLUXO — item 4 da DoD da Fase 4.
+
+    MORA AQUI, E NAO EM `api/processo.py` — B2 da sexta auditoria. A funcao
+    nasceu no processo do `range-api`, e a `academus-api` passou a precisar da
+    MESMA resposta quando ganhou emissor: sem ela, o store do adapter carimbaria
+    com o T0 provisorio. Reescreve-la la seria a segunda reconstrucao do mesmo
+    estado, e duas reconstrucoes divergem — e a divergencia apareceria como
+    `exercise_time` errado no evento, que nenhum teste de rota pega.
+
+    O parametro NAO e anotado: o que ela usa e `read_all()`, e exigir o tipo
+    concreto acoplaria o modulo de clock ao store de Postgres para nada.
+    """
+    eventos = store.read_all()
+    if not eventos:
+        return ExerciseClock(datetime.now().replace(microsecond=0))
+    return restaurar(eventos)

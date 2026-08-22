@@ -104,6 +104,36 @@ class _ComRota(unittest.TestCase):
         ]
 
 
+class AGuardaDeBootSobreASuperficieREAL(_ComRota):
+    """B1 da sexta auditoria — o ramo negativo que existia e nunca foi chamado.
+
+    `monta(com_emissor=False)` estava escrito desde a peça 3 e **nenhuma chamada
+    da suíte o usava**. Ele constrói o `Superficie` de verdade, por `carregar()`,
+    e passa por `montar` — o mesmo caminho da produção. Rodá-lo uma vez teria
+    pegado o `AttributeError` na primeira execução; em vez disso, 49 testes
+    quebraram no worktree da auditoria, todos com o mesmo traceback.
+
+    **A lição não é o tipo, é a forma do teste.** A guarda era provada em
+    `test_api_emissao.py` contra dicionários escritos à mão, que têm `.get`; a
+    produção entrega um `dataclass` com `slots`, que não tem. O teste mais verde
+    da peça 3 era o que provava menos.
+    """
+
+    def test_sem_emissor_a_rota_que_declara_emite_RECUSA_o_boot(self):
+        with self.assertRaises(RuntimeError) as capturado:
+            self.monta(com_emissor=False)
+        mensagem = str(capturado.exception)
+        self.assertIn("GET /audit/grade-changes", mensagem)
+        self.assertIn("emissor", mensagem)
+
+    def test_com_emissor_o_boot_passa(self):
+        """O positivo do mesmo eixo, sobre o mesmo objeto.
+
+        Sem ele, uma guarda que recusasse SEMPRE passaria no teste acima.
+        """
+        self.assertIsNotNone(self.monta(com_emissor=True))
+
+
 class AConsultaEmiteOEvento(_ComRota):
     """Item 1 da DoD, pela rota — e a afirmação é sobre o EVENTO."""
 

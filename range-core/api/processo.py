@@ -60,7 +60,7 @@ from fastapi import FastAPI
 from range_core.api.app import Exercicio, credencial_do_console, montar
 from range_core.api.tokens import jwt_secret
 from range_core.clock.exercise_clock import ExerciseClock
-from range_core.clock.restauracao import restaurar
+from range_core.clock.restauracao import clock_do_store
 from range_core.engine.inject_engine import Facilitator, InjectEngine
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
@@ -98,19 +98,6 @@ def exige(nome: str, ambiente: dict[str, str] | None = None) -> str:
             "do exercicio e o pior momento para descobrir isso."
         )
     return valor
-
-
-def clock_do_store(store: PostgresEventStore) -> ExerciseClock:
-    """O clock do exercicio em curso, ou um novo se o store estiver vazio.
-
-    Store vazio e o primeiro boot: nao ha exercicio para restaurar, e o T0 sera
-    gravado pelo `exercise_started` que o console emitir. Com eventos, os cinco
-    valores saem do FLUXO — item 4 da DoD.
-    """
-    eventos = store.read_all()
-    if not eventos:
-        return ExerciseClock(datetime.now().replace(microsecond=0))
-    return restaurar(eventos)
 
 
 def criar() -> FastAPI:

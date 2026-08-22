@@ -74,6 +74,7 @@ from range_core.state.simulation_state import (
     Declarations,
 )
 
+from _academus_app import emissor_de_teste
 from _academus_banco import exige_banco, repositorio_limpo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -162,7 +163,12 @@ class Cenario:
         )
         self.repositorio = repositorio_limpo()
         self.cliente = TestClient(
-            montar(self.autenticacao, self.repositorio, self.degradador)
+            montar(
+                self.autenticacao,
+                self.repositorio,
+                self.degradador,
+                emissor_de_teste(),
+            )
         )
 
     def dispara(self, inject_id: str) -> None:
@@ -277,7 +283,9 @@ class SemFlagNadaMuda(unittest.TestCase):
         Esquecer o wiring nao pode produzir excecao no meio de um exercicio, e
         tambem nao pode produzir degradacao silenciosa.
         """
-        cliente = TestClient(montar(self.c.autenticacao, self.c.repositorio, None))
+        cliente = TestClient(
+            montar(self.c.autenticacao, self.c.repositorio, None, emissor_de_teste())
+        )
         self.c.dispara("MATRICULA_FORA")
         resposta = cliente.post(
             "/enrollment",
