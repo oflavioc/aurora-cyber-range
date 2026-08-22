@@ -255,6 +255,20 @@ if ! ( cd "$WT" && "$VENV_BIN/python" -m pip install --disable-pip-version-check
   echo "      arvore principal — que e exatamente a P3-4." >&2
   exit 1
 fi
+# O EXPORT VALE PARA QUEM HERDA O AMBIENTE, E NAO PARA ESTE SCRIPT — H1 da
+# quinta auditoria, e a frase esta aqui porque a suposicao contraria ja custou
+# uma rodada.
+#
+# MEDIDO no Git Bash desta maquina: `$VENV_BIN` e `C:/...` — vem de
+# `git rev-parse --show-toplevel`, que devolve caminho Windows — e `PATH` e
+# separado por DOIS-PONTOS. A entrada e partida em `C` e `/Projetos/...`, e
+# nenhuma das duas e o venv: `command -v` com a forma Windows na frente NAO acha
+# o executavel, e com a forma POSIX acha.
+#
+# A regra que sai daqui, e ela nao depende de lembrar: TODA chamada deste script
+# que precise da aplicacao instalada usa `"$VENV_BIN/python"` EXPLICITO. As que
+# usam `python` nu sao stdlib puro, da arvore PRINCIPAL, e estao assim de
+# proposito — `check_audit_base.py`, o `uuid` da sessao e o `audit_report.py`.
 export PATH="$VENV_BIN:$PATH"
 export VIRTUAL_ENV="$VENV"
 echo "Venv da auditoria: $VENV (python de $VENV_BIN)"
@@ -386,7 +400,21 @@ if docker compose version >/dev/null 2>&1 && [ -f "$COMPOSE_AUDIT" ]; then
     STACK_ATIVA=1
     # A migration le `DATABASE_URL`; os testes leem `AURORA_TEST_*`. Sao duas
     # variaveis de proposito, e o CI faz exatamente isto.
-    if DATABASE_URL="$AURORA_AUDIT_DB" python -m alembic upgrade head >>"$STACK_LOG" 2>&1; then
+    #
+    # O PYTHON E O DO VENV, EXPLICITO — H1 da quinta auditoria. Esta linha dizia
+    # `python` nu, contando com o `export PATH` de mais acima, e o export E
+    # INERTE NO WINDOWS: `$VENV_BIN` vem de `git rev-parse --show-toplevel`, que
+    # devolve `C:/...`, e `PATH` e separado por DOIS-PONTOS — a entrada e partida
+    # em `C` e `/Projetos/...`, e nenhuma das duas e o venv. Medido: com a forma
+    # Windows na frente do `PATH`, `command -v` NAO acha o executavel; com a
+    # forma POSIX, acha.
+    #
+    # Entao `alembic` rodava no interpretador da MAQUINA, sem a aplicacao
+    # instalada, e falhava — e a falha degrada para `SERVICOS=AUSENTES`. Os 140
+    # testes de servico PULAVAM com Postgres e Redis no ar e saudaveis, e o
+    # veredito saia dizendo menos sem que nada estivesse errado no commit.
+    if DATABASE_URL="$AURORA_AUDIT_DB" "$VENV_BIN/python" -m alembic upgrade head \
+       >>"$STACK_LOG" 2>&1; then
       export AURORA_TEST_DATABASE_URL="$AURORA_AUDIT_DB"
       export AURORA_TEST_REDIS_URL="redis://127.0.0.1:16379/1"
       SERVICOS="ATIVOS — Postgres e Redis efemeros no ar, migration aplicada. Os testes que dependem de servico VAO RODAR; skip aqui e defeito, nao ausencia de ambiente."
@@ -567,9 +595,18 @@ mede_seed() {
     echo "nao foi possivel criar o banco descartavel '$SEED_DB'"
     return 1
   fi
-  # A migration DO COMMIT AUDITADO — o CWD ja e o worktree, e o `python` do PATH
-  # ja e o do venv da P3-4.
-  if ! DATABASE_URL="$AURORA_SEED_DB" python -m alembic upgrade head \
+  # A migration DO COMMIT AUDITADO, com o python do venv EXPLICITO.
+  #
+  # O IRMAO DO H1 DA QUINTA AUDITORIA, e ele estava escondido atras do primeiro:
+  # `mede_seed` so roda com `STACK_ATIVA=1`, e a stack so ficava ativa se a
+  # migration de cima passasse — que era justamente o que nao passava. Consertar
+  # so o sitio achado teria feito este falhar na rodada seguinte, com a mesma
+  # causa e outro sintoma.
+  #
+  # O comentario anterior afirmava que *"o `python` do PATH ja e o do venv da
+  # P3-4"*. Era falso no Windows pelo motivo escrito la em cima: entrada de PATH
+  # em forma `C:/...` nao resolve num PATH separado por dois-pontos.
+  if ! DATABASE_URL="$AURORA_SEED_DB" "$VENV_BIN/python" -m alembic upgrade head \
        >>"$SEED_LOG" 2>&1; then
     echo "'alembic upgrade head' FALHOU no banco da medicao"
     return 1
