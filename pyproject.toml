@@ -186,6 +186,18 @@ packages = [
   "range_core.evidence",
   "range_core.metrics",
   "range_core.objectives",
+  # A SUPERFICIE DE PARTICIPANTE — achada pela varredura do B3 da sexta
+  # auditoria, e nao por defeito observado. Ela existe em
+  # `range-core/participant/`, tem suite propria (contrassinatura, contrato de
+  # assessment, emissao pela rota) e NAO ESTAVA AQUI: numa instalacao ela
+  # simplesmente nao existe.
+  #
+  # Nao quebrou nada ate agora porque nenhum servico do `docker-compose.yml` a
+  # importa — so os testes, que rodam sobre a arvore. E exatamente a forma da
+  # assimetria que este arquivo ja pagou tres vezes, e a unica diferenca e que
+  # desta vez foi encontrada antes de custar uma rodada.
+  "range_core.participant",
+  "range_core.participant.api",
   "range_core.rubrics",
   "range_core.state",
   "range_core.telemetry",
@@ -260,6 +272,35 @@ contracts = ["*.yaml"]
 # e `GET /sala` responde 503 no telao da sala, que e o que o 503 de `_tela`
 # existe para dizer em voz alta.
 range_core = ["*.yaml", "web/dist/*/index.html"]
+
+# A BIBLIOTECA DE RUBRICAS — B3 da sexta auditoria da Fase 6.
+#
+# `range_core.rubrics` e PACOTE PROPRIO (tem `__init__.py`), e os globs de
+# `package-data` sao relativos ao diretorio de CADA pacote: `range_core =
+# ["*.yaml"]` cobre a raiz de `range-core/`, e NAO `range-core/rubrics/`. As nove
+# rubricas da peca 1 ficaram fora da imagem, e o sintoma foi o pior possivel — o
+# container subia, `load_library()` levantava `RubricLibraryError: nenhuma
+# rubrica`, e os dois processos morriam no boot:
+#
+#     range_core.rubrics.library.RubricLibraryError:
+#       /usr/local/.../range_core/rubrics: nenhuma rubrica.
+#
+# `00` §5.8 poe a biblioteca no CORE, e o loader recusa pack cuja rubrica nao
+# esteja nela: sem os arquivos, TODO pack seria recusado por "rubrica ausente",
+# que e a mensagem errada para o defeito certo — e e por isso que `load_library`
+# recusa a biblioteca vazia em vez de devolver `{}`.
+#
+# E A MESMA ASSIMETRIA QUE `package-dir` E `package-data` JA PAGARAM TRES VEZES
+# NESTE ARQUIVO: o que resolve pela arvore com o CWD na raiz some na instalacao,
+# e o sintoma so aparece no container. Aqui ela custou uma rodada de auditoria
+# inteira, porque os passos de container do CI nunca rodaram nesta branch — o
+# workflow so os executa em `pull_request` e em push para `main`.
+"range_core.rubrics" = ["*.yaml"]
+
+# `api_surface.yaml` da superficie de participante, pelo mesmo motivo do de
+# `domains.academus`: e DADO DE EXECUCAO lido no boot, e nao declaracao que so o
+# gate le. Entra junto com o pacote, na mesma varredura.
+"range_core.participant" = ["*.yaml"]
 
 # `api_surface.yaml` E DADO DE EXECUCAO desde a peca 4, e nao so declaracao lida
 # pelo gate: `domains/academus/api/surface.py` o le no boot para saber quais
