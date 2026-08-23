@@ -72,11 +72,21 @@ from range_core.events.integrity import (
 
 #: AS CINCO CATEGORIAS DE `02` §4.1, e a quinta nao tem produtor.
 #:
-#: `DECLARACAO_DE_EXERCICIO` existe e nada a escreve ate a Fase 6, que e onde
-#: nascem as acoes `declare_*` (`03` §3.1, `07` Fase 6). Isso e a **P5-2**:
+#: `DECLARACAO_DE_EXERCICIO` existe e nada a escreve. Isso e a **P5-2**:
 #: declarada com destinatario em vez de omitida, porque categoria que some do
 #: codigo some da revisao — e `09` §4 chama "o `event_type` que nunca dispara" de
 #: a falha mais cara possivel.
+#:
+#: A REDACAO ANTERIOR DIZIA "nada a escreve ate a Fase 6, que e onde nascem as
+#: acoes `declare_*`", e envelheceu: as nove acoes nasceram na peca 3 da Fase 6 e
+#: NAO escrevem aqui. A decisao daquela peca foi que declaracao e ato de
+#: participante, mora no nucleo com RBAC por persona (`01` §6), e vai para o
+#: event store; `audit_trail` e mecanismo de DOMINIO, sobre as entidades do
+#: Academus. O gatilho apontava para o lugar errado, e nao para o momento errado.
+#:
+#: MIGRADA PARA A FASE 7, com gatilho novo: a primeira acao de participante que
+#: ALTERE ESTADO DE DOMINIO — e ai que esta trilha tem o que registrar.
+#: `docs/progress/fase_7.md`.
 ALTERACAO_DE_NOTA = "grade_change"
 EMISSAO_DE_DIPLOMA = "diploma_issue"
 BANCO_DE_QUESTOES = "exam_bank_access"
