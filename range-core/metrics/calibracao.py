@@ -89,11 +89,6 @@ CONFIANCA_DE_NAO_AVALIADO = 0
 CONFIANCA_MINIMA = 0
 CONFIANCA_MAXIMA = 100
 
-#: Os dois campos que ESTE modulo le. Sao eles, e nao o payload inteiro, que a
-#: recusa cobre — ver `SubmissaoForaDoContrato`.
-CAMPO_CASO = CASO
-CAMPO_CONFIANCA = CONFIANCA
-
 
 class SubmissaoForaDoContrato(Exception):
     """`assessment_submitted` cujo payload o contrato proibe. **Recusa alta.**
@@ -144,6 +139,8 @@ class SubmissaoForaDoContrato(Exception):
     """
 
     def __init__(self, campo: str, caso: str | None, valor: object) -> None:
+        #: `campo` e uma das duas chaves ja exportadas — `CASO` ou `CONFIANCA`.
+        #: Sao elas que o modulo le, e nao ha terceira.
         super().__init__(
             f"`{campo}` fora do contrato em `assessment_submitted`: {valor!r}"
             + (f" (caso {caso})" if caso is not None else " (submissao sem `case_id`)")
@@ -312,9 +309,9 @@ def _por_caso(submissoes: Sequence[Event]) -> dict[str, int]:
         caso = evento.payload.get(CASO)
         confianca = evento.payload.get(CONFIANCA)
         if not isinstance(caso, str):
-            raise SubmissaoForaDoContrato(CAMPO_CASO, None, caso)
+            raise SubmissaoForaDoContrato(CASO, None, caso)
         if not _confianca_conforme(confianca):
-            raise SubmissaoForaDoContrato(CAMPO_CONFIANCA, caso, confianca)
+            raise SubmissaoForaDoContrato(CONFIANCA, caso, confianca)
         correntes[caso] = confianca
     return correntes
 
