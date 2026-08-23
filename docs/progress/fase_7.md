@@ -31,6 +31,7 @@ cadeia que liga a pendência ao registro em que ela nasceu.
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | **condição** — a primeira ação de participante que altere estado de domínio; ver abaixo |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
+| P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -236,3 +237,88 @@ outra reabriria exatamente a P6-11.
 **Vence em:** decisão do proprietário sobre **qual das três linhas** desta fase
 entrega, e a rota é candidata natural porque a Fase 7 mexe na superfície de
 participante para o pack completo.
+
+#### P7-2 — a prova amarrada ao SHA não sobrevive ao rito que fecha a fase
+
+**Nasceu do fechamento da Fase 6, e o caso concreto foi só o sintoma.** Depois do
+merge do PR #53, dois verificadores passaram a reprovar na `main`:
+
+```
+check_prova_do_seed.py         rc=1
+check_provas_de_container.py   rc=2
+```
+
+Os dois artefatos — `.aurora-prova-do-seed.json` e
+`.aurora-provas-de-container.json` — foram gravados sobre
+`c3051dc`, o candidato **pré-rebase** da Fase 6. O `gh pr merge --rebase`
+reescreveu os SHAs, e a `main` virou `18befac`. Nenhum dos dois arquivos mudou;
+o commit que eles nomeiam é que deixou de existir na default.
+
+**A generalização, e é ela que faz disto pendência em vez de conserto:** isso
+**não é acidente deste fechamento**. `WORKFLOW.md` fixa **rebase, nunca squash**,
+e rebase reescreve SHA por definição. Então *todo* fechamento de fase invalida
+*toda* prova amarrada ao commit, **sempre**. O conserto pontual — regravar —
+resolve esta ocorrência e não toca a causa: o rito produz o defeito.
+
+##### A medição que decide o mapa, e ela cabe em três linhas
+
+O que o rebase preserva é a **árvore**. Medido nesta árvore, nos dois merges:
+
+| Par | Tree |
+|---|---|
+| `c3051dc` (candidato auditado da Fase 6) e `dc0f036` (o par rebaseado na `main`) | `e2356091` — **iguais** |
+| `c0f56f0` (tip da branch da Fase 6) e `18befac` (`main` pós-#53) | `ad2fdf6c` — **iguais** |
+| `a9746c5` (tip da branch da P6-11) e `ecef8d9` (`main` pós-#54) | `466f9196` — **iguais** |
+
+**Três merges, três pares, nenhuma diferença de árvore.** O SHA muda; o objeto
+que a prova mediu, não. É a mesma igualdade de árvore que se usou para confirmar
+que o #53 tinha levado tudo.
+
+##### As três opções, com o custo de cada uma
+
+**(a) Regravação como passo do rito de fechamento.**
+
+| | |
+|---|---|
+| O que é | depois de `gh pr merge --rebase`, o rito ganha uma etapa: rodar os dois gravadores sobre a `main` resultante |
+| Custo direto | **~8 min por fechamento** na máquina do operador — ~3 min das provas de container e ~5 min do seed, que é o custo já aceito na §11.3 da Fase 5 —, mais Docker no ar e um Postgres descartável |
+| O que **não** cobre | é **regra, e não mecanismo** — degrau 1.5 da §7.7, na melhor leitura. A classe que a §7.7 mediu **quatro vezes** é exatamente esta: a regra existe, e o modo de falha é não reconhecer que esta mudança é uma instância dela. Uma quinta ocorrência aqui seria a mesma forma |
+| Custo escondido | a janela entre o merge e a regravação continua vermelha, e ninguém a vê: o artefato é `.gitignore` e mora só na árvore de quem rodou |
+
+**(b) A prova amarrada à ÁRVORE, e não ao commit.**
+
+| | |
+|---|---|
+| O que é | o gravador escreve `git rev-parse HEAD^{tree}` no lugar do SHA do commit, e os dois verificadores comparam árvore com árvore |
+| O que resolve | as três linhas da medição acima. A prova **atravessa o rebase**, porque ela passa a nomear o que de fato mediu: conteúdo, e não história |
+| O argumento antiforja **sobrevive** | é o que o cabeçalho dos dois verificadores chama de mecânico: *"um commit não pode conter o próprio SHA"*. Vale igual para a árvore — o hash de árvore cobre o conteúdo dos arquivos, então **um arquivo versionado não pode conter o hash da árvore que o contém**. A condição (c), *evidência versionada reprova*, continua de pé pelo mesmo motivo e sem enfraquecer |
+| O que ele **deixa passar**, e é o custo real | a árvore cobre **só o conteúdo rastreado**. As duas provas dependem de coisa que não está nela: `grava_provas_de_container.py` **materializa o pack antes do `up`**, e `scenarios/` inteiro está no `.gitignore` por decisão da Fase 5. Uma prova amarrada à árvore afirmaria estar em dia com o pack trocado embaixo dela |
+| Segundo limite | dois commits com a mesma árvore ficam indistinguíveis. Para prova de **desempenho e comportamento** isso é o comportamento certo — mesmo conteúdo é o mesmo objeto —, mas deixa de distinguir *qual* commit produziu a medição, e o registro de fase cita SHA |
+| Custo de implementação | dois gravadores, dois verificadores e os dois `_probes.py`. Não é grande, e é código |
+
+**(c) Aceitar TRANSPORTADA na `main` como estado normal entre o merge e a próxima
+regravação.**
+
+| | |
+|---|---|
+| O que é | o verificador passa a admitir um terceiro estado, entre "em dia" e "envelhecida" |
+| O custo que o proprietário nomeou | ninguém sabe distinguir *"transportada porque acabou de mergear"* de *"transportada porque ninguém regravou"* |
+| **E há um custo maior embaixo dele.** | admitir o terceiro estado **sem** um predicado que o decida é fazer o verificador sair `ok` quando ele não sabe. É exatamente a degradação que esta linhagem **já aposentou duas vezes** — os dois predicados de base da Fase 3, e o cabeçalho de `check_prova_do_seed.py` escreve a direção (a) como *"a que não pode degradar"* |
+| E o predicado que faltaria | para separar as duas leituras, alguma coisa precisa decidir se o commit gravado e o `HEAD` são **o mesmo objeto**. Identidade de patch ou igualdade de árvore são as únicas candidatas — e nesse ponto a **(c) vira a (b)**. A (c) sozinha é a degradação; a (c) com predicado é a (b) com outro nome |
+
+##### Uma observação de forma, e ela muda como o conserto pontual acontece
+
+Os dois artefatos estão no `.gitignore` — linhas 66 e 73 —, e a condição (c) dos
+dois verificadores **reprova evidência versionada**. Então **regravar não é um
+PR**: é operação sobre a árvore de trabalho de quem roda, e o resultado não
+entra em commit nenhum. Isso também explica por que o vermelho não aparece para
+todo mundo: um clone novo não tem prova nenhuma, e a checagem reprova por
+ausência — que é o comportamento declarado, e é honesto.
+
+Consequência prática que a ordem obriga: **a regravação tem de ser a última
+coisa**, depois do último merge. Regravar antes de mergear este registro
+produziria uma prova sobre um `HEAD` que o próprio merge desfaz — a P7-2
+mordendo a mão de quem a escreve.
+
+**Vence em:** a sua palavra, e **nada foi decidido aqui**. O mapa está medido; a
+escolha entre (a), (b) e (c) é do proprietário.
