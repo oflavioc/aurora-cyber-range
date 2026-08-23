@@ -461,6 +461,38 @@ class OsPredicadosConferemComOContrato(unittest.TestCase):
 
         self.assertEqual(NOME_DO_PREDICADO, DO_EMISSOR)
 
+    def test_a_chave_TEM_DONO_UNICO_e_nao_e_redeclarada(self):
+        """A igualdade acima virou tautologia, e este e o teste que sobrou.
+
+        Ate o B1 da nona auditoria a chave era escrita nos DOIS modulos, e o teste
+        acima cruzava as copias. A funcao unica do veredito precisa dela, e a
+        chave foi junto para `range-core/events/veredito.py`: os dois modulos
+        passaram a IMPORTA-LA, e comparar duas importacoes da mesma constante nao
+        prova mais nada.
+
+        O que ainda se pode afirmar e o que importa — que nenhum dos dois voltou
+        a escrever o literal —, e isso se ve no fonte.
+        """
+        from range_core.events import veredito as dono
+
+        self.assertEqual(NOME_DO_PREDICADO, dono.NOME_DO_PREDICADO)
+
+        raiz = REPO_ROOT / "range-core"
+        redeclaram = [
+            caminho.relative_to(raiz).as_posix()
+            for caminho in raiz.rglob("*.py")
+            if caminho != Path(dono.__file__)
+            and f"NOME_DO_PREDICADO = " in caminho.read_text(encoding="utf-8")
+        ]
+
+        self.assertEqual(
+            redeclaram,
+            [],
+            "a chave do payload do veredito voltou a ter segunda declaracao. Ela "
+            "tem dono unico em `range-core/events/veredito.py` desde o B1 da "
+            "nona auditoria — importe de la.",
+        )
+
 
 class TTIVObedeceAOSMESMOSEFEITOSDeEpoch(_ComExercicio):
     """H1 da terceira auditoria — UM criterio de epoch para os DOIS lados.

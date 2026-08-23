@@ -27,13 +27,21 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from contracts.generated.events import VERIFICATION_PREDICATE_SATISFIED
+from contracts.generated.events import INJECT_FIRED, VERIFICATION_PREDICATE_SATISFIED
 from range_core.clock.exercise_clock import ExerciseClock
 from range_core.engine.inject_engine import Facilitator, InjectEngine
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
-from range_core.engine.verificacao import NOME_DO_PREDICADO, LacoDeVerificacao
+from range_core.engine.verificacao import (
+    NOME_DO_PREDICADO,
+    LacoDeVerificacao,
+    avalia,
+    mundo_corrente,
+)
+from range_core.events.epoch import current_epoch
+from range_core.events.linhagem import eventos_da_linhagem_corrente
 from range_core.events.store import InMemoryEventStore
+from range_core.state.simulation_state import project
 from range_core.metrics.insumo import monta
 from range_core.metrics.verificacao import PREDICADO_CONTENCAO, computa
 
@@ -61,6 +69,19 @@ A01 = PACK_CARREGADO.injects[0].id
 #: movesse faria o teste passar por nunca emitir.
 FLAG_QUE_O_A01_LIGA = next(
     flag for flag, valor in PACK_CARREGADO.injects[0].effects.items() if valor is True
+)
+
+#: O segundo inject e o do ponto de decisao; o terceiro e o ruido.
+A02 = PACK_CARREGADO.injects[1].id
+R01 = PACK_CARREGADO.injects[2].id
+
+#: A opcao que DESLIGA a flag do predicado, derivada pelo mesmo motivo que a
+#: propria flag: literal de flag e o invariante 2, e uma opcao que o fixture nao
+#: movesse faria metade da matriz passar por nunca desligar nada.
+OPCAO_QUE_DESLIGA = next(
+    opcao.id
+    for opcao in PACK_CARREGADO.injects[1].decision_point.options
+    if opcao.effects.get(FLAG_QUE_O_A01_LIGA) is False
 )
 
 T_ZERO = datetime(2026, 8, 20, 9, 0, 0)
@@ -108,6 +129,25 @@ class _ComLaco(unittest.TestCase):
             for e in self.store.read_all()
             if e.event_type == VERIFICATION_PREDICATE_SATISFIED
         ]
+
+    def medidas(self):
+        """Do store ate o numero, pela mesma montagem que a producao usaria.
+
+        Vive no `setUp` compartilhado, e nao em uma classe so, porque o B1 da
+        nona auditoria nasceu de as duas metades serem testadas em suites que
+        nao se encontravam: os casos de rollback nao chegavam a metrica, e os
+        casos de metrica nao passavam pelo engine.
+        """
+        registro = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
+        lados = dict(registro["x-aurora-registry"]["metric_side"])
+        _, verificacao = monta(
+            self.store.read_all(),
+            lados,
+            limiar_de_calibracao=0.15,
+            defensibilidade={},
+            escopo_revisado=frozenset(),
+        )
+        return {m.sigla: m for m in computa(verificacao)}
 
 
 class OVereditoSaiNoInstanteQueSatisfaz(_ComLaco):
@@ -217,16 +257,255 @@ class ReavaliaDepoisDoRollback(_ComLaco):
         )
 
 
+class RollbackQueNaoAlcancaOVeredito(_ComLaco):
+    """O corte ancorado NO veredito — B1 da nona auditoria.
+
+    As duas metades respondiam a mesma pergunta — *"este predicado ja tem
+    veredito que sustenta a metrica da epoch corrente?"* — com criterios
+    diferentes, e os dois conjuntos divergem exatamente aqui:
+
+    - o engine suprimia a emissao quando havia veredito **na linhagem
+      corrente**, sem olhar `simulation_epoch`;
+    - o computador selecionava o veredito por **epoch corrente**.
+
+    `range-core/events/linhagem.py` abandona apenas `ancora < j < indice`, entao
+    um rollback ancorado EM ou DEPOIS do veredito o deixa vivo na linhagem e em
+    epoch antiga. O engine nao reemitia, o computador descartava, e `TTCV` sumia
+    — sem nada falhar, que e o modo caro de errar de `03` §3.0.
+
+    E era IRRECUPERAVEL: redisparar o A01 nao muda nada, porque a flag ja e
+    `True` e a supressao continuava valendo pelo resto do exercicio.
+    """
+
+    def _a_sequencia_do_laudo(self):
+        """e0 start, e1 fire(A01), e2 veredito, e3 fire(A02), e4 rollback→e2.
+
+        `technical_failure` e o motivo NORMATIVO aqui — `03` §3.5, *"a equipe
+        nao e penalizada por bug do ambiente"* —, e a linha dele em `09` §3.1
+        nao descarta epoch nenhuma: as epochs 0 e 1 continuam em calculo. E por
+        isso que o veredito de epoch 0 atravessa o `apenas()` e a divergencia
+        aparece no filtro seguinte, e nao antes.
+        """
+        self.engine.start()
+        self.engine.fire(A01)
+        [veredito] = self.vereditos()
+        self.engine.fire(PACK_CARREGADO.injects[1].id)
+        self.engine.rollback(
+            to_event_id=veredito.event_id, reason="technical_failure"
+        )
+        return veredito
+
+    def test_o_corte_nao_alcanca_o_veredito(self):
+        """O controle da premissa: sem ele o caso passaria por outro motivo.
+
+        Se o corte abandonasse o veredito, os dois criterios concordariam por
+        construcao — que e como os tres casos de `ReavaliaDepoisDoRollback`
+        ancoram, e a razao de o ramo divergente nunca ter sido exercitado.
+        """
+        veredito = self._a_sequencia_do_laudo()
+        correntes = eventos_da_linhagem_corrente(self.store.read_all())
+
+        self.assertIn(veredito.event_id, [e.event_id for e in correntes])
+        self.assertEqual(veredito.simulation_epoch, 0)
+        self.assertEqual(current_epoch(self.store.read_all()), 1)
+
+    def test_a_contencao_continua_satisfeita_na_linhagem_corrente(self):
+        """A segunda premissa: o corte nao desfaz a flag que o A01 ligou.
+
+        O A02 e o unico evento abandonado, e ele move outra flag. Sem isto, o
+        caso poderia estar exigindo veredito de um predicado que deixou de
+        valer.
+        """
+        self._a_sequencia_do_laudo()
+        correntes = eventos_da_linhagem_corrente(self.store.read_all())
+        flags = project(self.store.read_all(), PACK_CARREGADO.declarations).flags
+
+        self.assertTrue(
+            avalia(
+                CONTENCAO_QUANDO_O_PORTAL_CAI[PREDICADO_CONTENCAO],
+                mundo_corrente(correntes, flags),
+            )
+        )
+
+    def test_o_veredito_e_reemitido_na_epoch_nova(self):
+        """`09` §3.1 — *"se a linhagem corrente satisfaz, emite na epoch nova"*."""
+        self._a_sequencia_do_laudo()
+
+        self.assertEqual(
+            len([v for v in self.vereditos() if v.simulation_epoch == 1]),
+            1,
+            "o avaliador nao reemitiu depois do corte, e o veredito que sobrou "
+            "e de epoch que a metrica nao le",
+        )
+
+    def test_ttcv_continua_marcada(self):
+        """O que o participante perde quando o B1 esta vivo.
+
+        Nada falha: a metrica continua saindo, NAO MARCADA, e a janela de
+        asseguracao prematura de `03` §3.2 desaparece junto.
+        """
+        self._a_sequencia_do_laudo()
+
+        self.assertTrue(
+            self.medidas()["TTCV"].marcada,
+            "`TTCV` sumiu apos um rollback que nem alcancou o veredito",
+        )
+
+    def test_o_redisparo_nao_e_a_saida(self):
+        """A irrecuperabilidade, afirmada — e nao deduzida do caso acima.
+
+        Se um dia a reemissao passar a depender de o participante repetir a
+        acao, este teste reprova: a flag ja esta `True`, e repetir nao produz
+        transicao nenhuma.
+        """
+        self._a_sequencia_do_laudo()
+        self.engine.fire(A01)
+
+        self.assertTrue(self.medidas()["TTCV"].marcada)
+
+
+class AMatrizDoCorteEDoPredicado(_ComLaco):
+    """As QUATRO combinacoes — corte x predicado —, e por que elas sao a matriz.
+
+    O B1 entrou pela combinacao que faltava, e a razao esta na forma como as duas
+    metades eram testadas: os casos do laco ancoravam SEMPRE na abertura, que
+    corta o veredito, e os da metrica punham o rollback ANTES do veredito. As
+    duas suites, sem se falar, escolheram a mesma metade da matriz.
+
+    Sao duas variaveis independentes, e cada uma decide uma metade da resposta:
+
+    | # | o corte alcanca o veredito? | o predicado ainda vale? | reemite | TTCV |
+    |---|---|---|---|---|
+    | A | sim, ancora na abertura     | nao — o A01 caiu junto  | nao | nao marcada |
+    | B | sim, ancora no disparo      | sim — o A01 sobreviveu  | sim | marcada |
+    | C | **nao**, ancora no veredito | sim                     | sim | marcada |
+    | D | **nao**, ancora no desligamento | nao — a opcao desligou | nao | nao marcada |
+
+    A CELULA **C** ERA O B1. A celula **D** e o par dela, e existe para fechar a
+    correcao pelo outro lado: nela o veredito de epoch 0 esta VIVO na linhagem
+    corrente, e mesmo assim `TTCV` nao marca — porque o mundo corrente deixou de
+    satisfazer a contencao. Quem "alinhasse" os dois filtros fazendo a metrica
+    aceitar qualquer veredito da linhagem faria C passar e D reprovar, e teria
+    trocado uma metade da matriz pela outra em vez de corrigir a pergunta.
+
+    O MOTIVO E `technical_failure` NAS QUATRO, e nao e detalhe: e a linha de `09`
+    §3.1 que NAO descarta epoch nenhuma, entao a epoch 0 continua em calculo e a
+    resposta depende do filtro de veredito, e nao de `epochs_em_calculo`. Com
+    `facilitation`, o piso de `epochs_em_calculo` ja excluiria a epoch antiga, e
+    C e D passariam por uma regra que nao e a que esta sob teste.
+    """
+
+    MOTIVO = "technical_failure"
+
+    def _ate_o_veredito(self):
+        """e0 `exercise_started`, e1 `fire(A01)`, e2 o veredito."""
+        self.engine.start()
+        self.engine.fire(A01)
+        [veredito] = self.vereditos()
+        return veredito
+
+    def _desliga(self):
+        """A opcao que poe a flag do predicado em `False` — a metade direita.
+
+        Passa pelo `decide`, e nao por escrita direta no store: o ponto da matriz
+        e que as combinacoes sejam alcancaveis pela superficie real, que e por
+        onde o B1 chegaria em exercicio.
+        """
+        self.engine.fire(A02)
+        return self.engine.decide(
+            A02, OPCAO_QUE_DESLIGA, actor_id="user-01", persona="ti"
+        )
+
+    def _corta_em(self, ancora):
+        """O rollback, com um evento de RUIDO entre a ancora e ele.
+
+        O R01 e o inject sem `effects` do fixture, e e ele de proposito: o corte
+        precisa ter conteudo para nao ser degenerado, e o evento abandonado nao
+        pode mover a flag que e a outra variavel da matriz.
+        """
+        self.engine.fire(R01)
+        self.engine.rollback(to_event_id=ancora.event_id, reason=self.MOTIVO)
+
+    def na_epoch_nova(self) -> int:
+        return len([v for v in self.vereditos() if v.simulation_epoch == 1])
+
+    # -- A: o corte alcanca o veredito, e o predicado deixou de valer ---------
+
+    def test_A_corte_ate_a_abertura_com_o_predicado_desfeito(self):
+        veredito = self._ate_o_veredito()
+        abertura = self.store.read_all()[0]
+        self._corta_em(abertura)
+
+        self.assertNotIn(
+            veredito.event_id,
+            [e.event_id for e in eventos_da_linhagem_corrente(self.store.read_all())],
+        )
+        self.assertEqual(self.na_epoch_nova(), 0)
+        self.assertFalse(self.medidas()["TTCV"].marcada)
+
+    # -- B: o corte alcanca o veredito, e o predicado continua valendo --------
+
+    def test_B_corte_ate_o_disparo_com_a_flag_sobrevivente(self):
+        """A escrita do PROPRIO evento ancorado sobrevive — `linhagem.py`."""
+        veredito = self._ate_o_veredito()
+        disparo = next(
+            e for e in self.store.read_all() if e.event_id != veredito.event_id
+            and e.event_type == INJECT_FIRED
+        )
+        self._corta_em(disparo)
+
+        self.assertNotIn(
+            veredito.event_id,
+            [e.event_id for e in eventos_da_linhagem_corrente(self.store.read_all())],
+        )
+        self.assertEqual(self.na_epoch_nova(), 1)
+        self.assertTrue(self.medidas()["TTCV"].marcada)
+
+    # -- C: o corte NAO alcanca o veredito, e o predicado continua valendo ----
+
+    def test_C_corte_ancorado_no_veredito_com_o_predicado_de_pe(self):
+        """A celula do B1, generalizada — o reprodutor literal esta acima."""
+        veredito = self._ate_o_veredito()
+        self._corta_em(veredito)
+
+        self.assertIn(
+            veredito.event_id,
+            [e.event_id for e in eventos_da_linhagem_corrente(self.store.read_all())],
+        )
+        self.assertEqual(self.na_epoch_nova(), 1)
+        self.assertTrue(self.medidas()["TTCV"].marcada)
+
+    # -- D: o corte NAO alcanca o veredito, e o predicado deixou de valer -----
+
+    def test_D_corte_depois_do_desligamento_com_o_veredito_vivo(self):
+        """O par da correcao: veredito vivo na linhagem, e `TTCV` NAO marca.
+
+        Sem esta celula, remover o filtro de epoch da metrica — deixando
+        qualquer veredito da linhagem sustentar o numero — faria a suite inteira
+        passar, e `TTCV` marcaria contencao que o mundo corrente ja desfez.
+        """
+        veredito = self._ate_o_veredito()
+        desligou = self._desliga()
+        self._corta_em(desligou)
+
+        self.assertIn(
+            veredito.event_id,
+            [e.event_id for e in eventos_da_linhagem_corrente(self.store.read_all())],
+        )
+        self.assertEqual(self.na_epoch_nova(), 0)
+        self.assertFalse(self.medidas()["TTCV"].marcada)
+
+    def test_D_o_desligamento_de_fato_desfaz_o_predicado(self):
+        """O controle da celula D: sem ele, ela passaria por nunca ter valido."""
+        self._ate_o_veredito()
+        self._desliga()
+        flags = project(self.store.read_all(), PACK_CARREGADO.declarations).flags
+
+        self.assertFalse(flags.get(FLAG_QUE_O_A01_LIGA))
+
+
 class OCaminhoFechaAteAMetrica(_ComLaco):
     """Do disparo ao numero — e e isto que torna a peca 4 consumida."""
-
-    def medidas(self):
-        registro = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")
-        lados = dict(registro["x-aurora-registry"]["metric_side"])
-        _, verificacao = monta(
-            self.store.read_all(), lados, limiar_de_calibracao=0.15, defensibilidade={}, escopo_revisado=frozenset()
-        )
-        return {m.sigla: m for m in computa(verificacao)}
 
     def test_ttcv_marca_o_instante_que_o_laco_emitiu(self):
         self.engine.start()

@@ -28,16 +28,23 @@ facilitador desfez.
 Aqui não há como escrever isso: `Mundo` é montado de uma linhagem só, e as duas
 famílias de folha o consultam.
 
-A EMISSÃO É POR TRANSIÇÃO, E A TRANSIÇÃO É LIDA NA CORRENTE
--------------------------------------------------------------
+A EMISSÃO É POR TRANSIÇÃO, E QUEM DECIDE A SUPRESSÃO NÃO É ESTE MÓDULO
+------------------------------------------------------------------------
 `09` §3.1: *"a satisfação pertence à epoch em que foi emitida… o avaliador
 reavalia sobre a linhagem corrente e, se ela satisfaz, emite na epoch nova"*.
 
-Uma satisfação anterior só suprime a emissão se ela **estiver na linhagem
-corrente**. Satisfação de epoch abandonada não está — o evento continua no
-store, legível e marcado, e o AAR o renderiza —, então a reavaliação emite de
-novo na epoch nova. O gatilho continua sendo transição; o que mudou foi o mundo
-sobre o qual ele é lido.
+Uma satisfação anterior só suprime a emissão se ela **sustentar a métrica da
+epoch corrente**, e essa pergunta tem uma resposta só, em
+`range-core/events/veredito.py`, consumida também pelo computador de `TTCV`.
+
+**A versão anterior desta seção dizia "se ela estiver na linhagem corrente", e
+era o B1 da nona auditoria escrito por extenso.** Os dois critérios divergem
+quando o corte não alcança o veredito: `linhagem.py` abandona só `ancora < j <
+indice`, então um rollback ancorado em ou depois do
+`verification_predicate_satisfied` o deixava vivo na linhagem e em epoch antiga —
+este módulo não reemitia, o computador descartava por epoch, e `TTCV` sumia pelo
+resto do exercício sem nada falhar. O mundo continua sendo lido da linhagem; o
+que mudou foi a pergunta sobre o veredito, que agora é de epoch e é uma só.
 """
 
 from __future__ import annotations
@@ -53,8 +60,10 @@ from contracts.generated.events import (
     VERIFICATION_PREDICATE_SATISFIED,
 )
 from range_core.events.envelope import Correlation, Event, FlagValue
+from range_core.events.epoch import current_epoch
 from range_core.events.linhagem import eventos_da_linhagem_corrente
 from range_core.events.store import EventDraft, EventStore
+from range_core.events.veredito import NOME_DO_PREDICADO, veredito_da_epoch_corrente
 
 #: `09` §4.1 — o veredito é da máquina, sobre o mundo. Nunca `participant_action`.
 CAMADA = "ground_truth"
@@ -62,10 +71,11 @@ CAMADA = "ground_truth"
 #: `09` §1.1 — quem produziu.
 PRODUTOR = "inject-engine"
 
-#: A chave do payload que nomeia qual predicado passou a valer. Sem ela, dois
-#: predicados satisfeitos produziriam eventos indistinguíveis, e `TTCV` e `TTRV`
-#: leriam o mesmo instante.
-NOME_DO_PREDICADO = "predicate"
+# `NOME_DO_PREDICADO` é importado, e não redeclarado: ele passou a ter dono único
+# em `range-core/events/veredito.py` — B1 da nona auditoria. Sem essa chave, dois
+# predicados satisfeitos produziriam eventos indistinguíveis, e `TTCV` e `TTRV`
+# leriam o mesmo instante. O nome continua legível daqui porque `test_aar_timeline`
+# e `test_laco_de_verificacao` o importam do emissor, que é onde ele é escrito.
 
 
 #: `03` §3.1 — a única forma de `since` definida em v1. Outro valor é recusado na
@@ -295,21 +305,6 @@ def mundo_corrente(
     )
 
 
-def _ja_satisfeito_na_corrente(eventos: Sequence[Event], nome: str) -> bool:
-    """Há veredito deste predicado **na linhagem corrente**?
-
-    É o que torna a emissão por transição, e é onde a norma de `09` §3.1 opera:
-    satisfação de epoch abandonada **não** está na linhagem, então não suprime a
-    emissão na epoch nova. O evento antigo continua no store — o que ele não faz
-    é sustentar `TTCV` da corrente.
-    """
-    return any(
-        e.event_type == VERIFICATION_PREDICATE_SATISFIED
-        and e.payload.get(NOME_DO_PREDICADO) == nome
-        for e in eventos
-    )
-
-
 def avaliar_e_emitir(
     store: EventStore,
     predicados: Mapping[str, Mapping],
@@ -329,8 +324,10 @@ def avaliar_e_emitir(
     predicado meio-revertido, que é o que este módulo existe para tornar
     impossível.
     """
-    correntes = eventos_da_linhagem_corrente(store.read_all())
+    fluxo = store.read_all()
+    correntes = eventos_da_linhagem_corrente(fluxo)
     mundo = mundo_corrente(correntes, flags)
+    corrente = current_epoch(fluxo)
 
     emitidos: list[Event] = []
     for nome, arvore in sorted(predicados.items()):
@@ -343,7 +340,7 @@ def avaliar_e_emitir(
             continue
         if not avalia(arvore, mundo):
             continue
-        if _ja_satisfeito_na_corrente(correntes, nome):
+        if veredito_da_epoch_corrente(correntes, nome, corrente) is not None:
             continue
         emitidos.append(
             store.append(

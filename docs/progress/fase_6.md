@@ -1748,3 +1748,193 @@ que aqui a afirmação tinha um objeto do qual derivar.
 
 **Vence em:** a sua palavra. Nada do mapa foi implementado nesta peça; o conserto
 é o da §7.6, e o mapa está aqui para ser decidido, não executado.
+
+---
+
+## 8. A nona auditoria — B1, e a terceira assimetria de epoch
+
+### 8.1 O defeito, e por que ele só aparece numa combinação
+
+Duas metades respondiam **a mesma pergunta** — *"este predicado já tem veredito
+que sustenta a métrica da epoch corrente?"* — com critérios diferentes:
+
+| Lado | O que perguntava | Onde |
+|---|---|---|
+| avaliador | há veredito deste predicado **na linhagem corrente**? | `_ja_satisfeito_na_corrente` |
+| computador de `TTCV`/`TTRV` | há veredito deste predicado **na epoch corrente**? | `e.simulation_epoch == corrente` |
+
+Os dois conjuntos coincidem quase sempre, porque `simulation_epoch == corrente`
+**implica** estar na linhagem corrente. A recíproca é falsa, e é toda a distância
+entre eles: `events/linhagem.py:138` abandona apenas `ancora < j < indice`, então
+um rollback ancorado **em ou depois** do `verification_predicate_satisfied` o
+deixa vivo na linhagem carregando a epoch antiga. O avaliador não reemitia — via
+o veredito na linhagem —, e o computador o descartava — via a epoch errada.
+
+E era **irrecuperável**: refazer a ação não produz transição, porque a flag já
+está `True`. A metade de verificação do par sumia pelo resto do exercício, sem
+nada falhar. É o modo de falha que `03` §3.0 nomeia: *"a métrica não falha, ela
+deixa de marcar"*.
+
+**O motivo normativo é o que torna o caso caro:** `technical_failure` é a única
+linha de `09` §3.1 que **não** descarta epoch — *"a equipe não é penalizada por
+bug do ambiente"* (`03` §3.5). Com ele, a epoch 0 continua em cálculo, atravessa
+o `apenas()`, e a divergência decide sozinha. Com `facilitation`, o piso de
+`epochs_em_calculo` já teria excluído a epoch antiga, e a resposta viria de outra
+regra — que é por que a matriz da §8.4 usa `technical_failure` nas quatro células.
+
+### 8.2 O vermelho veio antes do conserto, e isso não é cerimônia
+
+O auditor derivou o B1 **por leitura** e disse isso na seção *"o que eu não
+consegui verificar"*: o worktree dele não tem ferramenta de escrita. A primeira
+coisa desta peça foi plantar a sequência de quatro passos com o `LacoDeVerificacao`
+ligado, atravessando até a métrica, e **medir**:
+
+```text
+FAIL: test_o_veredito_e_reemitido_na_epoch_nova   AssertionError: 0 != 1
+FAIL: test_ttcv_continua_marcada                  `TTCV` sumiu apos um rollback
+                                                  que nem alcancou o veredito
+FAIL: test_o_redisparo_nao_e_a_saida              False is not true
+```
+
+Os dois testes de **premissa** da mesma classe passaram desde o início — o corte
+de fato não alcança o veredito, e a contenção de fato continua satisfeita na
+linhagem corrente. Sem eles, o vermelho poderia estar medindo outro defeito.
+
+### 8.3 O conserto foi a pergunta, e não o alinhamento dos filtros
+
+Alinhar os dois filtros por coincidência deixaria a classe D4 de pé: duas
+implementações concordando hoje e livres para divergir amanhã. O que foi feito é
+o que `epochs_em_calculo` virou depois do H1 da terceira auditoria — **uma função,
+consumida pelos dois lados**:
+
+`range-core/events/veredito.py::veredito_da_epoch_corrente`.
+
+**Onde ela mora é consequência, e não conveniência.** Em `metrics/` o avaliador
+importaria métrica; em `engine/` o computador importaria engine. `range-core/events/`
+é a camada de que os dois já dependem — o argumento é literalmente o do cabeçalho
+de `events/linhagem.py`, e a whitelist de `check_core_contract_imports.py` cobrou
+o motivo por escrito antes de aceitar o módulo novo.
+
+**O critério é a epoch, e a linhagem não é um segundo filtro.** Ela é implicada:
+`current_epoch` conta os rollbacks gravados e o store carimba a epoch antes do
+append, logo evento de epoch corrente é posterior ao último rollback, e
+`escritas_sobreviventes` só abandona posições estritamente anteriores ao corte.
+Sem essa implicação a função seria inconsumível pelo lado da métrica, que recebe
+apenas os eventos do lado `verification` (`00` §3.2) e não tem o fluxo total de
+que `escritas_sobreviventes` precisa. Por isso ela é **afirmada**, e não
+postulada: `AImplicacaoQueSustentaAFuncaoUnica`, sobre rollbacks encadeados com
+âncoras diferentes — inclusive a recíproca, que é falsa e é o que produziu o B1.
+
+A chave do payload foi junto. Ela era declarada nos **dois** módulos, com um teste
+cruzando as cópias; a função única precisa dela, e o teste que cruzava virou
+tautologia. O que sobrou afirma o que ainda se pode afirmar: que nenhum dos dois
+voltou a escrever o literal.
+
+**Nenhum caso hoje verde mudou de comportamento**, e isso é medição e não análise:
+735 testes, `OK`. A razão é a implicação — os dois critérios só divergem no ramo
+do B1.
+
+### 8.4 A matriz, e as duas violações plantadas
+
+Os testes das duas metades **se evitavam**, e não por acaso: os do laço ancoravam
+sempre na abertura (o que corta o veredito e faz os dois critérios concordarem por
+construção), e os da métrica punham o rollback antes do veredito. Duas suítes, sem
+se falar, escolheram a mesma metade da matriz — e o comentário de
+`test_metrics_verificacao.py:227-231` chega a registrar o sintoma do B1 observado
+e contornado pelo arranjo do teste.
+
+`AMatrizDoCorteEDoPredicado` cobre as quatro:
+
+| # | o corte alcança o veredito? | o predicado ainda vale? | reemite | `TTCV` |
+|---|---|---|---|---|
+| A | sim — âncora na abertura | não, o disparo caiu junto | não | não marcada |
+| B | sim — âncora no disparo | sim, a flag sobreviveu | sim | marcada |
+| C | **não** — âncora no veredito | sim | sim | marcada |
+| D | **não** — âncora no desligamento | não, a opção desligou | não | não marcada |
+
+**A célula C era o B1. A célula D é o par dela**, e existe para fechar a correção
+pelo outro lado: nela o veredito de epoch 0 está **vivo na linhagem corrente**, e
+`TTCV` mesmo assim não marca — porque o mundo corrente deixou de satisfazer a
+contenção. Sem D, "consertar" removendo o filtro de epoch da métrica passaria na
+suíte inteira, e `TTCV` marcaria contenção que o exercício já desfez.
+
+As duas violações plantadas medem exatamente isso:
+
+| Violação plantada | Quem reprova |
+|---|---|
+| o avaliador volta a suprimir por linhagem | **C** — e A, B e D seguem verdes: era a combinação que faltava |
+| o filtro de epoch removido da função única | **D**, A e C |
+
+A célula D é também o que mede a escolha de `technical_failure`: com a segunda
+violação plantada, `test_metrics_verificacao.py` inteiro continuou verde, porque
+os casos dele usam `facilitation` e ali `epochs_em_calculo` já responde antes.
+
+### 8.5 A classe — e a pergunta do mecanismo, medida
+
+**É a terceira assimetria de epoch desta fase:** `epochs_em_calculo` lido de um
+lado só (H1 da terceira auditoria), o instante de referência de `since` (H1 da
+quarta), e agora o veredito. A norma de `09` §3.1 vem sendo implementada **de um
+lado por vez**.
+
+A pergunta que o proprietário fez: *há mecanismo possível — algo que cobre que
+todo consumo de epoch passe pela mesma função — ou a resposta honesta é que só a
+matriz de testes cobre?*
+
+**A formulação está errada, e a medição é o que mostra isso.** Nove módulos de
+`range-core/` leem `.simulation_epoch`, e os nove são legítimos — o store carimba,
+o fold confere, a projeção devolve, o desconto agrupa. Mas o B1 **não foi epoch
+lida errado: foi epoch não lida**. O avaliador não tinha comparação de epoch
+nenhuma, e é por isso que ele estava errado. Um verificador que cobre *quem lê*
+não vê *quem deixou de ler* — ele teria olhado para os nove e passado.
+
+A propriedade que estava quebrada não é *"todo consumo de epoch passa pela mesma
+função"*. É **"a mesma pergunta tem uma resposta"**, que é a D4, e epoch é apenas
+o campo em que as duas respostas divergiam.
+
+**Nessa formulação há mecanismo, e ele é estrutural.** Medido nesta árvore, por
+AST, contando quais módulos comparam `event_type` contra cada constante:
+
+| Tipo | Módulos que o selecionam |
+|---|---|
+| `ROLLBACK_PERFORMED` | 8 |
+| `EXERCISE_STARTED` | 5 |
+| `INJECT_FIRED` | 4 |
+| `INTEGRITY_VALIDATION_DECLARED` | 3 |
+| `ASSESSMENT_SUBMITTED` | 2 |
+| os outros nove tipos | 1 |
+
+Isso mata a regra ingênua — *"um dono por tipo"* — antes de ela ser proposta:
+`ROLLBACK_PERFORMED` tem oito consumidores e eles fazem **perguntas diferentes**
+sobre o mesmo evento (achar o corte, contar a epoch, restaurar o relógio, agrupar
+congelamentos). Dono único aqui seria uma função com oito sentidos.
+
+O que sobra é a forma que já funciona nesta árvore: **allowlist por tipo,
+declarada com o motivo** — a mesma de `check_core_contract_imports.py`. E ela é
+testável contra este próprio defeito: escrever `_ja_satisfeito_na_corrente` faria
+`VERIFICATION_PREDICATE_SATISFIED` passar de um para **dois** selecionadores, e a
+allowlist reprovaria até alguém escrever por quê. Ter na mesma tela *"o avaliador
+busca este evento para decidir se suprime a emissão"* e *"o computador busca este
+evento para marcar TTCV"* é o ponto: a pergunta *"então são duas respostas para a
+mesma pergunta?"* fica difícil de não fazer.
+
+**E o limite, dito com a taxonomia da §7.7:** é degrau 1.5, não degrau 2. Ele
+cobra **declaração, não concordância** — dois consumidores declarados podem
+continuar divergindo, e nenhum AST decide se duas buscas têm o mesmo propósito,
+porque propósito não é estrutura. O que ele muda é *quando* a duplicação fica
+visível: no commit que a cria, em vez de na nona auditoria.
+
+Vale registrar que o mecanismo **funcionou comigo nesta peça**, no eixo vizinho:
+`check_core_contract_imports.py` reprovou `events/veredito.py` no primeiro `rc=1`
+e só aceitou depois de eu escrever por que aquele módulo existe naquela camada. É
+o mesmo formato, aplicado a outro fato.
+
+**A resposta honesta, em duas linhas.** Para *"todo consumo de epoch pela mesma
+função"*: não, e não é limitação de ferramenta — é que a propriedade não é essa.
+Para *"a mesma pergunta tem uma resposta"*: sim, existe mecanismo, é barato, é AST
+pura, e teria pego este B1 — mas cobre o **nascimento** da duplicação, não a
+divergência entre duplicatas declaradas. Para **essa**, a matriz de testes é o que
+cobre, e é por isso que ela tem as quatro células e não as duas que faltavam.
+
+**Vence em:** a sua palavra. O verificador de allowlist por tipo **não foi
+implementado** nesta peça — o conserto é o da §8.3, e o mapa está aqui para ser
+decidido, não executado.

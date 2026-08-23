@@ -45,12 +45,20 @@ calculada. Tres razoes fecharam a decisao:
    faria o delta do par — *o achado* de `03` §3.2 — comparar DUAS linhas
    temporais.
 
-A LINHAGEM CORRENTE, QUE E OUTRA REGRA E CONTINUA
+A EPOCH DO VEREDITO, QUE E OUTRA REGRA E CONTINUA
 ---------------------------------------------------
 `09` §3.1 tambem diz *"satisfacao de epoch abandonada nao conta na corrente"*, e
 isso vale para o VEREDITO especificamente: o avaliador reemite na epoch nova
 quando a linhagem corrente ainda satisfaz, e nao reemite dentro da mesma epoch.
 Por isso o veredito e selecionado por `simulation_epoch == corrente`.
+
+**Este paragrafo declarava uma premissa que o emissor nao honrava — B1 da nona
+auditoria.** A selecao aqui estava certa; o avaliador e que suprimia a reemissao
+por um criterio proprio, de linhagem, e os dois divergiam quando o corte nao
+alcancava o veredito. A selecao passou a ser
+`range_core.events.veredito.veredito_da_epoch_corrente`, que e a MESMA funcao que
+o avaliador consulta — a premissa deixou de ser declarada e passou a ser
+compartilhada.
 
 As duas regras convivem e nao se substituem. `epochs_em_calculo` nao estreita nada
 no `technical_failure` — a linha dele nao manda descartar epoch —, e e ali que o
@@ -95,12 +103,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from contracts.generated.events import (
-    ASSESSMENT_SUBMITTED,
-    VERIFICATION_PREDICATE_SATISFIED,
-)
+from contracts.generated.events import ASSESSMENT_SUBMITTED
 
 from range_core.events.epoch import current_epoch
+from range_core.events.veredito import (
+    NOME_DO_PREDICADO,
+    veredito_da_epoch_corrente,
+)
 from range_core.metrics.calibracao import brier
 from range_core.metrics.epoch import (
     Congelamento,
@@ -114,11 +123,10 @@ from range_core.metrics.epoch import (
 from range_core.metrics.insumo import InsumoDeVerificacao
 from range_core.metrics.medida import Medida, nao_marcada
 
-#: A chave do payload de `verification_predicate_satisfied`. O valor e o nome do
-#: predicado em `ground_truth.yaml`, e o emissor e
-#: `range-core/engine/verificacao.py` — que declara a mesma constante pelo mesmo
-#: motivo. `tests/test_metrics_verificacao.py` cruza as duas.
-NOME_DO_PREDICADO = "predicate"
+# `NOME_DO_PREDICADO` e importado de `range-core/events/veredito.py`, e nao
+# redeclarado aqui. Ele era declarado nos DOIS modulos, com um teste cruzando as
+# copias; a funcao unica do B1 precisa da chave, e a chave foi junto — uma copia,
+# e o teste agora afirma que nenhum dos dois a redeclara.
 
 #: OS DOIS PREDICADOS, e sao os dois que o contrato admite:
 #: `verification_predicates` exige `containment` e `service_restoration` e fecha
@@ -162,7 +170,12 @@ def computa(insumo: InsumoDeVerificacao) -> tuple[Medida, ...]:
     eventos = apenas(insumo.eventos, epochs_em_calculo(insumo.epoch))
 
     por_predicado = tuple(
-        _medida(sigla, _veredito(eventos, nome, corrente), t_zero, congelados)
+        _medida(
+            sigla,
+            veredito_da_epoch_corrente(eventos, nome, corrente),
+            t_zero,
+            congelados,
+        )
         for nome, sigla in SIGLA_POR_PREDICADO.items()
     )
     return por_predicado + (
@@ -212,24 +225,6 @@ def _instante_do_limiar(
         if escore is not None and escore <= limiar:
             return submissoes[quantas - 1]
     return None
-
-
-def _veredito(eventos, nome: str, corrente: int):
-    """O `verification_predicate_satisfied` do predicado, NA EPOCH CORRENTE.
-
-    O `min` por instante e defensivo e nao decisorio: o avaliador emite por
-    transicao e nao empilha veredito dentro da mesma epoch, entao ha no maximo
-    um. Se um dia houver dois, marcar o PRIMEIRO e a leitura de `03` §3.1 —
-    *"o instante em que a condicao passa a valer"* —, e nao a ultima reemissao.
-    """
-    candidatos = [
-        e
-        for e in eventos
-        if e.event_type == VERIFICATION_PREDICATE_SATISFIED
-        and e.payload.get(NOME_DO_PREDICADO) == nome
-        and e.simulation_epoch == corrente
-    ]
-    return min(candidatos, key=instante, default=None)
 
 
 def _medida(
