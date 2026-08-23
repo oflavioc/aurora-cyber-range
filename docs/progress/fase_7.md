@@ -241,7 +241,9 @@ participante para o pack completo.
 #### P7-2 — a prova amarrada ao SHA não sobrevive ao rito que fecha a fase
 
 **Nasceu do fechamento da Fase 6, e o caso concreto foi só o sintoma.** Depois do
-merge do PR #53, dois verificadores passaram a reprovar na `main`:
+merge do PR #53, dois verificadores passaram a reprovar **na árvore de trabalho
+em que os artefatos tinham sido gravados** — e não no repositório; a distinção
+está na seção que abre com *"NÃO HÁ GATE VERMELHO"*, mais abaixo, e ela importa:
 
 ```
 check_prova_do_seed.py         rc=1
@@ -306,19 +308,43 @@ regravação.**
 | **E há um custo maior embaixo dele.** | admitir o terceiro estado **sem** um predicado que o decida é fazer o verificador sair `ok` quando ele não sabe. É exatamente a degradação que esta linhagem **já aposentou duas vezes** — os dois predicados de base da Fase 3, e o cabeçalho de `check_prova_do_seed.py` escreve a direção (a) como *"a que não pode degradar"* |
 | E o predicado que faltaria | para separar as duas leituras, alguma coisa precisa decidir se o commit gravado e o `HEAD` são **o mesmo objeto**. Identidade de patch ou igualdade de árvore são as únicas candidatas — e nesse ponto a **(c) vira a (b)**. A (c) sozinha é a degradação; a (c) com predicado é a (b) com outro nome |
 
-##### Uma observação de forma, e ela muda como o conserto pontual acontece
+##### NÃO HÁ GATE VERMELHO NO REPOSITÓRIO — e esta seção existe para quem for procurá-lo
 
-Os dois artefatos estão no `.gitignore` — linhas 66 e 73 —, e a condição (c) dos
-dois verificadores **reprova evidência versionada**. Então **regravar não é um
-PR**: é operação sobre a árvore de trabalho de quem roda, e o resultado não
-entra em commit nenhum. Isso também explica por que o vermelho não aparece para
-todo mundo: um clone novo não tem prova nenhuma, e a checagem reprova por
-ausência — que é o comportamento declarado, e é honesto.
+**Leia isto antes de sair caçar o defeito.** A primeira redação desta pendência
+— minha, e a correção é do proprietário — descreveu o achado como *"a default
+está com dois gates vermelhos"*. **Está errado, e a frase é pior que imprecisa:
+ela manda a próxima pessoa procurar um defeito que não existe.**
 
-Consequência prática que a ordem obriga: **a regravação tem de ser a última
-coisa**, depois do último merge. Regravar antes de mergear este registro
-produziria uma prova sobre um `HEAD` que o próprio merge desfaz — a P7-2
-mordendo a mão de quem a escreve.
+O que existe é **evidência local desatualizada na árvore de quem gravou**. Os
+dois artefatos estão no `.gitignore` — linhas 66 e 73 — e **nunca estiveram no
+repositório**. Num clone novo os dois verificadores reprovam por **ausência**, e
+ausência reprovando é o **comportamento declarado** e não um defeito: é a direção
+(a) do cabeçalho de `check_prova_do_seed.py`, a que *"não pode degradar"*, porque
+não ter a evidência é exatamente o caso em que não se pode afirmar o item.
+
+Então o vermelho não é propriedade da `main`. Ele é propriedade da árvore de
+trabalho de quem rodou os gravadores um dia e mergeou depois.
+
+##### A instrução que gerou este conserto estava errada nas duas metades
+
+Registrada porque a correção é a parte reaproveitável, e não o erro. A instrução
+dizia *"num PR próprio, regrave as duas provas"*. As duas metades caem:
+
+- **`.gitignore`.** Os artefatos não são versionáveis, e o motivo está escrito
+  nos dois verificadores: um commit não pode conter o próprio SHA, e é isso que
+  torna a forja impossível em vez de apenas difícil.
+- **Condição (c).** Ela **reprova evidência versionada**, sem nem olhar o SHA.
+  Um PR que carregasse os artefatos seria reprovado pelo verificador que ele
+  pretendia deixar verde.
+
+**Regravar é operação sobre a árvore de trabalho**, e não entra em commit
+nenhum. Quem escrever o rito — se a saída (a) for a escolhida — precisa escrever
+isso junto, ou a etapa nasce pedindo um PR impossível.
+
+Consequência prática de ordem: **a regravação tem de ser a última coisa**, depois
+do último merge. Regravar antes de mergear este registro produziria uma prova
+sobre um `HEAD` que o próprio merge desfaz — a P7-2 mordendo a mão de quem a
+escreve.
 
 **Vence em:** a sua palavra, e **nada foi decidido aqui**. O mapa está medido; a
 escolha entre (a), (b) e (c) é do proprietário.
