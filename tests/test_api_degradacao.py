@@ -82,6 +82,11 @@ FLAGS_YAML = REPO_ROOT / "domains" / "academus" / "flags.yaml"
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria.
+#: Nada NESTE arquivo depende dela: degradacao e decidida por FLAG, e nao por
+#: quem pede. A constante existe para o argumento obrigatorio ser explicito.
+PERSONA = "ti"
+
 #: O `RANDOM_SEED` da suite, FIXO E PASSADO, e nao lido do ambiente. `00` §8 o
 #: exige fixo; aqui ele e argumento porque um teste que dependesse da variavel de
 #: ambiente mudaria de resultado com o `.env` de quem roda — que e o oposto do
@@ -183,7 +188,11 @@ class Cenario:
         )
 
     def cabecalho(self, papel: str, sub: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, papel, PERSONA)}"
+            )
+        }
 
 
 @exige_banco

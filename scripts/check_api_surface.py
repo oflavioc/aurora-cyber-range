@@ -128,18 +128,40 @@ PERSONAS = frozenset(
 assert not (PERSONAS & PAPEIS_DE_EXERCICIO), "persona colidindo com papel de facilitacao"
 
 #: Onde as claims sao montadas. Caminho e nome sao constantes AQUI, e nao no
-#: YAML do adapter: um arquivo de `domains/` apontando para dentro do core
-#: inverteria a direcao que o invariante 1 protege.
-MODULO_DO_TOKEN = "range-core/api/tokens.py"
+#: YAML da superficie: a tabela de quem-e-julgado-por-que e do verificador.
+#:
+#: O EMISSOR DO ADAPTER PASSOU A SER PROPRIO na peca do B1 da setima auditoria.
+#: Antes esta constante apontava para `range-core/api/tokens.py`, e medido: aquele
+#: modulo serve DOIS chamadores — o adapter e o gm-console
+#: (`range-core/api/app.py:259`). Acrescentar `persona` ao `_payload` de la, que
+#: e o que `01` §6 agora autoriza no adapter, poria a claim no token de
+#: FACILITACAO. Mesmo movimento e mesmo motivo do emissor de participante.
+MODULO_DO_TOKEN = "domains/academus/api/tokens.py"
 
 #: O emissor da superficie de participante. Proprio, e nao o de cima: claims por
 #: superficie e a decisao (b) da autenticacao da peca 3 — ver `fase_6.md`.
 MODULO_DO_TOKEN_DE_PARTICIPANTE = "range-core/participant/api/tokens.py"
 FUNCAO_DO_PAYLOAD = "_payload"
 
-#: O que um claim NAO pode se chamar. Os tres papeis, mais a palavra com que
-#: `03` §7 nomeia o participante do exercicio.
-VOCABULARIO_DE_EXERCICIO = PAPEIS_DE_EXERCICIO | {"persona"}
+#: O que um PAPEL de rota do dominio nao pode se chamar — e e aqui que a
+#: topologia de `01` §6 passou a morar.
+#:
+#: `persona` SAIU DO VOCABULARIO PROIBIDO DE CLAIM e entrou no de PAPEL, na peca
+#: do B1 da setima auditoria. A troca nao afrouxa: ela move a guarda para o eixo
+#: em que `01` §6 a coloca, na forma que o spec-change #52 lhe deu —
+#:
+#:   *"o que autoriza uma rota do adapter e papel de dominio, nunca persona"*
+#:   *"persona como identidade que viaja para o envelope: permitida"*
+#:
+#: Como CLAIM, `persona` e legitima: `09` §1 exibe o envelope normativo com
+#: `producer: academus-api` e `persona: ti`, e sem ela o adapter emite um
+#: envelope que o contrato recusa. Como PAPEL, ela poria RBAC de exercicio dentro
+#: do adapter — que e o buraco que esta lista sempre existiu para fechar.
+#:
+#: Sem esta segunda metade a mudanca seria afrouxamento: `papeis_de_dominio`
+#: aceitaria `ti`, `emitir_token` assinaria papel de persona, e uma rota do
+#: adapter passaria a autorizar por desenho de exercicio.
+PAPEIS_PROIBIDOS_NO_DOMINIO = PAPEIS_DE_EXERCICIO | PERSONAS
 
 #: O modulo do core que so o motor de degradacao pode importar. Ver o cabecalho.
 ESTADO_DE_SIMULACAO = "range_core.state"
@@ -229,9 +251,14 @@ class Perfil:
     #: daquela funcao guarda. Movimento irmao do `camadas_de_emissao`.
     modulo_do_token: str | None
     #: O que um claim DESTA superficie nao pode se chamar. Nao e o mesmo conjunto
-    #: para todas: `persona` e proibido no token de dominio e OBRIGATORIO no de
-    #: participante, porque la ele e o vocabulario certo.
+    #: para todas: o token de participante carrega `persona` no lugar de `role`, e
+    #: o de dominio carrega as duas — papel autoriza, persona identifica (`01`
+    #: §6). Os tres papeis de FACILITACAO ficam proibidos nas duas.
     vocabulario_proibido_em_claim: frozenset[str]
+    #: O que a lista de papeis DESTA superficie nao pode conter, quando o perfil
+    #: se relaciona com a ancora por DISJUNCAO em vez de igualdade. `None` para
+    #: quem tem `ancora_de_papeis`, porque igualdade ja decide tudo.
+    papeis_proibidos: frozenset[str] | None
     #: As camadas de `truth_layer` que ESTA superficie pode emitir. E ancora do
     #: perfil, e nao argumento de chamada: o nucleo emite `facilitation` porque
     #: comando de console e o facilitador agindo sobre a SIMULACAO (`09` §2); o
@@ -252,7 +279,11 @@ PERFIL_DOMINIO = Perfil(
     ancora_de_papeis=None,
     chave_de_papeis="papeis_de_dominio",
     modulo_do_token=MODULO_DO_TOKEN,
-    vocabulario_proibido_em_claim=VOCABULARIO_DE_EXERCICIO,
+    # `persona` NAO esta aqui — ver `PAPEIS_PROIBIDOS_NO_DOMINIO`. O que fica
+    # proibido em claim sao os tres papeis de FACILITACAO: token de dominio que
+    # carregasse `facilitador` seria console emitido pela porta do adapter.
+    vocabulario_proibido_em_claim=PAPEIS_DE_EXERCICIO,
+    papeis_proibidos=PAPEIS_PROIBIDOS_NO_DOMINIO,
     # `09` §2: `participant_action` e produzida pela APLICACAO INSTRUMENTADA, e
     # `observable_evidence` por projecoes de fato e pela aplicacao. `facilitation`
     # NAO entra: comando de facilitacao nao mora no adapter.
@@ -274,6 +305,7 @@ PERFIL_NUCLEO = Perfil(
     chave_de_papeis="papeis_de_exercicio",
     modulo_do_token=None,
     vocabulario_proibido_em_claim=frozenset(),
+    papeis_proibidos=None,
     camadas_de_emissao=frozenset({CAMADA_DE_FACILITACAO}),
     familias=frozenset({"eventos", "irreversibilidade", "canais"}),
     chaves_de_topo=frozenset({"papeis_de_exercicio", "projecoes", "rotas"}),
@@ -298,6 +330,7 @@ PERFIL_PARTICIPANTE = Perfil(
     # que fica proibido sao os tres papeis de FACILITACAO — token de participante
     # que carregasse `facilitador` seria console emitido pela porta do exercicio.
     vocabulario_proibido_em_claim=PAPEIS_DE_EXERCICIO,
+    papeis_proibidos=None,
     # `participant_action`, e SO ela. Esta superficie nao emite facilitacao — que
     # e do console — nem evidencia observavel — que e projecao de fato.
     camadas_de_emissao=frozenset({"participant_action"}),
@@ -1074,13 +1107,25 @@ def verifica(
         # DOMINIO: disjuncao. Era o buraco da peca 2 — papel de exercicio na rota
         # reprovava, e em `papeis_de_dominio` passava. Agora que `emitir_token` le
         # esta lista em tempo de execucao, o buraco e caminho.
-        for papel in sorted(papeis_declarados & PAPEIS_DE_EXERCICIO):
+        #
+        # O CONJUNTO PROIBIDO GANHOU AS SETE PERSONAS na peca do B1 da setima
+        # auditoria, quando `persona` deixou de ser proibida como CLAIM. E o que
+        # impede a mudanca de ser afrouxamento: a topologia de `01` §6 — "o que
+        # autoriza uma rota do adapter e papel de dominio, nunca persona" — passou
+        # a ser imposta aqui, no eixo em que ela de fato vale.
+        for papel in sorted(papeis_declarados & (perfil.papeis_proibidos or frozenset())):
+            familia = (
+                "papel de EXERCICIO (`03` §7)"
+                if papel in PAPEIS_DE_EXERCICIO
+                else "PERSONA (`03` §6)"
+            )
             problemas.append(
-                f"`{perfil.chave_de_papeis}` contem {papel!r}, que e papel de "
-                "EXERCICIO (`03` §7).\n"
-                "    Esta lista e o vocabulario que `emitir_token` aceita: um "
-                "papel de exercicio aqui vira token de exercicio emitido pelo "
-                "adapter."
+                f"`{perfil.chave_de_papeis}` contem {papel!r}, que e {familia}.\n"
+                "    Esta lista e o vocabulario que `emitir_token` aceita, e e o "
+                "que AUTORIZA rota do adapter. Papel de exercicio aqui vira token "
+                "de facilitacao emitido pelo adapter; persona aqui poe RBAC de "
+                "exercicio dentro do dominio — `01` §6: persona identifica no "
+                "envelope, e nunca autoriza rota."
             )
 
     for chave in sorted(implementadas - set(por_chave)):

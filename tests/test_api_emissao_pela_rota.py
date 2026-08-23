@@ -37,6 +37,8 @@ import unittest
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from conformidade_de_envelope import ValidacaoDeEnvelope
+
 from contracts.generated.events import AUDIT_QUERY_PERFORMED
 from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao
@@ -52,6 +54,16 @@ SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 #: em vez de escrito aqui seria melhor; escrito aqui, um papel errado dá 403 e o
 #: teste falha ALTO — que é o modo de falha aceitável para esta constante.
 PAPEL = "secretaria"
+
+#: A persona que o token carrega — B1 da sétima auditoria. **É a do exemplo
+#: normativo de `09` §1**, que é este mesmo evento: `producer: academus-api` com
+#: `persona: ti`. Escolhida de lá em vez de inventada aqui para que o teste e a
+#: spec falem do mesmo caso.
+#:
+#: Papel e persona são **ortogonais**, e a diferença entre as duas constantes é o
+#: ponto: `secretaria` autoriza a rota (`01` §6 — papel de domínio), `ti`
+#: identifica quem agiu no exercício. Uma não substitui a outra.
+PERSONA = "ti"
 
 PERIODO = {
     "period_start": "2026-03-01T00:00:00",
@@ -90,8 +102,12 @@ class _ComRota(unittest.TestCase):
         )
         return self.cliente
 
-    def cabecalho(self, sub: str = "S-1"):
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, PAPEL)}"}
+    def cabecalho(self, sub: str = "S-1", persona: str = PERSONA):
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, PAPEL, persona)}"
+            )
+        }
 
     def consulta(self, **extras):
         return self.cliente.get(
@@ -168,6 +184,26 @@ class AConsultaEmiteOEvento(_ComRota):
 
         self.assertEqual(evento.actor_id, "S-77")
 
+    def test_a_persona_do_TOKEN_vai_para_o_envelope(self):
+        """B1 da sétima auditoria, pelo eixo que o `ConformeAoContrato` não vê.
+
+        Aquele prova que o envelope **valida**; este prova que a persona é a
+        **do token**, e não uma constante que o emissor escrevesse. Os dois
+        juntos separam *"o campo existe"* de *"o campo diz quem agiu"* — e é a
+        segunda que `09` §1.1 pede, pela mesma razão que `actor_id` vem do `sub`
+        e não do corpo do pedido.
+        """
+        self.monta()
+        self.cliente.get(
+            "/audit/grade-changes",
+            params=PERIODO,
+            headers=self.cabecalho("S-9", persona="pro_reitoria"),
+        )
+        [evento] = self.emitidos()
+
+        self.assertEqual(evento.persona, "pro_reitoria")
+        self.assertEqual(evento.actor_id, "S-9")
+
     def test_o_payload_carrega_os_quatro_campos_do_hook(self):
         self.monta(linhas=[{"id": 1}, {"id": 2}, {"id": 3}])
         self.consulta(group_by="user")
@@ -224,6 +260,38 @@ class AConsultaEmiteOEvento(_ComRota):
         self.assertEqual(inicio, datetime.fromisoformat(PERIODO["period_start"]))
         self.assertEqual(fim, datetime.fromisoformat(PERIODO["period_end"]))
         self.assertTrue(agrupar)
+
+
+class ConformeAoContrato(ValidacaoDeEnvelope, _ComRota):
+    """O ENVELOPE do adapter valida contra `contracts/events.schema.yaml`.
+
+    **M1 da sétima auditoria — o segundo dos três produtores.** O mixin é o mesmo
+    de `tests/test_inject_engine.py`, e é essa identidade que é a correção: até
+    aqui a única validação de envelope da árvore cobria o `InjectEngine`, e o
+    `append` novo do adapter nasceu fora dela.
+
+    O QUE ESTE TESTE PEGA E `test_o_envelope_do_evento_e_o_declarado` NÃO PEGA
+    ---------------------------------------------------------------------------
+    Aquele afirma sobre `event_type`, `truth_layer` e `producer` citando `09`
+    §1.1 na docstring — e **nenhum dos três é o que a §1.1 acrescenta**. O que
+    ela acrescenta é a condicional: *"`actor_id` e `persona` são obrigatórios
+    quando `truth_layer` for `participant_action` ou `evaluator_assessment`"*.
+    Verificar campo por campo à mão sempre verifica os campos de que alguém se
+    lembrou; o contrato não esquece, porque a regra está escrita nele
+    (`contracts/events.schema.yaml`, `if truth_layer == participant_action then
+    required: [actor_id, persona]`).
+
+    Ele afirma sobre o evento que foi para o STORE, pela rota real — a mesma
+    porta das outras classes deste arquivo, e pelo mesmo motivo.
+    """
+
+    def test_o_envelope_emitido_pela_rota_valida_contra_o_contrato(self):
+        self.monta(linhas=[{"id": 1}, {"id": 2}])
+        self.consulta(group_by="user")
+
+        self.assertConformeAoContrato(
+            self.store.read_all(), esperados={AUDIT_QUERY_PERFORMED}
+        )
 
 
 class ONaoEmitido(_ComRota):

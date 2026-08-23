@@ -1,0 +1,100 @@
+# INSTRUMENTACAO DA `participant-api` — as nove declaracoes de 03 secao 3.4.
+#
+# Autoridade: 09_EVENT_MODEL.md secao 6, na forma que o spec-change #52 lhe deu:
+# a instrumentacao e declarada POR PRODUTOR, e nao por diretorio. Este arquivo
+# fica ao lado de `api_surface.yaml`, que e a superficie deste servico.
+#
+# ---------------------------------------------------------------------------
+# POR QUE ELE NAO EXISTIA, E O QUE A AUSENCIA CUSTAVA — H2 DA SETIMA AUDITORIA
+# ---------------------------------------------------------------------------
+#
+# A forma anterior de 09 secao 6 escopava o arquivo em `domains/<adapter>/`, e a
+# `participant-api` e do core (01 secao 6). O escopo excluia o produtor que emite
+# NOVE dos dez `event_type` instrumentados da arvore.
+#
+# MEDIDO: `06` T9 — "cada event_type declarado em observability_hooks.yaml e
+# emitido pela acao correspondente" — cobria UM tipo de trinta e tres. E
+# `separate_incident_declared`, que 03 secao 1.1 e o exemplo normativo de 09
+# secao 6 usam como evidencia `auto` do OBJ-03, nao tinha onde ser declarado: o
+# `objectives.yaml` da Fase 7 nasceria com uma evidencia `auto` que nenhum hook
+# sustenta.
+#
+# ---------------------------------------------------------------------------
+# NENHUM HOOK DAQUI DECLARA `payload_fields`, E ISSO E DECISAO REGISTRADA
+# ---------------------------------------------------------------------------
+#
+# Nao e esquecimento, e o motivo esta escrito aqui para nao parecer um.
+#
+# 1. NENHUM CONTRATO O EXIGE. `payload_fields` e opcional em 09 secao 6, e
+#    `scripts/check_hooks_com_emissor.py` pula a direcao (d) quando o campo esta
+#    ausente — o que ele RECUSA e `payload_fields` declarado sem poder conferir,
+#    que e outra coisa.
+#
+# 2. O QUE ELE COMPRA JA FOI CLASSIFICADO COMO PROVA FRACA. A direcao (d) cruza a
+#    declaracao com a ASSINATURA do emissor, e nao com a emissao: ela prova que
+#    quem escreveu o dicionario literal escreveu as chaves declaradas. O auditor
+#    registrou essa distincao ao separar "prova de assinatura" de "prova de
+#    emissao" — e quem prova a emissao das nove e
+#    `tests/test_participant_emissao_pela_rota.py`, pela rota real, afirmando
+#    sobre o evento no store.
+#
+# 3. O CORPO DAS NOVE E DINAMICO POR DESENHO. `03` secao 3.4 exige justificativa
+#    livre em cada uma, e o resto do payload varia por acao — `assessment` tem
+#    contrato fechado, as outras oito aceitam campo por campo conforme o
+#    consumidor deles nasce. Enumerar chaves aqui seria lista que envelhece a
+#    cada acao nova, e a que envelhece em silencio e a que ninguem esta olhando.
+#
+# 4. MUDAR O EMISSOR PARA SATISFAZER O VERIFICADOR SERIA MOLDAR O CODIGO A
+#    CHECAGEM. `range_core/participant/api/emissor.py` monta `corpo` a partir do
+#    payload da requisicao mais a justificativa, e essa forma e o que faz UMA
+#    funcao servir as nove rotas. Trocar por nove dicionarios literais seria a
+#    classe D4 — nove copias da mesma regra — para que um gate enxergasse.
+#
+# O adapter continua declarando os seus: `domains/academus/observability_hooks.yaml`
+# tem `payload_fields`, e la o cruzamento vale porque o payload E literal e fixo.
+#
+# ---------------------------------------------------------------------------
+# `producer` E O NOME DO SERVICO, e bate com `PRODUTOR` de
+# `range-core/participant/api/emissor.py` — 09 secao 1.1. A direcao (c) do
+# verificador confere os dois.
+#
+# `objective_ids` NAO aparece aqui nem no envelope (09 secao 1.2). O binding
+# evento -> objetivo vive em `scenarios/<pack>/objectives.yaml`.
+# ---------------------------------------------------------------------------
+
+hooks:
+  - event_type: incident_declared
+    trigger: "POST /participant/incident — qualquer persona reconhece que ha incidente"
+    producer: participant-api
+
+  - event_type: separate_incident_declared
+    trigger: "POST /participant/incident/separate — TI afirma que sao DOIS incidentes"
+    producer: participant-api
+
+  - event_type: classification_declared
+    trigger: "POST /participant/classification — TI declara severidade e escopo"
+    producer: participant-api
+
+  - event_type: containment_declared
+    trigger: "POST /participant/containment — TI declara contencao"
+    producer: participant-api
+
+  - event_type: service_restoration_declared
+    trigger: "POST /participant/service-restoration — TI declara restauracao por servico"
+    producer: participant-api
+
+  - event_type: integrity_validation_declared
+    trigger: "POST /participant/integrity-validation — Pro-Reitoria declara e TI contrassina, encadeados por causation_id"
+    producer: participant-api
+
+  - event_type: communication_submitted
+    trigger: "POST /participant/communication — Comunicacao submete posicionamento"
+    producer: participant-api
+
+  - event_type: regulatory_notice_submitted
+    trigger: "POST /participant/regulatory-notice — DPO submete notificacao regulatoria"
+    producer: participant-api
+
+  - event_type: assessment_submitted
+    trigger: "POST /participant/assessment — TI ou Pro-Reitoria submete avaliacao de caso"
+    producer: participant-api

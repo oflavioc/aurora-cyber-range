@@ -69,10 +69,11 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
-from range_core.api.tokens import TokenClaims, TokenInvalid, issue, jwt_secret, verify
+from range_core.api.tokens import TokenInvalid, jwt_secret
 
 from domains.academus.api.repositorio import Escopo
 from domains.academus.api.surface import Superficie, carregar
+from domains.academus.api.tokens import ClaimsDeDominio, issue, verify
 
 PREFIXO = "Bearer "
 
@@ -99,11 +100,25 @@ class Autenticacao:
     superficie: Superficie
     segredo: str
 
-    def emitir_token(self, sub: str, papel: str, **kwargs) -> str:
+    def emitir_token(self, sub: str, papel: str, persona: str, **kwargs) -> str:
         """Assina um token para um papel de DOMINIO. Recusa qualquer outro.
 
-        E aqui que a D2 vira comportamento: o core assina o que mandarem, e este
-        e o unico lugar do produto que decide se um papel pode virar token.
+        E aqui que a D2 vira comportamento: o emissor assina o que mandarem, e
+        este e o unico lugar do produto que decide se um papel pode virar token.
+
+        `persona` E OBRIGATORIA E NAO E JULGADA AQUI, e as duas metades sao
+        deliberadas.
+
+        Obrigatoria porque `09` §1.1 exige `persona` em todo evento de
+        `participant_action`, e a rota instrumentada desta superficie emite nessa
+        camada. Sem argumento, o default silencioso carimbaria no store
+        append-only uma persona que nao agiu — defeito que nao se corrige
+        retroativamente.
+
+        Nao julgada porque o vocabulario de persona e de `03` §6, que e desenho
+        de EXERCICIO: um adapter que conferisse a lista das sete passaria a
+        conhece-la, e e exatamente o que `01` §6 mantem fora daqui. O papel, sim,
+        e julgado — ele autoriza rota, e o vocabulario dele e do dominio.
         """
         if papel not in self.superficie.papeis_de_dominio:
             raise PapelDesconhecido(
@@ -112,7 +127,7 @@ class Autenticacao:
                 "nunca entra: `scripts/check_api_surface.py` o recusa da lista, e "
                 "por isso ele nao tem como chegar a um token."
             )
-        return issue(sub, papel, secret=self.segredo, **kwargs)
+        return issue(sub, papel, persona, secret=self.segredo, **kwargs)
 
 
 def autenticacao_do_ambiente(superficie: Superficie | None = None) -> Autenticacao:
@@ -123,7 +138,7 @@ def autenticacao_do_ambiente(superficie: Superficie | None = None) -> Autenticac
     )
 
 
-async def autoriza(request: Request) -> TokenClaims | None:
+async def autoriza(request: Request) -> ClaimsDeDominio | None:
     """Dependencia GLOBAL: nenhuma rota escapa, e nenhuma a declara.
 
     Nao receber o repositorio e a garantia, e nao um detalhe de assinatura — ver
@@ -168,8 +183,15 @@ async def autoriza(request: Request) -> TokenClaims | None:
     # e nao tem por onde escolher outro, entao escolher errado deixa de ser
     # possivel. Aplicar a regra, no entanto, e da busca do recurso: ver o
     # cabecalho de `repositorio.py`.
+    # A PERSONA VIAJA JUNTO, e nao autoriza nada. O `Escopo` e o que o handler
+    # recebe pronto, e e por ele que a rota instrumentada alcanca o campo que
+    # `09` §1.1 exige do envelope. Quem decide a rota continua sendo `claims.role`
+    # — a linha acima —, e `01` §6 fixa a assimetria: papel de dominio autoriza,
+    # persona identifica.
     request.state.escopo = Escopo(
-        sub=claims.sub, regra=declarada.regra_de_escopo(claims.role)
+        sub=claims.sub,
+        regra=declarada.regra_de_escopo(claims.role),
+        persona=claims.persona,
     )
     return claims
 

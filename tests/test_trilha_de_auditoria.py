@@ -48,6 +48,11 @@ from _academus_banco import banco_limpo, exige_banco
 
 SEGREDO = "segredo-de-teste-da-trilha-com-mais-de-32-caracteres"
 
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria.
+#: Nada NESTE arquivo depende dela: a trilha de `02` §4.1 registra `sub`, IP,
+#: user-agent e instante, e persona nao e coluna dela.
+PERSONA = "ti"
+
 
 def _contexto() -> Contexto:
     return Contexto(
@@ -342,7 +347,11 @@ class RotaDeVerificacao(unittest.TestCase):
         )
 
     def _cabecalho(self, papel: str, sub: str = "U-1") -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, papel, PERSONA)}"
+            )
+        }
 
     def test_secretaria_verifica(self) -> None:
         resposta = self.cliente.get(

@@ -185,10 +185,36 @@
 # documento normativo prevalece sobre a convencao. Esta dita la, no lugar em que
 # ela ocorre.
 
+# `persona` ENTROU NA PECA DO B1 DA SETIMA AUDITORIA, e o motivo esta em
+# `01_ARCHITECTURE.md` §6 na forma que o spec-change #52 lhe deu.
+#
+# A frase anterior daquela secao dizia, sem qualificacao, que "domains/ nao pode
+# conhecer persona" — e foi lida isolada duas vezes: por este verificador, que
+# pos `persona` no vocabulario proibido de CLAIM, e pela implementacao, que
+# emitiu `audit_query_performed` sem ela. O envelope entrou num store append-only
+# violando `09` §1.1 e `contracts/events.schema.yaml`, cujo exemplo POSITIVO e
+# este mesmo evento, com `producer: academus-api` e `persona: ti`.
+#
+# O QUE A GUARDA PROTEGE E A TOPOLOGIA, E NAO A PALAVRA:
+#
+#   `role`    autoriza a rota. Vocabulario de DOMINIO, conferido contra
+#             `papeis_de_dominio` em tempo de execucao por `emitir_token`.
+#   `persona` NAO autoriza nada. Atravessa ate o envelope, onde `09` §1.1 a
+#             exige na camada `participant_action`.
+#
+# `papeis_de_dominio` passa a ser conferido por DISJUNCAO com as sete personas,
+# alem dos tres papeis de exercicio: e ali que a topologia mora agora.
+#
+# O EMISSOR DESTE TOKEN E PROPRIO — `domains/academus/api/tokens.py`. Medido:
+# `range-core/api/tokens.py::_payload` serve tambem o gm-console
+# (`range-core/api/app.py:259`), e acrescentar `persona` la poria a claim no
+# token de FACILITACAO. E o mesmo movimento que a superficie de participante fez
+# na peca 3, pelo mesmo motivo: uma funcao unica assinando duas vocacoes.
 token:
   claims:
     - sub
     - role
+    - persona
     - exp
 
 papeis_de_dominio:

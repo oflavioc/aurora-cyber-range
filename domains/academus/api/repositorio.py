@@ -87,10 +87,23 @@ class Escopo:
 
     `regra` vem da declaracao, resolvida por `autoriza` — o handler nunca a
     escolhe, e por isso nao tem como escolher errado.
+
+    `persona` NAO PARTICIPA DE ESCOPO DE OBJETO, e esta aqui porque este e o
+    objeto que `autoriza` entrega pronto ao handler. Quem decide se o recurso e
+    alcancavel e `regra`, sobre `sub`; `persona` atravessa intocada ate o
+    envelope, onde `09` §1.1 a exige na camada `participant_action`. Um segundo
+    objeto so para carrega-la seria duas fontes sobre o mesmo pedido — e a que
+    diverge em silencio e sempre a que ninguem esta olhando.
+
+    Opcional no TIPO, obrigatoria no CAMINHO REAL: `autoriza` sempre a preenche,
+    porque `domains/academus/api/tokens.py::verify` recusa token sem ela. O
+    default existe para o duplo de teste que so exercita escopo de objeto, e nao
+    para o produto.
     """
 
     sub: str
     regra: str | None
+    persona: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

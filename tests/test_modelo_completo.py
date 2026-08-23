@@ -55,6 +55,11 @@ from _academus_banco import TABELAS, banco_limpo, exige_banco
 
 SEGREDO = "segredo-de-teste-do-modelo-completo"
 
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria.
+#: Nada NESTE arquivo depende dela. A constante existe para o argumento
+#: obrigatorio ser explicito em vez de um literal repetido.
+PERSONA = "ti"
+
 #: AS DEZENOVE TABELAS. Dezoito entidades de `02` §1 — menos `Incidente` e
 #: `Declaracao`, que `01` §4 poe no event store — mais `access_delegations`, que
 #: fecha a lacuna de §1 em relacao a §6.1.
@@ -272,7 +277,11 @@ class RotasContinuamRespondendo(unittest.TestCase):
         )
 
     def _cabecalho(self, sub: str, papel: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, papel, PERSONA)}"
+            )
+        }
 
     def test_GET_students_devolve_program_como_sempre(self) -> None:
         resposta = self.cliente.get(

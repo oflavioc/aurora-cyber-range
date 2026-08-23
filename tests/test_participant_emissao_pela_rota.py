@@ -37,6 +37,8 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+from conformidade_de_envelope import ValidacaoDeEnvelope
+
 from contracts.generated.events import ASSESSMENT_SUBMITTED
 from fastapi.testclient import TestClient
 from range_core.clock.exercise_clock import ExerciseClock
@@ -140,6 +142,36 @@ class AsNoveRotasEmitem(_ComSuperficie):
                 [evento] = self.eventos(rota["emite"])
 
                 self.assertEqual(evento.payload["justificativa"], "declaracao de teste")
+
+
+class ConformeAoContrato(ValidacaoDeEnvelope, _ComSuperficie):
+    """As NOVE declarações validam contra `contracts/events.schema.yaml`.
+
+    **M1 da sétima auditoria — o terceiro dos três produtores**, com o mesmo
+    mixin do `InjectEngine` e do adapter.
+
+    A cobertura é DERIVADA da superfície, como a das outras classes deste
+    arquivo: `esperados` é o conjunto dos `emite` das nove, e não uma lista
+    escrita aqui. Rota nova que declare `emite` entra sozinha — e, se não emitir,
+    reprova por `esperados` em vez de passar por validar o que sobrou.
+
+    O que ela cobra e as afirmações campo a campo não cobram: os `$ref` de
+    payload. `assessment_submitted` referencia `contracts/assessment.schema.yaml`,
+    e é o contrato que sabe disso — nenhum `assertEqual` sobre `evento.payload`
+    atravessa a referência.
+    """
+
+    def test_as_nove_declaracoes_validam_o_envelope(self):
+        emitidos = []
+        for rota in DECLARACOES:
+            self.setUp()
+            resposta = self.declara(rota, corpo=_corpo_minimo(rota))
+            self.assertEqual(resposta.status_code, 201, resposta.text)
+            emitidos.extend(self.store.read_all())
+
+        self.assertConformeAoContrato(
+            emitidos, esperados={r["emite"] for r in DECLARACOES}
+        )
 
 
 class OQueNaoEmite(_ComSuperficie):

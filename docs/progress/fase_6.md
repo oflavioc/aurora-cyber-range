@@ -1279,3 +1279,312 @@ uma terceira lista é mais barata que qualquer das outras opções.
 **Vence em:** esta decisão. É a única pendência da fase que **não** espera
 condição externa — o mecanismo existe e o lugar está escolhido; falta a sua
 palavra sobre ignorar × recusar.
+
+---
+
+## 7. A sétima auditoria — o M1 primeiro, e o mapa do B1
+
+### 7.1 M1 — a conformidade de envelope cobre os três produtores
+
+**A classe veio antes do conserto, e é essa ordem que é o achado.** O M1 registrou
+escopo, e não defeito: `ConformeAoContrato` provava o que dizia, e a docstring
+dela reivindicava ser *"a única camada que impede o engine de emitir um envelope
+que o contrato recusa"* — verdadeira sobre o engine, e o commit da fase
+acrescentou **dois produtores** sem estendê-la.
+
+Medido no commit auditado: `grep -rn "iter_errors" tests/*.py` devolvia três
+linhas, todas em `tests/test_inject_engine.py`.
+
+**O mecanismo é um só**, em `tests/conformidade_de_envelope.py`: `envelope()`
+monta o documento e `ValidacaoDeEnvelope` afirma sobre ele. Copiar a classe três
+vezes seria a D4 com outro nome, e pior no caso concreto — o produtor **novo** é
+justamente o que nasceria com a cópia velha, e o defeito que ela não vê é o
+defeito que ele tem.
+
+Os três herdeiros, todos com a classe chamada `ConformeAoContrato`:
+
+| Produtor | Arquivo | Resultado |
+|---|---|---|
+| `inject-engine` | `tests/test_inject_engine.py` | verde, 7 `event_type` |
+| `academus-api` | `tests/test_api_emissao_pela_rota.py` | **VERMELHO** — o B1 |
+| `participant-api` | `tests/test_participant_emissao_pela_rota.py` | verde, as nove |
+
+**O vermelho, medido, e a mensagem é a do contrato:**
+
+```
+FAIL: test_o_envelope_emitido_pela_rota_valida_contra_o_contrato
+      (ConformeAoContrato) (event_type='audit_query_performed')
+AssertionError: [<ValidationError: "'persona' is a required property">] != []
+  : audit_query_performed (academus-api): 'persona' is a required property
+```
+
+Suíte inteira: **714 testes, 1 falha, 140 skips** (os `skipIf` de Postgres — os
+serviços não estavam no ar nesta execução). A falha é uma, e é o B1.
+
+**A classe teria pego o B1 na primeira rodada**, e o argumento não é retórico: o
+teste que hoje cita `09` §1.1 na docstring
+(`test_o_envelope_do_evento_e_o_declarado`) afirma sobre `event_type`,
+`truth_layer` e `producer` — e **nenhum dos três é o que a §1.1 acrescenta**.
+Verificar campo a campo à mão sempre verifica os campos de que alguém se lembrou;
+o contrato não esquece, porque a regra está escrita nele.
+
+**O mecanismo tem prova negativa própria** — `tests/test_conformidade_de_envelope.py`,
+três recusas e dois controles positivos. Uma camada de conformidade falha em
+silêncio da pior forma possível: não fica vermelha quando quebra, fica verde
+validando nada. Os eixos são envelope inválido, **lista vazia** (a rota que
+respondia sem gravar deixaria a validação passar por vacuidade — foi o B2 da
+sexta rodada) e **`event_type` esperado e ausente** (conforme por emitir menos
+não é conforme).
+
+### 7.2 O B1 tem um conflito de spec embaixo, e ele não é meu para resolver
+
+**O que a auditoria achou é verdadeiro, e é menor do que o que está embaixo.** O
+adapter não tem de onde tirar `persona` — mas a razão não é esquecimento de
+superfície. É que **dois documentos não-master dizem coisas incompatíveis**, e
+`CLAUDE.md` manda parar e perguntar em vez de resolver por inferência.
+
+**O lado que diz que o adapter emite `persona`:**
+
+- `09_EVENT_MODEL.md` §1 — o exemplo normativo do envelope universal **é este
+  evento**: `"event_type": "audit_query_performed"`, `"producer":
+  "academus-api"`, `"persona": "ti"`;
+- `09` §1.1 — *"`actor_id` e `persona` são obrigatórios quando `truth_layer` for
+  `participant_action`"*;
+- `09` §4.1 — `audit_query_performed` é `participant_action`;
+- `03_EXERCISE_DESIGN.md` §3.4 — *"a consulta de auditoria que emite
+  `audit_query_performed` é **rota da `academus-api`**"*;
+- `contracts/events.schema.yaml` — o exemplo **positivo** (`:835`) e quatro
+  negativos (`:967`, `:982`, `:1002`, `:1019`) carregam todos
+  `producer: academus-api` **e** `persona: ti`. São validados por
+  `check_contract_examples.py`, que passa: **o contrato já afirma o que o código
+  não faz.**
+
+**O lado que diz que ele não pode:**
+
+- `01_ARCHITECTURE.md` §6 — *"A persona **vê pelo domínio** e declara pelo
+  núcleo. (...) A separação não é organizacional: **`domains/` não pode conhecer
+  persona**, e o verificador de superfície já a recusa como vocabulário de token
+  no perfil de domínio. Uma rota de declaração no adapter exigiria desfazer essa
+  guarda."*
+- `scripts/check_api_surface.py:142` executa a frase:
+  `VOCABULARIO_DE_EXERCICIO = PAPEIS_DE_EXERCICIO | {"persona"}`, aplicado ao
+  `PERFIL_DOMINIO` como `vocabulario_proibido_em_claim`.
+
+**A dobradiça, e ela é uma frase.** A proibição de `01` §6 é enunciada sem
+qualificação — *"`domains/` não pode conhecer persona"* —, mas o **exemplo** que
+a acompanha é *"uma rota de **declaração** no adapter"*. A consulta de auditoria
+não é declaração: `03` §3.4 a classifica como **ato de observação**, família
+distinta na mesma seção. Ler a frase pelo enunciado proíbe; lê-la pelo exemplo
+não alcança este caso. **Não decido qual leitura vale.**
+
+### 7.3 As três saídas, com o custo medido de cada uma
+
+#### (a) A `academus-api` recebe `persona` no token
+
+| | |
+|---|---|
+| **Norma** | **Desfaz a guarda que `01` §6 nomeia** — literalmente a frase *"exigiria desfazer essa guarda"*. Não toca `09`, não toca `03`, não toca o contrato: é a única das três em que o exemplo positivo do contrato **já descreve o resultado** |
+| **Superfície** | `domains/academus/api_surface.yaml` `token.claims: [sub, role, exp]` ganha `persona`; `range-core/api/tokens.py::_payload` ganha a chave (conferido por AST nas duas direções); `check_api_surface.py:142` perde `persona` do vocabulário proibido do perfil de domínio |
+| **Código** | `auth.py::emitir_token` e `autoriza`, `Escopo`, `emissor.py` — um argumento a mais em cada |
+| **O custo que não está no diff** | **a fonte do valor não existe.** `POST /auth/token` é `planejada`; `emitir_token` **não tem chamador de produção** — medido: só a suíte e `scripts/demo_fase4.py:139`, que assina o token ele mesmo *"porque `/auth/token` não existe"*. E não há binding persona ↔ conta do Academus em lugar nenhum: `grep -rl persona domains/ alembic/` devolve o `api_surface.yaml`, `models/registros.py` e comentários de migration — nenhum deles é a tabela |
+
+#### (b) `audit_query_performed` deixa de ser `participant_action`
+
+| | |
+|---|---|
+| **Norma** | spec-change em **três** documentos: `09` §4.1 (a linha do catálogo), `09` §1 (o exemplo normativo do envelope **é este evento**), `09` §2 (`participant_action` é *"o que a equipe fez, **viu** ou declarou"* — consulta é o *viu*, e mudar a camada exige dizer por que ver deixou de ser ação de participante) |
+| **Contagem fechada** | `03` §3.4 fecha a conta — *"`participant_action` tem dezessete `event_type`. Nove estão nesta tabela (...) Nove mais três mais dois mais três fecham os dezessete"* — e `01` §4.4 repete o dezessete. Tirar um quebra a conta de um registro que tem **parágrafo dedicado** a não haver terceira ocorrência de perda silenciosa |
+| **Contrato** | `event_type_participant_action` (`:389`), `metric_side` (`:740`), `effect_class` (`:759`) e **os cinco exemplos**, todos `truth_layer: participant_action`; mais `objectives.schema.yaml:255` e `:351` |
+| **Para onde** | `observable_evidence` é *"o que o ambiente permite descobrir"*. A consulta feita pela equipe virando *"o que o ambiente revela"* apaga a distinção entre **ter procurado** e **a evidência ter sido liberada** — a mesma que `test_consulta_vazia_EMITE_com_result_count_zero` protege (*"não olhou"* × *"olhou e não havia"*) e que `03` §1.2 usa para separar `auto` de `observed` |
+
+#### (c) A consulta migra para a `participant-api`
+
+| | |
+|---|---|
+| **Norma** | o **maior**: contradiz `03` §3.4 literalmente (*"é rota da `academus-api`"*), `09` §1 e `09` §6 pelo `producer` dos exemplos, e a metade *"a persona **vê pelo domínio**"* de `01` §6 — a consulta é o ver |
+| **Mecânica** | a rota lê a trilha do Academus (`repositorio.alteracoes_de_nota`, Postgres do domínio). Movê-la faz `range-core/` consultar banco de domínio: não é o invariante 1, que é sobre import, mas é a mesma fronteira por outra porta |
+| **Efeito colateral medido** | `domains/academus/observability_hooks.yaml` fica **sem hook nenhum**, e `check_hooks_com_emissor.py` passa a rodar com `total_hooks = 0` — verde por vacuidade. A guarda de vacuidade dele é sobre o **arquivo** existir, não sobre haver hook |
+| **Dependência** | **arrasta o H2 junto**: a `participant-api` não tem onde declarar hook, porque `09` §6 escopa o arquivo em `domains/<adapter>/` |
+
+#### (d) Uma quarta forma apareceu na medição — e ela é minha, não uma das três
+
+O adapter **não** aprende persona: entrega `sub`, e quem carimba é o núcleo — um
+resolvedor, ou o próprio `append`, que já carimba `event_id` e as três marcas
+por D1. Preserva `01` §6 ao pé da letra e satisfaz `09` §1.1 sem tocar spec
+nenhuma.
+
+**O custo real é o mesmo buraco de (a)**: o binding persona ↔ conta de domínio
+não existe. Além disso põe identidade dentro do store — que passa a precisar de
+uma fonte de identidade — e faz `persona` deixar de ser **declarada pelo
+produtor**, o que muda o sentido de `09` §1.1 sem mudar o texto dela. Registrada
+para não sumir; não é recomendação.
+
+**O que é comum às quatro, e é o achado real:** nenhuma delas é barata porque
+todas esbarram no mesmo artefato ausente — **não existe, em lugar nenhum da
+árvore, a ligação entre uma persona de exercício e uma conta do domínio.** A
+pergunta que decide o B1 não é *"qual campo"*; é **de quem é essa ligação, e onde
+ela mora**.
+
+### 7.4 H2 — a cegueira do verificador de hooks, e onde ela toca o B1
+
+`check_hooks_com_emissor.py` varre `domains/*/observability_hooks.yaml` e o `.py`
+do adapter irmão. A `participant-api` é núcleo — `09` §6 escopa o arquivo em
+`domains/<adapter>/` —, então as **nove rotas de declaração** de `03` §3.4 são
+estruturalmente invisíveis a T9. Cobertura hoje: **um `event_type` em trinta e
+três**. E `separate_incident_declared`, que `09` §6 e `03` §1.1 usam como
+evidência `auto` do OBJ-03 no exemplo normativo, não está declarado em hook
+nenhum — verificado: `grep -rn separate_incident_declared domains/` não devolve
+nada.
+
+| Saída | Custo |
+|---|---|
+| **α — hook por PRODUTOR, e não por diretório de adapter** | spec-change de uma frase em `09` §6, mais uma segunda raiz no verificador — **declarada**, como o `SERVICOS` de `check_fabrica_liga_emissor.py`, e não descoberta por varredura. Leva T9 de 1/33 para 10/33 e dá endereço ao `separate_incident_declared` que a Fase 7 vai precisar |
+| **β — as nove não são evidência `auto`** | contradiz `03` §1.2 (*"`auto` — emitida pela aplicação instrumentada (...) **Declarada em `observability_hooks.yaml`**"*) e o exemplo normativo de `09` §6. O OBJ-03 do pack da Fase 7 perde a evidência |
+| **γ — mover as nove para um adapter** | contradiz `01` §6 frontalmente: *"elas vivem no core, com RBAC por persona, e não na `academus-api`"* |
+
+**A intuição de que a mesma decisão resolve as duas está meio certa, e a metade
+que falta importa.** O H2 precisa de **α em todos os mundos** — as nove
+declarações existem e são `auto` independentemente do que se decida sobre a
+consulta de auditoria. O acoplamento é de mão única: **(c) depende de α**, porque
+o hook da consulta precisaria de onde morar; (a), (b) e (d) resolvem o B1 sem
+tocar o H2, e o H2 continua aberto do mesmo jeito.
+
+**Vence em:** a sua palavra. O M1 está no lugar e mede; o conserto do B1 não
+começa antes disso.
+
+### 7.5 A decisão, o `spec-change` e o conserto
+
+**Decidido pelo proprietário: (a).** O conflito de §7.2 foi arbitrado pela fonte,
+e não havia contradição real — o parágrafo de `01` §6 é inteiro sobre
+**declaração**, e a proibição é qualificada pelo contexto. Consulta de auditoria
+é **ato de observação**, família que `03` §3.4 separa e que não declara nada.
+
+O `spec-change` #52 escreveu a qualificação que só existia no contexto, em dois
+sítios — `01` §6 e `09` §6, este último com o α do H2 — e foi mergeado antes de
+qualquer código, em PR próprio. A branch foi rebaseada sobre ele e a âncora
+regravada no mesmo commit.
+
+#### A forma do conserto, e a decisão que ela obrigou
+
+A decisão era *"persona no token do adapter"*, e ela tem uma bifurcação dentro:
+**qual `_payload`**. Medido: `range-core/api/tokens.py::_payload` serve **dois**
+chamadores — este adapter e o **gm-console** (`range-core/api/app.py:259`).
+Acrescentar `persona` ali poria a claim no token de **facilitação**, que é
+exatamente o risco que o docstring daquela função guarda.
+
+**O adapter ganhou emissor próprio** — `domains/academus/api/tokens.py` —, que é
+o mesmo movimento que `range-core/participant/api/tokens.py` fez na peça 3, pelo
+mesmo motivo: *uma função única assinando duas vocações*. Compartilha-se a
+decisão criptográfica (`ALGORITMO`, `TokenInvalid`); não se compartilha o
+`_payload`, que é quem carrega a vocação.
+
+**`persona` ao lado de `role`, e não no lugar dele** — a diferença para a
+superfície de participante, e ela é do desenho. Lá a persona **é** a autorização.
+Aqui os dois coexistem porque respondem a perguntas distintas, e `01` §6 fixa a
+assimetria: **papel de domínio autoriza a rota, persona identifica quem agiu.**
+
+#### A guarda mudou de eixo, e é isso que a impede de ser afrouxamento
+
+| | antes | agora |
+|---|---|---|
+| `persona` como **claim** | proibida (`VOCABULARIO_DE_EXERCICIO`) | **permitida** — é o que `09` §1 exibe como normativo |
+| `persona` como **papel de rota** | não conferida | **proibida** (`PAPEIS_PROIBIDOS_NO_DOMINIO`) |
+
+Sem a segunda metade a mudança seria afrouxamento puro: `papeis_de_dominio`
+aceitaria `ti`, `emitir_token` assinaria papel de persona, e uma rota do adapter
+passaria a autorizar por desenho de exercício. O caso
+`test_a_PERSONA_nao_vira_papel_pela_porta_do_argumento` é o que prova que a
+guarda mudou de lugar em vez de sumir.
+
+#### Três camadas, e nenhuma sozinha basta
+
+1. `tokens.verify` **exige** `persona` — token sem ela é token de outra
+   superfície, e o `require` a recusa;
+2. `Emissor.registrar_consulta` **levanta** `SemPersona` em vez de gravar. Falhar
+   é caro e visível; gravar sem persona é barato e invisível — nada falha, o
+   store não valida, e o defeito aparece no consumidor de outra fase com o
+   exercício já gravado. É a assimetria que `09` §4 chama de a falha mais cara;
+3. `ConformeAoContrato` mede o envelope contra o contrato — **o M1**, que é quem
+   pegou o defeito.
+
+`Escopo.persona` é opcional **no tipo** e obrigatória **no caminho real**: o
+default existe para o duplo que só exercita escopo de objeto, e a camada (2) é o
+que impede o `None` de virar envelope.
+
+#### As medições
+
+| | antes | depois |
+|---|---|---|
+| `ConformeAoContrato` no adapter | `'persona' is a required property` | verde |
+| suíte | 714 testes, **1 falha** | **716 testes, OK** |
+| claims assinadas na superfície de domínio | 3 | 4 |
+| `check_hooks_com_emissor` | 1 hook, 1 produtor | **10 hooks, 2 produtores, 10 emissões** |
+| cobertura de T9 | 1/33 | **10/33** |
+| prova negativa dos hooks | 7 plantados | **11 plantados**, nas duas formas de produtor |
+
+#### O H2, e o que a segunda raiz obrigou a descobrir
+
+`09` §6 passou a declarar a instrumentação **por produtor**, e
+`range-core/participant/observability_hooks.yaml` nasceu com as nove.
+
+**O verificador não podia simplesmente ganhar um `glob` a mais.** O emissor da
+`participant-api` constrói `EventDraft(event_type=event_type)` — uma **variável**,
+porque uma função serve as nove rotas e quem escolhe o tipo é o handler.
+Procurar `EventDraft` ali acharia **zero** e reprovaria as nove estando elas
+corretas: exatamente o defeito que `check_fabrica_liga_emissor.py` cometeu na
+primeira versão e registrou.
+
+A tabela `PRODUTORES` declara, por produtor, **qual chamada carrega o tipo** —
+`EventDraft` no adapter, `_declara` no núcleo — e o tipo passou a ser procurado
+também entre os **posicionais**, com exigência de unicidade. `_produtor_da_raiz`
+alcança o `PRODUTOR` do módulo irmão, sem o qual a direção (c) ficaria muda no
+núcleo. E a **vacuidade passou a ser conferida por raiz**: no total, uma raiz
+declarada sem arquivo seria coberta pela outra, e a instrumentação de um serviço
+inteiro sumiria sem nada acusar.
+
+**Os hooks das nove não declaram `payload_fields`, e o motivo está escrito no
+arquivo** — não é esquecimento. Nenhum contrato o exige; o que ele compra é
+cruzamento com a **assinatura** do emissor, que é prova fraca ao lado da prova de
+emissão que `tests/test_participant_emissao_pela_rota.py` já dá pela rota real; o
+corpo das nove é dinâmico por desenho (`03` §3.4 exige justificativa livre mais
+campos por ação), e enumerá-lo seria lista que envelhece a cada ação nova; e
+trocar o emissor por nove dicionários literais para o gate enxergar seria moldar
+o código à checagem — a classe D4 com outro nome.
+
+`tools/check_contract_literals.py` ganhou a mesma segunda raiz, e ela é
+**necessária por outro eixo**: lá se pergunta se o tipo está no **catálogo**, e um
+`event_type` com erro de digitação no arquivo novo nunca dispararia. Verificado
+plantando `containment_declaredd` — rc=1, com a mensagem do invariante 3 — e
+restaurando.
+
+#### Dois probes que a mudança obrigou a mexer, e um defeito achado no caminho
+
+`check_api_surface_probes.py` plantava `persona` no token de domínio e exigia
+recusa — **o probe codificava a leitura isolada de `01` §6** que o `spec-change`
+corrigiu. O caso passou a plantar papel de **facilitação**, que continua proibido
+nas duas superfícies, e a guarda que `persona` deixou vazia ganhou probe próprio:
+`probe_da_persona_como_papel_de_dominio`. Sem esse par, a peça seria afrouxamento
+com aparência de precisão.
+
+**E `check_readme_atual_probes.py` estava quebrado antes desta peça.** A âncora
+era o literal `**684 testes**`, e a rodada que levou o README a 707 não a
+acompanhou: o probe morria no próprio `_com` com *"o probe não ancorou"*. O modo
+de falha era o **certo** — ele grita em vez de passar calado —, e o CI o executa
+(`invariants.yml:694`), mas nenhuma auditoria o listou.
+
+O conserto tira o número de lá: a âncora passa a ser **derivada** do README por
+expressão. O que o caso planta é a troca por um número errado, e o número certo é
+o que estiver escrito. Se a **forma** da afirmação mudar — e não o número —, o
+`AssertionError` volta, e aí ele significa o que sempre quis significar.
+
+#### O que esta peça NÃO fechou, dito
+
+- **H1 (P6-11)** e **L1** seguem registrados e não foram tocados: eram decisão
+  registrada de não tocar nesta unidade.
+- **A metade aberta da P6-7** — *"este handler, executado, emite?"* — continua
+  aberta, e o verificador imprime a fronteira na própria saída.
+- **As duas provas pesadas** — containers e seed — estão amarradas ao SHA do
+  candidato e são regravadas **pelo lançador**, contra o worktree da auditoria.
+  Enquanto o candidato não existe elas reprovam por divergência de SHA, que é o
+  comportamento certo e não um defeito da árvore (`docs/process/WORKFLOW.md`,
+  P4-10 e a medição do seed).

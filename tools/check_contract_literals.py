@@ -87,6 +87,25 @@ RULE_UNDECLARED = "INVARIANTE 2 - literal com forma de flag nao declarada"
 #: Invariante 3: event_type fora do catalogo, em YAML de instrumentacao.
 RULE_HOOK_EVENT = "INVARIANTE 3 - event_type de hook fora do catalogo"
 
+#: AS RAIZES DE INSTRUMENTACAO — `09` secao 6, na forma do spec-change #52:
+#: declarada POR PRODUTOR, e nao por diretorio. Lista DECLARADA e nao descoberta
+#: por varredura: produtor novo passa por aqui, e nenhuma heuristica preve o
+#: proximo layout. Gemea da tabela `PRODUTORES` de
+#: `scripts/check_hooks_com_emissor.py`, que olha estes mesmos arquivos por outro
+#: eixo — la, se alguem EMITE o tipo; aqui, se o tipo esta no CATALOGO.
+RAIZES_DE_HOOKS: tuple[tuple[str, str], ...] = (
+    (DOMAINS_ROOT, "*/observability_hooks.yaml"),
+    ("range-core/participant", "observability_hooks.yaml"),
+)
+
+
+def _arquivos_de_hooks() -> list[Path]:
+    """Todo `observability_hooks.yaml` das raizes declaradas."""
+    achados: list[Path] = []
+    for raiz, padrao in RAIZES_DE_HOOKS:
+        achados.extend((REPO_ROOT / raiz).glob(padrao))
+    return achados
+
 
 def _is_authorized(path: Path) -> bool:
     relative = path.resolve().relative_to(REPO_ROOT)
@@ -187,7 +206,18 @@ def main() -> int:
         # vivo. O invariante 3 diz "nenhum event_type fora do catalogo" sem
         # restringir a linguagem do arquivo. M4 da segunda auditoria da Fase 1.
         # ---------------------------------------------------------------
-        for path in sorted((REPO_ROOT / "domains").glob("*/observability_hooks.yaml")):
+        #
+        # A SEGUNDA RAIZ ENTROU NO H2 DA SETIMA AUDITORIA. `09` secao 6, na forma
+        # que o spec-change #52 lhe deu, declara a instrumentacao POR PRODUTOR e
+        # nao por diretorio: a `participant-api` e do core (01 secao 6) e emite as
+        # nove declaracoes de 03 secao 3.4. Varrer so `domains/` deixava o arquivo
+        # dela fora do invariante 3 — e `event_type` com erro de digitacao ali
+        # nunca dispararia, que e o defeito que este bloco existe para pegar.
+        #
+        # Sao DOIS verificadores olhando estes arquivos, e por eixos diferentes:
+        # aqui, se o tipo esta no CATALOGO; em `scripts/check_hooks_com_emissor.py`,
+        # se alguem o EMITE. Os dois precisaram da segunda raiz.
+        for path in sorted(_arquivos_de_hooks()):
             dados = parse_yaml(path) or {}
             source = rel(path)
             for posicao, hook in enumerate(dados.get("hooks") or [], start=1):

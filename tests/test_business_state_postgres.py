@@ -58,6 +58,11 @@ LEITOR = REPO_ROOT / "tests" / "_le_business_state_em_outro_processo.py"
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria.
+#: Nada NESTE arquivo depende dela: o que se mede e business state, e persona
+#: nao toca banco. A constante existe para o argumento obrigatorio ser explicito.
+PERSONA = "ti"
+
 TITULAR = "P-3001"
 TURMA = "T-2001"
 ALUNO = "A-1001"
@@ -93,7 +98,11 @@ class AtravessaProcesso(unittest.TestCase):
         )
 
     def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, papel, PERSONA)}"
+            )
+        }
 
     def _outro_processo(self) -> dict:
         """`python tests/_le_...py` — interpretador novo, sem nada compartilhado.
