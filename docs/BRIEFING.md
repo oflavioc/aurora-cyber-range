@@ -1,7 +1,7 @@
 # Aurora Cyber Range — Briefing
 
 **Autor:** Flavio Costa · Projeto pessoal
-**Estado:** Fases 0 a 5 concluídas — especificação congelada, aparato de verificação operante, vertical slice rodando ponta a ponta, dados em escala e trilha de auditoria com hash encadeado. Próximo checkpoint: Fase 6
+**Estado:** Fases 0 a 6 concluídas — especificação congelada, aparato de verificação operante, vertical slice rodando ponta a ponta, dados em escala, trilha de auditoria com hash encadeado, e objetivos, rubricas e métricas pareadas. Próximo checkpoint: Fase 7
 **Repositório:** github.com/oflavioc/aurora-cyber-range
 
 ---
@@ -86,7 +86,7 @@ A especificação está congelada em `spec-v1.0`. Alterações exigem processo f
 
 ## Estado e próximos passos
 
-São 12 fases planejadas, 5 concluídas. Próximo checkpoint: **Fase 6 — objetivos, rubricas e métricas pareadas**.
+São 12 fases planejadas, 6 concluídas. Próximo checkpoint: **Fase 7 — pack completo, branching e `range-cli`**.
 
 A Fase 5 fechou com PASS na quinta rodada de auditoria: seed determinístico de 3,5 milhões de linhas, trilha `INSERT`-only por role e por trigger com hash encadeado, e os seis conjuntos da Linha B provados como **partição** da trilha. As três reprovações do meio estão versionadas junto com o registro — a mais cara delas foi o gabarito do exercício sendo legível na própria coluna que o participante investiga.
 

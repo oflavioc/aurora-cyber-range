@@ -1,20 +1,38 @@
 # Fase 6 — Objetivos, rubricas, métricas
 
-**Status: EM ANDAMENTO** — peças 1 a 5 fechadas em código, peças 6 e 7 abertas,
-sem auditoria de checkpoint. A linha de status está aqui porque
-`check_readme_atual.py` decide *"a fase fechou?"* por ela, e registro sem status
-é registro que o verificador não consegue ler. `EM ANDAMENTO` não é uma das
-formas que aquele predicado conta como conclusão — `CONCLUÍDA` e `AUDITADA —
-PASS` são —, e é isso que se quer: a fase não fechou.
+**Status: AUDITADA — PASS na décima rodada, contra `c3051dc5`, sem BLOCKER e sem
+HIGH.** 735 testes, `OK`, **0 skip, 0 xfail, 0 falha**, com a stack no ar; os
+quatro invariantes verdes, 21 verificadores em `rc=0`, 88 negativos de contrato e
+112 provas de invariante do hook executados, as duas provas de container e a
+prova do seed conferidas contra este SHA, e `git diff docs/spec/` contra a base
+**vazio**. As sete peças estão na tabela da §1; a DoD item a item, no relatório
+`audit_20260823T155304Z.md`; as pendências, na §6; as três últimas rodadas, nas
+§7 e §8. A âncora é `b794ce23`, regravada no sétimo rebase.
 
-> **A redação anterior desta linha dizia `NÃO INICIADA`**, e sobreviveu a cinco
-> peças. É exatamente a classe que o `check_progress_consistency.py` e o
-> `check_readme_atual.py` existem para caçar — documento que sobrevive à mudança
-> e a contradiz —, e ela passou porque os dois predicados perguntam *"a fase
-> fechou?"*, e `NÃO INICIADA` responde *"não"*, que continuava sendo verdade
-> sobre o fechamento enquanto era falso sobre o início. Corrigida na peça 5, com
-> a distinção registrada: **não fechou** e **não começou** não são a mesma
-> afirmação, e nenhum verificador olhava a segunda.
+> **ESTA LINHA ENVELHECEU TRÊS VEZES, e as três em arquivos diferentes de quem a
+> tornou falsa.** A primeira redação dizia `NÃO INICIADA` e sobreviveu a **cinco
+> peças**; a segunda dizia `EM ANDAMENTO — peças 1 a 5 fechadas, peças 6 e 7
+> abertas, sem auditoria de checkpoint` e sobreviveu às **sete peças e às dez
+> rodadas de auditoria**, com a tabela da §1 dois parágrafos abaixo já dizendo o
+> contrário.
+>
+> **O que separa esta classe das outras que este registro caça:**
+> `check_readme_atual.py` **lê esta linha** — ela é a fonte do predicado
+> `ultima-fase-concluida`. Não é prosa que envelhece ao lado de um verificador;
+> é **entrada de verificador mantida à mão**, e o predicado não tem como reprovar
+> a própria entrada que o alimenta. `NÃO INICIADA` passou porque respondia *"não"*
+> à pergunta *"a fase fechou?"*, que continuava verdadeira sobre o fechamento e
+> era falsa sobre o início; `EM ANDAMENTO` passou pela mesma porta, e por dez
+> auditorias, porque a resposta que o predicado extrai dela permaneceu correta o
+> tempo todo em que o resto da frase apodrecia.
+>
+> **Registrado como candidato a mecanismo, e a decisão fica para depois do
+> merge.** A forma óbvia — cruzar a linha de status com fatos da árvore que já
+> são computados (a tabela de peças do próprio documento, a existência de
+> relatório de auditoria para a fase, o veredito do último) — é a mesma do
+> `check_readme_atual.py`, aplicada a ele próprio. O que ela custa e o que ela
+> deixa passar não foram medidos, e medir dentro do PR de fechamento seria a
+> quinta ocorrência da classe da §7.7: escopo crescendo dentro de uma correção.
 
 **Por que este registro nasceu antes da fase.** Duas pendências vieram do
 `spec-change` `particao-das-metricas-pareadas`, que é anterior à fase, e
@@ -578,6 +596,7 @@ Prefixo `P6-`.
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
 | P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **VENCIDA E RESOLVIDA** — decisão do operador, e o verificador existe |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **decisão** — ver abaixo |
+| P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor — **herdada**, com esta fase como destinatário | **MIGRADA para a Fase 7**, com gatilho corrigido — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
@@ -1279,6 +1298,42 @@ uma terceira lista é mais barata que qualquer das outras opções.
 **Vence em:** esta decisão. É a única pendência da fase que **não** espera
 condição externa — o mecanismo existe e o lugar está escolhido; falta a sua
 palavra sobre ignorar × recusar.
+
+#### P5-2 — a categoria de trilha sem produtor, e o gatilho que disparou apontando para o lugar errado
+
+**Herdada da Fase 5, com esta fase como destinatário nomeado.** `02` §4.1 lista
+cinco categorias que a trilha de auditoria registra, e a quinta é *"declarações
+do exercício — todas as ações de `declare_*`"* (`03` §3.1). As quatro primeiras
+ganharam objeto na Fase 5; a quinta ficou declarada com destinatário, e o
+gatilho escrito lá foi **o commit em que a primeira ação `declare_*` nascer**.
+
+**O gatilho disparou nesta fase, e a suposição embaixo dele estava errada.** As
+nove ações nasceram na peça 3, bloco B. `DECLARACAO_DE_EXERCICIO`
+(`domains/academus/audit/trilha.py`) continua sem quem a escreva — e não por
+esquecimento: o gatilho assumia que a declaração passaria pela **trilha do
+adapter**, e a peça 3 decidiu o contrário. Declaração é ato de **participante**,
+mora no núcleo com RBAC por persona (`01` §6), e a trilha `audit_trail` é
+mecanismo de **domínio**, sobre as entidades do Academus. As nove declaram no
+event store, que é outro caminho — e a decisão que as pôs lá é a mesma que a §1
+registra com três razões e um verificador que a impõe.
+
+**Por que não fecha, e por que não fica.** Fechar apagaria pergunta legítima: a
+categoria continua declarada em `02` §4.1, continua sem produtor, e uma
+constante que nada escreve é exatamente *"o `event_type` que nunca dispara"* que
+`09` §4 chama de a falha mais cara possível. Mas manter o gatilho original é
+pior que não ter gatilho nenhum: ele **já disparou**, e um gatilho disparado que
+não vence é um alarme que a próxima leitura aprende a ignorar.
+
+**MIGRADA para a Fase 7, com gatilho novo:** *a primeira ação de participante que
+altere estado de domínio* — porque é aí que a trilha do adapter passa a ter o que
+registrar, e é a Fase 7 quem traz o pack completo que produz essas ações. O
+gatilho antigo perguntava *"a ação nasceu?"*; o novo pergunta *"a ação toca a
+coisa que a trilha vigia?"*, que é a condição que faltava.
+
+Registrada no destino em `docs/progress/fase_7.md`. O comentário de
+`trilha.py` — que dizia *"nada a escreve até a Fase 6"* — foi corrigido no mesmo
+commit: era §1.6 inscrito no código, e apontava para uma fase que fechou sem
+escrevê-la.
 
 ---
 
