@@ -28,6 +28,8 @@ from range_core.events.store import EventDraft, InMemoryEventStore
 from range_core.metrics.calibracao import (
     CONJUNTO_INDEVIDO,
     CasoDeGabarito,
+    SubmissaoForaDoContrato,
+    brier,
     escore,
 )
 
@@ -303,6 +305,169 @@ class OsSinaisAparecemSeparados(_ComSubmissoes):
         resultado = self.calcula({"GC-001": INDEVIDO}, {"GC-001"})
 
         self.assertEqual([s.caso for s in resultado.underconfidence], ["GC-001"])
+
+
+class ASubmissaoForaDoContratoERecusada(_ComSubmissoes):
+    """A P6-11, decidida: **recusa alta**, no computador, com excecao nomeada.
+
+    O que esta classe prova, e as duas metades importam igualmente:
+
+    1. os quatro payloads que o contrato proibe — `900`, `-1`, `100.5` e texto —
+       **recusam**, nomeando o caso e o valor;
+    2. as quatro bordas exatas de `03` §5.3 e §5.4 — `0`, `30`, `80` e `100` —
+       **passam**. Sem a segunda metade, uma recusa que reprovasse tudo
+       satisfaria a primeira: e ela que prova que a guarda DISCRIMINA.
+    """
+
+    def submete_bruto(self, payload: dict):
+        return self.store.append(
+            EventDraft(
+                event_type=ASSESSMENT_SUBMITTED,
+                truth_layer="participant_action",
+                producer="teste",
+                correlation=Correlation(),
+                actor_id="analista-ti",
+                persona="ti",
+                payload=payload,
+            )
+        )
+
+    def test_confianca_acima_do_maximo_recusa_nomeando_caso_e_valor(self):
+        """`confidence: 900` — o valor medido na L1 da terceira auditoria."""
+        self.submete("GC-003", 900)
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertEqual(capturado.exception.caso, "GC-003")
+        self.assertEqual(capturado.exception.valor, 900)
+
+    def test_confianca_negativa_recusa(self):
+        self.submete("GC-003", -1)
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertEqual(capturado.exception.valor, -1)
+
+    def test_confianca_fracionaria_recusa(self):
+        """`03` §5.4 fixa os limiares em INTEIRO, e o contrato escreve `integer`."""
+        self.submete("GC-003", 100.5)
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertEqual(capturado.exception.valor, 100.5)
+
+    def test_confianca_em_texto_recusa(self):
+        """`"90"` divide por 100 com `TypeError` — recusa nomeada, e nao traceback."""
+        self.submete("GC-003", "90")
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertEqual(capturado.exception.valor, "90")
+
+    def test_booleano_nao_passa_por_inteiro(self):
+        """`isinstance(True, int)` e verdadeiro em Python, e JSON nao tem essa ponte.
+
+        Sem este caso, `True` entraria como `1` e o payload valeria `confidence: 1`
+        — numero plausivel, e por isso pior que um erro.
+        """
+        self.submete("GC-003", True)
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertIs(capturado.exception.valor, True)
+
+    def test_confianca_ausente_recusa(self):
+        """O contrato a exige, e `x-aurora-invalid-examples` a lista por nome:
+        *"sem ela nao ha Brier nem sinal comportamental"*."""
+        self.submete_bruto(
+            {"case_id": "GC-003", "classification": "suspicious", "justificativa": "x"}
+        )
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertEqual(capturado.exception.caso, "GC-003")
+        self.assertIsNone(capturado.exception.valor)
+
+    def test_caso_ausente_recusa_sem_ter_caso_para_nomear(self):
+        """Mesma regra, e a excecao diz `caso is None` em vez de inventar um."""
+        self.submete_bruto(
+            {"classification": "suspicious", "confidence": 72, "justificativa": "x"}
+        )
+
+        with self.assertRaises(SubmissaoForaDoContrato) as capturado:
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+        self.assertIsNone(capturado.exception.caso)
+
+    def test_a_recusa_vale_para_o_BRIER_e_nao_so_para_o_escore(self):
+        """Os dois consumidores passam por `_por_caso`, e `TTIV` chama o Brier.
+
+        Se so o `escore` recusasse, o computador de `03` §3.3 seguiria recalculando
+        o Brier a cada prefixo com o payload corrompido — que e exatamente o
+        deslocamento de `TTIV` que a P6-11 mediu.
+        """
+        self.submete("GC-003", 900)
+
+        with self.assertRaises(SubmissaoForaDoContrato):
+            brier(
+                self.store.read_all(),
+                defensibilidade={"GC-003": 0.0},
+                escopo=frozenset({"GC-003"}),
+            )
+
+    def test_o_valor_fora_de_faixa_NAO_e_clampado(self):
+        """Clampar `900 -> 100` produziria overconfidence PLAUSIVEL e indistinguivel
+        da real — `03` §5.4 le overconfidence como *"falsa acusacao"*."""
+        self.submete("GC-003", 900)
+
+        with self.assertRaises(SubmissaoForaDoContrato):
+            self.calcula({"GC-003": LEGITIMO}, {"GC-003"})
+
+    # -- O CONTROLE POSITIVO: as quatro bordas exatas passam -------------------
+
+    def test_as_quatro_bordas_exatas_do_contrato_passam(self):
+        """`0`, `30`, `80` e `100` — os extremos de faixa e os dois limiares.
+
+        O Brier e escrito a mao: `LEGITIMO` tem `defensibility = 0.0`, entao cada
+        quadrado e `(c/100)^2`.
+        """
+        self.submete("GC-001", 0)     # (0.00)^2 = 0.0000
+        self.submete("GC-002", 30)    # (0.30)^2 = 0.0900
+        self.submete("GC-003", 80)    # (0.80)^2 = 0.6400
+        self.submete("GC-004", 100)   # (1.00)^2 = 1.0000
+
+        resultado = self.calcula(
+            {c: LEGITIMO for c in ("GC-001", "GC-002", "GC-003", "GC-004")},
+            {"GC-001", "GC-002", "GC-003", "GC-004"},
+        )
+
+        self.assertAlmostEqual(resultado.brier, 1.73 / 4)
+
+    def test_as_bordas_que_passam_continuam_sinalizando_o_que_sinalizavam(self):
+        """A guarda nao pode mexer no que `03` §5.4 decide: `>= 80` sobre `<= 0.2`.
+
+        `80` e `100` sinalizam; `0` e `30` nao. E a prova de que a recusa discrimina
+        por CONTRATO, e nao por proximidade da borda.
+        """
+        self.submete("GC-001", 0)
+        self.submete("GC-002", 30)
+        self.submete("GC-003", 80)
+        self.submete("GC-004", 100)
+
+        resultado = self.calcula(
+            {c: LEGITIMO for c in ("GC-001", "GC-002", "GC-003", "GC-004")},
+            {"GC-001", "GC-002", "GC-003", "GC-004"},
+        )
+
+        self.assertEqual(
+            [s.caso for s in resultado.overconfidence], ["GC-003", "GC-004"]
+        )
 
 
 class OsConjuntosConferemComOContrato(unittest.TestCase):
