@@ -37,8 +37,13 @@ from range_core.engine.verificacao import (
     instante_de_referencia,
 )
 from range_core.events.envelope import Correlation
+from range_core.events.epoch import current_epoch
 from range_core.events.linhagem import eventos_da_linhagem_corrente
 from range_core.events.store import EventDraft, InMemoryEventStore
+from range_core.events.veredito import (
+    NOME_DO_PREDICADO,
+    veredito_da_epoch_corrente,
+)
 
 #: O predicado de contenção do exemplo normativo de `03` §3.1, reduzido às duas
 #: folhas `event` — que é o que basta para o eixo desta suíte.
@@ -382,6 +387,149 @@ class NaoAplicavel(_ComFluxo):
             {},
         )
         self.assertEqual(emitidos, [])
+
+
+class AImplicacaoQueSustentaAFuncaoUnica(_ComFluxo):
+    """`simulation_epoch == corrente` ==> `esta na linhagem corrente`.
+
+    E a premissa que permite `veredito_da_epoch_corrente` ser UMA funcao para os
+    dois consumidores — B1 da nona auditoria. O avaliador a chama sobre a
+    linhagem; o computador de `TTCV` a chama sobre os eventos do lado
+    `verification`, e nao tem o fluxo total de que `escritas_sobreviventes`
+    precisaria. Se a implicacao nao valesse, as duas chamadas dariam respostas
+    diferentes e a funcao unica seria uma unificacao so no nome.
+
+    Ela nao e postulada no docstring: e afirmada aqui, sobre rollbacks
+    encadeados com ancoras diferentes.
+    """
+
+    def _fluxo_com_dois_cortes(self):
+        """start, a1, a2, corte→a1, a3, a4, corte→a3, a5.
+
+        Ancoras DIFERENTES nos dois cortes — um no primeiro ato, outro no
+        terceiro —, para que a implicacao nao passe por coincidencia de um
+        arranjo em que todo corte alcanca o mesmo ponto.
+        """
+        primeiro = self.ato(VPN_ACCESS_REVOKED)
+        self.ato(IDENTITY_SCOPE_DISABLED)
+        self.rollback(primeiro.event_id)
+        terceiro = self.ato(VPN_ACCESS_REVOKED)
+        self.ato(IDENTITY_SCOPE_DISABLED)
+        self.rollback(terceiro.event_id)
+        self.ato(VPN_ACCESS_REVOKED)
+        return self.store.read_all()
+
+    def test_todo_evento_da_epoch_corrente_esta_na_linhagem(self):
+        fluxo = self._fluxo_com_dois_cortes()
+        corrente = current_epoch(fluxo)
+        na_linhagem = {e.event_id for e in eventos_da_linhagem_corrente(fluxo)}
+
+        for evento in fluxo:
+            if evento.simulation_epoch == corrente:
+                with self.subTest(tipo=evento.event_type):
+                    self.assertIn(evento.event_id, na_linhagem)
+
+    def test_ha_evento_da_epoch_corrente(self):
+        """O controle: sem ele, a implicacao passaria por vacuidade."""
+        fluxo = self._fluxo_com_dois_cortes()
+        corrente = current_epoch(fluxo)
+
+        self.assertTrue([e for e in fluxo if e.simulation_epoch == corrente])
+
+    def test_a_reciproca_e_FALSA_e_e_ela_que_produziu_o_B1(self):
+        """Sobreviver ao corte nao e pertencer a epoch corrente.
+
+        `escritas_sobreviventes` abandona so `ancora < j < indice`, entao tudo
+        que e anterior ao primeiro corte sobrevive carregando a epoch antiga. Era
+        por essa diferenca que o avaliador e o computador discordavam.
+        """
+        fluxo = self._fluxo_com_dois_cortes()
+        corrente = current_epoch(fluxo)
+        antigos_e_vivos = [
+            e
+            for e in eventos_da_linhagem_corrente(fluxo)
+            if e.simulation_epoch != corrente
+        ]
+
+        self.assertTrue(antigos_e_vivos)
+
+
+class AFuncaoUnicaDoVeredito(_ComFluxo):
+    """O criterio que os dois lados consomem — `range-core/events/veredito.py`."""
+
+    def veredito(self):
+        return self.grava(
+            VERIFICATION_PREDICATE_SATISFIED,
+            "ground_truth",
+            "inject-engine",
+            **{NOME_DO_PREDICADO: "containment"},
+        )
+
+    def test_acha_o_veredito_da_epoch_corrente(self):
+        emitido = self.veredito()
+        fluxo = self.store.read_all()
+
+        self.assertEqual(
+            veredito_da_epoch_corrente(fluxo, "containment", current_epoch(fluxo)),
+            emitido,
+        )
+
+    def test_nao_confunde_predicados(self):
+        self.veredito()
+        fluxo = self.store.read_all()
+
+        self.assertIsNone(
+            veredito_da_epoch_corrente(
+                fluxo, "service_restoration", current_epoch(fluxo)
+            )
+        )
+
+    def test_veredito_de_outra_epoch_nao_responde(self):
+        self.veredito()
+        self.rollback(self.store.read_all()[0].event_id)
+        fluxo = self.store.read_all()
+
+        self.assertIsNone(
+            veredito_da_epoch_corrente(fluxo, "containment", current_epoch(fluxo))
+        )
+
+    def test_com_dois_na_mesma_epoch_devolve_o_PRIMEIRO(self):
+        """Defensivo e nao decisorio — `03` §3.1, *"o instante em que passa a valer"*.
+
+        O avaliador emite por transicao e nao empilha veredito dentro da mesma
+        epoch, entao este caso nao nasce da producao. Ele existe porque a escolha
+        estava escrita no codigo antigo como um `min` e nunca havia sido medida:
+        se um dia dois chegarem, o primeiro e a leitura certa, e a ultima
+        reemissao nao pode passar a valer por omissao.
+        """
+        primeiro = self.veredito()
+        self.veredito()
+        fluxo = self.store.read_all()
+
+        self.assertEqual(
+            veredito_da_epoch_corrente(fluxo, "containment", current_epoch(fluxo)),
+            primeiro,
+        )
+
+    def test_a_resposta_e_a_MESMA_sobre_a_linhagem_e_sobre_o_fluxo_total(self):
+        """O que a implicacao acima entrega, na forma em que os dois lados usam.
+
+        O avaliador passa a linhagem; o computador passa os eventos do lado
+        `verification` recortados do fluxo total. Se as duas chamadas divergissem,
+        a funcao unica nao unificaria nada.
+        """
+        self.veredito()
+        self.rollback(self.store.read_all()[0].event_id)
+        self.veredito()
+        fluxo = self.store.read_all()
+        corrente = current_epoch(fluxo)
+
+        self.assertEqual(
+            veredito_da_epoch_corrente(fluxo, "containment", corrente),
+            veredito_da_epoch_corrente(
+                eventos_da_linhagem_corrente(fluxo), "containment", corrente
+            ),
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

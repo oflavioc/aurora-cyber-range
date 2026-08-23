@@ -105,6 +105,18 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         frozenset({"contracts.generated.events"}),
         "mesma razao — o calculo de epoch compara contra `rollback_performed`",
     ),
+    "events/veredito.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao — a funcao unica do veredito compara contra "
+        "`verification_predicate_satisfied`. E LEITURA do catalogo: nao chama "
+        "`append` e nao tem store ao alcance. Ela vive em `events/` pelo motivo "
+        "de `events/linhagem.py`, e nao por conveniencia — os DOIS consumidores "
+        "sao `engine/verificacao.py`, que decide se suprime a emissao, e "
+        "`metrics/verificacao.py`, que decide qual veredito marca `TTCV`. Poe-la "
+        "em qualquer um dos dois faria o outro importa-lo, e o B1 da nona "
+        "auditoria nasceu justamente de os dois responderem a mesma pergunta "
+        "separados",
+    ),
     "engine/inject_engine.py": (
         frozenset({"contracts.generated.events"}),
         "mesma razao — o engine emite os tipos do catalogo",
