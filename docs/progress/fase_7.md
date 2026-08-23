@@ -26,12 +26,19 @@ Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
 **herdado**, e o prefixo herdado é preservado de propósito: renumerar apagaria a
 cadeia que liga a pendência ao registro em que ela nasceu.
 
+O corpo herdado desta tabela foi escrito no **encerramento da Fase 6**, depois do
+merge do PR #53 — e por isso ele chega aqui como resumo com ponteiro, e não como
+cópia. O argumento inteiro de cada item está no `docs/progress/fase_6.md`, que
+fechou **AUDITADA**; repeti-lo aqui criaria duas fontes para o mesmo fato, que é
+a §1.6 que aquele registro passou a fase inteira nomeando.
+
 | Id | O que é | Vence em |
 |---|---|---|
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | **condição** — a primeira ação de participante que altere estado de domínio; ver abaixo |
+| P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | **entrega desta fase** — já **DECIDIDA** na Fase 6; ver abaixo |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
-| P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
-| P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
+| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário; ver abaixo |
+| P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -87,6 +94,30 @@ Fase 6"* e foi corrigido no commit de fechamento da Fase 6 — ele era a §1.6
 inscrita no código: uma afirmação verdadeira quando nasceu, falsa quando outra
 decisão a contradisse, e que nenhum verificador alcança porque é prosa em
 comentário.
+
+#### P6-5 — `review_scope` carrega a lista, e é entrega desta fase
+
+**Herdada já DECIDIDA** (`docs/progress/fase_6.md`, §6). Não é pergunta aberta: é
+trabalho agendado. `03` §5.1 manda a equipe declarar escopo revisado — *"período,
+população, critério"* —, e §5.3 usa a declaração para separar **erro de
+julgamento** de **lacuna de cobertura**. O escore precisa, para isso, do conjunto
+de `case_id` dentro do escopo, e ele não é derivável do gabarito:
+`line_b_case` não tem atributo de data nem de população.
+
+**Decisão do operador, na peça 7 da Fase 6 — opção 3 de três:** `review_scope`
+passa a carregar a lista de `case_id`, resolvida no **fechamento** do escore.
+As duas rejeitadas, com o custo preservado no registro da Fase 6: a
+`academus-api` resolveria com o conjunto atravessando do adapter para o núcleo
+**por dado**, que é a travessia que o invariante 1 não vê; o gerador do seed
+resolveria na geração, e escopo declarado em runtime não tem como ser resolvido
+por quem já terminou de rodar.
+
+**Por que caiu aqui:** é mudança de contrato, e por isso não coube na Fase 6.
+
+**O que já está pronto para ela.** `escopo_revisado` é escalar do
+`InsumoDeVerificacao`, declarado em `CAMPOS_DECLARADOS` de
+`check_insumo_de_metrica.py`, e `escore()` já o recebe como dado. Esta fase muda
+**de onde ele vem** — não a forma como chega ao consumidor, que `00` §3.2 fixou.
 
 #### P6-11 — VENCIDA E RESOLVIDA: recusa alta, no computador, com exceção nomeada
 
@@ -202,6 +233,53 @@ negativos.
 
 **Suíte inteira:** 746 testes, verdes. O contador do README acompanhou, na mesma
 branch e em commit separado.
+
+#### P6-12 — a condição (4) da contrassinatura não pode disparar em produção
+
+**M1 da décima auditoria da Fase 6, e o mérito é do achado.**
+`range-core/participant/api/app.py:101` emite `tokens.issue(persona, persona,
+...)` — `sub` recebe o próprio valor de `persona` —, e `_declara` propaga
+`actor_id = claims.sub`. Com isso `actor_id` é **função de `persona`**: satisfeita
+a condição (2), que exige personas distintas, a (4) passa a ser satisfeita por
+construção, e a comparação em
+`range-core/declarations/contrassinatura.py:106` não tem como disparar. Nem para
+dualidade humana, nem para **reuso de credencial**, que era a metade que a §1 da
+Fase 6 afirmou estar coberta.
+
+**O que fica errado não é o mecanismo — é o que a norma promete.** `03` §3.4
+escreve a condição (4) com a justificativa *"um mesmo operador com duas
+credenciais satisfaria as personas e assinaria sozinho"*. A spec é o que alguém
+lê, e ela promete uma barreira que o sistema não tem.
+
+| Saída | O que ela faz | O que custa |
+|---|---|---|
+| **(a) a norma passa a dizer o que o mecanismo faz** | `03` §3.4 declara a (4) como condição **estrutural** — escrita na forma certa, com dentes quando houver identidade de credencial | `spec-change`, em PR próprio e **antes de qualquer código**. E aceita, por escrito, que hoje a autocontrassinatura por posse dupla não é barrada |
+| **(b) `sub` passa a ser identidade de credencial** | a (4) volta a morder no caso que ela nomeia | mexe na emissão de token da superfície de participante e nas sete credenciais de ambiente |
+
+**Vence em:** a sua palavra. Nenhum item da DoD da Fase 6 cobrava credencial por
+humano, e nem `01` §6 nem `05` §8 a exigem — por isso é pendência e não conserto.
+
+#### P6-13 — dezesseis violações plantadas que ninguém pode reexecutar
+
+**L3 da décima auditoria da Fase 6.** A tabela da §3.5 daquele registro declara
+violações plantadas em `metrics/epoch.py` (2), `metrics/verificacao.py` (4),
+`metrics/declaracao.py` (5) e na derivação das nove siglas (5) — **dezesseis** —,
+todas "fora da árvore": a violação foi plantada, o vermelho foi observado, a
+árvore foi restaurada. Não existe `test_metrics_*_probes.py`, e
+`mutation_harness` não aparece em arquivo de métrica nenhum.
+
+**A marca já está lá, e ela é o conserto no que ele tem de imediato:** as quatro
+linhas dizem **ATESTAÇÃO DO AUTOR**, e a primeira linha da mesma tabela —
+`check_insumo_de_metrica`, com `_probes.py` versionado e executado pelo auditor —
+diz **reexecutável**. Afirmação de prova negativa que ninguém pode reexecutar tem
+a **forma** de prova e o **peso** de declaração, e a auditoria seguinte lê o
+registro como fonte.
+
+**Vence em:** o artefato que torne a afirmação reexecutável — um
+`test_metrics_*_probes.py` na forma dos que já existem, ou o `mutation_harness`
+alcançando os computadores de métrica —, **ou** a primeira vez que alguém precise
+da cobertura que a tabela declara. Enquanto não vier, a marca é o que mantém a
+declaração honesta.
 
 #### P7-1 — a rota de submissão não valida o payload contra o contrato
 
@@ -322,3 +400,88 @@ mordendo a mão de quem a escreve.
 
 **Vence em:** a sua palavra, e **nada foi decidido aqui**. O mapa está medido; a
 escolha entre (a), (b) e (c) é do proprietário.
+---
+
+## 7. Pauta de mecanismo herdada — dois mapas que esperam decisão
+
+Os dois itens abaixo **não** são pendências e não têm identificador: nenhum deles
+afirma defeito aberto. São **mapas** — cada um mediu o custo de um mecanismo
+possível e parou antes de implementá-lo, porque a escolha é do proprietário.
+Ambos foram escritos com a mesma fórmula no fim: *"o mapa está aqui para ser
+decidido, não executado"*.
+
+Estão aqui, e não só no registro da Fase 6, porque mapa que vive no inventário de
+uma fase encerrada é mapa que ninguém abre — é a mesma razão pela qual este
+arquivo nasceu antes da fase, escrita no topo.
+
+### 7.1 Os três degraus da §7.7 — a classe que reincidiu quatro vezes
+
+**A classe:** uma exigência é afirmada num lugar e os sítios que a satisfazem não
+são varridos quando ela muda. Quatro ocorrências na Fase 6 — o sétimo contrato
+com o CI ainda afirmando seis; o venv da auditoria ausente da branch; a
+precondição de boot do pack sem varrer o gravador; o contrato do token sem varrer
+o chamador de produção.
+
+**Duas regras escritas não a impediram**, e o registro da Fase 6 diz por quê: o
+modo de falha não é ignorar a regra, é **não reconhecer que esta mudança é uma
+instância dela**. A regra cobra varredura depois de uma classificação, e é a
+classificação que falha. Mecanismo não pede classificação: dispara sobre o
+artefato.
+
+| Degrau | O que é | Custo | O que deixa passar |
+|---|---|---|---|
+| **1 — desduplicar o fato** | onde a exigência puder ser **derivada** em vez de afirmada, a classe deixa de existir. Funcionou uma vez na Fase 6: o CI parou de dizer `== 6` e passou a derivar de `contracts_dir()` | quase zero | os fatos que **não** aceitam derivação — qual emissor serve qual superfície é decisão, não contagem |
+| **1.5 — a regra ancorada no artefato** | um hook que dispare quando o commit toca `EXIGIDAS`, `_payload` ou `token.claims` de um `api_surface.yaml`, e **imprima a lista de chamadores daquele emissor** | baixo | não bloqueia — não tem como saber se a varredura aconteceu. Cobertura humana, e é honesto dizer que é isso |
+| **2 — allowlist de chamadores por emissor** | AST pura, na forma do `check_core_boundary.py`: achar as chamadas, resolver o módulo importado, exigir que o arquivo esteja na lista daquele emissor. Os emissores são **três e fechados**, e metade da tabela já existe em `check_api_surface.py::PERFIS` | baixo, e **teria pego o B1 da §7.6** | é por arquivo: iria cega no dia em que um arquivo falasse com duas superfícies. O que fecha o buraco é o achado negativo da §7.6 — **nenhum cliente precisa do `issue` do núcleo** —, e é essa propriedade, não a lista, que faz o degrau valer |
+| **3 — execução** | o que sobra, e sobra por natureza | a prova de container | nada; é o único instrumento onde não há objeto a medir |
+
+**A recomendação registrada no fechamento**, com as palavras de lá: para o
+**token**, não é verdade que só a prova de container cobre — o degrau 2 é
+escrevível e barato. Para o **boot**, é verdade: precondição de boot é
+procedimento, não objeto, e não há verificador sem casar prosa. Isso não é lacuna
+a fechar depois — é o argumento de que **a prova de container tem de ser gate
+obrigatório, e não opcional**.
+
+**A forma geral, que é o que sai daqui:** a classe fecha quando a exigência é
+conferida sobre o **objeto que ela governa**, e não sobre os caminhos que o
+produzem.
+
+**Fonte:** `docs/progress/fase_6.md`, §7.7. **Vence em:** a sua palavra.
+
+### 7.2 A allowlist por selecionador da §8.5 — "a mesma pergunta tem uma resposta"
+
+**Nasceu de uma pergunta do proprietário** na nona auditoria da Fase 6: *há
+mecanismo que cubra que todo consumo de epoch passe pela mesma função, ou a
+resposta honesta é que só a matriz de testes cobre?*
+
+**A medição mostrou que a formulação estava errada.** Nove módulos de
+`range-core/` leem `.simulation_epoch`, e os nove são legítimos. Mas o B1 não foi
+epoch **lida errado**: foi epoch **não lida** — o avaliador não tinha comparação
+de epoch nenhuma. Um verificador que cobre *quem lê* não vê *quem deixou de ler*.
+A propriedade quebrada era **"a mesma pergunta tem uma resposta"**, e epoch era
+só o campo em que as duas divergiam.
+
+**Nessa formulação há mecanismo, e ele é estrutural.** Medido por AST, contando
+módulos que comparam `event_type` contra cada constante: `ROLLBACK_PERFORMED` tem
+**8** selecionadores, `EXERCISE_STARTED` 5, `INJECT_FIRED` 4,
+`INTEGRITY_VALIDATION_DECLARED` 3, `ASSESSMENT_SUBMITTED` 2, e os outros nove
+tipos 1. Isso mata a regra ingênua — *"um dono por tipo"* — antes de ela ser
+proposta: os oito consumidores de `ROLLBACK_PERFORMED` fazem perguntas
+**diferentes** sobre o mesmo evento, e dono único ali seria uma função com oito
+sentidos.
+
+**O que sobra é a forma que já funciona nesta árvore:** allowlist por tipo,
+declarada com o motivo — a mesma de `check_core_contract_imports.py`. Ela é
+testável contra o próprio defeito que a originou: escrever
+`_ja_satisfeito_na_corrente` faria `VERIFICATION_PREDICATE_SATISFIED` passar de um
+para **dois** selecionadores, e a allowlist reprovaria até alguém escrever por
+quê.
+
+**O limite, na taxonomia da §7.1 acima: é degrau 1.5, não degrau 2.** Cobra
+**declaração, não concordância** — dois consumidores declarados podem continuar
+divergindo, e nenhum AST decide se duas buscas têm o mesmo propósito, porque
+propósito não é estrutura. O que muda é **quando** a duplicação fica visível: no
+commit que a cria, em vez de na nona auditoria. Para a divergência entre
+duplicatas declaradas, o que cobre é a matriz de testes.
+
+**Fonte:** `docs/progress/fase_6.md`, §8.5. **Vence em:** a sua palavra.
