@@ -35,7 +35,11 @@ a §1.6 que aquele registro passou a fase inteira nomeando.
 | Id | O que é | Vence em |
 |---|---|---|
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | **condição** — a primeira ação de participante que altere estado de domínio; ver abaixo |
+| P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | **DECIDIDA** — ramo (b), `spec-change` `impacto-observavel-definido`; vence no commit em que o consumidor de `TTA` for desenhado |
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | **entrega desta fase** — já **DECIDIDA** na Fase 6; ver abaixo |
+| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | **condição** — decisão do proprietário entre três formas; vence na primeira sessão em duas branches, ou na Fase 8, o que vier primeiro |
+| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | **condição** — mérito decidido, falta medir consumidores; vence nessa medição, ou na Fase 10, o que vier primeiro |
+| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | **pré-condição** — não decidida, três formas com custos distintos; vence na próxima auditoria de checkpoint, que é a terceira oportunidade para a mesma divergência |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
 | P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário; ver abaixo |
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
