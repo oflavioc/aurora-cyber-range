@@ -65,9 +65,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 from websockets.sync.client import connect  # noqa: E402
 
+from domains.academus.api.auth import autenticacao_do_ambiente  # noqa: E402
 from domains.academus.api.repositorio import engine_do_ambiente  # noqa: E402
 from domains.academus.seed.demonstracao import carregar  # noqa: E402
-from range_core.api import tokens  # noqa: E402
 
 RANGE = os.environ.get("AURORA_DEMO_RANGE_URL", "http://127.0.0.1:8000")
 ACADEMUS = os.environ.get("AURORA_DEMO_ACADEMUS_URL", "http://127.0.0.1:8001")
@@ -83,6 +83,20 @@ INJECT = "A01"
 #: de "ja estava la".
 ALUNO = "A-1002"
 TURMA = "T-2002"
+
+#: A persona que o token de dominio carrega — B1 da oitava auditoria.
+#:
+#: `aluno` e `professor` sao PAPEL de dominio, e nao persona: o vocabulario de
+#: persona e o das SETE de `03` §6, e `aluno` nao esta nele. Entre as duas do
+#: `pack_minimo` (`personas: [ti, reitoria]`, D13) a escolha e `ti`, que e
+#: exatamente a que `09` §1 usa no envelope normativo com
+#: `producer: academus-api`. Os testes desta superficie escolheram a mesma.
+#:
+#: Ela nao autoriza nada — `01` §6: papel de dominio autoriza a rota, persona
+#: identifica quem agiu. O que ela faz e chegar ao envelope, e e por isso que
+#: `verify` a exige e nao ha default: um default carimbaria no store append-only
+#: uma persona que nao agiu.
+PERSONA = "ti"
 
 #: Item 2 da DoD. O numero e de relogio de parede e atravessa dois containers —
 #: a prova de PROTOCOLO (nao ha espera no caminho do frame) esta na suite, por
@@ -120,8 +134,11 @@ def _passo(rotulo: str, detalhe: str = "") -> None:
 def main() -> int:
     dsn = os.environ.get("DATABASE_URL")
     _exige(bool(dsn), "DATABASE_URL ausente: o DEMO precisa semear os seis registros.")
-    segredo = os.environ.get("AURORA_JWT_SECRET", "")
-    _exige(bool(segredo), "AURORA_JWT_SECRET ausente.")
+    # A CONFERENCIA FICA, e o segredo nao viaja daqui: quem le `AURORA_JWT_SECRET`
+    # e `autenticacao_do_ambiente`, mais abaixo. Esta linha existe para que as
+    # tres variaveis do DEMO falhem no MESMO lugar e com a mesma forma de
+    # mensagem, em vez de a terceira estourar quinze linhas adiante.
+    _exige(bool(os.environ.get("AURORA_JWT_SECRET")), "AURORA_JWT_SECRET ausente.")
     credencial = os.environ.get("AURORA_GM_PASSWORD", "")
     _exige(bool(credencial), "AURORA_GM_PASSWORD ausente.")
 
@@ -136,7 +153,19 @@ def main() -> int:
     # esta `planejada` na superficie do adapter, e a Fase 3 recusou de proposito
     # um endpoint que assina o papel pedido no corpo. Quem assina aqui e um
     # script de facilitacao com o segredo em maos — o mesmo estatuto do seed.
-    token_do_aluno = tokens.issue(ALUNO, "aluno", secret=segredo)
+    #
+    # QUEM ASSINA E O EMISSOR DO ADAPTER, e nao o do nucleo — B1 da oitava
+    # auditoria. Ate aqui este script chamava `range_core.api.tokens.issue`, que
+    # assina `{sub, role, exp}` e serve OUTRA superficie: a do gm-console
+    # (`range-core/api/app.py:259`). Quando a fase pos `persona` no token de
+    # dominio, `EXIGIDAS` da `academus-api` passou a pedir quatro claims e este
+    # token deixou de verificar — 401 na PRIMEIRA matricula, com a stack inteira
+    # correta. `Autenticacao.emitir_token` e o mesmo caminho que a producao usa e
+    # que os testes desta superficie ja usavam, e ele julga `role` contra
+    # `papeis_de_dominio` de brinde: aqui o script deixa de poder assinar um
+    # papel que a superficie nao declara.
+    autenticacao = autenticacao_do_ambiente()
+    token_do_aluno = autenticacao.emitir_token(ALUNO, "aluno", PERSONA)
 
     codigo, corpo = _pede(f"{RANGE}/session", metodo="POST", corpo={"credencial": credencial})
     _exige(codigo == 200, f"POST /session respondeu {codigo}: {corpo!r}")
@@ -167,7 +196,7 @@ def main() -> int:
             f"{ACADEMUS}/enrollment",
             metodo="POST",
             corpo={"student_id": "A-1001", "class_id": TURMA},
-            token=tokens.issue("A-1001", "aluno", secret=segredo),
+            token=autenticacao.emitir_token("A-1001", "aluno", PERSONA),
         )
         _exige(codigo == 201, f"matricula antes do inject respondeu {codigo}: {corpo!r}")
         _passo("matricula antes", "201")

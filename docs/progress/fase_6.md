@@ -1588,3 +1588,151 @@ o que estiver escrito. Se a **forma** da afirmação mudar — e não o número 
   Enquanto o candidato não existe elas reprovam por divergência de SHA, que é o
   comportamento certo e não um defeito da árvore (`docs/process/WORKFLOW.md`,
   P4-10 e a medição do seed).
+
+### 7.6 B1 da oitava auditoria — o chamador de produção ficou para trás
+
+**FAIL justificado, e confirmado na fonte.** A peça anterior pôs `persona` no
+token de domínio, atualizou os testes daquela superfície e **não atualizou
+`scripts/demo_fase4.py`**, que continuava assinando com
+`range_core.api.tokens.issue` — `{sub, role, exp}` — e mandando o token para a
+`academus-api`, cujo `EXIGIDAS` passara a pedir quatro claims. Resultado: 401 na
+**primeira** matrícula do DEMO, com a stack inteiramente correta. Os 716 testes
+ficaram verdes exercitando o caminho novo; o único artefato que exercita a
+montagem real ficou no antigo.
+
+#### A varredura, antes de qualquer linha
+
+O laudo nomeava um consumidor. O universo é *"quem produz uma credencial, e para
+qual superfície ela vai"*, e ele tem **oito** lugares:
+
+| Lugar | O que faz | Estado |
+|---|---|---|
+| `range-core/api/app.py:259` | assina com o emissor do núcleo, para a superfície do **console** | ✅ é o par certo — e é o **único** chamador legítimo daquele `issue` |
+| `range-core/participant/api/app.py:101` | assina com o emissor de **participante**, para a superfície de participante | ✅ |
+| `domains/academus/api/auth.py:130` | assina com o emissor do **adapter**, para a `academus-api` | ✅ |
+| `scripts/demo_fase4.py:139,170` | assinava com o emissor do **núcleo** e mandava para a `academus-api` | ❌ **o B1 — corrigido aqui** |
+| `scripts/sobe_sala.py:53` | importa `jwt_secret`, **não assina nada**, e sobe só o `range-api` | ✅ **não é a mesma classe** |
+| `scripts/prova_reinicio_de_container.py:94` | manda `Bearer`, mas o token vem de `POST /session` do `range-api` — a rota, não o emissor | ✅ |
+| `range-core/web/gm-console/main.tsx:53,65` | idem: token do console, obtido pela rota | ✅ |
+| `domains/academus/api/processo.py:62`, `range-core/api/processo.py:61` | leem `jwt_secret` no boot e o entregam pronto | ✅ não emitem |
+
+**`sobe_sala.py` não tem o defeito, e a distinção é o trabalho.** Ele importa do
+mesmo módulo, e é por isso que ele aparece na varredura — mas o que ele importa é
+o **segredo**, não o emissor, e o que ele monta é o `range-api`, que verifica com
+o `verify` do núcleo. Consumidor do módulo e assinante para a superfície de
+domínio são conjuntos diferentes, e `grep` por módulo devolve a união dos dois.
+
+**O achado que a varredura acrescenta é negativo, e vale registrá-lo:** fora de
+`range-core/api/app.py`, **nenhum lugar do produto precisa de
+`range_core.api.tokens.issue`**. Quem quer token de console pede à rota que
+existe para emiti-lo. Isso não é acaso — é a propriedade que o degrau 2 do mapa
+abaixo transforma em verificador.
+
+#### O conserto
+
+`demo_fase4.py` passa a usar `autenticacao_do_ambiente().emitir_token(sub, papel,
+PERSONA)` — o caminho que a produção usa e que os testes desta superfície já
+usavam. Não é só trocar de emissor: `emitir_token` é o único lugar do produto que
+julga `role` contra `papeis_de_dominio`, então o script deixa de poder assinar um
+papel que a superfície não declara. `EXIGIDAS` **não** foi relaxada, e não há
+default para `persona`: é a decisão do `spec-change` #52, e afrouxá-la para
+acomodar um chamador seria inverter a regra de que o código é que está errado.
+
+**A persona é `ti`, e a escolha tem razão.** `aluno` é papel de domínio e não está
+no vocabulário das sete de `03` §6; entre as duas do `pack_minimo`
+(`personas: [ti, reitoria]`) a escolha é a mesma que `09` §1 usa no envelope
+normativo com `producer: academus-api`, e a mesma que os testes escolheram.
+
+### 7.7 A quarta ocorrência da classe, e o mapa para transformá-la em mecanismo
+
+**As quatro, nesta fase:** o sétimo contrato com o CI ainda afirmando seis; o venv
+da auditoria ausente da branch; a precondição de boot do pack sem varrer o
+gravador; e agora o contrato do token sem varrer o chamador de produção.
+
+**Duas regras já estão escritas** (§3.4 e a irmã), pela mesma mão, duas seções
+acima — e a classe reincidiu assim mesmo. **O modo de falha não é ignorar a
+regra: é não reconhecer que *esta* mudança é uma instância dela.** A regra cobra
+uma varredura *depois* de uma classificação, e é a classificação que falha. Um
+mecanismo não pede classificação nenhuma: ele dispara sobre o artefato.
+
+#### Por que hoje só a prova de container pega
+
+Estaticamente, `demo_fase4.py` importar `range_core.api.tokens` é **legal** —
+`range-core/api/app.py` faz o mesmo e precisa fazer. A ilegalidade só existe
+**em relação ao destino da requisição**, e o destino é `ACADEMUS`: uma constante
+de módulo com default de ambiente, isto é, uma **string resolvida em runtime**.
+
+Nenhum grafo de import, nenhuma igualdade AST × YAML e nenhum catálogo liga
+*"assinou com o emissor A"* a *"mandou para a superfície B"*, porque essa ligação
+é **dado, e não estrutura** — e todo verificador desta árvore trabalha sobre
+estrutura. O único instrumento que observa o caminho do dado é o que o executa.
+
+Vale a comparação com o M1 da mesma peça, que **pegou** o defeito irmão no
+envelope: `ConformeAoContrato` mede o **objeto produzido**, e por isso não
+precisa saber quantos chamadores existem. O token também tem objeto — mas o
+objeto só existe em runtime e a validade dele depende do destino. Por isso a
+verificação acontece dentro do sistema em execução, e chega como 401.
+
+#### Os três degraus, com o que cada um cobra e o que cada um deixa passar
+
+**Degrau 1 — desduplicar o fato.** Onde a exigência puder ser *derivada* em vez de
+*afirmada*, a classe deixa de existir. É o que funcionou uma vez nesta fase: o
+CI parou de dizer `== 6` e passou a derivar de `contracts_dir()`. Custo quase
+zero; cobertura total **para os fatos que aceitam derivação**. O fato do token
+não aceita: qual emissor serve qual superfície é decisão, não contagem.
+
+**Degrau 1.5 — a regra ancorada no artefato, e não na memória.** Um hook que
+dispare quando o commit toca `EXIGIDAS`, `_payload` ou `token.claims` de um
+`api_surface.yaml`, e **imprima a lista de chamadores daquele emissor**. Não
+bloqueia — não tem como saber se a varredura aconteceu —, mas troca *"lembrar da
+regra"* por *"a lista está na tela"*. Custo baixo. Cobertura humana, e é honesto
+dizer que é isso.
+
+**Degrau 2 — allowlist de chamadores por emissor.** Este teria pego o B1,
+estaticamente, com a mesma forma do `check_core_boundary.py`. O conjunto de
+emissores é **três e fechado**, e o de chamadores legítimos de cada um é pequeno
+e fechado:
+
+| Emissor | Quem pode chamá-lo |
+|---|---|
+| `range-core/api/tokens.py::issue` | `range-core/api/app.py` (a rota que troca credencial por token) e os testes dele |
+| `range-core/participant/api/tokens.py::issue` | `range-core/participant/api/app.py` e os testes daquela superfície |
+| `domains/academus/api/tokens.py::issue` | `domains/academus/api/auth.py::emitir_token` e os testes; quem fala com a `academus-api` chega por `emitir_token` |
+
+A checagem é AST pura: achar as chamadas, resolver o módulo importado, exigir que
+o arquivo esteja na lista daquele emissor. **Sem casar prosa, sem overmatch** — é
+a objeção que desligou o verificador de precondição de boot na §3.4, e ela não se
+aplica aqui. E metade da tabela **já existe**: `check_api_surface.py::PERFIS`
+carrega `MODULO_DO_TOKEN` por superfície; o que falta é a terceira coluna.
+
+**O limite dele, dito:** a allowlist é por arquivo, e vai cega no dia em que um
+arquivo precisar falar com **duas** superfícies — ele estaria na lista dos dois
+emissores e escolher o errado voltaria a passar. O que fecha esse buraco é o
+achado negativo da §7.6: **nenhum cliente precisa do `issue` do núcleo**, porque
+o token de console sai da rota. Com a lista do núcleo tendo exatamente um
+elemento, o caso de dois emissores no mesmo arquivo deixa de ser exprimível — e é
+essa propriedade, não a lista, que faz o degrau 2 valer.
+
+**Degrau 3 — execução.** O que sobra. E sobra por natureza, não por preguiça:
+
+| Contrato | Objeto medível fora de execução? | Mecanismo possível | Hoje |
+|---|---|---|---|
+| **envelope** | sim — o documento emitido | `ConformeAoContrato` sobre o produzido | ✅ existe, é o M1, e foi ele que pegou o defeito irmão |
+| **token** | o objeto é de runtime, e a validade depende do **destino** | degrau 2: trocar o dado por estrutura, proibindo o import | ❌ não existe; quem pegou foi a prova de container |
+| **boot** | **não** — é procedimento, não objeto | nenhum sem casar prosa (§3.4 mediu: sete sítios, três deles bloco `USO`) | ❌ e declarado assim desde a §3.4 |
+
+**A resposta honesta, por linha:** para o **token**, *não* é verdade que só a
+prova de container cobre — o degrau 2 é escrevível e barato, e é o que eu
+recomendaria se a decisão fosse minha. Para o **boot**, é verdade: não há
+verificador sem casar prosa, e a prova de container é o único instrumento. Isso
+não é lacuna a fechar depois; é o argumento de que **a prova de container tem de
+ser gate obrigatório, e não opcional** — ela é a única cobertura da terceira
+linha, e um gate que se pode pular não cobre nada.
+
+**A forma geral, que é o que sai daqui:** a classe fecha quando a exigência é
+conferida sobre o **objeto que ela governa**, e não sobre os caminhos que o
+produzem. Onde não há objeto — precondição de boot é procedimento —, não há o que
+medir, e sobra a execução.
+
+**Vence em:** a sua palavra. Nada disto foi implementado nesta peça; o conserto é
+o da §7.6, e o mapa está aqui para ser decidido, não executado.
