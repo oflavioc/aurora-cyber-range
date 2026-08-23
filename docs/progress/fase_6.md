@@ -1734,5 +1734,17 @@ conferida sobre o **objeto que ela governa**, e não sobre os caminhos que o
 produzem. Onde não há objeto — precondição de boot é procedimento —, não há o que
 medir, e sobra a execução.
 
-**Vence em:** a sua palavra. Nada disto foi implementado nesta peça; o conserto é
-o da §7.6, e o mapa está aqui para ser decidido, não executado.
+#### Uma quinta ocorrência começou nesta peça, e foi um mecanismo que a parou
+
+Commitar o relatório da oitava auditoria levou `docs/progress/` de 41 para 42, e
+o README continuava dizendo **41**. É a mesma classe — instância criada, quem
+afirma a contagem não varrido —, e ela não chegou a existir como defeito porque
+`check_readme_atual.py` **deriva o número da árvore** e reprovou na mesma sessão,
+com o número certo na mensagem.
+
+Não é anedota: é o degrau 1 medido em campo, e no eixo em que a regra escrita
+falhou quatro vezes. O que separa este caso dos outros quatro não é cuidado — é
+que aqui a afirmação tinha um objeto do qual derivar.
+
+**Vence em:** a sua palavra. Nada do mapa foi implementado nesta peça; o conserto
+é o da §7.6, e o mapa está aqui para ser decidido, não executado.
