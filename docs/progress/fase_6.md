@@ -409,13 +409,31 @@ commit que cria a precondição, e ela agora é regra escrita, ao lado da irmã.
 Verificador tem `_probes.py`; **computador tem violação plantada na
 implementação**, fora da árvore, e o número de testes vermelhos é a medida:
 
-| Unidade | Violações plantadas | Reprovadas |
-|---|---|---|
-| `check_insumo_de_metrica` | 6, mais o positivo do consumidor que só anota | 6 |
-| `metrics/epoch.py` | 2 — união virando soma, `rehearsal` sem descarte | 2 |
-| `metrics/verificacao.py` | 4 — linhagem, T0 ingênuo, `rehearsal`, desconto | 4 |
-| `metrics/declaracao.py` | 5 — `TTID` no primeiro, `TTID` sem predicado, última declaração, qualquer inject, reinício de epoch | 5 |
-| derivação das nove siglas | 5, plantadas **na tabela**, em cópia da spec | 5 |
+| Unidade | Violações plantadas | Reprovadas | Natureza da prova |
+|---|---|---|---|
+| `check_insumo_de_metrica` | 6, mais o positivo do consumidor que só anota | 6 | **reexecutável** — `check_insumo_de_metrica_probes.py`, versionado, e executado pelo auditor na décima rodada |
+| `metrics/epoch.py` | 2 — união virando soma, `rehearsal` sem descarte | 2 | **ATESTAÇÃO DO AUTOR** |
+| `metrics/verificacao.py` | 4 — linhagem, T0 ingênuo, `rehearsal`, desconto | 4 | **ATESTAÇÃO DO AUTOR** |
+| `metrics/declaracao.py` | 5 — `TTID` no primeiro, `TTID` sem predicado, última declaração, qualquer inject, reinício de epoch | 5 | **ATESTAÇÃO DO AUTOR** |
+| derivação das nove siglas | 5, plantadas **na tabela**, em cópia da spec | 5 | **ATESTAÇÃO DO AUTOR** |
+
+> **AS DEZESSEIS DAS QUATRO ÚLTIMAS LINHAS SÃO ATESTAÇÃO DO AUTOR, E NÃO PROVA
+> REEXECUTÁVEL.** A violação foi plantada na implementação, o vermelho foi
+> observado, e a árvore foi restaurada — nada ficou versionado que alguém possa
+> rodar. Medido pelo auditor na décima rodada (L3): não há
+> `test_metrics_*_probes.py`, e `grep -rln "mutation_harness" tests/` devolve
+> cinco arquivos, **nenhum** de métrica.
+>
+> **A marca existe porque a §7.3.1 se aplica ao registro tanto quanto ao código.**
+> Uma afirmação de prova negativa que ninguém pode reexecutar tem a forma de
+> prova e o peso de declaração — e a auditoria seguinte a lê como prova, que é
+> exatamente o que a §7.3.1 nomeia. Sem esta marca, a Fase 7 herdaria dezesseis
+> negativos que não existem como artefato.
+>
+> **Por que é registro e não conserto:** a classe de defeito que o harness
+> pegaria está coberta **estruturalmente** por `check_insumo_de_metrica`, que
+> rodou com seis negativos e o controle positivo. O que falta é o artefato que
+> torna a afirmação reexecutável, e ele é a **P6-13**.
 
 ## 4. A peça 6 — a calibração
 
@@ -596,6 +614,8 @@ Prefixo `P6-`.
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
 | P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **VENCIDA E RESOLVIDA** — decisão do operador, e o verificador existe |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **decisão** — ver abaixo |
+| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário, depois do merge; ver abaixo |
+| P6-13 | dezesseis violações plantadas declaradas na §3.5 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
 | P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor — **herdada**, com esta fase como destinatário | **MIGRADA para a Fase 7**, com gatilho corrigido — ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
@@ -1298,6 +1318,78 @@ uma terceira lista é mais barata que qualquer das outras opções.
 **Vence em:** esta decisão. É a única pendência da fase que **não** espera
 condição externa — o mecanismo existe e o lugar está escolhido; falta a sua
 palavra sobre ignorar × recusar.
+
+#### P6-12 — a condição (4) da contrassinatura não pode disparar em produção
+
+**M1 da décima auditoria, e o mérito é meu, não do achado.** A decisão está
+escrita na §1 desta fase: *"`actor_id` identifica **credencial, não humano**. A
+condição (4) — `actor_id` distintos — pega **reuso de credencial**, e não
+dualidade humana"*. O limite ficou declarado em
+`range-core/participant/api/tokens.py:34-38` em vez de parecer garantia, e a
+frase que fecha o parágrafo dizia que credencial pessoal futura daria dentes à
+condição (4) **sem tocar a spec**.
+
+**A medição mostra que a condição não pega nem o que eu escrevi que ela pegaria.**
+`range-core/participant/api/app.py:101` emite `tokens.issue(persona, persona,
+...)` — `sub` recebe o próprio valor de `persona` —, e `_declara` propaga
+`actor_id = claims.sub`. Com isso `actor_id` é **função de `persona`**: satisfeita
+a condição (2), que exige personas distintas, a (4) passa a ser satisfeita por
+construção. A comparação `antecedente.actor_id == actor_id`
+(`range-core/declarations/contrassinatura.py:106`) não tem como disparar em
+produção — nem para dualidade humana, nem para reuso de credencial, que era a
+metade que eu afirmei estar coberta. `tests/test_participant_emissao_pela_rota.py:134`
+afirma `evento.actor_id == persona`, e é a confirmação por execução.
+
+**O que fica errado não é o mecanismo — é o que a norma promete.** `03` §3.4
+escreve a condição (4) com a justificativa *"um mesmo operador com duas
+credenciais satisfaria as personas e assinaria sozinho"*. **A spec é o que alguém
+lê**, e ela promete uma barreira que o sistema não tem. O limite declarado no
+docstring de `tokens.py` e neste registro não alcança quem lê a norma.
+
+**As duas saídas:**
+
+| Saída | O que ela faz | O que custa |
+|---|---|---|
+| **(a) a norma passa a dizer o que o mecanismo faz** | `03` §3.4 declara que a (4) é condição **estrutural** — ela existe escrita na forma certa e ganha dentes quando houver identidade de credencial —, e a justificativa deixa de prometer a barreira | `spec-change`, em PR próprio e antes de qualquer código. E aceita, por escrito, que hoje a autocontrassinatura por posse dupla não é barrada |
+| **(b) `sub` passa a ser identidade de credencial** | a (4) volta a morder no caso que ela nomeia: emissão com `sub` derivado da credencial usada, e não da persona pedida | mexe na emissão de token da superfície de participante e nas sete credenciais de ambiente. É código, e o candidato auditado é `c3051dc` |
+
+**Vence em:** a sua palavra, **depois do merge**. Nenhum item da DoD da Fase 6
+cobra credencial por humano, e nem `01` §6 nem `05` §8 a exigem — por isso é
+pendência e não conserto. É pauta da Fase 7.
+
+#### P6-13 — dezesseis violações plantadas que ninguém pode reexecutar
+
+**L3 da décima auditoria.** A tabela da §3.5 declara violações plantadas em
+`metrics/epoch.py` (2), `metrics/verificacao.py` (4), `metrics/declaracao.py` (5)
+e na derivação das nove siglas (5) — **dezesseis** —, todas "fora da árvore": a
+violação foi plantada, o vermelho foi observado, a árvore foi restaurada. Não há
+`test_metrics_*_probes.py`, e `mutation_harness` não aparece em arquivo de
+métrica nenhum.
+
+**A marca já está na §3.5, e ela é o conserto desta pendência no que ele tem de
+imediato:** as quatro linhas passam a dizer **ATESTAÇÃO DO AUTOR**, e a primeira
+linha da mesma tabela — `check_insumo_de_metrica`, com `_probes.py` versionado e
+executado pelo auditor — passa a dizer **reexecutável**. A distinção existir na
+própria tabela é o que impede a leitura errada.
+
+**Por que marcar importa mais do que parece.** Afirmação de prova negativa que
+ninguém pode reexecutar tem a **forma** de prova e o **peso** de declaração. É a
+§7.3.1 aplicada ao registro da fase, e não ao código: a auditoria seguinte lê o
+registro como fonte, e dezesseis negativos declarados sem artefato entram como
+cobertura que não existe. O auditor da décima rodada disse a frase exata —
+*"a afirmação é atestação: eu não consigo reexecutá-la"* — e a listou entre o que
+**não conseguiu verificar**.
+
+**Por que é registro e não conserto:** a classe de defeito que o harness pegaria
+está coberta estruturalmente por `check_insumo_de_metrica` — seis negativos e o
+controle positivo, executados —, e nenhum item da DoD depende dos dezesseis. `06`
+T10 exige teste negativo próprio de **verificador**, e os verificadores têm.
+
+**Vence em:** o artefato que torne a afirmação reexecutável — um
+`test_metrics_*_probes.py` na forma dos que já existem, ou o `mutation_harness`
+alcançando os computadores de métrica —, **ou** a primeira vez que alguém precise
+da cobertura que a tabela declara. Enquanto não vier, a marca é o que mantém a
+declaração honesta.
 
 #### P5-2 — a categoria de trilha sem produtor, e o gatilho que disparou apontando para o lugar errado
 
