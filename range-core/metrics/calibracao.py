@@ -85,6 +85,76 @@ DEFENSIBILIDADE_TOTAL = 1.0
 #: Nao e "fica de fora": nao olhar um caso e uma resposta, e ela pontua.
 CONFIANCA_DE_NAO_AVALIADO = 0
 
+#: Os limites do contrato — `assessment.schema.yaml`, `confidence: integer 0..100`.
+CONFIANCA_MINIMA = 0
+CONFIANCA_MAXIMA = 100
+
+#: Os dois campos que ESTE modulo le. Sao eles, e nao o payload inteiro, que a
+#: recusa cobre — ver `SubmissaoForaDoContrato`.
+CAMPO_CASO = CASO
+CAMPO_CONFIANCA = CONFIANCA
+
+
+class SubmissaoForaDoContrato(Exception):
+    """`assessment_submitted` cujo payload o contrato proibe. **Recusa alta.**
+
+    A P6-11, decidida pelo operador depois do fechamento da Fase 6. O que ela
+    substituiu: `_por_caso` ignorava payload malformado e deixava `confidence`
+    fora de faixa passar inteiro. Medido nesta arvore, antes do conserto:
+
+    ======  =============  ===========  ==================================
+    valor   defensibility  brier        sinal comportamental
+    ======  =============  ===========  ==================================
+    900     1.0            **64.0**     nenhum
+    900     0.0            81.0         **overconfidence FALSO**
+    -1      1.0            1.0201       **underconfidence FALSO**
+    100.5   1.0            1.0          **underconfidence FALSO**, "nao avaliado"
+    "90"    1.0            1.0          **underconfidence FALSO**, "nao avaliado"
+    True    1.0            0.9801       **underconfidence FALSO** (entrou como 1)
+    ======  =============  ===========  ==================================
+
+    **POR QUE NAO E "IGNORAR E NOMEAR", como `Calibracao.nao_avaliados`.** Aquela
+    lista nomeia ausencia COM significado pedagogico: o AAR distingue *"avaliou com
+    confianca zero"* de *"nao avaliou"*, e isso e informacao sobre a equipe.
+    `confidence: 900` nao e informacao sobre nada — e dado que o contrato proibe
+    entrando por caminho que nao valida. Trata-lo como sinal inventaria semantica
+    para lixo, e criaria uma terceira categoria que nenhuma secao define.
+
+    **A GRAVIDADE E DE `03` §5.4, e nao do Brier.** Os sinais tem bordas exatas —
+    `>= 80` sobre `<= 0.2`, `<= 30` sobre `= 1.0`. Fora de faixa nao so desloca o
+    escore: **cai do lado errado de uma borda e produz sinal comportamental
+    FALSO**, e a tabela acima mede as duas direcoes. `03` §5.4 le overconfidence
+    como *"falsa acusacao — anular nota de formando inocente"*: um dado corrompido
+    viraria **acusacao pedagogica contra a equipe**.
+
+    **CLAMPAR E PIOR, e por isso nao foi escolhido.** `900 -> 100` produz
+    overconfidence **plausivel e indistinguivel da real** — o defeito deixaria de
+    ter qualquer sintoma, que e a forma exata que `00` §3.2 nomeia.
+
+    **O QUE ELA COBRE, DITO COM PRECISAO:** os dois campos que este modulo LE, e
+    nao o payload inteiro. `classification`, `evidence` e `justificativa` sao do
+    contrato e nao sao lidos aqui; recusar por eles faria o computador validar o
+    que nao consome, e isso e da rota. A regra e uma so — *o computador nao
+    inventa semantica para o que le e nao consegue interpretar* —, e por isso
+    `case_id` invalido tambem recusa, com `caso is None`.
+
+    **ULTIMA LINHA, E NAO A PRIMEIRA.** A defesa real e a rota validar contra o
+    contrato antes de gravar: aqui a submissao ja e evento, e o event store e
+    append-only. Ver a P7-1 no registro da Fase 7.
+    """
+
+    def __init__(self, campo: str, caso: str | None, valor: object) -> None:
+        super().__init__(
+            f"`{campo}` fora do contrato em `assessment_submitted`: {valor!r}"
+            + (f" (caso {caso})" if caso is not None else " (submissao sem `case_id`)")
+            + ". `assessment.schema.yaml` fixa `case_id` no padrao `GC-<numero>` e "
+            "`confidence` em inteiro 0..100. A recusa e alta de proposito: ver a "
+            "P6-11 e o docstring desta excecao."
+        )
+        self.campo = campo
+        self.caso = caso
+        self.valor = valor
+
 
 @dataclass(frozen=True)
 class CasoDeGabarito:
@@ -226,9 +296,14 @@ def escore(
 def _por_caso(submissoes: Sequence[Event]) -> dict[str, int]:
     """`case_id -> confidence` da ULTIMA submissao de cada caso, na ordem do fluxo.
 
-    Submissao sem `case_id` ou sem `confidence` e ignorada: o contrato os exige
-    (`assessment.schema.yaml`), e um `KeyError` aqui pararia o escore inteiro por
-    causa de um evento malformado que o contrato ja recusa na entrada.
+    **RECUSA payload que o contrato proibe** — `SubmissaoForaDoContrato`, e o
+    argumento inteiro esta la. A versao anterior ignorava, e o docstring dela dizia
+    que um evento malformado *"o contrato ja recusa na entrada"*. A P6-11 mediu que
+    nao recusa: o event store nao valida payload, e isso vale para todo evento.
+
+    A guarda mora AQUI, e nao em `escore`, porque os dois consumidores passam por
+    ela: o escore completo e o `brier` que o computador de `TTIV` (`03` §3.3)
+    recalcula a cada prefixo. Em `escore`, o caminho de `TTIV` seguiria cru.
     """
     correntes: dict[str, int] = {}
     for evento in submissoes:
@@ -236,10 +311,24 @@ def _por_caso(submissoes: Sequence[Event]) -> dict[str, int]:
             continue
         caso = evento.payload.get(CASO)
         confianca = evento.payload.get(CONFIANCA)
-        if not isinstance(caso, str) or not isinstance(confianca, int):
-            continue
+        if not isinstance(caso, str):
+            raise SubmissaoForaDoContrato(CAMPO_CASO, None, caso)
+        if not _confianca_conforme(confianca):
+            raise SubmissaoForaDoContrato(CAMPO_CONFIANCA, caso, confianca)
         correntes[caso] = confianca
     return correntes
+
+
+def _confianca_conforme(valor: object) -> bool:
+    """`integer 0..100`, como `assessment.schema.yaml` a escreve.
+
+    `bool` sai explicitamente: `isinstance(True, int)` e verdadeiro em Python e
+    JSON nao tem essa ponte. Sem esta linha, `True` entraria valendo `1` — numero
+    plausivel, e por isso pior que um erro.
+    """
+    if isinstance(valor, bool) or not isinstance(valor, int):
+        return False
+    return CONFIANCA_MINIMA <= valor <= CONFIANCA_MAXIMA
 
 
 def _lacunas(
