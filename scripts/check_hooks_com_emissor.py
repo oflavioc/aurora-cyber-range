@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import ast
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # Requisito 5 da Fase 0: verificacao nao modifica arquivo algum.
@@ -69,12 +70,50 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from _common import YamlError, parse_yaml  # noqa: E402
 
-DOMAINS = REPO_ROOT / "domains"
 GERADAS = REPO_ROOT / "contracts" / "generated" / "events.py"
 
-#: O construtor que carimba um evento. Quem o invoca esta emitindo — o store so
-#: acrescenta as marcas que `09` §1.1 poe do lado dele.
-CONSTRUTOR = "EventDraft"
+
+@dataclass(frozen=True)
+class Produtor:
+    """Uma raiz de instrumentacao: onde o arquivo esta e onde o tipo aparece.
+
+    LISTA DECLARADA, e nao descoberta por varredura — mesmo motivo do `SERVICOS`
+    de `check_fabrica_liga_emissor.py` e do `DECLARED_SURFACE` de
+    `check_store_read_surface.py`: produtor novo tem de passar por aqui, e
+    nenhuma heuristica preve o proximo layout.
+    """
+
+    #: Diretorio, relativo a raiz do repositorio.
+    raiz: str
+    #: Glob do arquivo de hooks dentro dele. Um por adapter em `domains/`; um so
+    #: na `participant-api`, que e um servico e nao uma familia.
+    padrao: str
+    #: A CHAMADA que carrega o `event_type` neste produtor. **Por produtor, e nao
+    #: uma constante do modulo** — foi o erro que `check_fabrica_liga_emissor.py`
+    #: cometeu na primeira versao e registrou: exigir a convencao de um adapter do
+    #: nucleo reprova o que esta certo, e e assim que um gate vira ruido que
+    #: alguem desliga.
+    #:
+    #: No adapter e `EventDraft`, construido no proprio emissor com o tipo fixo.
+    #: Na `participant-api` e `_declara` — o corpo comum das nove rotas, que
+    #: recebe o `event_type` do handler e o repassa. Ali o `EventDraft` existe,
+    #: mas com `event_type=event_type`: uma VARIAVEL, e nao a constante do
+    #: catalogo. Procurar `EventDraft` la acharia zero e reprovaria as nove
+    #: estando elas corretas.
+    chamada: str
+
+
+#: AS DUAS RAIZES — `09` §6, na forma que o spec-change #52 lhe deu: a
+#: instrumentacao e declarada POR PRODUTOR, e nao por diretorio.
+#:
+#: A segunda entrou no H2 da setima auditoria. Ate ela, esta checagem varria so
+#: `domains/` — e a `participant-api`, que e do core (`01` §6) e emite as NOVE
+#: declaracoes de `03` §3.4, era estruturalmente invisivel. Medido: T9 cobria um
+#: `event_type` de trinta e tres.
+PRODUTORES: tuple[Produtor, ...] = (
+    Produtor("domains", "*/observability_hooks.yaml", "EventDraft"),
+    Produtor("range-core/participant", "observability_hooks.yaml", "_declara"),
+)
 
 #: O nome do modulo-constante que nomeia o servico produtor, `09` §1.1.
 NOME_DO_PRODUTOR = "PRODUTOR"
@@ -144,6 +183,29 @@ class _Emissao:
         self.payload = payload
 
 
+def _produtor_da_raiz(raiz: Path) -> str | None:
+    """O `PRODUTOR` da raiz, quando ele e UNICO nela.
+
+    Existe para a `participant-api`, onde a chamada que carrega o tipo esta em
+    `api/app.py` e a constante `PRODUTOR` em `api/emissor.py` — modulos irmaos do
+    mesmo servico. Sem isto a direcao (c) ficaria muda ali, e um hook poderia
+    nomear um servico que nao e quem grava.
+
+    **Unico, ou nada.** Dois `PRODUTOR` distintos sob a mesma raiz nao dizem qual
+    vale, e escolher um faria a checagem afirmar o que nao sabe.
+    """
+    achados = set()
+    for caminho in sorted(raiz.rglob("*.py")):
+        try:
+            arvore = ast.parse(caminho.read_text(encoding="utf-8"), str(caminho))
+        except (OSError, SyntaxError):
+            continue
+        nome = _produtor_do_modulo(arvore)
+        if nome is not None:
+            achados.add(nome)
+    return achados.pop() if len(achados) == 1 else None
+
+
 def _produtor_do_modulo(arvore: ast.Module) -> str | None:
     for node in arvore.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
@@ -158,27 +220,46 @@ def _produtor_do_modulo(arvore: ast.Module) -> str | None:
     return None
 
 
-def _emissoes(raiz: Path, constantes: dict[str, str]) -> list[_Emissao]:
-    """Toda `EventDraft(event_type=<CONSTANTE>, ...)` sob `raiz`."""
+def _emissoes(
+    raiz: Path, constantes: dict[str, str], chamada: str
+) -> list[_Emissao]:
+    """Toda `<chamada>(...)` sob `raiz` que carregue uma constante do catalogo.
+
+    O TIPO E PROCURADO NAS DUAS POSICOES, e a razao e o segundo produtor. No
+    adapter ele vem por palavra-chave — `EventDraft(event_type=AUDIT_QUERY_...)`.
+    Na `participant-api` ele e o quarto POSICIONAL de `_declara(request, corpo,
+    rota, INCIDENT_DECLARED)`, porque quem escolhe o tipo e o handler da rota.
+
+    Ler so a palavra-chave acharia zero no segundo e reprovaria as nove estando
+    elas corretas — o defeito que a primeira versao de
+    `check_fabrica_liga_emissor.py` cometeu e registrou.
+
+    O `payload` continua sendo lido so por palavra-chave: quando o tipo chega
+    posicionalmente, nao ha dicionario literal ao alcance, e a direcao (d) fica
+    `None` — "nao ha o que conferir", que e diferente de "nao consegui conferir".
+    """
     achadas: list[_Emissao] = []
+    produtor_da_raiz = _produtor_da_raiz(raiz)
     for caminho in sorted(raiz.rglob("*.py")):
         arvore = ast.parse(caminho.read_text(encoding="utf-8"), str(caminho))
-        produtor = _produtor_do_modulo(arvore)
+        produtor = _produtor_do_modulo(arvore) or produtor_da_raiz
         for node in ast.walk(arvore):
             if not (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Name)
-                and node.func.id == CONSTRUTOR
+                and node.func.id == chamada
             ):
                 continue
             argumentos = {
                 kw.arg: kw.value for kw in node.keywords if kw.arg is not None
             }
             tipo = argumentos.get("event_type")
-            if not isinstance(tipo, ast.Name) or tipo.id not in constantes:
+            if not (isinstance(tipo, ast.Name) and tipo.id in constantes):
                 # Literal de `event_type` ja e barrado pelo invariante 2, em
                 # `tools/check_contract_literals.py`. Segunda autoridade sobre o
                 # mesmo fato daria duas mensagens para um defeito so.
+                tipo = _constante_posicional(node, constantes)
+            if tipo is None:
                 continue
             achadas.append(
                 _Emissao(
@@ -190,6 +271,23 @@ def _emissoes(raiz: Path, constantes: dict[str, str]) -> list[_Emissao]:
                 )
             )
     return achadas
+
+
+def _constante_posicional(
+    node: ast.Call, constantes: dict[str, str]
+) -> ast.Name | None:
+    """A UNICA constante do catalogo entre os argumentos posicionais.
+
+    Exige unicidade: duas numa chamada so seriam ambiguidade, e escolher a
+    primeira faria a checagem afirmar sobre um tipo que ela nao sabe ser o
+    emitido. Nenhuma e o caso normal de uma chamada que nao emite.
+    """
+    achadas = [
+        arg
+        for arg in node.args
+        if isinstance(arg, ast.Name) and arg.id in constantes
+    ]
+    return achadas[0] if len(achadas) == 1 else None
 
 
 def _chaves_do_payload(no: ast.AST | None) -> frozenset[str] | None:
@@ -300,10 +398,17 @@ def main(argv: list[str] | None = None) -> int:
     arvore suja.
     """
     argv = sys.argv[1:] if argv is None else argv
-    domains = Path(argv[0]) if argv else DOMAINS
 
-    if not domains.is_dir():
-        return _fail(f"{_rotulo(domains)} nao existe")
+    # O CAMINHO DE CLI SUBSTITUI AS RAIZES POR UMA, na forma de `domains/`. E o
+    # contrato que a prova negativa usa desde a peca 3A, e ele nao muda com a
+    # segunda raiz: o probe monta um adapter inteiro em temporario e aponta a
+    # checagem para ele. Manter a forma de `domains/` aqui e o que faz o probe
+    # continuar exercitando as quatro direcoes sem conhecer a tabela.
+    produtores = (
+        (Produtor(argv[0], "*/observability_hooks.yaml", "EventDraft"),)
+        if argv
+        else PRODUTORES
+    )
 
     try:
         constantes = _constantes_geradas(GERADAS)
@@ -315,18 +420,34 @@ def main(argv: list[str] | None = None) -> int:
             "checagem nao reconheceria emissao alguma e passaria por vacuidade."
         )
 
-    arquivos = sorted(domains.glob("*/observability_hooks.yaml"))
-    if not arquivos:
-        return _fail(
-            f"nenhum `observability_hooks.yaml` em {_rotulo(domains)}. A checagem "
-            "passaria por vacuidade, que e o modo de falha que ela existe para "
-            "nao ter."
-        )
+    # A VACUIDADE E CONFERIDA POR RAIZ, e nao no total. Raiz declarada que nao
+    # devolve arquivo nenhum e produtor cujo arquivo SUMIU — e no total ela seria
+    # coberta pela outra, que e como a instrumentacao de um servico inteiro
+    # desapareceria sem nada acusar.
+    achados: list[tuple[Produtor, Path]] = []
+    for produtor in produtores:
+        base = Path(produtor.raiz)
+        if not base.is_absolute():
+            base = REPO_ROOT / base
+        if not base.is_dir():
+            return _fail(
+                f"{_rotulo(base)} nao existe, e a tabela PRODUTORES o declara. "
+                "Se o servico mudou de lugar, atualize a tabela — silencio aqui "
+                "seria a checagem passando por ausencia do proprio objeto."
+            )
+        arquivos = sorted(base.glob(produtor.padrao))
+        if not arquivos:
+            return _fail(
+                f"nenhum `observability_hooks.yaml` em {_rotulo(base)} "
+                f"(padrao {produtor.padrao!r}). A checagem passaria por "
+                "vacuidade, que e o modo de falha que ela existe para nao ter."
+            )
+        achados.extend((produtor, caminho) for caminho in arquivos)
 
     problemas: list[str] = []
     total_hooks = 0
     total_emissoes = 0
-    for caminho in arquivos:
+    for produtor, caminho in achados:
         adapter = caminho.parent.name
         try:
             hooks = _hooks(caminho)
@@ -334,7 +455,7 @@ def main(argv: list[str] | None = None) -> int:
             problemas.append(f"{adapter}: {erro}")
             continue
         try:
-            emissoes = _emissoes(caminho.parent, constantes)
+            emissoes = _emissoes(caminho.parent, constantes, produtor.chamada)
         except (OSError, SyntaxError) as erro:
             problemas.append(f"{adapter}: nao consegui varrer o adapter ({erro})")
             continue
@@ -348,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"{RULE}: {total_hooks} hook(s) em {len(arquivos)} adapter(s), "
+        f"{RULE}: {total_hooks} hook(s) em {len(achados)} produtor(es), "
         f"{total_emissoes} emissao(oes) achada(s); declaracao e emissao batem nas "
         "quatro direcoes (declarado x emitido, produtor, payload)."
     )

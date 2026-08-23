@@ -26,6 +26,7 @@ from domains.academus.api.auth import (
     PapelDesconhecido,
     autenticacao_do_ambiente,
 )
+from domains.academus.api import tokens as dominio
 from domains.academus.api.surface import carregar
 from range_core.api.tokens import (
     ALGORITMO,
@@ -42,6 +43,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 #: Sintetico e com folga sobre o minimo. Nunca reutilizado fora da suite.
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 OUTRO_SEGREDO = "outro-segredo-de-teste-com-mais-de-32-caracteres"
+
+#: A persona que o token de dominio passou a carregar — B1 da setima auditoria.
+#: `09` §1.1 a exige em `participant_action`, e `01` §6 (spec-change #52) a
+#: autoriza no adapter DESDE QUE ela nao autorize rota: papel autoriza, persona
+#: identifica. `emitir_token` NAO julga o valor — julgar poria o vocabulario de
+#: `03` §6 dentro do dominio —, e por isso nao ha teste de persona invalida aqui.
+PERSONA = "ti"
 
 AGORA = 1_755_000_000.0
 
@@ -143,14 +151,35 @@ class VocabularioDePapel(unittest.TestCase):
     def test_papel_de_dominio_vira_token(self):
         for papel in ("aluno", "professor", "secretaria", "financeiro"):
             with self.subTest(papel=papel):
-                token = self.autenticacao.emitir_token("U-1", papel, now=AGORA)
-                self.assertEqual(verify(token, secret=SEGREDO, now=AGORA).role, papel)
+                token = self.autenticacao.emitir_token(
+                    "U-1", papel, PERSONA, now=AGORA
+                )
+                claims = dominio.verify(token, secret=SEGREDO, now=AGORA)
+                self.assertEqual(claims.role, papel)
+                self.assertEqual(claims.persona, PERSONA)
 
     def test_papel_de_EXERCICIO_nao_vira_token(self):
         for papel in ("facilitador", "operador", "avaliador"):
             with self.subTest(papel=papel):
                 with self.assertRaises(PapelDesconhecido):
-                    self.autenticacao.emitir_token("U-1", papel, now=AGORA)
+                    self.autenticacao.emitir_token("U-1", papel, PERSONA, now=AGORA)
+
+    def test_a_PERSONA_nao_vira_papel_pela_porta_do_argumento(self):
+        """`emitir_token("U-1", "ti", ...)` recusa, e a recusa e a topologia.
+
+        `01` §6, na forma do spec-change #52: *"o que autoriza uma rota do
+        adapter e papel de dominio, nunca persona"*. Como o adapter passou a
+        aceitar `persona` no token, o eixo em que a guarda vale mudou de lugar —
+        e este caso e o que prova que ela mudou de lugar em vez de sumir.
+
+        A guarda e a mesma de sempre: `papeis_de_dominio` e lista de PERMITIDOS,
+        e `ti` nao esta la. `scripts/check_api_surface.py` fecha a outra ponta
+        recusando persona DENTRO daquela lista.
+        """
+        for persona in ("ti", "dpo", "pro_reitoria"):
+            with self.subTest(persona=persona):
+                with self.assertRaises(PapelDesconhecido):
+                    self.autenticacao.emitir_token("U-1", persona, persona, now=AGORA)
 
     def test_papel_inventado_tambem_nao(self):
         """A guarda nao e uma lista de proibidos — e a lista de permitidos.
@@ -159,7 +188,7 @@ class VocabularioDePapel(unittest.TestCase):
         `reitor` passaria. O que existe e `papeis_de_dominio`, e o resto cai.
         """
         with self.assertRaises(PapelDesconhecido):
-            self.autenticacao.emitir_token("U-1", "reitor", now=AGORA)
+            self.autenticacao.emitir_token("U-1", "reitor", PERSONA, now=AGORA)
 
     def test_o_core_nao_conhece_papel_nenhum(self):
         """`issue` assina o que mandarem — e e isso que mantem a D2 no adapter.
@@ -207,8 +236,10 @@ class BootDoAdapter(unittest.TestCase):
         self.assertEqual(autenticacao.segredo, SEGREDO)
         self.assertIn("aluno", autenticacao.superficie.papeis_de_dominio)
 
-        token = autenticacao.emitir_token("A-1001", "aluno", now=AGORA)
-        self.assertEqual(verify(token, secret=SEGREDO, now=AGORA).sub, "A-1001")
+        token = autenticacao.emitir_token("A-1001", "aluno", PERSONA, now=AGORA)
+        self.assertEqual(
+            dominio.verify(token, secret=SEGREDO, now=AGORA).sub, "A-1001"
+        )
 
     def test_SEM_segredo_o_boot_do_adapter_RECUSA(self):
         """A recusa alta chega ate aqui, e nao para em `jwt_secret`.
@@ -228,9 +259,15 @@ class ClaimsDeclaradas(unittest.TestCase):
         Duas provas do mesmo fato por caminhos diferentes: o gate le o codigo
         sem executa-lo, isto executa sem ler. Um erro que enganasse os dois
         precisaria ser o mesmo erro nas duas formas.
+
+        O EMISSOR AQUI E O DO DOMINIO, e a troca e o B1 da setima auditoria: as
+        claims declaradas em `domains/academus/api_surface.yaml` sao as DESTA
+        superficie, e o `_payload` que tem de bater com elas e o de
+        `domains/academus/api/tokens.py`. O do console assina `{sub, role, exp}`
+        e serve outra vocacao — `range-core/api/app.py:259`.
         """
         declaradas = set(carregar().claims)
-        token = issue("A-1001", "aluno", secret=SEGREDO, now=AGORA)
+        token = dominio.issue("A-1001", "aluno", PERSONA, secret=SEGREDO, now=AGORA)
         assinadas = set(
             pyjwt.decode(
                 token,

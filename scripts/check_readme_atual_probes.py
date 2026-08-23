@@ -33,6 +33,7 @@ verificador de prosa — e o unico em que "nada encontrado" poderia ser lido com
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -68,6 +69,29 @@ def _com(docs: dict[str, str], arquivo: str, de: str, para: str) -> dict[str, st
         )
     novo[arquivo] = novo[arquivo].replace(de, para, 1)
     return novo
+
+
+def _afirmacao_de_testes() -> str:
+    """A afirmacao de contagem COMO ELA ESTA no README, e nao um numero aqui.
+
+    ESTE PROBE JA QUEBROU POR ESTE MOTIVO, e o conserto e tirar o numero daqui.
+    A ancora era o literal `**684 testes**`, e a rodada que levou o README a 707
+    nao a acompanhou: o probe passou a morrer no proprio `_com` — *"o probe nao
+    ancorou"* —, que e o modo de falha CERTO, mas transformava toda peca futura
+    que mexesse no numero num tropeco.
+
+    Derivada, ela nao envelhece: o que o caso planta e a TROCA por um numero
+    errado, e o numero certo e o que estiver escrito. Se a FORMA da afirmacao
+    mudar — e nao o numero —, o `AssertionError` volta a aparecer, e ai ele
+    significa o que sempre quis significar.
+    """
+    achado = re.search(r"\*\*\d+ testes\*\*", DOCS_REAIS["README.md"])
+    if achado is None:
+        raise AssertionError(
+            "o probe nao achou a afirmacao de contagem de testes em README.md. "
+            "A FORMA mudou (nao o numero), e este probe precisa acompanhar."
+        )
+    return achado.group(0)
 
 
 def probe_verde(f) -> bool:
@@ -115,7 +139,7 @@ def probes_de_documento(f) -> list[bool]:
         ),
         (
             "contagem de testes velha",
-            _com(DOCS_REAIS, "README.md", "**684 testes**", "**450 testes**"),
+            _com(DOCS_REAIS, "README.md", _afirmacao_de_testes(), "**450 testes**"),
             "`testes` afirma",
         ),
         (

@@ -55,6 +55,13 @@ from _academus_banco import exige_banco, repositorio_limpo
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
 
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria,
+#: `09` §1.1 com `01` §6 na forma do spec-change #52. Nada NESTE arquivo depende
+#: dela: o que se mede aqui e o RBAC, e quem decide rota e o PAPEL. Persona
+#: identifica quem age no exercicio, e nunca autoriza — e a assimetria que `01`
+#: §6 fixa, e este arquivo e um lugar em que ela precisa ficar visivel.
+PERSONA = "ti"
+
 ALUNO_QUE_EXISTE = "A-1001"
 ALUNO_QUE_NAO_EXISTE = "A-9999"
 TURMA_QUE_EXISTE = "T-2001"
@@ -74,7 +81,7 @@ class RBAC(unittest.TestCase):
         )
 
     def _cabecalho(self, papel: str, sub: str = "U-1") -> dict[str, str]:
-        token = self.autenticacao.emitir_token(sub, papel)
+        token = self.autenticacao.emitir_token(sub, papel, PERSONA)
         return {"Authorization": f"Bearer {token}"}
 
     # -- o que o item 3 da DoD cobra ---------------------------------------
@@ -126,7 +133,7 @@ class RBAC(unittest.TestCase):
     def test_token_de_outra_chave_e_401_e_nao_403(self):
         """Quem nao autenticou nao teve papel negado — ele nao tem papel."""
         outra = Autenticacao(superficie=carregar(), segredo="outro" * 10)
-        alheio = outra.emitir_token("U-1", "secretaria")
+        alheio = outra.emitir_token("U-1", "secretaria", PERSONA)
         resposta = self.cliente.get(
             f"/students/{ALUNO_QUE_EXISTE}", headers={"Authorization": f"Bearer {alheio}"}
         )
@@ -189,7 +196,11 @@ class EscopoDeObjeto(unittest.TestCase):
         )
 
     def _cabecalho(self, papel: str, sub: str) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.autenticacao.emitir_token(sub, papel)}"}
+        return {
+            "Authorization": (
+                f"Bearer {self.autenticacao.emitir_token(sub, papel, PERSONA)}"
+            )
+        }
 
     def test_proprio_o_aluno_le_a_si_mesmo_e_nao_ao_colega(self):
         meu = self.cliente.get(
@@ -346,7 +357,9 @@ class FalhaFechada(unittest.TestCase):
         )
         cliente = TestClient(aplicacao)
 
-        token = aplicacao.state.autenticacao.emitir_token("U-1", "secretaria")
+        token = aplicacao.state.autenticacao.emitir_token(
+            "U-1", "secretaria", PERSONA
+        )
         resposta = cliente.get(
             "/rota-que-ninguem-declarou", headers={"Authorization": f"Bearer {token}"}
         )

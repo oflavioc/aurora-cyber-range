@@ -36,7 +36,39 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from check_hooks_com_emissor import main  # noqa: E402
+import check_hooks_com_emissor as checagem  # noqa: E402
+from check_hooks_com_emissor import Produtor, main  # noqa: E402
+
+#: O PRODUTOR DO NUCLEO tem outra forma, e por isso tem casos proprios — H2 da
+#: setima auditoria. Na `participant-api` o `event_type` nao chega ao
+#: `EventDraft` como constante do catalogo: ele e o quarto POSICIONAL de
+#: `_declara`, porque UMA funcao serve as nove rotas e quem escolhe o tipo e o
+#: handler. Um probe que so exercitasse a forma do adapter deixaria essa metade
+#: sem prova, e ela e justamente a que nasceu agora.
+APP_DO_NUCLEO = '''
+from contracts.generated.events import INCIDENT_DECLARED
+
+
+async def _declara(request, corpo, rota, event_type):
+    return event_type
+
+
+async def declarar_incidente(corpo, request):
+    return await _declara(request, corpo, "/participant/incident", INCIDENT_DECLARED)
+'''
+
+#: `PRODUTOR` vive no modulo IRMAO, e nao no que chama — e e o que
+#: `_produtor_da_raiz` existe para alcancar. Sem ele a direcao (c) ficaria muda
+#: neste produtor, e um hook poderia nomear um servico que nao e quem grava.
+EMISSOR_DO_NUCLEO = '''
+PRODUTOR = "participant-api"
+'''
+
+HOOK_DO_NUCLEO = """hooks:
+  - event_type: incident_declared
+    trigger: "POST /participant/incident"
+    producer: participant-api
+"""
 
 #: O emissor coerente: constante do catalogo, `PRODUTOR` de modulo, payload
 #: literal com os quatro campos que o hook declara.
@@ -139,6 +171,64 @@ def revogar(store):
 }
 
 
+#: `nome -> (yaml, app, emissor)`. Cada caso e um SERVICO do nucleo inteiro.
+CASOS_DO_NUCLEO: dict[str, tuple[str, str, str]] = {
+    # (a) — hook declarado e a chamada que carregaria o tipo nao existe.
+    "nucleo: hook declarado e ninguem emite": (
+        HOOK_DO_NUCLEO,
+        APP_DO_NUCLEO.replace("await _declara(", "await _outra_coisa("),
+        EMISSOR_DO_NUCLEO,
+    ),
+    # (b) — a direcao inversa, com o tipo chegando POSICIONALMENTE.
+    "nucleo: emissao posicional que o arquivo de hooks nao declara": (
+        HOOK_DO_NUCLEO.replace("incident_declared", "containment_declared").replace(
+            "/participant/incident", "/participant/containment"
+        ),
+        APP_DO_NUCLEO,
+        EMISSOR_DO_NUCLEO,
+    ),
+    # (c) — o `PRODUTOR` do modulo IRMAO diverge do hook. E o caso que prova
+    # `_produtor_da_raiz`: sem ele a checagem nao acharia produtor nenhum e esta
+    # direcao passaria calada.
+    "nucleo: producer do hook diverge do PRODUTOR do servico": (
+        HOOK_DO_NUCLEO.replace("producer: participant-api", "producer: range-api"),
+        APP_DO_NUCLEO,
+        EMISSOR_DO_NUCLEO,
+    ),
+}
+
+
+def _servico_do_nucleo(raiz: Path, yaml: str, app: str, emissor: str) -> Path:
+    """Monta a forma da `participant-api`: hooks na raiz, codigo em `api/`."""
+    (raiz / "api").mkdir(parents=True)
+    (raiz / "observability_hooks.yaml").write_text(yaml, encoding="utf-8")
+    (raiz / "api" / "app.py").write_text(app, encoding="utf-8")
+    (raiz / "api" / "emissor.py").write_text(emissor, encoding="utf-8")
+    return raiz
+
+
+def _com_produtores(tabela: tuple[Produtor, ...]) -> int:
+    """Roda a checagem contra uma tabela de raizes substituida, e restaura.
+
+    A SUBSTITUICAO E A UNICA FORMA DE ALCANCAR A SEGUNDA RAIZ, e o motivo e o
+    contrato de CLI: o caminho opcional que os casos de adapter usam assume a
+    forma de `domains/` — um diretorio de adapters, com `EventDraft`. Acrescentar
+    um segundo argumento de CLI para a `chamada` faria a checagem receber a
+    convencao por argumento, que e como um verificador aceita o par vazio e fica
+    verde provando nada.
+
+    `PRODUTORES` e tabela DECLARADA, e trocar a declaracao por outra em memoria
+    exercita o mesmo codigo com outra entrada — sem abrir porta nenhuma no
+    produto.
+    """
+    anterior = checagem.PRODUTORES
+    checagem.PRODUTORES = tabela
+    try:
+        return main([])
+    finally:
+        checagem.PRODUTORES = anterior
+
+
 def _adapter(raiz: Path, nome: str, yaml: str, python: str) -> Path:
     """Monta `<raiz>/<nome>/` com os dois arquivos, e devolve a raiz de `domains/`."""
     destino = raiz / nome
@@ -184,6 +274,61 @@ def main_probes() -> int:
         else:
             print("  reprovou como devia: `domains/` sem hook nenhum (vacuidade)")
 
+        # -------------------------------------------------------------------
+        # O PRODUTOR DO NUCLEO — H2 da setima auditoria.
+        # -------------------------------------------------------------------
+        for indice, (nome, (yaml, app, emissor)) in enumerate(
+            CASOS_DO_NUCLEO.items()
+        ):
+            raiz = _servico_do_nucleo(
+                Path(temporario) / f"nucleo{indice}", yaml, app, emissor
+            )
+            tabela = (Produtor(str(raiz), "observability_hooks.yaml", "_declara"),)
+            if _com_produtores(tabela) == 0:
+                falhas.append(f"{nome}: defeito plantado e a checagem PASSOU")
+            else:
+                print(f"  reprovou como devia: {nome}")
+
+        # POSITIVO — o servico do nucleo coerente passa, com o tipo chegando
+        # POSICIONALMENTE. Sem ele, os tres negativos acima seriam satisfeitos
+        # por uma checagem que nao enxerga `_declara` e reprova tudo.
+        raiz = _servico_do_nucleo(
+            Path(temporario) / "nucleo_positivo",
+            HOOK_DO_NUCLEO,
+            APP_DO_NUCLEO,
+            EMISSOR_DO_NUCLEO,
+        )
+        tabela = (Produtor(str(raiz), "observability_hooks.yaml", "_declara"),)
+        if _com_produtores(tabela) != 0:
+            falhas.append(
+                "servico do nucleo COERENTE foi reprovado: a checagem nao "
+                "enxerga o `event_type` posicional, e os negativos do nucleo "
+                "passam por reprovar tudo."
+            )
+        else:
+            print(
+                "  passou como devia: servico do nucleo com `event_type` "
+                "posicional em `_declara` e `PRODUTOR` no modulo irmao"
+            )
+
+        # VACUIDADE POR RAIZ — a direcao nova, e a que o total esconderia. Uma
+        # raiz declarada sem arquivo de hooks e produtor cuja instrumentacao
+        # SUMIU; conferida no total, a outra raiz a cobriria.
+        raiz = Path(temporario) / "nucleo_sem_hooks"
+        (raiz / "api").mkdir(parents=True)
+        (raiz / "api" / "emissor.py").write_text(EMISSOR_DO_NUCLEO, encoding="utf-8")
+        tabela = (
+            Produtor("domains", "*/observability_hooks.yaml", "EventDraft"),
+            Produtor(str(raiz), "observability_hooks.yaml", "_declara"),
+        )
+        if _com_produtores(tabela) == 0:
+            falhas.append(
+                "raiz declarada SEM arquivo de hooks passou porque a outra raiz "
+                "tinha arquivos. A vacuidade tem de ser conferida POR RAIZ."
+            )
+        else:
+            print("  reprovou como devia: raiz declarada sem hook nenhum (vacuidade por raiz)")
+
     # POSITIVO 3 — A ARVORE REAL. E o que pega o probe que so exercita fixture.
     if main([]) != 0:
         falhas.append(
@@ -196,10 +341,12 @@ def main_probes() -> int:
             print(f"PROVA NEGATIVA FALHOU: {falha}", file=sys.stderr)
         return 1
 
+    plantados = len(CASOS) + len(CASOS_DO_NUCLEO) + 2  # +2: as duas vacuidades
     print(
-        f"{len(CASOS) + 1} defeitos plantados, {len(CASOS) + 1} reprovados "
-        "(as quatro direcoes, mais a vacuidade); o adapter coerente passa e a "
-        "arvore real passa."
+        f"{plantados} defeitos plantados, {plantados} reprovados (as quatro "
+        "direcoes nas DUAS formas de produtor, mais a vacuidade por raiz); o "
+        "adapter coerente passa, o servico do nucleo coerente passa, e a arvore "
+        "real passa."
     )
     return 0
 

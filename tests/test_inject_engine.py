@@ -26,6 +26,11 @@ OS EVENTOS EMITIDOS SAO CONFERIDOS CONTRA O CONTRATO
 `contracts/events.schema.yaml`. O store nao valida — e decisao dele —, entao sem
 isto o engine poderia emitir por anos um envelope que o contrato recusa, e o
 primeiro a descobrir seria o consumidor de outra fase.
+
+O MECANISMO E COMPARTILHADO, e vive em `tests/conformidade_de_envelope.py`: o
+mesmo mixin roda sobre os TRES produtores da arvore. Ate a setima auditoria ele
+cobria so este, e foi a ausencia que deixou passar um envelope de
+`participant_action` sem `persona` no adapter.
 """
 
 from __future__ import annotations
@@ -36,7 +41,7 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from jsonschema import Draft202012Validator
+from conformidade_de_envelope import ValidacaoDeEnvelope
 
 from contracts.generated.events import (
     DECISION_MADE,
@@ -691,20 +696,23 @@ class RoteiroDoDemo(_ComEngine):
         )
 
 
-class ConformeAoContrato(_ComEngine):
+class ConformeAoContrato(ValidacaoDeEnvelope, _ComEngine):
     """Todo evento emitido valida contra `contracts/events.schema.yaml`.
 
-    O store nao valida — decisao dele —, entao esta e a unica camada que impede o
+    O store nao valida — decisao dele —, entao esta e a camada que impede o
     engine de emitir um envelope que o contrato recusa. `truth_layer` errado, ator
     ausente em `participant_action` e `event_type` fora da camada declarada sao
     todos recusados por aquele arquivo, e nenhum deles apareceria nos testes
     acima.
+
+    **A CLASSE E A MESMA NOS TRES PRODUTORES — M1 da setima auditoria.** Ate ela,
+    esta suite era a UNICA validacao de envelope da arvore, e a docstring dizia
+    "a unica camada" descrevendo o mecanismo enquanto o leitor entendia a
+    propriedade. Os outros dois produtores herdam o mesmo mixin, em
+    `tests/test_api_emissao_pela_rota.py` e `tests/test_participant_emissao_pela_rota.py`.
     """
 
     def test_todos_os_eventos_do_roteiro_validam(self):
-        validador = Draft202012Validator(
-            CONTRATOS["events"], registry=contract_source.registry_for(CONTRATOS)
-        )
         self.engine.start()
         self.minutos(6)
         a01 = self.engine.fire_due()[0]
@@ -720,48 +728,17 @@ class ConformeAoContrato(_ComEngine):
         # o ponto de corte do rollback anterior, entao sobreviveu a ele.
         self.engine.rollback(to_event_id=a01.event_id, reason=REASON_TECHNICAL_FAILURE)
 
-        for evento in self.store.read_all():
-            with self.subTest(event_type=evento.event_type):
-                erros = sorted(validador.iter_errors(_envelope(evento)), key=str)
-                self.assertEqual(
-                    erros, [], f"{evento.event_type}: {erros[0].message if erros else ''}"
-                )
-
-
-def _envelope(evento) -> dict:
-    """O evento na forma de documento, como o contrato o descreve.
-
-    Campos opcionais ausentes sao OMITIDOS, e nao enviados como `null`: o
-    contrato tipa `actor_id` como string, e `None` seria recusado por um motivo
-    que nao tem nada a ver com o que se quer provar.
-    """
-    documento = {
-        "event_id": evento.event_id,
-        "event_type": evento.event_type,
-        "truth_layer": evento.truth_layer,
-        "producer": evento.producer,
-        "exercise_time": evento.exercise_time,
-        "exercise_timestamp": evento.exercise_timestamp,
-        "wall_timestamp": evento.wall_timestamp,
-        "clock_multiplier": evento.clock_multiplier,
-        "simulation_epoch": evento.simulation_epoch,
-        "correlation": {
-            chave: valor
-            for chave, valor in {
-                "scenario_id": evento.correlation.scenario_id,
-                "inject_id": evento.correlation.inject_id,
-                "causation_id": evento.correlation.causation_id,
-                "fact_id": evento.correlation.fact_id,
-            }.items()
-            if valor is not None
-        },
-        "payload": dict(evento.payload),
-    }
-    if evento.actor_id is not None:
-        documento["actor_id"] = evento.actor_id
-    if evento.persona is not None:
-        documento["persona"] = evento.persona
-    return documento
+        self.assertConformeAoContrato(
+            self.store.read_all(),
+            esperados={
+                EXERCISE_STARTED,
+                INJECT_FIRED,
+                EXERCISE_PAUSED,
+                EXERCISE_RESUMED,
+                DECISION_MADE,
+                ROLLBACK_PERFORMED,
+            },
+        )
 
 
 

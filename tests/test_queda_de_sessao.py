@@ -89,6 +89,12 @@ FLAGS_YAML = REPO_ROOT / "domains" / "academus" / "flags.yaml"
 CALCULADOR = REPO_ROOT / "tests" / "_queda_de_sessao_em_outro_processo.py"
 
 SEGREDO = "segredo-de-teste-com-mais-de-32-caracteres"
+
+#: O token de dominio passou a carregar `persona` — B1 da setima auditoria.
+#: Nada NESTE arquivo depende dela: a queda de sessao e decidida pelo `sub`
+#: contra a flag proporcional, e nao por quem a pessoa e no exercicio.
+PERSONA = "ti"
+
 SEED = 20260816
 
 ROTA = "/classes/{class_id}/gradebook"
@@ -291,7 +297,10 @@ class EstavelNoRollback(unittest.TestCase):
         caidos = set()
         for sub in sujeitos:
             cabecalho = {
-                "Authorization": f"Bearer {self.autenticacao.emitir_token(sub, 'secretaria')}"
+                "Authorization": (
+                    "Bearer "
+                    f"{self.autenticacao.emitir_token(sub, 'secretaria', PERSONA)}"
+                )
             }
             resposta = self.cliente.get("/classes/T-2001/gradebook", headers=cabecalho)
             if resposta.status_code == 503:

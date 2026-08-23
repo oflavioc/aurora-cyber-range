@@ -52,6 +52,15 @@ CAMADA = "participant_action"
 PRODUTOR = "academus-api"
 
 
+class SemPersona(Exception):
+    """Emissão pedida sem o campo que `09` §1.1 torna obrigatório na camada.
+
+    Erro de programação, e não de requisição: quem chega à rota já passou por
+    `autoriza`, que só entrega `Escopo` com persona porque `tokens.verify` a
+    exige. Levantar em vez de gravar é o que impede o defeito de virar história.
+    """
+
+
 @dataclass(frozen=True)
 class Emissor:
     """O `append` do adapter, com a superfície mínima que as rotas usam.
@@ -81,6 +90,24 @@ class Emissor:
         `group_by` e `result_count`. Acrescentar campo aqui sem declarar lá faria
         o hook descrever um evento que não é o emitido.
         """
+        if not escopo.persona:
+            # RECUSA ALTA, e o lugar é este. `Escopo.persona` é opcional no tipo
+            # porque o duplo que só exercita escopo de objeto não a tem; no
+            # caminho real ela sempre chega, porque `tokens.verify` recusa token
+            # sem ela. Esta guarda é o que impede o `None` de virar envelope.
+            #
+            # Falhar aqui é caro e visível. Gravar sem persona é barato e
+            # invisível — nada falha, o store não valida, e o defeito aparece no
+            # consumidor de outra fase, com o exercício já gravado num store
+            # append-only. Foi o B1 da sétima auditoria, e é a assimetria que
+            # `09` §4 chama de a falha mais cara possível.
+            raise SemPersona(
+                "audit_query_performed sem `persona`.\n"
+                "    `09` §1.1 a torna obrigatoria em `participant_action`, e "
+                "`contracts/events.schema.yaml` a exige — o envelope nao "
+                "validaria. Quem a carrega e o token: ver "
+                "`domains/academus/api/tokens.py`."
+            )
         self.store.append(
             EventDraft(
                 event_type=AUDIT_QUERY_PERFORMED,
@@ -88,6 +115,7 @@ class Emissor:
                 producer=PRODUTOR,
                 correlation=Correlation(),
                 actor_id=escopo.sub,
+                persona=escopo.persona,
                 payload={
                     "period_start": period_start,
                     "period_end": period_end,
