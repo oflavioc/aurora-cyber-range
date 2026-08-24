@@ -66,23 +66,51 @@ cópia. O argumento inteiro de cada item está no `docs/progress/fase_6.md`, que
 fechou **AUDITADA**; repeti-lo aqui criaria duas fontes para o mesmo fato, que é
 a §1.6 que aquele registro passou a fase inteira nomeando.
 
-| Id | O que é | Vence em |
-|---|---|---|
-| P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | **condição** — a primeira ação de participante que altere estado de domínio; ver abaixo |
-| P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | **DECIDIDA** — ramo (b), `spec-change` `impacto-observavel-definido`; vence no commit em que o consumidor de `TTA` for desenhado |
-| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | **pré-condição da peça de pack** — a Fase 6 a registra como `condição`, com três gatilhos: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado. O primeiro gatilho dispara nesta fase; o estatuto de pré-condição é decisão do proprietário nesta fase, e não da Fase 6 |
-| P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | **entrega desta fase** — já **DECIDIDA** na Fase 6; ver abaixo |
-| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | **condição** — decisão do proprietário entre três formas; vence na primeira sessão em duas branches, ou na Fase 8, o que vier primeiro |
-| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | **condição** — mérito decidido, falta medir consumidores; vence nessa medição, ou na Fase 10, o que vier primeiro |
-| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | **VENCIDA** — terceira ocorrência durante o PR #56, e o gatilho declarado (a próxima auditoria) não foi o que chegou primeiro; falta a decisão entre as três formas; ver abaixo |
-| P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
-| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário; ver abaixo |
-| P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
-| P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
-| P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
-| P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | **condição** — a implementação da saída (b) da P7-2; ver abaixo |
-| P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | **DECIDIDA** — adotada a allowlist por tipo, degrau 1.5; entrega desta fase; ver §7.2 |
-| P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | **DECIDIDA** — adotado o degrau 2, allowlist de chamadores por emissor; entrega desta fase; ver §7.1 |
+**`Estado` é enum FECHADO a partir desta fase**, com estes seis valores e nenhum
+outro. Registros anteriores à Fase 7 ficam fora do escopo, como o
+`phase_anchors.tsv` já fez com as Fases 0 a 2 — reescrever registro fechado para
+caber em vocabulário novo é o que a §1.6 mede.
+
+| Valor | O que afirma |
+|---|---|
+| `ABERTA` | o gatilho não chegou |
+| `LATENTE` | o gatilho chegou e o defeito **não** apareceu |
+| `DECIDIDA` | a decisão foi tomada, a implementação está pendente |
+| `VENCIDA` | o gatilho chegou **e** o defeito apareceu |
+| `RESOLVIDA` | fechada, com o conserto no repositório |
+| `ENTREGA` | é trabalho desta fase, e não pendência a carregar |
+
+**Por que estado e gatilho deixam de dividir célula.** Até aqui a coluna
+`Vence em` carregava os dois — *"**condição** — a primeira ação de participante
+que…"* —, e qualquer verificador que quisesse perguntar *"quantas pendências
+seguem abertas?"* teria de **parsear prosa**. Prosa parseada é mecanismo que erra
+em silêncio: ele não recusa quando não entende, ele classifica errado e segue
+verde. Separadas, a pergunta de estado é uma comparação de string contra seis
+valores, e a de gatilho continua sendo texto para humano — que é o que ela é.
+
+**O `LATENTE` nasceu de um caso real, e não da simetria do enum.** A primeira
+redação tinha cinco valores, e a P6-6 não coube em nenhum: o gatilho dela chegou
+no trabalho da P7-2 e o defeito não apareceu. Forçá-la a `ABERTA` apagaria a
+informação de que o gatilho já passou uma vez sem custo — que é evidência sobre a
+forma 3 daquela pendência, e o único dado empírico que ela tem.
+
+| Id | O que é | Estado | Vence em |
+|---|---|---|---|
+| P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio; ver abaixo |
+| P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
+| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ENTREGA` | peça 3 desta fase. Três gatilhos herdados: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado; ver abaixo |
+| P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
+| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | `LATENTE` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro — o literal ocorreu no trabalho da P7-2 sem que o defeito aparecesse; ver abaixo |
+| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | `DECIDIDA` | a medição dos consumidores, ou a Fase 10, o que vier primeiro; ver abaixo |
+| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | `VENCIDA` | qualquer edição da fonte do hook — ocorreu três vezes, a última no PR #56; ver abaixo |
+| P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | `RESOLVIDA` | venceu na L1 da terceira auditoria da Fase 6; conserto no PR #54; ver abaixo |
+| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | `ABERTA` | a palavra do proprietário entre as saídas (a) e (b); ver abaixo |
+| P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | `ABERTA` | o artefato que torne a afirmação reexecutável, ou a primeira vez que alguém precise da cobertura que a tabela declara; ver abaixo |
+| P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | `ABERTA` | decisão do proprietário sobre qual das três linhas esta fase entrega; ver abaixo |
+| P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | `RESOLVIDA` | implementada no PR #56, pela saída (b): a prova nomeia a árvore; ver abaixo |
+| P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | `ABERTA` | a peça 7 desta fase — o critério dos 3 s exige o pack materializado. A janela barata era a implementação da saída (b), e passou no PR #56; ver abaixo |
+| P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ENTREGA` | peça 6 desta fase — allowlist por tipo, degrau 1.5; ver §7.2 |
+| P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ENTREGA` | peça 6 desta fase — allowlist de chamadores por emissor, degrau 2; ver §7.1 |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -654,9 +682,14 @@ trocado por baixo dela.
 mesma cegueira: o commit também só cobre o rastreado. A (b) não cria o buraco —
 ela o torna nomeável, porque passa a declarar o que de fato mede.
 
-**Vence em:** a implementação da saída (b) da P7-2. É ali que o gravador escolhe
-o que hasheia, e é o momento em que acrescentar o hash do pack materializado ao
-lado do hash da árvore custa menos.
+**Vence em:** a peça 7 desta fase — o critério dos 3 s exige o pack
+materializado, e é ali que a prova afirmaria estar em dia com um pack que não
+hasheia.
+
+**A janela barata passou.** O gatilho anterior era a implementação da saída (b),
+porque ali o gravador escolhia o que hasheia e acrescentar o pack custava quase
+nada. O PR #56 passou sem isso. O defeito não nasceu ali — ele preexiste ao SHA e
+à árvore —, mas o conserto deixou de ser de graça.
 
 #### P6-9 — VENCIDA: a terceira divergência chegou antes do gatilho
 
