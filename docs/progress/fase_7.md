@@ -46,6 +46,7 @@ a §1.6 que aquele registro passou a fase inteira nomeando.
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
 | P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
+| P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | **condição** — a implementação da saída (b) da P7-2; ver abaixo |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -323,7 +324,7 @@ outra reabriria exatamente a P6-11.
 entrega, e a rota é candidata natural porque a Fase 7 mexe na superfície de
 participante para o pack completo.
 
-#### P7-2 — a prova amarrada ao SHA não sobrevive ao rito que fecha a fase
+#### P7-2 — VENCIDA E RESOLVIDA: a prova passa a nomear a árvore, não o commit
 
 **Nasceu do fechamento da Fase 6, e o caso concreto foi só o sintoma.** Depois do
 merge do PR #53, dois verificadores passaram a reprovar na `main`:
@@ -405,8 +406,56 @@ coisa**, depois do último merge. Regravar antes de mergear este registro
 produziria uma prova sobre um `HEAD` que o próprio merge desfaz — a P7-2
 mordendo a mão de quem a escreve.
 
-**Vence em:** a sua palavra, e **nada foi decidido aqui**. O mapa está medido; a
-escolha entre (a), (b) e (c) é do proprietário.
+**DECIDIDA — saída (b): a prova amarrada à ÁRVORE.** Decisão do proprietário. Os
+gravadores passam a escrever `git rev-parse HEAD^{tree}` no lugar do SHA do
+commit, e os dois verificadores comparam árvore com árvore. A medição das três
+linhas acima é o fundamento: três merges, três pares, nenhuma diferença de
+árvore — o SHA muda, o objeto que a prova mediu não.
+
+**Por que não a (a).** É regra, e não mecanismo — degrau 1.5 da §7.1, e a classe
+que ela mede reincidiu quatro vezes. Some-se que a regravação não entra em commit
+nenhum: uma regra manual cujo resultado não deixa rastro versionado não pode ser
+auditada por ninguém além de quem a executou.
+
+**Por que não a (c).** O próprio mapa a dissolve: o predicado que separaria
+"transportada porque acabou de mergear" de "transportada porque ninguém regravou"
+só pode ser identidade de patch ou igualdade de árvore, e nesse ponto a (c) vira
+a (b). Sem predicado, é verificador saindo `ok` quando não sabe — a degradação
+que esta linhagem já aposentou duas vezes.
+
+**O que a (b) apaga, e não estava escrito.** A restrição "regravar tem de ser a
+última coisa, depois do último merge" é restrição da (a): ela existe porque a
+prova nomeia história, e história muda no merge. Com a prova nomeando árvore, a
+ordem deixa de importar.
+
+**O que a (b) NÃO cobre, e nasce como P7-3.** A árvore cobre só o conteúdo
+rastreado, e `scenarios/` está no `.gitignore` por decisão da Fase 5. É buraco
+que já existe hoje — o SHA tem a mesma cegueira —, e a (b) apenas o torna
+nomeável.
+
+**A advertência herdada do commit que corrigiu este mapa:** os dois artefatos
+continuam no `.gitignore`, e a condição (c) reprova evidência versionada. Quem
+escrever o rito precisa escrever junto que regravar não entra em commit.
+
+**Onde o conserto mora:** código puro, em PR próprio contra `main` e fora de
+qualquer branch de fase — o mesmo rito da P6-11. A Fase 7 não abriu.
+
+#### P7-3 — a árvore não cobre o pack, e o pack é insumo da prova
+
+**Nasceu da decisão da P7-2.** A saída (b) amarra a prova ao hash da árvore, e a
+árvore cobre **só o conteúdo rastreado**. `grava_provas_de_container.py`
+materializa o pack antes do `up`, e `scenarios/` inteiro está no `.gitignore` por
+decisão da Fase 5. Uma prova amarrada à árvore afirmaria estar em dia com o pack
+trocado por baixo dela.
+
+**Não é defeito introduzido pela (b).** Prova amarrada ao SHA tem exatamente a
+mesma cegueira: o commit também só cobre o rastreado. A (b) não cria o buraco —
+ela o torna nomeável, porque passa a declarar o que de fato mede.
+
+**Vence em:** a implementação da saída (b) da P7-2. É ali que o gravador escolhe
+o que hasheia, e é o momento em que acrescentar o hash do pack materializado ao
+lado do hash da árvore custa menos.
+
 ---
 
 ## 7. Pauta de mecanismo herdada — dois mapas que esperam decisão
