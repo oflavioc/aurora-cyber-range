@@ -48,6 +48,12 @@ conserto pontual contra `main`, fora desta branch.
 **A CLI não é peça própria.** Ela é a superfície das peças 2, 4 e 5: o primeiro
 critério DONE já a nomeia (`range-cli scenario lint`), e o resto se expõe por ela.
 
+**O verde de `check_progress_consistency.py` é condição de fechamento.** Ele
+reprova hoje por P7-4 e P7-5, cujas seções são o desenho das duas allowlists e
+nascem na peça 6. Até lá o vermelho é esperado e tem causa nomeada — gate que fica
+vermelho por motivo conhecido a fase inteira é gate que se aprende a ignorar, e é
+assim que ele deixa de pegar o dia em que ficar vermelho por outro motivo.
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
@@ -133,6 +139,72 @@ inscrita no código: uma afirmação verdadeira quando nasceu, falsa quando outr
 decisão a contradisse, e que nenhum verificador alcança porque é prosa em
 comentário.
 
+#### P6-2 — o *start* de `TTA` sem origem em contrato, e o ramo (b) já decidido
+
+**Herdada já DECIDIDA** (`docs/progress/fase_6.md`, §"P6-2"). `03` §3 define o
+*start* de `TTA` como *"primeiro inject com impacto observável"*, e `00` §3.2
+exige que a escolha entre injects seja **cálculo do consumidor** sobre atributos
+que viajam no payload de `inject_fired` — nunca recorte do montador do insumo. O
+atributo não existia: nem no schema de cenário, nem no de eventos, e
+`inject_fired` não emitia payload nenhum. Sem origem, `TTA` não é computável, e a
+norma fica apontando para mecanismo inexistente.
+
+**Decisão: ramo (b) — derivação pelo motor**, com o predicado virando norma pelo
+`spec-change` `impacto-observavel-definido`, que define impacto observável em `03`
+§3. O ramo (a) — campo `observable_impact` declarado pelo autor do cenário — foi
+recusado por mexer no schema de **pack**, que tem regime de versão próprio.
+
+**O predicado ditado não sobreviveu à verificação, e isso está preservado na
+fonte:** a primeira redação exigia `effects` produzindo evento de
+`truth_layer: observable_evidence`, e `effects` **não emite evento nenhum**. O
+aprovado tem três pernas — `effects`, `materializes_facts` com fato que tenha
+`projections`, e `evidence_release` — e a exclusão decidida recai sobre `reveals`,
+que alimenta crença do participante e não o mundo.
+
+**Por que não fechou na Fase 6.** O payload de `inject_fired`, o emissor e o teste
+de emissão nasceram lá, que é o que cabia num PR de código. O que falta é o outro
+lado: nada consome `TTA` ainda.
+
+**Vence em:** o commit em que o consumidor de `TTA` for desenhado — é ele que
+força a escolha, e antes dele ela seria tomada sem o caso de uso à vista.
+
+#### P6-3 — a gramática de `exercise_time`, e as três folhas que dependem dela
+
+**Herdada como `condição`** (`docs/progress/fase_6.md`, §"P6-3") **e promovida a
+pré-condição da peça 3 nesta fase**, por decisão do proprietário. As duas coisas
+convivem e nenhuma substitui a outra: a Fase 6 declarou os gatilhos; esta fase
+declarou que o primeiro deles dispara aqui.
+
+`contracts/ground_truth.schema.yaml` admite `predicate_before` e
+`predicate_after`, e o avaliador **não os implementa** — eles comparam contra o
+relógio de exercício, que não é parte do mundo que ele monta. `since` entrou na
+mesma pendência, e não abriu uma própria: as três folhas comparam contra o mesmo
+campo, e duas gramáticas para `exercise_time` divergiriam em predicado que
+verifica num caminho e não no outro.
+
+**O que a Fase 6 implementou, e por isso a ausência é contida e não silenciosa:**
+o instante de referência derivado da linhagem corrente; `confere_folhas_temporais`
+recusando o pack **na carga**, nomeando folha e motivo enquanto ainda dá para
+consertar; e a segunda linha no avaliador, que levanta `SemGramaticaTemporal` em
+vez de responder — as duas respostas plausíveis são piores, porque falso faz a
+contenção nunca verificar e verdadeiro a faz verificar com vazamento em curso.
+
+**Por que não fechou.** Falta a gramática, e o adiamento é legítimo por medição e
+não por conveniência: **não existe produtor de `fact_materialized`**, então
+`Mundo.fatos` é vazio em produção e nenhum comportamento de hoje depende da
+escolha. O que se adia é a comparação, não a semântica — essa está em `03` §3.1
+desde o `spec-change` #49.
+
+**O que a decisão precisa escolher:** contra o que o predicado temporal compara —
+`exercise_time`, `exercise_timestamp` ou marca de parede. As três dão resultados
+diferentes depois de um rollback, e por isso é escolha normativa e não improviso
+de implementação.
+
+**Vence em:** três gatilhos, e o primeiro dispara nesta fase — o primeiro pack que
+precise de folha temporal, a implementação do suporte temporal, ou o primeiro
+produtor de `fact_materialized`, que baterá em `SemGramaticaTemporal` na primeira
+execução. É deliberado que bata: a decisão precisa acontecer ali.
+
 #### P6-5 — `review_scope` carrega a lista, e é entrega desta fase
 
 **Herdada já DECIDIDA** (`docs/progress/fase_6.md`, §6). Não é pergunta aberta: é
@@ -156,6 +228,67 @@ por quem já terminou de rodar.
 `InsumoDeVerificacao`, declarado em `CAMPOS_DECLARADOS` de
 `check_insumo_de_metrica.py`, e `escore()` já o recebe como dado. Esta fase muda
 **de onde ele vem** — não a forma como chega ao consumidor, que `00` §3.2 fixou.
+
+#### P6-6 — o sentinela de branch não enxerga escrita por `Bash`
+
+**Herdada como `condição` não decidida** (`docs/progress/fase_6.md`, §"P6-6"). A
+D15 existe para pegar a corrida em que a branch muda no meio da sessão e o
+trabalho pensado sobre uma árvore é gravado noutra. Ela funciona pelos canais que
+intercepta — o hook é declarado com o matcher `Edit|Write|NotebookEdit`, e `Bash`
+**não está nele**. Não é que o sentinela avalie e libere: ele **nunca é invocado**
+para escrita feita por `Bash`. O mesmo vale para o hook de invariantes do projeto,
+declarado com `Edit|Write`. É achado de **configuração**, verificável na linha do
+`settings.json`, e não de simulação.
+
+**O custo, medido no que dava para medir:** na sessão de fechamento da Fase 6,
+**não menos que 25** chamadas de `Bash` escreveram em arquivo rastreado. O número
+exato **não é reconstruível da árvore**, e essa é a parte afiada do achado — o
+canal não deixa rastro que o repositório saiba auditar, e os dois canais
+interceptados deixam.
+
+**Por que não foi corrigido.** Alargar um guarda dentro do PR que conserta outro é
+o acoplamento que este repositório recusa desde a regra de `spec-change` separado.
+E a correção não é uma linha: o hook decide por `file_path`, e **não há
+`file_path` num `sed -i`**. Decidir por texto de comando é a pergunta que
+`readonly_bash.py` já responde com allowlist, e replicá-la seria a segunda
+implementação da mesma pergunta.
+
+**As três formas, para quando a decisão vier:** `Bash` no matcher com detecção por
+texto de comando; guarda no `PostToolUse` comparando a branch antes e depois — que
+pega a corrida em vez de preveni-la, com o dano já gravado; ou disciplina
+declarada, escrita em arquivo rastreado passando por `Write`/`Edit` e `Bash`
+ficando para comando. A terceira é a mais barata e **admite que o guarda não
+guarda** — e disciplina é o que falhou nas quatro reincidências da D16.
+
+**Vence em:** a primeira sessão que trabalhe em duas branches, **ou** a Fase 8,
+quando o paralelismo começar e várias branches viverem ao mesmo tempo — o que vier
+primeiro. É **decisão do proprietário**: as três têm custos de natureza diferente.
+
+#### P6-8 — justificativa ausente devolve `409`, e `409` é recusa de estado
+
+**Herdada com o mérito decidido e a medição pendente**
+(`docs/progress/fase_6.md`, §"P6-8"). `_declara` captura `EmissaoRecusada` e
+responde **409** para todas as causas. O comentário da própria função reserva o
+409 a *"o pedido é bem formado e o ESTADO o recusa"* e enumera **três**, todas de
+contrassinatura: antecedente ausente, fora de ordem, e par já fechado.
+**Justificativa ausente não é nenhuma delas** — é campo obrigatório faltando,
+pedido malformado, e o código honesto seria **422**, que é o que as duas rotas de
+período inválido já devolvem no adapter.
+
+**Por que não foi corrigido.** Duas razões de escopo, e nenhuma de dúvida: mudar
+status no meio de uma correção de auditoria é escopo crescendo; e **`409` é
+superfície contratada** — quem consome a API pode depender dele, e
+`api_surface.yaml` não declara status, então a dependência, se existir, é
+invisível ao verificador.
+
+**O que falta medir antes de mudar:** quem depende do status hoje. `gm-console` e
+`participant-view` são os consumidores conhecidos; um `grep` por `409` na árvore
+de cliente responde metade, e a outra metade é se algum teste o afirma. **O teste
+afirma `409`, e isso é deliberado** — teste que descreve o que deveria ser, e não
+o que é, não pega regressão. A discrepância está no docstring dele.
+
+**Vence em:** a medição dos consumidores, **ou** a Fase 10, quando o AAR passar a
+ler recusas — o que vier primeiro.
 
 #### P6-11 — VENCIDA E RESOLVIDA: recusa alta, no computador, com exceção nomeada
 
