@@ -103,6 +103,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ENTREGA` | peça 3 desta fase. Três gatilhos herdados: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado; ver abaixo |
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | `LATENTE` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro — o literal ocorreu no trabalho da P7-2 sem que o defeito aparecesse; ver abaixo |
+| P6-7 | rota que declara `emite` e não chama emissor nenhum — a metade do fluxo continua aberta; herdada da Fase 6, §"P6-7" | `ABERTA` | a próxima rota que declare `emite` em serviço cuja fábrica já constrói o produtor, ou a Fase 8, o que vier primeiro; ver abaixo |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | `DECIDIDA` | a medição dos consumidores, ou a Fase 10, o que vier primeiro; ver abaixo |
 | P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | `VENCIDA` | qualquer edição da fonte do hook — ocorreu três vezes, a última no PR #56; ver abaixo |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | `RESOLVIDA` | venceu na L1 da terceira auditoria da Fase 6; conserto no PR #54; ver abaixo |
@@ -310,6 +311,55 @@ o defeito não apareceu.
 **Vence em:** a primeira sessão que trabalhe em duas branches, **ou** a Fase 8,
 quando o paralelismo começar e várias branches viverem ao mesmo tempo — o que vier
 primeiro. É **decisão do proprietário**: as três têm custos de natureza diferente.
+
+#### P6-7 — a metade do fluxo, que sobrou quando a metade da fábrica fechou
+
+**Herdada meio-fechada** (`docs/progress/fase_6.md`, §"P6-7"), e é a única da
+tabela que chega assim. A pergunta original era *"rota nova pode declarar `emite`
+em `api_surface.yaml` e não chamar emissor nenhum?"* — `check_api_surface.py`
+confere que a rota **declara** `emite`, e não que ela **emite**.
+
+**O que fechou na Fase 6, e não era a pergunta cara.** O B2 da sexta auditoria
+decidiu a pendência mostrando que ela mirava o lugar errado: o defeito real não
+era um handler que não chamasse o emissor, era a **fábrica de produção da
+`academus-api` montando sem emissor nenhum**. Não havia handler a analisar,
+porque não havia emissor na aplicação — `GET /audit/grade-changes` respondia
+`200` em produção e não gravava nada. `scripts/check_fabrica_liga_emissor.py`
+fechou isso, e ficou mais barato que o mapa previa porque a convenção recai sobre
+**a fábrica, que é uma por serviço**, e não sobre cada rota.
+
+**O que continua aberto:** *"este handler, executado, emite?"* — a pergunta de
+fluxo. O verificador da fábrica imprime essa fronteira na própria saída, em vez
+de deixá-la implícita. Hoje quem a cobre é `tests/test_api_emissao_pela_rota.py`,
+que exercita a rota real por `TestClient` e afirma sobre o evento no store —
+cobertura por teste, e não por propriedade.
+
+**As duas formas seguem esperando decisão do proprietário**, e o custo de cada uma
+está medido na fonte: **análise de fluxo** responde à pergunta certa sem convenção
+nenhuma, e custa outra ordem de esforço — cadeia de chamadas entre módulos, com
+alias, indireção e `getattr`, e um analisador incompleto volta a ser a fraqueza de
+taxa de erro desconhecida que a Fase 6 já descartou; **convenção estrutural
+imposta por verificador** transforma a pergunta difícil em decidível por AST
+simples, e custa liberdade de desenho — rota que não entrar por um ponto de
+emissão nomeado reprova mesmo estando correta.
+
+**A vizinhança com a P7-5, e ela não é identidade.** A P7-5 pergunta *"quem chama
+este emissor?"* e é o **degrau 2** da §7.1 — allowlist de chamadores, resolvida por
+import. A P6-7 pergunta *"esta rota, executada, emite?"* e é o **degrau 3**, que é
+execução. Não são a mesma pendência e não se fecham juntas. Mas quem implementar a
+P7-5 na peça 6 esbarra nesta fronteira, porque as duas leem `api_surface.yaml` e
+param em lugares diferentes — e é barato dizer isso agora.
+
+**Por que ela chegou aqui só na peça 1.** Ela foi a **sexta ocorrência** da classe
+da §7.1, e a mais cara de admitir: quatro leituras da pauta da Fase 6 passaram por
+ela sem transcrevê-la, porque a célula da tabela de lá dizia *"VENCIDA na metade
+que mordeu"* e "VENCIDA" lê-se como fechada. Quem a achou foi o verificador da
+peça 1, na primeira execução sobre a árvore real — que é exatamente o argumento
+de que transcrição manual não pode ser o mecanismo.
+
+**Vence em:** a próxima rota que declare `emite` **em um serviço cuja fábrica já
+constrói o produtor** — aí a pergunta que sobra é a do fluxo —, **ou** a Fase 8,
+quando o paralelismo multiplicar quem escreve rota, o que vier primeiro.
 
 #### P6-8 — justificativa ausente devolve `409`, e `409` é recusa de estado
 
