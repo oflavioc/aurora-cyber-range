@@ -68,7 +68,7 @@ a §1.6 que aquele registro passou a fase inteira nomeando.
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | **entrega desta fase** — já **DECIDIDA** na Fase 6; ver abaixo |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | **condição** — decisão do proprietário entre três formas; vence na primeira sessão em duas branches, ou na Fase 8, o que vier primeiro |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | **condição** — mérito decidido, falta medir consumidores; vence nessa medição, ou na Fase 10, o que vier primeiro |
-| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | **pré-condição** — não decidida, três formas com custos distintos; vence na próxima auditoria de checkpoint, que é a terceira oportunidade para a mesma divergência |
+| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | **VENCIDA** — terceira ocorrência durante o PR #56, e o gatilho declarado (a próxima auditoria) não foi o que chegou primeiro; falta a decisão entre as três formas; ver abaixo |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
 | P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário; ver abaixo |
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
@@ -473,6 +473,25 @@ escrever o rito precisa escrever junto que regravar não entra em commit.
 **Onde o conserto mora:** código puro, em PR próprio contra `main` e fora de
 qualquer branch de fase — o mesmo rito da P6-11. A Fase 7 não abriu.
 
+**IMPLEMENTADA no PR #56**, conserto pontual contra `main`, fora desta branch, no
+rito da P6-11. Os dois gravadores, os dois verificadores e os dois `_probes.py`
+passaram a nomear `HEAD^{tree}`; o campo `commit` virou `tree`; o esquema do
+artefato de container foi para `/2` e o do seed ganhou esquema. A prosa que
+descrevia o mecanismo mudou junto — `WORKFLOW.md`, `.gitignore`,
+`start_checkpoint_audit.sh`, `invariants.yml` e os comentários da allowlist do
+auditor —, porque texto normativo que sobrevive à mudança que descreve é a §1.6
+com outro nome.
+
+**O merge é o próprio espécime:** `ddb5d59` virou `93847b4` no rebase-and-merge,
+e a árvore não mudou. O rito que produzia o defeito foi exercido pela correção no
+ato de entrar.
+
+**Um teste nasceu inerte e foi pego antes de virar prova.** O probe do rebase
+criava e reaplicava o commit no mesmo segundo; os dois objetos saíam
+byte-idênticos e o git devolvia o mesmo SHA — o eixo passava sem exercer rebase
+nenhum. `GIT_COMMITTER_DATE` fixa. Numa máquina mais lenta teria passado por
+acaso.
+
 #### P7-3 — a árvore não cobre o pack, e o pack é insumo da prova
 
 **Nasceu da decisão da P7-2.** A saída (b) amarra a prova ao hash da árvore, e a
@@ -488,6 +507,21 @@ ela o torna nomeável, porque passa a declarar o que de fato mede.
 **Vence em:** a implementação da saída (b) da P7-2. É ali que o gravador escolhe
 o que hasheia, e é o momento em que acrescentar o hash do pack materializado ao
 lado do hash da árvore custa menos.
+
+#### P6-9 — VENCIDA: a terceira divergência chegou antes do gatilho
+
+**A terceira ocorrência aconteceu no PR #56.** Editar os comentários de
+`user-scope/hooks/readonly_bash.py` fez `phase0_negative_tests.py` reprovar na
+hora, pelo gate que exige que a fonte e a cópia em `~/.claude/hooks/` sejam
+idênticas. A remediação foi a mesma das duas anteriores: copiar à mão.
+
+**O gatilho declarado era a próxima auditoria de checkpoint, e não foi ele.** A
+divergência nasce de qualquer edição da fonte, e edição da fonte acontece em
+trabalho comum. Registrar o gatilho como "a auditoria" descrevia onde a
+divergência **dói**, não onde ela **ocorre**.
+
+**As três formas seguem mapeadas na Fase 6, §P6-9, e nenhuma foi escolhida.**
+Decisão do proprietário.
 
 ---
 
@@ -537,6 +571,18 @@ escrevível e barato. Para o **boot**, é verdade: precondição de boot é
 procedimento, não objeto, e não há verificador sem casar prosa. Isso não é lacuna
 a fechar depois — é o argumento de que **a prova de container tem de ser gate
 obrigatório, e não opcional**.
+
+**Sexta ocorrência, no PR #56, e a variante é nova.** O mapa do escopo procurou
+quem faz *parse* do JSON da prova e concluiu que o lançador não lê o campo. Era
+verdade e insuficiente: `start_checkpoint_audit.sh:652` fazia
+`grep -q "\"$HEAD_SHA\""` dentro do artefato — leitura do valor sem parse nenhum.
+Deixada como estava, ela nunca casaria, e toda medição reprovada seria briefada
+ao auditor como "não mediu".
+
+**A varredura aconteceu; o predicado é que era estreito.** Isso muda o desenho da
+P7-5: allowlist de chamadores por emissor resolve import, e `grep` dentro de `.sh`
+não é import. O degrau 2 não alcança esse caminho, e dizer isso agora é mais
+barato que descobrir na peça 6.
 
 **A forma geral, que é o que sai daqui:** a classe fecha quando a exigência é
 conferida sobre o **objeto que ela governa**, e não sobre os caminhos que o
