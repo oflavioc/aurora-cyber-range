@@ -60,6 +60,20 @@ jobs:
       - name: registro de fase consistente
         run: python scripts/check_progress_consistency.py
 
+      # A prova negativa que faltava — era o UNICO dos vinte e cinco de
+      # `scripts/` sem `_probes.py` pareado, e o `README.md` nomeava a excecao.
+      #
+      # ELA ENTRA NO CI JUNTO, e nao depois: prova negativa que existe no
+      # repositorio e nao roda em lugar nenhum e a "verificacao que so parece
+      # existir" que este projeto ja nomeou tres vezes. Hook e feedback rapido;
+      # CI e gate real.
+      #
+      # O eixo que decide e o da tabela intercalada: ele planta uma tabela com
+      # id ANTES da tabela-resumo, exige VER o sequestro sem o marcador, e so
+      # entao exige a leitura certa com ele.
+      - name: teste negativo do registro de fase
+        run: python scripts/check_progress_consistency_probes.py
+
       # P2-2 — a outra metade da garantia de 01 secao 4.1. O fold ja nao
       # consegue consultar o store (nao ha parametro por onde um store entre);
       # aqui se verifica que o store nao consegue OFERECER filtro.

@@ -601,6 +601,8 @@ contrato já são duas) divergiria em silêncio. O cruzamento é por teste.
 Abertas antes da fase, no `spec-change` `particao-das-metricas-pareadas`.
 Prefixo `P6-`.
 
+<!-- tabela-resumo-de-pendencias -->
+
 | Id | O que é | Vence em |
 |---|---|---|
 | P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **VENCIDA E RESOLVIDA** — `spec-change` #47 |

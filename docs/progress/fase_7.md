@@ -94,6 +94,8 @@ no trabalho da P7-2 e o defeito não apareceu. Forçá-la a `ABERTA` apagaria a
 informação de que o gatilho já passou uma vez sem custo — que é evidência sobre a
 forma 3 daquela pendência, e o único dado empírico que ela tem.
 
+<!-- tabela-resumo-de-pendencias -->
+
 | Id | O que é | Estado | Vence em |
 |---|---|---|---|
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio; ver abaixo |
