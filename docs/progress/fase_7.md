@@ -1,6 +1,6 @@
 # Fase 7 — Pack completo, branching e `range-cli`
 
-**Status: NÃO INICIADA** — nenhuma peça, nenhum commit, nenhuma auditoria. A
+**Status: EM ANDAMENTO** — peça 1 aberta em `422a105`. A
 linha de status está aqui porque `check_readme_atual.py` decide *"a fase
 fechou?"* por ela, e registro de fase **sem** linha de status reprova o
 verificador em vez de degradar para "ok" — é a guarda `_status_da_proxima`, que
