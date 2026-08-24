@@ -603,22 +603,22 @@ Prefixo `P6-`.
 
 <!-- tabela-resumo-de-pendencias -->
 
-| Id | O que é | Vence em |
-|---|---|---|
-| P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | **VENCIDA E RESOLVIDA** — `spec-change` #47 |
-| P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | **Fase 6** — ver abaixo |
-| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe | **condição** — ver abaixo |
-| P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | **fechada** — decidida pelo operador, ver abaixo |
-| P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | **DECIDIDA** — entrega na Fase 7 |
-| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | **condição** — ver abaixo |
-| P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | **VENCIDA na metade que mordeu** — B2 da sexta auditoria, e o verificador da fábrica |
-| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | **condição** — ver abaixo |
-| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | **condição** — ver abaixo |
-| P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | **VENCIDA E RESOLVIDA** — decisão do operador, e o verificador existe |
-| P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **decisão** — ver abaixo |
-| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário, depois do merge; ver abaixo |
-| P6-13 | dezesseis violações plantadas declaradas na §3.5 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
-| P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor — **herdada**, com esta fase como destinatário | **MIGRADA para a Fase 7**, com gatilho corrigido — ver abaixo |
+| Id | O que é | Estado | Vence em |
+|---|---|---|---|
+| P6-1 | `classification_declared` não é caso calibrável, e `03` §3.0 aponta a acurácia da classificação para a calibração | `RESOLVIDA` | venceu na peça 6; o `spec-change` #47 removeu a menção da §3.0 e deixou a acurácia com a rubrica; ver abaixo |
+| P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
+| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe | `ABERTA` | a gramática de `exercise_time` — o primeiro pack que precise de folha temporal, a implementação do suporte temporal, ou o primeiro produtor de `fact_materialized`; ver abaixo |
+| P6-4 | ensaio descartado leva embora o `exercise_started`, e T0 fica sem origem | `RESOLVIDA` | decidida pelo operador — T0 é atributo do exercício e não da epoch; `marco_zero` continua levantando, com a origem trocada; ver abaixo |
+| P6-5 | `review_scope` é prosa, e nada resolve a prosa num conjunto de `case_id` | `DECIDIDA` | a Fase 7, que é onde a mudança de contrato cabe; ver abaixo |
+| P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` | `ABERTA` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro; ver abaixo |
+| P6-7 | rota nova pode declarar `emite` e não chamar emissor nenhum | `VENCIDA` | venceu no B2 da sexta auditoria, na metade da fábrica, e o verificador dela existe. A metade original — *"este handler, executado, emite?"* — segue aberta, e vence na próxima rota que declare `emite` em serviço cuja fábrica já constrói o produtor; ver abaixo |
+| P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado | `DECIDIDA` | a medição dos consumidores, ou a Fase 10, o que vier primeiro; ver abaixo |
+| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém | `ABERTA` | a próxima auditoria de checkpoint; ver abaixo |
+| P6-10 | hook declarado sem emissor, e nenhum verificador cruza hooks com emissores | `RESOLVIDA` | venceu na segunda leitura; o hook saiu por decisão do operador e o verificador existe; ver abaixo |
+| P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | `ABERTA` | a decisão do operador entre os três lugares do mapa; ver abaixo |
+| P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | `ABERTA` | a palavra do proprietário entre as saídas (a) e (b); ver abaixo |
+| P6-13 | dezesseis violações plantadas declaradas na §3.5 são atestação do autor, e não prova reexecutável | `ABERTA` | o artefato que torne a afirmação reexecutável, ou a primeira vez que alguém precise da cobertura declarada; ver abaixo |
+| P5-2 | a trilha declara a categoria "declarações do exercício" e ela não tem produtor — **herdada**, com esta fase como destinatário | `ABERTA` | migrada para a Fase 7 com gatilho corrigido: a primeira ação de participante que altere estado de domínio; ver abaixo |
 
 #### P6-1 — a calibração não cobre a classificação, e a §3.0 aponta para ela
 
