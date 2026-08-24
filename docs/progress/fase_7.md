@@ -499,6 +499,8 @@ possível e parou antes de implementá-lo, porque a escolha é do proprietário.
 Ambos foram escritos com a mesma fórmula no fim: *"o mapa está aqui para ser
 decidido, não executado"*.
 
+> **Superado pela decisão registrada abaixo.** Valia enquanto os dois eram mapas.
+
 Estão aqui, e não só no registro da Fase 6, porque mapa que vive no inventário de
 uma fase encerrada é mapa que ninguém abre — é a mesma razão pela qual este
 arquivo nasceu antes da fase, escrita no topo.
