@@ -28,14 +28,51 @@ Registro SEM tabela-resumo nao e conferido, e isso e limite declarado: `fase_0.m
 usa estilo cronologico, com uma entrada por rodada de auditoria, e o mesmo id
 aparece na entrada do finding e na da resolucao. Sem tabela nao ha o que cruzar.
 
-ESCOPO DA TABELA. So conta a PRIMEIRA tabela depois do cabecalho de pendencias.
+ESCOPO DA TABELA — E ELE PASSOU A SER DECLARADO, EM VEZ DE ADIVINHADO
+----------------------------------------------------------------------
+A tabela-resumo agora se ANUNCIA, com o marcador `<!-- tabela-resumo-de-pendencias
+-->` na linha acima dela. O parser procura o marcador e le a tabela que o segue.
+
+**Por que deixou de ser por posicao.** A regra anterior era *"a primeira tabela,
+depois do cabecalho de pendencias, que tenha ids"* — heuristica, e ela ficou
+fragil no dia em que o registro da Fase 7 ganhou uma tabela de enum de estados
+ANTES da tabela-resumo. Aquela tabela nao quebrou nada, mas so por causa da
+guarda `if ids:` logo abaixo: ela marca `vista` sem contribuir id, e sem a guarda
+a linha em branco seguinte encerraria a varredura e a tabela-resumo sumiria. Uma
+tabela intercalada com id na primeira coluna — uma tabela de ocorrencias, por
+exemplo — sequestraria a leitura sem nada acusar.
+
+Isso importa mais do que o caso: o verificador de transcricao de pauta da Fase 7
+le ESTAS MESMAS tabelas, e nascer sobre um parser que adivinha seria construir o
+mecanismo com o defeito que ele existe para pegar.
+
+**Por que comentario HTML, e nao cabecalho proprio.** Tres criterios:
+
+  - **invisivel na renderizacao** — o marcador e ruido de mecanismo, e nao
+    conteudo do registro; um `### Tabela-resumo` apareceria no sumario do GitHub
+    e mudaria a estrutura de um documento que ja fechou auditado;
+  - **inequivoco no parser** — string literal, linha inteira, ancorada;
+  - **nao colide com a varredura** — e este e o argumento que elimina o
+    cabecalho: `"###".startswith("##")` e VERDADEIRO em Python, entao um
+    cabecalho de nivel 3 dispararia o `break` de fim de secao e mataria a leitura
+    antes da tabela.
+
+DEGRADACAO DELIBERADA. Registro SEM o marcador cai no comportamento anterior — a
+primeira tabela com ids depois do cabecalho de pendencias. `fase_5.md` e
+anteriores nao o tem e nao serao reprovados por isso: o marcador e melhoria, e
+transformar melhoria em exigencia retroativa seria escopo que ninguem pediu.
+
 Outras tabelas do documento podem citar identificadores de pendencia em outra
 coluna — a tabela de ocorrencias da propria secao 1.6 faz isso — e conta-las
 produziria falso positivo. Foi medido: sem este escopo, P1-14 e P1-15 apareciam
 como duplicadas.
 
-Arquivo sem cabecalho de pendencias ou sem tabela e ignorado, e nao e erro:
+Arquivo sem cabecalho de pendencias e sem marcador e ignorado, e nao e erro:
 `fase_0.md` registra as suas em secoes sem tabela-resumo.
+
+Prova negativa em `scripts/check_progress_consistency_probes.py`, e o eixo que
+decide e o da tabela intercalada: ela planta uma tabela com id ANTES da
+tabela-resumo e exige que o marcador faca o parser ler a certa.
 
 STDLIB PURA, e roda no job `arquitetura`. Nao vira job proprio DE PROPOSITO: job
 novo e context novo, e context exigido antes de existir em `main` trava todo PR
@@ -61,18 +98,31 @@ LINHA_TABELA = re.compile(r"^\|\s*\*{0,2}(P\d+(?:-\d+)?)\*{0,2}\s*\|")
 #: `#### P1-18 — ...` ou `### P23 — ...`, em qualquer nivel de 3 a 5.
 SECAO = re.compile(r"^#{3,5}\s+(P\d+(?:-\d+)?)\s+[—-]")
 
+#: O MARCADOR, e ele e a linha inteira. Comentario HTML porque nao renderiza —
+#: ver o cabecalho para os tres criterios e para por que cabecalho proprio nao
+#: serve. Tolera espaco em volta e dentro; nao tolera texto ao lado, porque
+#: marcador que casa por substring casaria tambem numa MENCAO a ele em prosa —
+#: e este proprio docstring o menciona.
+MARCADOR = re.compile(r"^\s*<!--\s*tabela-resumo-de-pendencias\s*-->\s*$")
 
-def tabela_resumo(linhas: list[str]) -> list[str] | None:
-    """Ids da PRIMEIRA tabela depois do cabecalho de pendencias, em ordem."""
-    inicio = next(
-        (i for i, l in enumerate(linhas) if CABECALHO_PENDENCIAS.match(l)), None
-    )
-    if inicio is None:
-        return None
 
+def _colhe(linhas: list[str], inicio: int, *, ancorada: bool) -> list[str] | None:
+    """Ids da proxima tabela a partir de `inicio`, em ordem.
+
+    `ancorada` diz se um MARCADOR apontou para esta tabela, e e a unica diferenca
+    de comportamento entre os dois modos — ela decide o que fazer com a linha em
+    branco que encerra uma tabela sem id nenhum:
+
+      - **ancorada**: para. O marcador declarou QUAL tabela e; se ela nao tem id,
+        essa e a resposta, e procurar outra seria voltar a adivinhar.
+      - **nao ancorada**: segue procurando, que e o comportamento herdado — a
+        tabela-resumo e a primeira COM ids, e uma tabela sem id antes dela nao a
+        esconde. E o unico motivo pelo qual a tabela de enum da Fase 7 nao
+        quebrou a leitura antes do marcador existir.
+    """
     ids: list[str] = []
     vista = False
-    for linha in linhas[inicio + 1 :]:
+    for linha in linhas[inicio:]:
         if linha.startswith("##"):
             break
         if linha.lstrip().startswith("|"):
@@ -81,11 +131,34 @@ def tabela_resumo(linhas: list[str]) -> list[str] | None:
             if m:
                 ids.append(m.group(1))
         elif vista and linha.strip() == "":
-            # Linha em branco depois da tabela: ela terminou. Tabelas seguintes
-            # do mesmo documento nao sao a tabela-resumo.
-            if ids:
+            # Linha em branco depois da tabela: ela terminou.
+            if ancorada or ids:
                 break
     return ids if vista else None
+
+
+def tabela_resumo(linhas: list[str]) -> list[str] | None:
+    """Ids da tabela-resumo, pelo marcador quando ele existe.
+
+    DUAS ROTAS, e a segunda e degradacao declarada e nao esquecimento:
+
+      1. o registro DECLARA a tabela com `<!-- tabela-resumo-de-pendencias -->`, e
+         a leitura e a tabela que segue o marcador — sem heuristica;
+      2. o registro nao declara, e vale a regra herdada: a primeira tabela com
+         ids depois do cabecalho de pendencias. `fase_5.md` e anteriores estao
+         aqui, e reprova-los por nao terem um marcador criado depois deles seria
+         exigencia retroativa.
+    """
+    marcador = next((i for i, l in enumerate(linhas) if MARCADOR.match(l)), None)
+    if marcador is not None:
+        return _colhe(linhas, marcador + 1, ancorada=True)
+
+    inicio = next(
+        (i for i, l in enumerate(linhas) if CABECALHO_PENDENCIAS.match(l)), None
+    )
+    if inicio is None:
+        return None
+    return _colhe(linhas, inicio + 1, ancorada=False)
 
 
 def duplicados(itens: list[str]) -> list[str]:
