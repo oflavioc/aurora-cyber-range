@@ -42,6 +42,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from check_progress_consistency import (  # noqa: E402
     MARCADOR,
     SECAO,
+    confere_pauta,
     tabela_resumo,
 )
 
@@ -206,7 +207,125 @@ def eixo_g() -> bool:
     return True
 
 
-EIXOS = (eixo_a, eixo_b, eixo_c, eixo_d, eixo_e, eixo_f, eixo_g)
+# --------------------------------------------------------------------------
+# A PAUTA HERDADA — todo item nao-fechado da fase N aparece na tabela da N+1.
+#
+# O defeito real esta morto pelos dois rebases desta fase: `e571091` abriu a
+# branch da Fase 7 sem cinco pendencias da Fase 6, e nenhum gate viu. Os eixos
+# abaixo o reconstroem sinteticamente, e o (h) tem as duas metades pela mesma
+# razao do (f): ver a omissao SER PEGA nao prova nada se o caso verde tambem
+# reprovar, e ver o verde passar nao prova nada se a omissao passar junto.
+# --------------------------------------------------------------------------
+def _registro(itens: list[tuple[str, str]], *, com_estado: bool = True) -> list[str]:
+    """Um registro de fase sintetico, com tabela-resumo declarada e secoes."""
+    cabeca = ["# Fase sintética", "", "## 6. Pendências", "", MARCA, ""]
+    if com_estado:
+        cabeca += ["| Id | O que é | Estado | Vence em |", "|---|---|---|---|"]
+        cabeca += [f"| {i} | o defeito | `{e}` | um gatilho |" for i, e in itens]
+    else:
+        cabeca += ["| Id | O que é | Vence em |", "|---|---|---|"]
+        cabeca += [f"| {i} | o defeito | um gatilho |" for i, _ in itens]
+    corpo = [""]
+    for i, _ in itens:
+        corpo += [f"#### {i} — o defeito", "", "Corpo.", ""]
+    return "\n".join(cabeca + corpo).splitlines()
+
+
+def eixo_h() -> bool:
+    """A OMISSAO, nas duas metades — e este eixo e a entrega da peca 1."""
+    aberta_omitida = {
+        6: _registro([("P8-1", "ABERTA"), ("P8-2", "RESOLVIDA")]),
+        7: _registro([("P8-2", "RESOLVIDA")]),
+    }
+    falhas, _ = confere_pauta(aberta_omitida)
+
+    # (h1) A OMISSAO E PEGA.
+    if len(falhas) != 1 or "P8-1" not in falhas[0]:
+        print(f"FALHOU: [h1] a omissao de `P8-1` NAO foi pega: {falhas}")
+        return False
+    if "P8-2" in falhas[0]:
+        print("FALHOU: [h1] cobrou `P8-2`, que esta RESOLVIDA e nao migra.")
+        return False
+
+    # (h2) O CASO VERDE PASSA. Sem esta metade, um verificador que reprovasse
+    # todo par passaria em (h1) sem distinguir nada.
+    transcrita = {
+        6: _registro([("P8-1", "ABERTA"), ("P8-2", "RESOLVIDA")]),
+        7: _registro([("P8-1", "ABERTA")]),
+    }
+    falhas_verde, _ = confere_pauta(transcrita)
+    if falhas_verde:
+        print(f"FALHOU: [h2] o par COMPLETO foi reprovado: {falhas_verde}")
+        return False
+
+    print(
+        "OK: [h - pauta herdada] a omissao de `P8-1` foi pega, `P8-2` RESOLVIDA "
+        "nao foi cobrada, e o par completo passou."
+    )
+    return True
+
+
+def eixo_i() -> bool:
+    """Os quatro estados nao-fechados sao cobrados; `ENTREGA` nao."""
+    nao_fechados = [("P8-1", "ABERTA"), ("P8-2", "LATENTE"),
+                    ("P8-3", "DECIDIDA"), ("P8-4", "VENCIDA")]
+    falhas, _ = confere_pauta({
+        6: _registro(nao_fechados + [("P8-5", "ENTREGA")]),
+        7: _registro([("P8-9", "ABERTA")]),
+    })
+    cobrados = {i for i, _ in nao_fechados if any(f"`{i}`" in f for f in falhas)}
+    if cobrados != {i for i, _ in nao_fechados}:
+        print(f"FALHOU: [i] nem todo estado nao-fechado foi cobrado: {cobrados}")
+        return False
+    if any("P8-5" in f for f in falhas):
+        print("FALHOU: [i] `ENTREGA` foi cobrada, e ela e trabalho da propria fase.")
+        return False
+    print("OK: [i - estados] os quatro nao-fechados sao cobrados, `ENTREGA` nao.")
+    return True
+
+
+def eixo_j() -> bool:
+    """ESTADO FORA DO ENUM REPROVA, e nao e ignorado em silencio."""
+    falhas, _ = confere_pauta({
+        6: _registro([("P8-1", "TALVEZ")]),
+        7: _registro([("P8-9", "ABERTA")]),
+    })
+    if not any("fora do enum" in f and "TALVEZ" in f for f in falhas):
+        print(f"FALHOU: [j] estado desconhecido nao reprovou: {falhas}")
+        return False
+    print("OK: [j - enum fechado] estado fora do vocabulario reprova, nomeando-o.")
+    return True
+
+
+def eixo_k() -> bool:
+    """AS DUAS DEGRADACOES SAO PULO COM RAZAO, e nunca falha silenciosa."""
+    # Sem a fase seguinte.
+    falhas, pulos = confere_pauta({6: _registro([("P8-1", "ABERTA")])})
+    if falhas:
+        print(f"FALHOU: [k] reprovou por nao existir a fase seguinte: {falhas}")
+        return False
+    if not any("nao existe" in p for p in pulos):
+        print(f"FALHOU: [k] pulou sem dizer que a fase seguinte nao existe: {pulos}")
+        return False
+
+    # Sem coluna de estado — `fase_5.md` e anteriores.
+    falhas2, pulos2 = confere_pauta({
+        6: _registro([("P8-1", "ABERTA")], com_estado=False),
+        7: _registro([("P8-9", "ABERTA")]),
+    })
+    if falhas2:
+        print(f"FALHOU: [k] reprovou tabela de tres colunas: {falhas2}")
+        return False
+    if not any("nao declara coluna de estado" in p for p in pulos2):
+        print(f"FALHOU: [k] pulou sem dizer que falta a coluna: {pulos2}")
+        return False
+
+    print("OK: [k - degradacao] as duas rotas pulam com a razao dita, e nao reprovam.")
+    return True
+
+
+EIXOS = (eixo_a, eixo_b, eixo_c, eixo_d, eixo_e, eixo_f, eixo_g,
+         eixo_h, eixo_i, eixo_j, eixo_k)
 
 
 def main() -> int:
@@ -215,19 +334,23 @@ def main() -> int:
             fluxo.reconfigure(errors="replace")
 
     print(
-        "check_progress_consistency.py — sete eixos. O (f) e o que decide: ele\n"
-        "planta uma tabela intercalada com id e exige ver o SEQUESTRO sem o\n"
-        "marcador antes de exigir a leitura certa com ele. O (b) prova que\n"
-        "registro sem marcador continua sendo lido — `fase_5.md` depende disso.\n"
+        "check_progress_consistency.py — onze eixos, em duas perguntas.\n"
+        "\n"
+        "  (a)-(g)  a tabela-resumo e achada e cruzada contra as secoes. O (f)\n"
+        "           decide: planta uma tabela intercalada com id e exige ver o\n"
+        "           SEQUESTRO sem o marcador antes da leitura certa com ele.\n"
+        "  (h)-(k)  a pauta herdada migra. O (h) decide, e tem as duas metades:\n"
+        "           a omissao e pega, E o par completo passa.\n"
     )
     resultados = [eixo() for eixo in EIXOS]
     print()
     if all(resultados):
         print(
             f"Os {len(resultados)} eixos provam que a tabela-resumo e achada pelo "
-            "MARCADOR quando\nele existe, que a heuristica de posicao continua "
-            "valendo sem ele, e que o\ncruzamento contra as secoes nao foi "
-            "afrouxado pela mudanca."
+            "MARCADOR quando ele\nexiste, que a heuristica de posicao continua "
+            "valendo sem ele, que o cruzamento\ncontra as secoes nao foi "
+            "afrouxado, e que pendencia nao-fechada que nao migra\npara a fase "
+            "seguinte e PEGA — sem que o par completo seja reprovado junto."
         )
         return 0
     print(f"{resultados.count(False)} de {len(resultados)} eixos nao provaram nada.")
