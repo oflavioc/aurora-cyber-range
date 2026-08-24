@@ -260,6 +260,23 @@ declarada, escrita em arquivo rastreado passando por `Write`/`Edit` e `Bash`
 ficando para comando. A terceira é a mais barata e **admite que o guarda não
 guarda** — e disciplina é o que falhou nas quatro reincidências da D16.
 
+**Uma superfície a mais, achada nesta fase.** O gatilho literal — a primeira
+sessão em duas branches — ocorreu no trabalho da P7-2, com três branches e duas
+re-ancoragens. O defeito **não** ocorreu: toda escrita em arquivo rastreado passou
+por `Edit`/`Write`, e o sentinela recusou as duas trocas e exigiu re-ancoragem com
+o nome digitado. Isso é a forma 3 — disciplina declarada — sendo cumprida, e é
+evidência a favor dela, não contra.
+
+**Mas `git stash` e `git stash pop` mudam arquivo rastreado por um caminho que o
+matcher também não vê**, e não são escrita de conteúdo. Se o sentinela existe para
+pegar trabalho pensado sobre uma árvore e gravado noutra, `stash` é esse risco por
+uma porta que nenhuma das três formas mapeou. A decisão entre elas passa a ter
+esse caso.
+
+**A pendência NÃO está vencida.** No vocabulário deste registro, vencer é o
+gatilho chegar e o defeito aparecer — foi o caso da P6-9. Aqui o gatilho chegou e
+o defeito não apareceu.
+
 **Vence em:** a primeira sessão que trabalhe em duas branches, **ou** a Fase 8,
 quando o paralelismo começar e várias branches viverem ao mesmo tempo — o que vier
 primeiro. É **decisão do proprietário**: as três têm custos de natureza diferente.
