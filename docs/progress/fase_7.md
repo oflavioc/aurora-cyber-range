@@ -47,6 +47,8 @@ a §1.6 que aquele registro passou a fase inteira nomeando.
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
 | P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
 | P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | **condição** — a implementação da saída (b) da P7-2; ver abaixo |
+| P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | **DECIDIDA** — adotada a allowlist por tipo, degrau 1.5; entrega desta fase; ver §7.2 |
+| P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | **DECIDIDA** — adotado o degrau 2, allowlist de chamadores por emissor; entrega desta fase; ver §7.1 |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -461,7 +463,7 @@ lado do hash da árvore custa menos.
 
 ---
 
-## 7. Pauta de mecanismo herdada — dois mapas que esperam decisão
+## 7. Pauta de mecanismo herdada — DECIDIDA: os dois mapas viram entrega
 
 Os dois itens abaixo **não** são pendências e não têm identificador: nenhum deles
 afirma defeito aberto. São **mapas** — cada um mediu o custo de um mecanismo
@@ -472,6 +474,11 @@ decidido, não executado"*.
 Estão aqui, e não só no registro da Fase 6, porque mapa que vive no inventário de
 uma fase encerrada é mapa que ninguém abre — é a mesma razão pela qual este
 arquivo nasceu antes da fase, escrita no topo.
+
+> **DECIDIDOS pelo proprietário nesta fase.** Os dois deixaram de ser mapas e
+> viraram entrega, e por isso ganharam identificador: a §7.1 é a **P7-5**, a §7.2
+> é a **P7-4**. A ressalva do parágrafo acima — que mapa não é pendência e não
+> tem ID — valia enquanto nenhum dos dois afirmava trabalho a fazer.
 
 ### 7.1 Os três degraus da §7.7 — a classe que reincidiu quatro vezes
 
@@ -505,7 +512,18 @@ obrigatório, e não opcional**.
 conferida sobre o **objeto que ela governa**, e não sobre os caminhos que o
 produzem.
 
-**Fonte:** `docs/progress/fase_6.md`, §7.7. **Vence em:** a sua palavra.
+**Fonte:** `docs/progress/fase_6.md`, §7.7.
+
+**DECIDIDA — P7-5: adotado o degrau 2 para o token.** Allowlist de chamadores por
+emissor, AST pura na forma de `check_core_boundary.py`. Os emissores são três e
+fechados, e metade da tabela já existe em `check_api_surface.py::PERFIS`.
+
+**A recomendação sobre o boot NÃO foi adotada, e a lacuna fica declarada.** Este
+mapa conclui que a prova de container tem de ser gate obrigatório, porque
+precondição de boot é procedimento e não objeto. O proprietário decidiu que não:
+o custo por fechamento não se justifica. A consequência é que **o boot segue
+coberto só por execução voluntária**, e isso é estado declarado, não lacuna
+esquecida.
 
 ### 7.2 A allowlist por selecionador da §8.5 — "a mesma pergunta tem uma resposta"
 
@@ -543,4 +561,16 @@ propósito não é estrutura. O que muda é **quando** a duplicação fica visí
 commit que a cria, em vez de na nona auditoria. Para a divergência entre
 duplicatas declaradas, o que cobre é a matriz de testes.
 
-**Fonte:** `docs/progress/fase_6.md`, §8.5. **Vence em:** a sua palavra.
+**Fonte:** `docs/progress/fase_6.md`, §8.5.
+
+**DECIDIDA — P7-4: adotada a allowlist por tipo.** Degrau 1.5, com o limite
+aceito como está: cobra declaração, não concordância. Ela nasce com o teste
+contra o defeito que a originou — escrever `_ja_satisfeito_na_corrente` faria
+`VERIFICATION_PREDICATE_SATISFIED` passar de um para dois selecionadores, e a
+allowlist reprovaria.
+
+**Forma comum com a P7-5, declarada aqui para que não divirjam:** as duas são
+allowlist declarada com motivo, na linha de `check_core_contract_imports.py`. O
+esqueleto é o mesmo; o que muda é o objeto governado — event_type por
+selecionador aqui, chamador por emissor lá. Duas sintaxes de allowlist para a
+mesma forma seria a D4 que os dois mecanismos existem para pegar.
