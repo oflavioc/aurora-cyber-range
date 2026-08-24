@@ -54,6 +54,119 @@ nascem na peça 6. Até lá o vermelho é esperado e tem causa nomeada — gate 
 vermelho por motivo conhecido a fase inteira é gate que se aprende a ignorar, e é
 assim que ele deixa de pegar o dia em que ficar vermelho por outro motivo.
 
+## 2. A peça 1 — a pauta herdada deixa de depender de quem transcreve
+
+Seis unidades, cada uma commitada em verde. O que segue é o que a auditoria
+precisa achar sem reconstruir a cadeia por leitura.
+
+**O que a peça fecha, em uma frase:** a pergunta *"a pauta da fase anterior
+chegou inteira aqui?"* era respondida por leitura, e passou a ser respondida por
+predicado.
+
+### 2.1 O que foi entregue, por unidade
+
+| # | Unidade | O que fecha |
+|---|---|---|
+| 1 | coluna `Estado` na tabela da §6, com enum fechado de seis valores (`422a105`) | estado e gatilho deixam de dividir célula. A pergunta *"quantas seguem abertas?"* vira comparação contra seis strings, e não prosa parseada |
+| 2 | a linha de status do registro (`2f2272e`) | ela acompanha a peça, e não o fechamento — o rótulo envelheceu três vezes na Fase 6 |
+| 3 | `<!-- tabela-resumo-de-pendencias -->` e `_localiza` (`01a4e05`) | o parser deixa de achar a tabela-resumo por **posição**, e passa a lê-la onde o registro a declara |
+| 4 | a mesma coluna na `fase_6.md` (`b4fd284`) | o vocabulário vale nos **dois** lados do par, que é o que torna o cruzamento possível |
+| 5 | o quarto predicado de `check_progress_consistency.py` (`d29022b`) | **todo item não-fechado da fase N aparece na tabela da fase N+1** |
+| 6 | `check_progress_consistency_probes.py`, 11 eixos (`01a4e05`, `d29022b`) | a prova negativa que faltava — era o único dos vinte e cinco de `scripts/` sem ela, e o `README.md` nomeava a exceção |
+
+**O predicado, com o vocabulário que ele usa.** `ABERTA`, `LATENTE`, `DECIDIDA` e
+`VENCIDA` migram; `RESOLVIDA` está fechada e não migra; `ENTREGA` é trabalho da
+própria fase, cobrado pela DoD dela. Estado fora do enum **reprova**: ele não é
+classificável como fechado nem como aberto, e escolher um dos dois em silêncio
+degradaria exatamente onde a pergunta é.
+
+**A direção é de N para N+1**, e ela é escolhida: é a que pega **omissão**. A
+inversa — *"todo item da N+1 veio de algum lugar"* — pegaria invenção, que não é
+o defeito que aconteceu.
+
+**As duas degradações se anunciam.** Fase seguinte que não existe, e registro cuja
+tabela-resumo não declara coluna de estado — `fase_1.md` até `fase_5.md`, anteriores
+ao vocabulário — são **PULADOS com a razão impressa**. Par não conferido que não se
+anuncia é indistinguível de par conferido e verde, e essa confusão é a classe que
+o verificador inteiro persegue. Hoje são sete pulos e um par conferido.
+
+### 2.2 A medição que vale — o verificador achou o que cinco leituras não
+
+**A P6-7 nunca chegou a este registro, e sobreviveu a cinco passagens pela pauta
+da Fase 6** — a transcrição de abertura, a reconstrução deliberada contra a fonte,
+o commit que existia *para* achar omissões (`30cc1d5`, "as quatro pendências
+herdadas ausentes da transcrição"), a escrita dos corpos herdados a partir da
+fonte (`1331b2c`) e o mapeamento que precedeu esta peça. Cinco leituras, nenhuma
+delas descuidada, e a mesma linha passando em todas.
+
+**Quem a achou foi o predicado, na primeira execução sobre a árvore real:**
+
+```
+fase 6 -> 7: `P6-7` esta `VENCIDA` na fase 6 e NAO APARECE na tabela da fase 7.
+```
+
+**E o motivo é mecânico, não de atenção.** A célula da Fase 6 dizia *"**VENCIDA na
+metade que mordeu**"*. Quem lê uma tabela lê a célula, e `VENCIDA` carrega o
+sentido de encerrada; a ressalva que nega o rótulo está numa subordinada, e o
+corpo que a explica — *"o que continua aberto, dito e não escondido"* — fica trinta
+linhas abaixo. **Foi a separação entre estado e gatilho que tornou a omissão
+classificável, e portanto cobrável**: com o estado num campo próprio, `VENCIDA`
+virou um valor não-fechado, e não-fechado migra.
+
+A peça pegou, na sua primeira execução, o defeito que ela existe para pegar. É a
+única forma de evidência que este mecanismo podia produzir sobre si mesmo — e ela
+custou a admissão de que a leitura humana já havia falhado cinco vezes no mesmo
+ponto.
+
+### 2.3 O sexto valor do enum, e por que ele não estava previsto
+
+O enum foi especificado com **cinco** valores. A **P6-6** não coube em nenhum: o
+gatilho literal dela — *a primeira sessão que trabalhe em duas branches* — ocorreu
+no trabalho da P7-2, com três branches e duas re-ancoragens, e **o defeito não
+apareceu**, porque toda escrita em arquivo rastreado passou por `Edit`/`Write`.
+`ABERTA` afirma que o gatilho não chegou; `VENCIDA` afirma que o defeito apareceu.
+As duas seriam falsas.
+
+**A implementação parou antes de editar e trouxe as três saídas** — sexto valor,
+redefinir `ABERTA`, ou afrouxar `VENCIDA` para "gatilho chegou" —, e o proprietário
+escolheu a primeira. `LATENTE` carrega o que nenhum dos outros carrega: **o gatilho
+já passou uma vez sem custo**, que é o único dado empírico existente sobre a forma 3
+daquela pendência.
+
+**Sem essa parada, o enum teria mentido sobre uma linha no mesmo commit que o
+declarava fechado.** A P7-3 fez o mesmo por outro caminho: o gatilho dela nomeava
+uma *janela de oportunidade* e não um defeito, a janela passou no PR #56, e ela
+ficou `ABERTA` com gatilho reescrito em vez de forçada num rótulo errado.
+
+### 2.4 O que fica aberto, e por que o gate segue vermelho
+
+`check_progress_consistency.py` sai **rc=1**, e as duas causas estão nomeadas:
+**P7-4** e **P7-5** estão na tabela e não têm seção de detalhe. As seções delas são
+o desenho das duas allowlists, e nascem na **peça 6** junto com o mecanismo que
+descrevem — escrevê-las antes de implementar seria adivinhar.
+
+Isso está declarado na §1 de propósito. Gate que fica vermelho por motivo conhecido
+a fase inteira é gate que se aprende a ignorar, e é assim que ele deixa de pegar o
+dia em que ficar vermelho por outro motivo. **O verde dele é condição de
+fechamento da fase.**
+
+O par **6→7 passa**. Os pares 0→1 até 5→6 são pulados por falta de coluna de
+estado, e 7→8 por não existir destino.
+
+### 2.5 O que a peça 2 herda
+
+**Nenhum bloqueio.** O pack começa limpo: a peça 2 entrega a migração automática do
+schema v1, a recusa do v0 com instrução, e a recusa de fato do `GM_NOTES.md`
+ausente do `ground_truth.yaml` — e nada disso depende do que esta peça mexeu.
+
+O que ela herda é **ferramenta**: a pauta da §6 agora tem estado legível por
+máquina, e qualquer pendência que a peça 2 fechar ou abrir passa a ser cobrada pelo
+predicado no fechamento da fase, sem depender de quem transcreve.
+
+**A P6-3 é pré-condição da peça 3, e não da 2** — a §1 já a registra assim. A peça 2
+pode abrir sem a gramática de `exercise_time`; o que não pode é a peça 3 fechar sem
+ela.
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
