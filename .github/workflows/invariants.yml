@@ -259,12 +259,14 @@ jobs:
         run: python scripts/check_allowlist_do_auditor_probes.py
 
       # M2. SO OS PROBES, pelo mesmo motivo do verificador das provas de
-      # container: `check_prova_do_seed.py` pergunta "a medicao e DESTE
-      # checkout?", e o runner nao tem — nem deve ter — o arquivo que o operador
-      # escreve na maquina que mede. Aqui ele reprovaria sempre, por ausencia.
+      # container: `check_prova_do_seed.py` pergunta "a medicao e DESTA ARVORE?",
+      # e o runner nao tem — nem deve ter — o arquivo que o operador escreve na
+      # maquina que mede. Aqui ele reprovaria sempre, por ausencia.
       #
       # O que o CI garante e que o predicado continua sabendo RECUSAR: ausencia,
-      # SHA divergente, arquivo versionado e contexto incompleto.
+      # ARVORE divergente, arquivo versionado, esquema anterior a P7-2 e contexto
+      # incompleto — e sabendo APROVAR a prova cujo commit um rebase reescreveu
+      # sem tocar na arvore, que e o eixo pelo qual a P7-2 se mede.
       - name: teste negativo da prova do seed
         run: python scripts/check_prova_do_seed_probes.py
 
@@ -283,14 +285,16 @@ jobs:
         run: python scripts/check_audit_base_probes.py
 
       # P4-10. SO OS PROBES, e pelo mesmo motivo da guarda de base logo acima:
-      # `check_provas_de_container.py` pergunta "a evidencia e DESTE checkout?",
+      # `check_provas_de_container.py` pergunta "a evidencia e DESTA ARVORE?",
       # que e uma pergunta do worktree de auditoria e nao do PR. Aqui ele
       # reprovaria sempre, por ausencia — o runner nao tem, nem deve ter, o
       # arquivo que o lancador escreve na maquina do operador.
       #
       # O que o CI garante e que o predicado continua sabendo RECUSAR: ausencia,
-      # SHA divergente e vacuidade. As duas primeiras sao as direcoes que a
-      # P4-10 exige por nome.
+      # ARVORE divergente, esquema anterior a P7-2 e vacuidade. As duas primeiras
+      # sao as direcoes que a P4-10 exige por nome. E que ele continua sabendo
+      # APROVAR a prova que sobreviveu a um rebase — o eixo (n), que e o criterio
+      # da P7-2 e o unico que fica vermelho se a amarracao voltar ao commit.
       - name: teste negativo do verificador das provas de container
         run: python scripts/check_provas_de_container_probes.py
 

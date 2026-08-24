@@ -59,6 +59,17 @@ fi
 
 HEAD_SHA=$(git rev-parse HEAD)
 
+# A ARVORE DO CANDIDATO — P7-2. As duas provas gravadas passaram a declarar o
+# hash da ARVORE, e nao o SHA do commit, porque o `gh pr merge --rebase` que
+# fecha a fase reescreve todo SHA e nao toca no conteudo.
+#
+# O `HEAD_SHA` acima NAO some, e a divisao e por natureza: ele continua sendo o
+# que identifica o commit candidato para o `git worktree add`, para a guarda de
+# base — que julga TOPOLOGIA, e topologia e historia — e para o registro da
+# rodada. O `HEAD_TREE` e o que identifica o OBJETO MEDIDO, e e ele que aparece
+# dentro dos artefatos de prova.
+HEAD_TREE=$(git rev-parse "HEAD^{tree}")
+
 # ---------------------------------------------------------------------------
 # P2-16 — A BASE DE COMPARACAO E `origin/main` ATUALIZADO, e nao `main` local.
 #
@@ -446,13 +457,17 @@ fi
 # E a MESMA saida que a P2-19 ja escolheu uma vez, e a que a P3-4 seguiu depois:
 # o que exige rede acontece AQUI, antes da sessao, e o resultado chega pronto.
 #
-# O QUE SEPARA ISTO DE ATESTACAO E O SHA. O arquivo gravado carrega o commit, e
-# `scripts/check_provas_de_container.py` — que o auditor roda, e que esta na
-# allowlist — REPROVA se ele nao for o do worktree que se julga. O auditor
-# continua nao tendo visto rodar; o que muda e que a evidencia esta amarrada ao
-# objeto. A condicao e forte por mecanica e nao por confianca: um commit nao
-# contem o proprio SHA, entao evidencia versionada junto com o codigo nao tem
-# como carregar o hash do commit que a contem.
+# O QUE SEPARA ISTO DE ATESTACAO E O HASH DA ARVORE — P7-2. O arquivo gravado
+# carrega `git rev-parse HEAD^{tree}`, e `scripts/check_provas_de_container.py` —
+# que o auditor roda, e que esta na allowlist — REPROVA se ele nao for o do
+# worktree que se julga. O auditor continua nao tendo visto rodar; o que muda e
+# que a evidencia esta amarrada ao objeto. A condicao e forte por mecanica e nao
+# por confianca: um arquivo versionado nao contem o hash da arvore que o contem,
+# porque rastrea-lo muda a arvore que ele teria de declarar.
+#
+# ANTES ERA O SHA DO COMMIT, e a troca fecha um defeito do RITO e nao um bug: o
+# `gh pr merge --rebase` que fecha a fase reescreve todo SHA, entao toda prova
+# amarrada ao commit morria em todo fechamento. A arvore atravessa.
 #
 # FALHA BAIXO, AO CONTRARIO DO VENV. A P3-4 para a auditoria porque sem o venv o
 # veredito sairia sobre OUTRO nucleo — errado, e nao incompleto. Aqui, sem as
@@ -471,7 +486,7 @@ PROVAS_SAIDA=$("$VENV_BIN/python" "$WT/scripts/grava_provas_de_container.py" \
 PROVAS_RC=$?
 set -e
 if [ "$PROVAS_RC" = "0" ]; then
-  PROVAS="GRAVADAS e VERDES sobre $HEAD_SHA. Rode 'python scripts/check_provas_de_container.py' — ele confere o SHA e imprime a saida integra das duas provas."
+  PROVAS="GRAVADAS e VERDES sobre a arvore $HEAD_TREE (commit $HEAD_SHA). Rode 'python scripts/check_provas_de_container.py' — ele confere o hash da arvore e imprime a saida integra das duas provas."
 else
   echo "$PROVAS_SAIDA" >&2
   echo "AVISO: as provas de container nao passaram (rc=$PROVAS_RC)." >&2
@@ -479,7 +494,13 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# O TRANSPORTE DA PROVA DO SEED — H1 da terceira auditoria da Fase 5.
+# A COPIA DA PROVA DO SEED — H1 da terceira auditoria da Fase 5.
+#
+# CHAMAVA-SE "transporte" ate a P7-2, e o nome carregava um estado que nao existe
+# mais: enquanto a prova nomeava o commit, "TRANSPORTADA" era o aviso de que
+# divergencia era o caso NORMAL depois de um fechamento de fase. Amarrada a
+# arvore, uma prova do mesmo conteudo simplesmente vale. O que resta e uma copia
+# de arquivo, e e so isso que o nome precisa dizer.
 #
 # `check_prova_do_seed.py` entrou na allowlist do auditor COMO SE FUNCIONASSE, e
 # nasceu inalcancavel: o artefato e gravado na raiz da arvore de quem mede, o
@@ -494,9 +515,10 @@ fi
 # existir.
 #
 # COPIA INCONDICIONAL, e a decisao e deliberada: se a prova for de outro commit,
-# quem recusa e o verificador — com o SHA gravado ao lado do SHA do checkout, que
-# e a leitura que o auditor precisa ver. Filtrar aqui trocaria "prova de outro
-# commit" por "prova ausente", e as duas mensagens dizem coisas diferentes.
+# quem recusa e o verificador — com a arvore gravada ao lado da arvore do
+# checkout, que e a leitura que o auditor precisa ver. Filtrar aqui trocaria
+# "prova de outro conteudo" por "prova ausente", e as duas mensagens dizem coisas
+# diferentes.
 #
 # AUSENCIA NAO ABORTA, pelo mesmo criterio das provas de container: falha alto o
 # que faria o veredito falar de outra coisa; falha baixo o que faria o veredito
@@ -505,11 +527,15 @@ fi
 #
 # ELE FICA, E DEIXA DE SER O CAMINHO NORMAL — a decisao que a Forma B abaixo
 # exigia, com o motivo escrito. Com a medicao acontecendo aqui dentro, o artefato
-# NASCE no worktree e sobrescreve o que for copiado por esta etapa. O transporte
-# passa a ser o caminho DEGRADADO: e o que sobra quando nao ha Docker nesta
-# maquina, e a medicao de quem mediu fora continua valendo — o verificador a
-# aceita ou a recusa pelo SHA, exatamente como antes. Remove-lo trocaria um
-# veredito parcial por nenhum na unica situacao em que ele ainda serve.
+# NASCE no worktree e sobrescreve o que for copiado por esta etapa. A copia passa
+# a ser o caminho DEGRADADO: e o que sobra quando nao ha Docker nesta maquina, e
+# a medicao de quem mediu fora continua valendo — o verificador a aceita ou a
+# recusa pelo hash da arvore, exatamente como antes. Remove-la trocaria um
+# veredito parcial por nenhum na unica situacao em que ela ainda serve.
+#
+# E DESDE A P7-2 ELA VALE MAIS VEZES: enquanto a prova nomeava o commit, uma
+# medicao feita fora praticamente sempre divergia, porque qualquer commit novo a
+# invalidava. Nomeando a arvore, ela vale sempre que o CONTEUDO for o mesmo.
 #
 # E ELE VEM ANTES DA MEDICAO, e nao depois: invertida a ordem, uma copia velha
 # sobrescreveria a medicao recem-feita deste commit — que e o defeito que a
@@ -525,21 +551,27 @@ fi
 # ---------------------------------------------------------------------------
 # A MEDICAO DO SEED COMPLETO, FEITA AQUI — Forma B, decidida pelo operador.
 #
-# O PROBLEMA ERA UM LACO, e ele esta medido: a prova carrega o SHA do checkout, e
-# `check_prova_do_seed.py` reprova quando ele diverge. Medir, registrar o numero e
-# commitar INVALIDA a propria medicao — aconteceu duas vezes antes de eu entender
-# o que o mecanismo exigia. A saida procedimental existia — "medir por ultimo,
-# depois de o codigo estar congelado" — e e disciplina.
+# O PROBLEMA ERA UM LACO, e ele esta medido: enquanto a prova carregava o SHA do
+# checkout, medir, registrar o numero e commitar INVALIDAVA a propria medicao —
+# aconteceu duas vezes antes de eu entender o que o mecanismo exigia. A saida
+# procedimental existia — "medir por ultimo, depois de o codigo estar congelado" —
+# e e disciplina.
 #
-# E DISCIPLINA NAO SEGURA. A §9.6 do registro desta fase e a prova pela pior via:
+# E DISCIPLINA NAO SEGURA. A §9.6 do registro daquela fase e a prova pela pior via:
 # a correcao herdou o defeito da coisa corrigida, no mesmo turno, escrita por quem
 # tinha acabado de descrever o defeito. Tres voltas confirmaram. Entao o vinculo
-# deixa de ser procedimental e vira ESTRUTURAL: a medicao acontece DEPOIS de o
-# commit existir, sobre o commit congelado, e nao ha "antes" em que esquecer.
+# deixou de ser procedimental e virou ESTRUTURAL: a medicao acontece aqui, contra
+# o worktree congelado, e nao ha "antes" em que esquecer.
+#
+# O LACO EM SI MORREU NA P7-2, e vale dizer por que esta etapa continua de pe. A
+# prova passou a nomear a ARVORE: commitar so a invalida se um arquivo RASTREADO
+# mudar, entao "medir -> registrar -> commitar" nao se auto-invalida mais. O que
+# mantem a medicao aqui nao e mais o laco — e o custo: Postgres, banco
+# descartavel e ~5 min, que e o mesmo argumento da P4-10.
 #
 # E O PRECEDENTE E A P4-10, inteiro. As provas de container funcionam por esta
 # forma exata — o que exige rede, volume e minutos acontece no lancador, fora da
-# sessao do julgador, e o resultado chega pronto e amarrado ao objeto por SHA. A
+# sessao do julgador, e o resultado chega pronto e amarrado ao objeto por hash. A
 # Forma A sozinha (nenhum numero de medicao no registro) tira a ambiguidade do
 # texto e deixa o laco de pe; as duas juntas o fecham.
 #
@@ -643,13 +675,20 @@ if [ "$STACK_ATIVA" = "1" ]; then
     echo "       ---------------------------------------------------------------" >&2
     echo "       Log completo em: $SEED_LOG" >&2
     # DUAS FALHAS DIFERENTES, e a mensagem nao pode confundi-las. Se o artefato
-    # DESTE commit foi escrito, a medicao ACONTECEU e um dos dois itens
+    # DESTA ARVORE foi escrito, a medicao ACONTECEU e um dos dois itens
     # REPROVOU — `prova_seed_completo.py` grava mesmo quando falha, de proposito,
     # porque e assim que "falhou" se distingue de "ninguem rodou". Se nao foi
-    # escrito, a medicao nao chegou ao fim, e o que vale e o que o transporte
-    # deixou ali. Chamar a primeira de "transportada" faria o auditor ler
-    # divergencia de SHA onde o fato e defeito da fase.
-    if grep -q "\"$HEAD_SHA\"" "$WT/$PROVA_SEED" 2>/dev/null; then
+    # escrito, a medicao nao chegou ao fim, e o que vale e o que a copia deixou
+    # ali. Chamar a primeira de "copiada" faria o auditor ler divergencia de
+    # objeto onde o fato e defeito da fase.
+    #
+    # E O QUE SE PROCURA E A ARVORE, e nao o SHA — P7-2. Esta linha le o VALOR do
+    # campo que o gravador escreve; enquanto ele era `commit`, procurar
+    # `$HEAD_SHA` funcionava. Com o campo passando a ser `tree`, procurar o SHA
+    # aqui nunca casaria: o lancador leria toda medicao REPROVADA como "nao
+    # completou", e o auditor receberia "nao mediu" onde o fato e "mediu e
+    # falhou". Predicado que erra o rotulo da falha e pior que predicado ausente.
+    if grep -q "\"$HEAD_TREE\"" "$WT/$PROVA_SEED" 2>/dev/null; then
       SEED_ORIGEM="reprovou"
     fi
   fi
@@ -660,17 +699,17 @@ fi
 
 case "$SEED_ORIGEM" in
   medida)
-    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre $HEAD_SHA, com banco descartavel proprio. Rode 'python scripts/check_prova_do_seed.py' — ele confere o SHA gravado contra o deste checkout e imprime a medicao integra."
+    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre a arvore $HEAD_TREE, com banco descartavel proprio. Rode 'python scripts/check_prova_do_seed.py' — ele confere o hash da arvore gravado contra o deste checkout e imprime a medicao integra."
     ;;
   reprovou)
-    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre $HEAD_SHA, e REPROVOU. O artefato e deste commit e diz qual dos dois itens falhou; 'python scripts/check_prova_do_seed.py' recusa e imprime. Isto e defeito da fase, e NAO ausencia de ambiente — nao trate como NAO VERIFICADO."
+    SEED_PROVA="MEDIDA PELO LANCADOR neste worktree, sobre a arvore $HEAD_TREE, e REPROVOU. O artefato e desta arvore e diz qual dos dois itens falhou; 'python scripts/check_prova_do_seed.py' recusa e imprime. Isto e defeito da fase, e NAO ausencia de ambiente — nao trate como NAO VERIFICADO."
     ;;
   transportada)
-    SEED_PROVA="NAO MEDIDA nesta rodada ($MEDE_MOTIVO); o que esta aqui foi TRANSPORTADO da arvore principal, e pode ser de outro commit. Rode 'python scripts/check_prova_do_seed.py': ele confere o SHA e recusa se divergir — nunca PASS por silencio."
+    SEED_PROVA="NAO MEDIDA nesta rodada ($MEDE_MOTIVO); o que esta aqui foi COPIADO da arvore principal. Rode 'python scripts/check_prova_do_seed.py': ele confere o hash da arvore e recusa se divergir — nunca PASS por silencio. Desde a P7-2 divergencia aqui NAO e mais o efeito colateral de um fechamento de fase: ela significa que um arquivo RASTREADO mudou entre a medicao e este checkout."
     ;;
   *)
     echo "       Os itens 1 e 2 da DoD da Fase 5 ficam NAO VERIFICADO." >&2
-    SEED_PROVA="AUSENTE ($MEDE_MOTIVO), e nao havia prova na arvore principal para transportar. 'python scripts/check_prova_do_seed.py' recusa por ausencia, e os itens 1 e 2 da DoD sao NAO VERIFICADO — nunca PASS por silencio."
+    SEED_PROVA="AUSENTE ($MEDE_MOTIVO), e nao havia prova na arvore principal para copiar. 'python scripts/check_prova_do_seed.py' recusa por ausencia, e os itens 1 e 2 da DoD sao NAO VERIFICADO — nunca PASS por silencio."
     ;;
 esac
 
@@ -752,10 +791,12 @@ echo
 PROMPT="Audite a Fase $PHASE. Este checkout esta fixado no commit candidato $HEAD_SHA. Compare contra a base $BASE_SHA ($BASE_REF, atualizado agora pelo lancador) — nao resolva 'main' por conta propria, os refs locais deste worktree podem estar atras. Servicos: $SERVICOS
 
 PROVAS DE CONTAINER (P4-10): $PROVAS
-O lancador as rodou na maquina do operador, porque exigem Docker e a allowlist nao o tem. Voce NAO as viu rodar — o que amarra a evidencia a este commit e o SHA que o arquivo carrega, e o verificador reprova se ele divergir. Ausencia tambem reprova: ele nao sai 0 por nao saber.
+O lancador as rodou na maquina do operador, porque exigem Docker e a allowlist nao o tem. Voce NAO as viu rodar — o que amarra a evidencia a este objeto e o hash da ARVORE que o arquivo carrega, e o verificador reprova se ele divergir. Ausencia tambem reprova: ele nao sai 0 por nao saber.
 
 PROVA DO SEED COMPLETO (M2 da Fase 5): $SEED_PROVA
-Mesma forma e mesmo limite das provas de container. O lancador roda a medicao AQUI, contra este worktree e depois do commit existir — o script exige Postgres, escreve 3,5 milhoes de linhas duas vezes e leva minutos, e a allowlist nao tem nada disso. Voce NAO viu medir; o que amarra a medicao a este commit e o SHA gravado, conferido contra o deste checkout, e ausencia tambem reprova. Se a linha acima disser TRANSPORTADA em vez de MEDIDA, a medicao desta rodada nao aconteceu e o arquivo veio da arvore principal: trate a divergencia de SHA como o caso normal, e nao como anomalia.
+Mesma forma e mesmo limite das provas de container. O lancador roda a medicao AQUI, contra este worktree — o script exige Postgres, escreve 3,5 milhoes de linhas duas vezes e leva minutos, e a allowlist nao tem nada disso. Voce NAO viu medir; o que amarra a medicao a este objeto e o hash da arvore gravado, conferido contra o deste checkout, e ausencia tambem reprova.
+
+O QUE A ARVORE AFIRMA, E O QUE ELA NAO AFIRMA (P7-2). Os dois artefatos declaram \`git rev-parse HEAD^{tree}\`, e nao o SHA do commit. Isso e deliberado: o rito de fechamento e rebase, rebase reescreve SHA, e uma prova amarrada ao commit morria em TODO fechamento de fase. Duas consequencias para a sua leitura. (1) A prova NAO afirma qual commit a produziu — dois commits com a mesma arvore sao o mesmo objeto para uma prova de desempenho e de comportamento, e isso e o comportamento certo. (2) A arvore cobre so o conteudo RASTREADO: \`scenarios/\` esta no \`.gitignore\` desde a Fase 5, e o pack materializado NAO entra no hash. O SHA do commit tinha a mesma cegueira; a P7-2 nao a criou, so a tornou nomeavel, e ela esta aberta como P7-3. Se o verificador reprovar por divergencia, a leitura e univoca: um arquivo rastreado mudou.
 
 VEREDITO DA GUARDA DE BASE, verbatim do lancador. Porta ou laudo esta DITO aqui, e nao deve ser deduzido do que o prompt deixa de conter:
 $GUARDA_SAIDA

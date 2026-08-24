@@ -186,7 +186,7 @@ LEITURA_LEGITIMA = [
     # recusou pôr rede e execucao de container na mao do julgador. A direcao
     # oposta esta em ESCRITA_DELIBERADA, para que a exclusao seja PROVADA e nao
     # apenas escrita no comentario da allowlist.
-    ("as provas de container rodaram sobre este commit",
+    ("as provas de container rodaram sobre esta arvore",
      "python scripts/check_provas_de_container.py"),
     ("teste negativo do verificador das provas de container",
      "python scripts/check_provas_de_container_probes.py"),

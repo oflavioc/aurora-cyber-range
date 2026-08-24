@@ -56,20 +56,23 @@ build/
 # versionado — arquivo de estado versionado suja a arvore e bloqueia a
 # verificacao de tree limpo do proprio launcher.
 docs/progress/.last_audit_session
-# P4-10 — as provas de container do commit auditado, gravadas pelo lancador
+# P4-10 — as provas de container da arvore auditada, gravadas pelo lancador
 # DENTRO do worktree de auditoria. Nao pode ser versionado por dois motivos que
 # se somam: o worktree E o objeto da auditoria, e um arquivo rastreado ali
 # apareceria como sujeira em todo `git status` que o auditor fizesse; e
-# evidencia que vem dentro do commit nao pode falar sobre ele — um commit nao
-# contem o proprio SHA. `scripts/check_provas_de_container.py` REPROVA se
-# encontrar este arquivo rastreado, com essa leitura impressa.
+# evidencia que vem dentro da arvore nao pode falar sobre ela — um arquivo
+# versionado nao contem o hash da arvore que o contem, porque rastrea-lo muda a
+# arvore que ele teria de declarar (P7-2; antes era o SHA do commit, e o
+# argumento era o mesmo com uma impossibilidade mais fraca).
+# `scripts/check_provas_de_container.py` REPROVA se encontrar este arquivo
+# rastreado, com essa leitura impressa.
 .aurora-provas-de-container.json
 # M2 da segunda auditoria da Fase 5 — a prova do seed completo, gravada por
 # `scripts/prova_seed_completo.py` na maquina de quem a roda. Pelo mesmo motivo do
-# arquivo acima: ela carrega o SHA do commit que mede, e commit nao contem o
-# proprio SHA. `scripts/check_prova_do_seed.py` REPROVA se encontrar este arquivo
-# rastreado, e reprova tambem quando ele nao existe — ausencia nao degrada para
-# "ok por nao saber".
+# arquivo acima: ela carrega o hash da arvore que mede, e um arquivo versionado
+# nao contem o hash da arvore que o contem. `scripts/check_prova_do_seed.py`
+# REPROVA se encontrar este arquivo rastreado, e reprova tambem quando ele nao
+# existe — ausencia nao degrada para "ok por nao saber".
 .aurora-prova-do-seed.json
 # docs/progress/audit_log.jsonl e docs/progress/audit_*.md SAO versionados de
 # proposito: registro de auditoria que nao entra no repositorio nao e registro.

@@ -125,7 +125,7 @@ RECUSADOS_PELA_ALLOWLIST = {
 #: O VENV HOMONIMO FORA DO WORKTREE e o caso que importa: mesma grafia de
 #: diretorio, arvore diferente. Se a contencao nao o pegasse, o auditor mediria o
 #: commit errado com um caminho que parece certo — a classe do
-#: `check_prova_do_seed` medindo outro commit.
+#: `check_prova_do_seed` medindo outra arvore.
 RECUSADOS_PELA_CONTENCAO = {
     "venv HOMONIMO em outra arvore":
         f"/c/outra-arvore/{DENTRO}/bin/python -m unittest discover -s tests",

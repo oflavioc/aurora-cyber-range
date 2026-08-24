@@ -36,7 +36,7 @@ SAFE_ENV_PREFIX = r"(?:(?:PYTHONDONTWRITEBYTECODE|PYTHONHASHSEED|NODE_ENV)=[^\s]
 #:
 #: POR QUE ISTO NAO E O `py -3.12` QUE FOI RECUSADO. Aquele daria ao julgador um
 #: interpretador DA MAQUINA, com a contencao cega — a mesma classe do
-#: `check_prova_do_seed` medindo outro commit. Este resolve DENTRO do worktree,
+#: `check_prova_do_seed` medindo outra arvore. Este resolve DENTRO do worktree,
 #: e `_alvo_nao_contido` passa a guarda-lo de fato: a regra ganha funcao em vez
 #: de ser contornada.
 #:
@@ -237,18 +237,19 @@ ALLOWED = [
     #
     # O criterio de admissao e o mesmo dos tres anteriores — o auditor nao
     # consegue responder isto por leitura —, e aqui ele e literal: a evidencia e
-    # um arquivo que o LANCADOR escreveu, e a pergunta "ela e deste commit?" e
-    # uma comparacao entre o SHA gravado e o `HEAD` deste checkout. Ler o arquivo
-    # com `cat` mostraria o SHA declarado e nada mais; quem confere e ele.
+    # um arquivo que o LANCADOR escreveu, e a pergunta "ela e desta arvore?" e
+    # uma comparacao entre o hash gravado e o de `HEAD^{tree}` deste checkout.
+    # Ler o arquivo com `cat` mostraria o hash declarado e nada mais; quem
+    # confere e ele.
     #
     # ELE NAO EXECUTA NADA. Le um JSON, chama `git rev-parse` e `git ls-files`, e
     # imprime. Nenhum container sobe por este caminho.
     #
     # A prova negativa entra junto pelo motivo de sempre, e aqui ela carrega as
-    # DUAS direcoes que a P4-10 nomeia: SHA divergente reprova, e arquivo ausente
-    # reprova. Sem ela, o auditor teria de aceitar da palavra de quem escreveu
-    # que a checagem nao degrada para "ok" — que e exatamente a propriedade em
-    # questao.
+    # DUAS direcoes que a P4-10 nomeia: arvore divergente reprova, e arquivo
+    # ausente reprova. Sem ela, o auditor teria de aceitar da palavra de quem
+    # escreveu que a checagem nao degrada para "ok" — que e exatamente a
+    # propriedade em questao.
     rf"|check_provas_de_container|check_provas_de_container_probes"
     # ---------------------------------------------------------------------
     # FASE 5 — os tres verificadores novos, e a TERCEIRA reincidencia da mesma
@@ -305,9 +306,9 @@ ALLOWED = [
     # `check_volumes_da_linha_b` ja entrou acima. `check_prova_do_seed` entra
     # aqui — M2 da segunda auditoria —, e o criterio e o mesmo do
     # `check_provas_de_container`: a evidencia e um arquivo que OUTRO processo
-    # escreveu, e a pergunta "ela e deste commit?" e uma comparacao entre o SHA
-    # gravado e o `HEAD` deste checkout. Ler o arquivo com `cat` mostraria o SHA
-    # declarado e nada mais; quem confere e ele.
+    # escreveu, e a pergunta "ela e desta arvore?" e uma comparacao entre o hash
+    # gravado e o de `HEAD^{tree}` deste checkout. Ler o arquivo com `cat`
+    # mostraria o hash declarado e nada mais; quem confere e ele.
     #
     # ELE NAO EXECUTA O SEED. Le um JSON, chama `git rev-parse` e `git ls-files`,
     # e imprime. O `prova_seed_completo.py` continua FORA, pelo motivo declarado

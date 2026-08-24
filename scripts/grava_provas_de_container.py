@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sobe a stack do commit auditado, roda as duas provas, grava a saida. P4-10.
+"""Sobe a stack do checkout auditado, roda as duas provas, grava a saida. P4-10.
 
 QUEM EXECUTA ISTO E O LANCADOR, NA MAQUINA DO OPERADOR
 --------------------------------------------------------
@@ -137,7 +137,14 @@ TEMPO_LIMITE_PROVA = 600
 #: E O MESMO COMANDO DO CI, e nao uma segunda implementacao — `invariants.yml`
 #: roda `python tests/fixtures/pack_completo.py .aurora-pack` antes do `up` dele.
 #: Chamar o helper por SUBPROCESSO, com o interpretador do venv da auditoria,
-#: mantem as duas rotas literalmente iguais e usa o helper DO COMMIT AUDITADO.
+#: mantem as duas rotas literalmente iguais e usa o helper DA ARVORE AUDITADA.
+#:
+#: E ELE E JUSTAMENTE O QUE A ARVORE NAO COBRE — P7-3. O pack materializado sai
+#: de `scenarios/`, que esta inteiro no `.gitignore` desde a Fase 5: o hash da
+#: arvore nao o inclui, e a evidencia afirma estar em dia com um pack que pode ter
+#: trocado por baixo dela. O SHA do commit tinha a MESMA cegueira — commit
+#: tambem so cobre o rastreado —, entao a P7-2 nao criou o buraco; ela o tornou
+#: nomeavel, e a P7-3 e onde ele se fecha.
 DIRETORIO_DO_PACK = ".aurora-pack"
 HELPER_DO_PACK = ("tests", "fixtures", "pack_completo.py")
 TEMPO_LIMITE_PACK = 120
@@ -163,9 +170,23 @@ def _agora() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sha(worktree: Path) -> str:
+def _arvore(worktree: Path) -> str:
+    """O hash da ARVORE do `HEAD`, e nao o SHA do commit — P7-2.
+
+    O que o rebase preserva e a arvore: `gh pr merge --rebase` reescreve o SHA de
+    todo commit da branch e nao toca no conteudo. Uma prova amarrada ao commit
+    morria em TODO fechamento de fase; amarrada a arvore, ela atravessa.
+
+    `check=True` FICA, e a assimetria com `prova_seed_completo.py` — que degrada
+    para `None` — e deliberada nos dois lados. Aqui o worktree vem por `--worktree`
+    e e criado pelo lancador a partir de um commit: se ele nao resolve uma arvore,
+    o pressuposto do chamador esta errado e gravar um documento com hash nulo
+    esconderia isso atras de uma reprovacao do verificador. La o script roda na
+    maquina de quem mede, que pode legitimamente nao ser um checkout de git, e o
+    campo nulo E a informacao — quem a julga e o verificador.
+    """
     r = subprocess.run(
-        ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+        ["git", "-C", str(worktree), "rev-parse", "HEAD^{tree}"],
         capture_output=True,
         text=True,
         check=True,
@@ -270,7 +291,7 @@ def _diagnostica(worktree: Path, env: dict[str, str]) -> dict:
 
 
 def grava(worktree: Path, interpretador: str, saida: Path) -> int:
-    commit = _sha(worktree)
+    arvore = _arvore(worktree)
     senha_pg = secrets.token_urlsafe(24)
     credencial = secrets.token_urlsafe(24)
     segredo = secrets.token_urlsafe(48)
@@ -278,7 +299,7 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
 
     doc: dict = {
         "esquema": ESQUEMA,
-        "commit": commit,
+        "tree": arvore,
         "quando": _agora(),
         "gerado_por": "scripts/grava_provas_de_container.py",
         "pack": {"rc": None, "saida": ""},
@@ -422,7 +443,7 @@ def grava(worktree: Path, interpretador: str, saida: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Grava as provas de container do commit.")
+    p = argparse.ArgumentParser(description="Grava as provas de container da arvore.")
     p.add_argument("--worktree", required=True, help="o checkout auditado")
     p.add_argument(
         "--python",

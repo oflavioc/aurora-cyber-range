@@ -44,6 +44,9 @@ from sqlalchemy import text
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
+sys.path.insert(0, os.path.join(REPO_ROOT, "scripts"))
+
+from check_prova_do_seed import ESQUEMA  # noqa: E402
 from domains.academus.api.repositorio import engine_do_ambiente  # noqa: E402
 from domains.academus.seed import carga, dataset  # noqa: E402
 from range_core.determinism import random_seed  # noqa: E402
@@ -55,12 +58,21 @@ DSN_ENV = "AURORA_SEED_DATABASE_URL"
 #:
 #: Ate aqui o numero vivia so no registro da fase, e o registro trazia DOIS —
 #: 159,4 s e 144,3 s, de antes e depois do embaralhamento — sem nada dizendo a
-#: qual commit cada um pertencia. Numero de desempenho sem commit e ambiguo assim
-#: que a arvore anda uma vez.
+#: que objeto cada um pertencia. Numero de desempenho sem o objeto que ele mediu
+#: e ambiguo assim que o conteudo anda uma vez.
 #:
-#: O arquivo carrega o SHA do checkout, e `check_prova_do_seed.py` reprova quando
-#: ele diverge E quando o arquivo nao existe. Nao ha degradacao para "ok por nao
-#: saber": nao ter a prova e o caso em que nao se pode afirmar o item 1.
+#: O arquivo carrega o HASH DA ARVORE do checkout — P7-2 —, e
+#: `check_prova_do_seed.py` reprova quando ele diverge E quando o arquivo nao
+#: existe. Nao ha degradacao para "ok por nao saber": nao ter a prova e o caso em
+#: que nao se pode afirmar o item 1.
+#:
+#: ARVORE, E NAO COMMIT, e a troca apaga um laco que era proprio deste script:
+#: enquanto o campo era o SHA do commit, medir -> registrar o numero -> commitar
+#: INVALIDAVA a propria medicao, e a saida era procedimental ("medir por ultimo,
+#: com o codigo congelado") — disciplina, e disciplina falhou duas vezes. Com a
+#: prova nomeando arvore, commitar so a invalida se algum arquivo RASTREADO
+#: mudar, que e quando ela DEVE mesmo ser invalidada. O rebase-merge que fecha a
+#: fase nao a toca.
 EVIDENCIA = ".aurora-prova-do-seed.json"
 
 #: A ordem inversa das FKs, como em `tests/_academus_banco.py`. Repetida aqui
@@ -153,7 +165,8 @@ def main() -> int:
 
     _grava(
         {
-            "commit": _head(),
+            "esquema": ESQUEMA,
+            "tree": _arvore(),
             "maquina": platform.platform(),
             "python": platform.python_version(),
             "data": datetime.now(timezone.utc).isoformat(),
@@ -171,15 +184,27 @@ def main() -> int:
     return 0 if (identico and dentro) else 1
 
 
-def _head() -> str | None:
+def _arvore() -> str | None:
+    """O hash da ARVORE do `HEAD`, e nao o SHA do commit — P7-2.
+
+    O que o rebase preserva e a arvore, e por isso a prova passa a nomea-la: o
+    `gh pr merge --rebase` que fecha a fase reescreve todo SHA e nao toca no
+    conteudo medido.
+
+    DEGRADA PARA `None`, ao contrario do gravador de container, que usa
+    `check=True`. Este script roda na maquina de quem mede, que pode nao ser um
+    checkout de git; ali o campo nulo E a informacao, e quem o julga e
+    `check_prova_do_seed.py`. La o worktree vem do lancador e nao resolver arvore
+    significa pressuposto errado do chamador, que deve falhar alto.
+    """
     r = subprocess.run(
-        ["git", "-C", REPO_ROOT, "rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+        ["git", "-C", REPO_ROOT, "rev-parse", "--verify", "--quiet", "HEAD^{tree}"],
         capture_output=True,
         text=True,
         check=False,
     )
-    sha = r.stdout.strip()
-    return sha if len(sha) == 40 else None
+    arvore = r.stdout.strip()
+    return arvore if len(arvore) == 40 else None
 
 
 def _grava(doc: dict) -> None:

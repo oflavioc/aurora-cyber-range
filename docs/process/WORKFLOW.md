@@ -317,20 +317,62 @@ O lançador sobe a stack **a partir do worktree auditado**, roda as duas provas 
 grava a saída íntegra num arquivo. O auditor **lê** — e é aqui que a coisa
 deixaria de valer, se parasse aqui.
 
-**O que a separa de atestação é o SHA.** O arquivo carrega o commit, e
-`scripts/check_provas_de_container.py` — que está na allowlist —, **reprova** se
-ele não for o do checkout que se julga. E **reprova também quando o arquivo não
-existe**: não há degradação para "ok por não saber", que é o erro que os dois
-predicados de base aposentados cometeram.
+**O que a separa de atestação é o hash da ÁRVORE.** O arquivo carrega
+`git rev-parse HEAD^{tree}`, e `scripts/check_provas_de_container.py` — que está
+na allowlist —, **reprova** se ele não for o do checkout que se julga. E
+**reprova também quando o arquivo não existe**: não há degradação para "ok por
+não saber", que é o erro que os dois predicados de base aposentados cometeram.
 
-**A condição é forte por mecânica, e não por confiança: um commit não pode conter
-o próprio SHA.** A forma óbvia de forjar — versionar o arquivo junto com o
-código — não tem como carregar o hash do commit que a contém.
+**A condição é forte por mecânica, e não por confiança: um arquivo versionado não
+pode conter o hash da árvore que o contém.** Rastreá-lo muda a árvore que ele
+teria de declarar, então a forma óbvia de forjar — versionar o arquivo junto com
+o código — continua impossível. E por uma impossibilidade **mais forte** que a
+anterior: com o SHA do commit ela era do hash *final*, calculado depois de tudo;
+com a árvore é do *conteúdo*, que é o que a prova de fato mediu.
+
+#### Por que árvore, e não commit — P7-2
+
+Até a P7-2 o campo era o SHA do commit, e **todo fechamento de fase invalidava
+toda prova**. Não era acidente: esta mesma seção fixa **rebase, nunca squash**, e
+rebase reescreve SHA por definição. Depois do merge do #53 os dois verificadores
+reprovaram na `main` sobre uma árvore que ninguém havia tocado. O conserto
+pontual — regravar — resolvia a ocorrência e deixava a causa de pé, porque **o
+rito produzia o defeito**.
+
+O que o rebase preserva é a árvore. Medido em três merges desta linhagem, três
+pares candidato/rebaseado: nenhuma diferença de árvore. O SHA muda; o objeto que
+a prova mediu, não. Então a prova passa a nomear **o que ela mediu** — conteúdo —
+em vez de **onde aquilo estava** — história.
+
+Duas coisas caem junto, e é importante que estejam ditas:
+
+- **O laço "medir → registrar o número → commitar invalida a própria medição"
+  deixa de existir.** Ele era consequência de o campo ser o SHA, e commitar mudar
+  o SHA. Com a prova nomeando árvore, commitar só a invalida se algum arquivo
+  **rastreado** mudar — que é exatamente quando ela deve mesmo cair. A restrição
+  procedimental que ele obrigava ("regravar tem de ser a última coisa, depois do
+  último merge") some com ele.
+- **O estado TRANSPORTADA some.** Ele existia porque a prova de outra árvore era
+  o caso normal depois de um merge, e o briefing tinha de avisar o auditor disso.
+  Não há mais transporte a explicar: a árvore não muda no rebase-merge, então uma
+  prova medida antes do fechamento continua sendo a prova desta árvore.
+
+**O que a árvore NÃO cobre, declarado:** só o conteúdo rastreado. `scenarios/`
+está inteiro no `.gitignore` desde a Fase 5, e o gravador materializa o pack antes
+do `up` — a evidência afirma estar em dia com um pack que pode ter trocado por
+baixo dela. **Não é buraco novo:** o SHA do commit tinha a mesma cegueira, porque
+commit também só cobre o rastreado. A troca o tornou nomeável, e ele está aberto
+como P7-3.
+
+Um segundo limite, e é escolha: dois commits com a mesma árvore ficam
+indistinguíveis. Para prova de **desempenho e comportamento** isso é o
+comportamento certo — mesmo conteúdo é o mesmo objeto —, e é a propriedade que faz
+a prova atravessar o rebase em vez de morrer nele.
 
 **O que continua verdade, e está impresso na saída do próprio verificador:** o
 auditor não viu rodar. A procedência é melhor que a de uma frase de registro — há
-SHA, há saída íntegra, e o texto é o dos próprios scripts —, e continua sendo
-leitura.
+o hash da árvore, há saída íntegra, e o texto é o dos próprios scripts —, e
+continua sendo leitura.
 
 **Quem grava fica FORA da allowlist**, e a exclusão é a mesma separação de papéis
 que faz o auditor não ter `Write`: `grava_provas_de_container.py` constrói
@@ -343,24 +385,30 @@ allowlist.
 allowlist do auditor. É argumento para fazer a coisa no lançador, antes da
 sessão, e entregar o resultado pronto — como as linhas acima.
 
-### A medição do seed, e por que ela é a única que acontece DEPOIS do commit
+### A medição do seed, e por que ela acontece DEPOIS do commit
 
 Itens 1 e 2 da DoD da Fase 5 — o seed completo em menos de cinco minutos, e o
 dataset byte-idêntico com o mesmo `RANDOM_SEED`. A forma é a da P4-10, e a
-diferença é o **momento**, que aqui não é detalhe:
+diferença é o **momento**.
 
-> a prova carrega o SHA do checkout, e o verificador reprova quando ele diverge.
-> Medir → registrar o número → commitar **invalida a própria medição**.
-
-A saída procedimental existe e é óbvia — *medir por último, com o código
-congelado, e não commitar nada depois*. Ela foi escrita no registro da Fase 5 e
-**a volta seguinte caiu no laço de novo**, escrita por quem tinha acabado de
-descrevê-lo. É a mesma distinção entre regra e propriedade que já motivou
-mecanizar o guarda de branch e o sentinela: instrução é regra; lançador é
+**Houve um laço aqui, e a P7-2 o desfez.** Enquanto a prova carregava o SHA do
+checkout, medir → registrar o número → commitar **invalidava a própria medição**,
+porque commitar mudava o SHA. A saída procedimental existia e era óbvia — *medir
+por último, com o código congelado, e não commitar nada depois* —, foi escrita no
+registro da Fase 5, e **a volta seguinte caiu no laço de novo**, escrita por quem
+tinha acabado de descrevê-lo. É a mesma distinção entre regra e propriedade que já
+motivou mecanizar o guarda de branch e o sentinela: instrução é regra; lançador é
 impedimento.
 
-Por isso o lançador **mede**, depois do `git worktree add` e contra o worktree. O
-que a distingue das provas de container, e o motivo de cada coisa:
+Com a prova nomeando a **árvore**, o laço não existe mais: commitar só a invalida
+se algum arquivo **rastreado** mudar, que é quando ela deve mesmo cair. Mudar a
+mensagem do commit, recommitar, rebasear ou fechar a fase não a tocam.
+
+**A medição continua no lançador**, e agora por um motivo mais simples que o laço:
+ela exige Postgres, um banco descartável e ~5 min, e é o mesmo argumento da P4-10 —
+o que exige volume acontece fora da sessão do julgador e chega pronto. Ela ocorre
+depois do `git worktree add` e contra o worktree. O que a distingue das provas de
+container, e o motivo de cada coisa:
 
 | | |
 |---|---|
@@ -369,16 +417,24 @@ que a distingue das provas de container, e o motivo de cada coisa:
 | **`CREATEROLE`** | a migration `0004` cria a role da aplicação, e a `POSTGRES_USER` da imagem é superusuária do cluster. A role é objeto de cluster: se o outro banco já a criou, esta execução só faz o `GRANT` |
 | **`RANDOM_SEED` fixo no lançador** | seed que mudasse por rodada tornaria a medição incomparável com a anterior — o mesmo argumento do `SEED` do gravador de container. Não é credencial |
 
-**O transporte continua existindo, e é o caminho degradado.** O lançador copia
+**A cópia continua existindo, e é o caminho degradado.** O lançador copia
 `.aurora-prova-do-seed.json` da árvore principal **antes** de medir, e a medição
 o sobrescreve quando acontece. Sem Docker, o que sobra é a medição de quem mediu
-fora — e quem a aceita ou recusa é o verificador, pelo SHA. Invertida a ordem, a
-cópia velha sobrescreveria a medição recém-feita, que é o defeito entrando pela
-porta do fallback.
+fora — e quem a aceita ou recusa é o verificador, pelo hash da árvore. Invertida a
+ordem, a cópia velha sobrescreveria a medição recém-feita, que é o defeito
+entrando pela porta do fallback.
 
-**O briefing distingue os dois casos**, e não deixa o auditor deduzir: `MEDIDA
-PELO LANCADOR` é vínculo estrutural; `TRANSPORTADA` avisa que divergência de SHA
-é o caso normal daquela rodada, e não anomalia.
+**O que era o estado TRANSPORTADA sumiu com a P7-2.** Ele existia porque, com a
+prova amarrada ao commit, uma medição feita antes do fechamento falava de um SHA
+que a `main` não tinha mais — e o briefing precisava avisar o auditor de que
+divergência era o caso normal daquela rodada, e não anomalia. Com a prova
+amarrada à árvore isso não acontece: se o conteúdo é o mesmo, a prova é desta
+árvore, medida onde tiver sido medida. O briefing distingue apenas se a medição
+**aconteceu nesta rodada** ou **não aconteceu** — e, no segundo caso, o
+verificador decide sozinho, sem estado intermediário para o lançador narrar.
+
+Se a árvore divergir, a leitura agora é unívoca e vale a pena estar escrita:
+**algum arquivo rastreado mudou**. Não é mais "alguém fechou uma fase".
 
 ### O venv da auditoria, e o que ele fecha — P3-4
 

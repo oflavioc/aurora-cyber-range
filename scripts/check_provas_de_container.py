@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""As provas de container rodaram, e rodaram NESTE commit? — P4-10, opcao A.
+"""As provas de container rodaram, e rodaram NESTA ARVORE? — P4-10, opcao A.
 
 O QUE ESTE VERIFICADOR EXISTE PARA FECHAR
 ------------------------------------------
@@ -20,27 +20,56 @@ integra num arquivo. O auditor LE esse arquivo.
 
 E POR QUE ISSO NAO E ATESTACAO
 -------------------------------
-Porque o arquivo carrega o **SHA do commit**, e este verificador **reprova** se
+Porque o arquivo carrega o **hash da ARVORE**, e este verificador **reprova** se
 ele nao for o do checkout que o auditor esta julgando. O auditor continua nao
 tendo visto a execucao — isso e verdade e esta dito —, mas a evidencia fica
 **amarrada ao objeto**, que e a diferenca entre *"alguem rodou"* e *"rodou
 nisto"*.
 
-A condicao e forte por um motivo mecanico, e nao por confianca: **um commit nao
-pode conter o proprio SHA.** Um arquivo de evidencia versionado JUNTO com o
-codigo — a forma obvia de forjar — nao tem como carregar o hash do commit que o
-contem. Por isso a checagem de SHA nao e uma formalidade: ela e o que torna a
-forja impossivel, e nao apenas dificil.
+A condicao e forte por um motivo mecanico, e nao por confianca: **um arquivo
+versionado nao pode conter o hash da arvore que o contem.** O hash de arvore
+cobre o conteudo dos arquivos rastreados, entao acrescentar a evidencia ao
+indice muda a arvore que ela teria de declarar — o arquivo passa a apontar para
+o estado anterior a si mesmo. A forma obvia de forjar continua impossivel, e por
+uma impossibilidade MAIS FORTE que a de antes: com o SHA do commit a
+impossibilidade era do hash FINAL, calculado depois de tudo; com a arvore ela e
+do CONTEUDO, que e exatamente o que a prova mediu.
+
+ARVORE, E NAO COMMIT — P7-2
+-----------------------------
+Ate a P7-2 este campo era o SHA do commit, e **todo fechamento de fase o
+invalidava**. `WORKFLOW.md` fixa rebase, nunca squash, e rebase reescreve SHA
+por definicao: depois de `gh pr merge --rebase` a evidencia falava de um commit
+que a `main` nao tem mais. Nao era acidente de um fechamento — era o rito
+produzindo o defeito, sempre, e regravar consertava a ocorrencia sem tocar a
+causa.
+
+O que o rebase PRESERVA e a arvore. Medido em tres merges: tres pares
+candidato/rebaseado, nenhuma diferenca de arvore. O SHA muda; o objeto que a
+prova mediu, nao. Entao a prova passa a nomear **o que ela mediu** — conteudo —
+em vez de **onde aquilo estava** — historia.
+
+O QUE A ARVORE NAO COBRE, DECLARADO. So o conteudo RASTREADO: `scenarios/` esta
+inteiro no `.gitignore` desde a Fase 5, e o gravador materializa o pack antes do
+`up`. Uma prova amarrada a arvore afirma estar em dia com um pack que pode ter
+trocado por baixo dela. Nao e buraco novo — o SHA do commit tem a MESMA cegueira,
+porque commit tambem so cobre o rastreado —, e esta aberto como P7-3.
+
+Um segundo limite, e ele e escolha: dois commits com a mesma arvore ficam
+indistinguiveis. Para prova de DESEMPENHO e COMPORTAMENTO isso e o comportamento
+certo — mesmo conteudo e o mesmo objeto —, e e a propriedade que faz a prova
+atravessar o rebase em vez de morrer nele.
 
 A segunda condicao e mais barata e pega o caso honesto: **evidencia VERSIONADA
-reprova**, sem nem olhar o SHA. Ela nao acrescenta seguranca sobre a primeira —
+reprova**, sem nem olhar o hash. Ela nao acrescenta seguranca sobre a primeira —
 acrescenta diagnostico, porque o caso provavel nao e forja, e alguem commitar o
 arquivo por engano e passar meses sem entender por que a evidencia envelheceu.
 
 AUSENCIA REPROVA. NAO HA "SAI 0 POR NAO SABER"
 -----------------------------------------------
-Arquivo ausente, ilegivel, sem SHA, com lista de provas vazia, com uma das duas
-provas faltando, ou com qualquer prova em `rc != 0`: **rc=2**, sempre.
+Arquivo ausente, ilegivel, sem o hash da arvore, com lista de provas vazia, com
+uma das duas provas faltando, ou com qualquer prova em `rc != 0`: **rc=2**,
+sempre.
 
 Nao ha degradacao para "ok", e a razao e a mesma que fez `check_audit_base.py`
 recusar quando nao sabe: *nao ter a evidencia* e exatamente o caso em que nao se
@@ -70,8 +99,10 @@ do PROPRIO ARQUIVO, e nao do diretorio de onde ele foi chamado: o objeto da
 auditoria e o checkout que contem este script, e deixar a raiz depender do `cwd`
 daria ao chamador como apontar a checagem para outra arvore.
 
-Exercido por `scripts/check_provas_de_container_probes.py` em TREZE eixos — dez
-que exigem recusa e tres que exigem aprovacao.
+Exercido por `scripts/check_provas_de_container_probes.py` em DEZESSEIS eixos —
+doze que exigem recusa e quatro que exigem aprovacao. Os dois que a P7-2 comprou
+sao o (n), que exige APROVAR uma prova cujo commit foi reescrito por rebase sem
+mudar a arvore, e o (o), que exige RECUSAR quando um arquivo rastreado muda.
 """
 
 from __future__ import annotations
@@ -85,7 +116,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True
 
-REGRA = "P4-10 - as provas de container rodaram sobre ESTE commit"
+REGRA = "P4-10 - as provas de container rodaram sobre ESTA arvore"
 
 #: O nome comeca com ponto e esta no `.gitignore`. As duas coisas sao
 #: consequencia e nao desenho: o worktree de auditoria E o objeto da auditoria, e
@@ -93,9 +124,21 @@ REGRA = "P4-10 - as provas de container rodaram sobre ESTE commit"
 #: em `git status --short`.
 EVIDENCIA = ".aurora-provas-de-container.json"
 
-ESQUEMA = "aurora.provas-de-container/1"
+#: BUMPADO PARA `/2` NA P7-2, e o bump e o mecanismo e nao a formalidade.
+#:
+#: O campo obrigatorio deixou de ser `commit` e passou a ser `tree`. Sem o bump,
+#: um artefato gravado antes desta mudanca — que tem `commit` e nao tem `tree` —
+#: cairia no eixo (d) como *"nao carrega um `tree` valido: None"*: reprovaria,
+#: certo, mas dizendo que o gravador falhou quando o fato e que o formato mudou.
+#: Mensagem que mente sobre a causa custa a mesma auditoria que a ausencia de
+#: mensagem, e o lancador COPIA artefato entre arvores — entao o caso nao e
+#: hipotetico. Com o bump, quem responde e o eixo (c), que nomeia o formato.
+ESQUEMA = "aurora.provas-de-container/2"
 
-_SHA = re.compile(r"^[0-9a-f]{40}$")
+#: Hash de objeto do git: 40 hex. Serve a arvore exatamente como servia ao
+#: commit — a forma nao distingue os dois, e nao precisa: quem decide qual e o
+#: objeto certo e a COMPARACAO do eixo (d), e nao a forma do eixo que a precede.
+_HASH = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,10 +188,22 @@ def _git(raiz: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _head(raiz: Path) -> str | None:
-    r = _git(raiz, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
-    sha = r.stdout.strip()
-    return sha if _SHA.match(sha) else None
+def _arvore(raiz: Path) -> str | None:
+    """O hash da ARVORE do `HEAD`, e nao o SHA do commit — P7-2.
+
+    `HEAD^{tree}` resolve o commit e devolve a arvore que ele aponta. E o que o
+    rebase preserva: replaying um commit sobre a mesma base produz outro SHA e a
+    MESMA arvore, entao a prova atravessa o fechamento de fase em vez de morrer
+    nele.
+
+    Nao le o indice nem o diretorio de trabalho: e a arvore do commit, e nao a
+    arvore que um `git write-tree` produziria agora. A evidencia e ignorada pelo
+    git, entao ela nao entra no hash que declara — que e o que torna a amarracao
+    nao-circular.
+    """
+    r = _git(raiz, "rev-parse", "--verify", "--quiet", "HEAD^{tree}")
+    arvore = r.stdout.strip()
+    return arvore if _HASH.match(arvore) else None
 
 
 def _versionado(raiz: Path, relativo: str) -> bool:
@@ -164,21 +219,21 @@ def _versionado(raiz: Path, relativo: str) -> bool:
 def avalia(raiz: Path) -> tuple[list[Falha], dict | None]:
     """As condicoes, na ordem em que a mensagem fica mais util.
 
-    Devolve (falhas, documento). Lista vazia = as duas provas rodaram sobre este
-    commit. O documento volta junto para que o chamador imprima a saida integra —
+    Devolve (falhas, documento). Lista vazia = as duas provas rodaram sobre esta
+    arvore. O documento volta junto para que o chamador imprima a saida integra —
     o auditor precisa LER o que rodou, e nao so saber que rodou.
     """
     caminho = raiz / EVIDENCIA
 
-    head = _head(raiz)
-    if head is None:
+    arvore = _arvore(raiz)
+    if arvore is None:
         return [
             Falha(
                 "arvore",
-                f"'{raiz}' nao resolve um HEAD de git.\n"
-                f"    Sem o SHA do checkout nao ha contra o que amarrar a evidencia,\n"
-                f"    e amarrar a evidencia ao objeto e a unica coisa que separa\n"
-                f"    esta checagem de atestacao.",
+                f"'{raiz}' nao resolve a arvore de um `HEAD` de git.\n"
+                f"    Sem o hash da arvore do checkout nao ha contra o que amarrar a\n"
+                f"    evidencia, e amarrar a evidencia ao objeto e a unica coisa que\n"
+                f"    separa esta checagem de atestacao.",
             )
         ], None
 
@@ -199,19 +254,20 @@ def avalia(raiz: Path) -> tuple[list[Falha], dict | None]:
         ], None
 
     # ------------------------------------------------------------------
-    # (b) EVIDENCIA VERSIONADA. Nao reforca o eixo do SHA — diagnostica.
+    # (b) EVIDENCIA VERSIONADA. Nao reforca o eixo do hash — diagnostica.
     # ------------------------------------------------------------------
     if _versionado(raiz, EVIDENCIA):
         return [
             Falha(
                 "b",
                 f"`{EVIDENCIA}` esta VERSIONADO nesta arvore.\n"
-                f"    Evidencia que vem dentro do commit nao pode falar sobre ele: um\n"
-                f"    commit nao contem o proprio SHA. O eixo do SHA ja reprovaria\n"
-                f"    isto; este existe porque o caso provavel nao e forja, e alguem\n"
-                f"    ter commitado o arquivo por engano — e esse merece a mensagem\n"
-                f"    que nomeia a causa. Acrescente-o ao `.gitignore` e remova-o do\n"
-                f"    indice.",
+                f"    Evidencia que vem dentro da arvore nao pode falar sobre ela: um\n"
+                f"    arquivo versionado nao contem o hash da arvore que o contem —\n"
+                f"    rastrea-lo muda a arvore que ele teria de declarar. O eixo do\n"
+                f"    hash ja reprovaria isto; este existe porque o caso provavel nao\n"
+                f"    e forja, e alguem ter commitado o arquivo por engano — e esse\n"
+                f"    merece a mensagem que nomeia a causa. Acrescente-o ao\n"
+                f"    `.gitignore` e remova-o do indice.",
             )
         ], None
 
@@ -231,39 +287,51 @@ def avalia(raiz: Path) -> tuple[list[Falha], dict | None]:
         ], None
 
     if not isinstance(doc, dict) or doc.get("esquema") != ESQUEMA:
+        declarado_esquema = doc.get("esquema") if isinstance(doc, dict) else None
+        antigo = (
+            "\n    Este e o esquema ANTERIOR a P7-2: ele amarrava a prova ao SHA do\n"
+            "    COMMIT, e todo `gh pr merge --rebase` o invalidava. Regravar sobre\n"
+            "    o checkout atual produz o formato novo, amarrado a ARVORE."
+            if declarado_esquema == "aurora.provas-de-container/1"
+            else ""
+        )
         return [
             Falha(
                 "c",
-                f"`{EVIDENCIA}` nao declara o esquema `{ESQUEMA}`.\n"
+                f"`{EVIDENCIA}` nao declara o esquema `{ESQUEMA}`"
+                f" (declara {declarado_esquema!r}).\n"
                 f"    Ou o arquivo nao e o que este verificador julga, ou o formato\n"
-                f"    mudou sem que a checagem acompanhasse.",
+                f"    mudou sem que a checagem acompanhasse.{antigo}",
             )
         ], None
 
     # ------------------------------------------------------------------
-    # (d) O SHA. A condicao que separa isto de atestacao.
+    # (d) O HASH DA ARVORE. A condicao que separa isto de atestacao.
     # ------------------------------------------------------------------
-    declarado = doc.get("commit")
-    if not isinstance(declarado, str) or not _SHA.match(declarado):
+    declarado = doc.get("tree")
+    if not isinstance(declarado, str) or not _HASH.match(declarado):
         return [
             Falha(
                 "d",
-                f"`{EVIDENCIA}` nao carrega um `commit` valido: {declarado!r}.\n"
-                f"    Sem o SHA a evidencia nao esta amarrada a objeto nenhum, e\n"
-                f"    passa a ser exatamente a atestacao que a P4-10 recusou.",
+                f"`{EVIDENCIA}` nao carrega um `tree` valido: {declarado!r}.\n"
+                f"    Sem o hash da arvore a evidencia nao esta amarrada a objeto\n"
+                f"    nenhum, e passa a ser exatamente a atestacao que a P4-10\n"
+                f"    recusou.",
             )
         ], doc
 
-    if declarado != head:
+    if declarado != arvore:
         return [
             Falha(
                 "d",
-                f"a evidencia e de OUTRO COMMIT.\n"
+                f"a evidencia e de OUTRA ARVORE.\n"
                 f"        declarado no arquivo : {declarado}\n"
-                f"        checkout que se julga: {head}\n"
-                f"    As provas rodaram — mas nao sobre isto. Um verde que fala de\n"
-                f"    outro commit e a forma de atestacao que o L1 da primeira\n"
-                f"    auditoria desta fase ja custou uma rodada.",
+                f"        checkout que se julga: {arvore}\n"
+                f"    As provas rodaram — mas nao sobre este conteudo. Algum arquivo\n"
+                f"    RASTREADO mudou entre a gravacao e agora; rebase e mudanca de\n"
+                f"    mensagem de commit nao chegam aqui, porque nao mexem na arvore.\n"
+                f"    Um verde que fala de outro conteudo e a forma de atestacao que\n"
+                f"    o L1 da primeira auditoria desta fase ja custou uma rodada.",
             )
         ], doc
 
@@ -381,7 +449,7 @@ def relata(falhas: list[Falha], doc: dict | None, raiz: Path) -> int:
     if not falhas:
         assert doc is not None
         print(
-            f"{REGRA}: {len(PROVAS)} provas, commit {doc['commit'][:12]}, "
+            f"{REGRA}: {len(PROVAS)} provas, arvore {doc['tree'][:12]}, "
             f"gravadas por {doc.get('gerado_por', '?')} em {doc.get('quando', '?')}."
         )
         for prova in PROVAS:
@@ -390,7 +458,10 @@ def relata(falhas: list[Falha], doc: dict | None, raiz: Path) -> int:
         print(
             "\nO AUDITOR NAO VIU RODAR, e isto esta dito de proposito: a evidencia\n"
             "acima foi produzida pelo lancador, na maquina do operador. O que a\n"
-            "separa de atestacao e o SHA — ela e deste commit, e nao de um anterior."
+            "separa de atestacao e o hash da ARVORE — ela mede este conteudo, e nao\n"
+            "um anterior. Ela NAO afirma qual commit o produziu: dois commits com a\n"
+            "mesma arvore sao o mesmo objeto para uma prova de desempenho e de\n"
+            "comportamento, e e por isso que ela sobrevive ao rebase-merge (P7-2)."
         )
         return 0
 
