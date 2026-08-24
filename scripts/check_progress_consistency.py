@@ -24,6 +24,40 @@ Para cada `docs/progress/fase_*.md`:
   2. toda secao de detalhe aparece na tabela-resumo;
   3. nenhum identificador aparece duas vezes na tabela ou duas vezes como secao.
 
+E entre fases consecutivas — a entrega da peca 1 da Fase 7:
+
+  4. **todo item NAO-FECHADO da fase N aparece na tabela da fase N+1.**
+
+A PAUTA HERDADA, E POR QUE ELA E A MESMA PERGUNTA
+---------------------------------------------------
+Os tres primeiros predicados cruzam tabela e secao DENTRO de um registro. O
+quarto cruza a tabela de um registro com a do seguinte, e o defeito e o mesmo da
+§1.6: afirmacao verdadeira quando escrita, falsa quando o artefato andou. Aqui o
+artefato que anda e a FASE.
+
+**Medido:** `e571091` abriu a branch da Fase 7 sem cinco pendencias da Fase 6, e
+nenhum gate viu. As cinco foram achadas por leitura, transcritas a mao, e a mao
+que transcreve e exatamente o que nao pode ser o mecanismo.
+
+A DIRECAO E DE N PARA N+1, e ela e escolhida: e a que pega OMISSAO. A inversa —
+*"todo item da N+1 veio de algum lugar"* — pegaria invencao, que nao e o defeito
+que aconteceu.
+
+O VOCABULARIO DE ESTADO, fechado a partir da Fase 7 e declarado no registro dela:
+
+    ABERTA · LATENTE · DECIDIDA · VENCIDA   -> NAO-FECHADOS, e migram
+    RESOLVIDA                               -> fechada, nao migra
+    ENTREGA                                 -> trabalho da propria fase, nao migra
+
+Estado fora do enum REPROVA. Ele nao pode ser classificado como fechado nem como
+aberto, e escolher um dos dois em silencio degradaria onde a pergunta e.
+
+DUAS DEGRADACOES, e as duas se ANUNCIAM. Fase seguinte que nao existe, e registro
+cuja tabela-resumo nao declara coluna de estado — `fase_1.md` ate `fase_5.md`,
+anteriores ao vocabulario — sao PULADOS com a razao impressa. Par nao conferido
+que nao se anuncia e indistinguivel de par conferido e verde, e essa confusao e a
+classe que este arquivo inteiro persegue.
+
 Registro SEM tabela-resumo nao e conferido, e isso e limite declarado: `fase_0.md`
 usa estilo cronologico, com uma entrada por rodada de auditoria, e o mesmo id
 aparece na entrada do finding e na da resolucao. Sem tabela nao ha o que cruzar.
@@ -105,8 +139,30 @@ SECAO = re.compile(r"^#{3,5}\s+(P\d+(?:-\d+)?)\s+[—-]")
 #: e este proprio docstring o menciona.
 MARCADOR = re.compile(r"^\s*<!--\s*tabela-resumo-de-pendencias\s*-->\s*$")
 
+#: `| P6-7 | ...o que e... | `VENCIDA` | ...gatilho... |` — a TERCEIRA celula.
+#: Casa so a tabela de quatro colunas; a de tres nao produz par nenhum, e e assim
+#: que `estados_da_tabela` distingue "sem estado declarado" de "sem pendencia".
+LINHA_COM_ESTADO = re.compile(
+    r"^\|\s*\*{0,2}(P\d+(?:-\d+)?)\*{0,2}\s*\|[^|]*\|\s*[`*]*([A-Z]+)[`*]*\s*\|"
+)
 
-def _colhe(linhas: list[str], inicio: int, *, ancorada: bool) -> list[str] | None:
+#: O ENUM, FECHADO — a mesma lista que o registro da Fase 7 declara em prosa.
+#: Valor fora daqui REPROVA, e nao e ignorado: estado que o verificador nao
+#: entende e estado que ele nao pode classificar como fechado nem como aberto, e
+#: escolher um dos dois em silencio seria degradar exatamente onde a pergunta e.
+NAO_FECHADOS = ("ABERTA", "LATENTE", "DECIDIDA", "VENCIDA")
+FECHADOS = ("RESOLVIDA",)
+
+#: `ENTREGA` e trabalho da PROPRIA fase, e nao pendencia a carregar. Nao migra, e
+#: nao e cobrada na fase seguinte — o que a cobra e a Definition of Done dela.
+NAO_MIGRA = ("ENTREGA",)
+
+ESTADOS = frozenset(NAO_FECHADOS + FECHADOS + NAO_MIGRA)
+
+
+def _linhas_da_tabela(
+    linhas: list[str], inicio: int, *, ancorada: bool
+) -> list[str] | None:
     """Ids da proxima tabela a partir de `inicio`, em ordem.
 
     `ancorada` diz se um MARCADOR apontou para esta tabela, e e a unica diferenca
@@ -120,21 +176,40 @@ def _colhe(linhas: list[str], inicio: int, *, ancorada: bool) -> list[str] | Non
         esconde. E o unico motivo pelo qual a tabela de enum da Fase 7 nao
         quebrou a leitura antes do marcador existir.
     """
-    ids: list[str] = []
+    corpo: list[str] = []
     vista = False
     for linha in linhas[inicio:]:
         if linha.startswith("##"):
             break
         if linha.lstrip().startswith("|"):
             vista = True
-            m = LINHA_TABELA.match(linha.strip())
-            if m:
-                ids.append(m.group(1))
+            corpo.append(linha.strip())
         elif vista and linha.strip() == "":
             # Linha em branco depois da tabela: ela terminou.
-            if ancorada or ids:
+            if ancorada or any(LINHA_TABELA.match(c) for c in corpo):
                 break
-    return ids if vista else None
+    return corpo if vista else None
+
+
+def _localiza(linhas: list[str]) -> list[str] | None:
+    """As linhas da tabela-resumo, pelo marcador quando ele existe.
+
+    UM UNICO lugar decide QUAL tabela e a tabela-resumo, e os dois consumidores
+    — `tabela_resumo` e `estados_da_tabela` — leem daqui. Duas localizacoes sobre
+    a mesma fronteira divergem, e a que diverge em silencio e a que ninguem esta
+    olhando: um leitor de estado com a sua propria heuristica poderia classificar
+    a tabela errada enquanto o de ids lia a certa.
+    """
+    marcador = next((i for i, l in enumerate(linhas) if MARCADOR.match(l)), None)
+    if marcador is not None:
+        return _linhas_da_tabela(linhas, marcador + 1, ancorada=True)
+
+    inicio = next(
+        (i for i, l in enumerate(linhas) if CABECALHO_PENDENCIAS.match(l)), None
+    )
+    if inicio is None:
+        return None
+    return _linhas_da_tabela(linhas, inicio + 1, ancorada=False)
 
 
 def tabela_resumo(linhas: list[str]) -> list[str] | None:
@@ -149,16 +224,102 @@ def tabela_resumo(linhas: list[str]) -> list[str] | None:
          aqui, e reprova-los por nao terem um marcador criado depois deles seria
          exigencia retroativa.
     """
-    marcador = next((i for i, l in enumerate(linhas) if MARCADOR.match(l)), None)
-    if marcador is not None:
-        return _colhe(linhas, marcador + 1, ancorada=True)
-
-    inicio = next(
-        (i for i, l in enumerate(linhas) if CABECALHO_PENDENCIAS.match(l)), None
-    )
-    if inicio is None:
+    corpo = _localiza(linhas)
+    if corpo is None:
         return None
-    return _colhe(linhas, inicio + 1, ancorada=False)
+    return [m.group(1) for m in map(LINHA_TABELA.match, corpo) if m]
+
+
+def estados_da_tabela(linhas: list[str]) -> dict[str, str] | None:
+    """`{id: estado}` da tabela-resumo, ou `None` se ela nao declara estado.
+
+    `None` NAO e "sem pendencia" nem "tudo fechado": e *"este registro nao
+    responde a pergunta"*, e quem chama tem de PULAR o par dizendo por que. A
+    tabela de tres colunas — `fase_1.md` ate `fase_5.md` — cai aqui.
+    """
+    corpo = _localiza(linhas)
+    if corpo is None:
+        return None
+    estados = {
+        m.group(1): m.group(2) for m in map(LINHA_COM_ESTADO.match, corpo) if m
+    }
+    return estados or None
+
+
+def confere_pauta(
+    registros: dict[int, list[str]],
+) -> tuple[list[str], list[str]]:
+    """TODO ITEM NAO-FECHADO DA FASE N APARECE NA TABELA DA FASE N+1?
+
+    Devolve `(falhas, pulos)`. Os pulos sao impressos: par nao conferido que nao
+    se anuncia e indistinguivel de par conferido e verde, e essa confusao e a
+    propria classe de defeito que este arquivo persegue.
+
+    A DIRECAO E DE N PARA N+1, e ela e escolhida: e a que pega OMISSAO. A
+    inversa — "todo item da N+1 veio de algum lugar" — pegaria invencao, que nao
+    e o defeito que aconteceu. O que aconteceu foi `e571091` abrir a branch da
+    Fase 7 sem cinco pendencias da Fase 6, e nenhum gate ver.
+    """
+    falhas: list[str] = []
+    pulos: list[str] = []
+
+    for fase in sorted(registros):
+        estados = estados_da_tabela(registros[fase])
+        if estados is None:
+            pulos.append(
+                f"fase {fase} -> {fase + 1}: a tabela-resumo da fase {fase} nao "
+                "declara coluna de estado (tabela de tres colunas, anterior ao "
+                "vocabulario fechado da Fase 7). Sem estado nao da para dizer o "
+                "que era para migrar."
+            )
+            continue
+
+        desconhecidos = sorted(
+            {e for e in estados.values() if e not in ESTADOS}
+        )
+        if desconhecidos:
+            falhas.append(
+                f"fase {fase}: estado fora do enum: {desconhecidos}.\n"
+                f"    O vocabulario e fechado — {sorted(ESTADOS)} —, e valor novo "
+                f"nao pode ser classificado como fechado nem como aberto.\n"
+                f"    Escolher um dos dois em silencio degradaria exatamente onde "
+                f"a pergunta e."
+            )
+            continue
+
+        seguinte = registros.get(fase + 1)
+        if seguinte is None:
+            pulos.append(
+                f"fase {fase} -> {fase + 1}: nao existe "
+                f"`docs/progress/fase_{fase + 1}.md`. A fase seguinte ainda nao "
+                "abriu, e nao ha destino contra o que cobrar a pauta."
+            )
+            continue
+
+        ids_seguinte = tabela_resumo(seguinte)
+        if ids_seguinte is None:
+            pulos.append(
+                f"fase {fase} -> {fase + 1}: a fase {fase + 1} nao tem "
+                "tabela-resumo legivel. Nao ha contra o que cruzar."
+            )
+            continue
+
+        destino = set(ids_seguinte)
+        devidos = [i for i, e in estados.items() if e in NAO_FECHADOS]
+        faltando = [i for i in devidos if i not in destino]
+
+        for item in faltando:
+            falhas.append(
+                f"fase {fase} -> {fase + 1}: `{item}` esta `{estados[item]}` na "
+                f"fase {fase} e NAO APARECE na tabela da fase {fase + 1}.\n"
+                f"    Pendencia nao-fechada que nao e transcrita some sem que "
+                f"ninguem decida fecha-la — e sumir por omissao nao e o mesmo "
+                f"que fechar.\n"
+                f"    Transcreva-a no registro da fase {fase + 1}, ou feche-a na "
+                f"fase {fase} com o conserto no repositorio."
+            )
+
+    return falhas, pulos
 
 
 def duplicados(itens: list[str]) -> list[str]:
@@ -178,10 +339,14 @@ def main() -> int:
 
     falhas: list[str] = []
     conferidos = 0
+    registros: dict[int, list[str]] = {}
 
     for caminho in arquivos:
         linhas = caminho.read_text(encoding="utf-8").splitlines()
         fonte = caminho.relative_to(REPO_ROOT).as_posix()
+
+        if (numero := re.fullmatch(r"fase_(\d+)", caminho.stem)) is not None:
+            registros[int(numero.group(1))] = linhas
 
         ids_tabela = tabela_resumo(linhas)
         ids_secao = [m.group(1) for m in map(SECAO.match, linhas) if m]
@@ -221,8 +386,19 @@ def main() -> int:
                 f"fase nao herda."
             )
 
+    falhas_de_pauta, pulos = confere_pauta(registros)
+    falhas += falhas_de_pauta
+
     print(f"Registros de fase: {len(arquivos)}")
     print(f"  com tabela-resumo, conferidos: {conferidos}")
+    pares = len(registros) - len(pulos)
+    print(f"  pares de pauta conferidos: {pares if pares > 0 else 0}")
+
+    # OS PULOS SAO IMPRESSOS, e essa e a diferenca entre "nao conferido" e
+    # "conferido e verde". Degradacao que nao se anuncia e a forma de silencio
+    # que este arquivo inteiro existe para nao ter.
+    for pulo in pulos:
+        print(f"  PULADO — {pulo}")
 
     if falhas:
         print(f"\nFALHAS: {len(falhas)}\n", file=sys.stderr)
@@ -230,7 +406,10 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
 
-    print("\nToda linha da tabela-resumo tem secao, e toda secao esta no resumo.")
+    print(
+        "\nToda linha da tabela-resumo tem secao, toda secao esta no resumo, e "
+        "toda\npendencia nao-fechada de uma fase aparece na tabela da seguinte."
+    )
     return 0
 
 
