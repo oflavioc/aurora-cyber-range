@@ -44,6 +44,8 @@ a §1.6 que aquele registro passou a fase inteira nomeando.
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | **VENCIDA E RESOLVIDA** — decisão do operador: recusa alta no computador; ver abaixo |
 | P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | **decisão** — do proprietário; ver abaixo |
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | **condição** — o artefato que as torne reexecutáveis; ver abaixo |
+| P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | **decisão** — nasceu da P6-11, e é a defesa que vem antes dela; ver abaixo |
+| P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | **decisão** — três opções medidas, e nenhuma escolhida aqui; ver abaixo |
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
