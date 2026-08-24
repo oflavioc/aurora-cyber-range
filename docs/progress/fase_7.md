@@ -406,6 +406,9 @@ coisa**, depois do último merge. Regravar antes de mergear este registro
 produziria uma prova sobre um `HEAD` que o próprio merge desfaz — a P7-2
 mordendo a mão de quem a escreve.
 
+> **Superado pela decisão registrada no fim desta seção.** A restrição vale para
+> a saída (a); a (b) a apaga, porque a árvore não muda no rebase-merge.
+
 **DECIDIDA — saída (b): a prova amarrada à ÁRVORE.** Decisão do proprietário. Os
 gravadores passam a escrever `git rev-parse HEAD^{tree}` no lugar do SHA do
 commit, e os dois verificadores comparam árvore com árvore. A medição das três
