@@ -20,6 +20,34 @@ está escrita lá.
 > observação está registrada como candidata a mecanismo no `fase_6.md`, §1. Quem
 > começar esta fase deve atualizar esta linha **na peça 1**, e não no fechamento.
 
+## 1. Plano da fase — sete peças
+
+Os nove critérios DONE de `07_IMPLEMENTATION_PHASES.md` §"Fase 7" se agrupam em
+quatro blocos de entrega. Somam-se três mecanismos: dois decididos na §7 desta
+fase e um que nasceu da quinta ocorrência da classe que a §7.1 mede.
+
+| Peça | O que entrega | Origem |
+|---|---|---|
+| 1 | verificador de transcrição de pauta entre registros de fase | quinta ocorrência da classe da §7.1, medida no rebase que abriu esta fase |
+| 2 | pack: schema v1 migra automaticamente, v0 recusado com instrução; fato do `GM_NOTES.md` ausente do `ground_truth.yaml` recusado | DONE 7 e 8 |
+| 3 | gramática de `exercise_time` | P6-3, pré-condição desta peça — o gatilho declarado é o primeiro pack que precise |
+| 4 | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 |
+| 5 | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 |
+| 6 | as duas allowlists, com esqueleto comum | P7-4 e P7-5 |
+| 7 | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
+
+**A peça 1 vem primeiro porque é degrau 1** na taxonomia da §7.1 — a exigência
+deixa de ser afirmada em cada registro de fase e passa a ser derivada deles. É o
+único degrau que faz a classe deixar de existir em vez de ficar visível.
+
+**A peça 7 depende da P7-3.** O critério dos 3 s é prova de desempenho, e prova
+de desempenho depende do pack materializado — que é exatamente o que a árvore não
+cobre. A P7-3 vence na implementação da saída (b) da P7-2, e essa implementação é
+conserto pontual contra `main`, fora desta branch.
+
+**A CLI não é peça própria.** Ela é a superfície das peças 2, 4 e 5: o primeiro
+critério DONE já a nomeia (`range-cli scenario lint`), e o resto se expõe por ela.
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
