@@ -118,12 +118,20 @@ class OHelperNuncaEscreveEmCaminhoVersionado(unittest.TestCase):
         self.assertIn("VERSIONADO", str(capturado.exception))
 
     def test_a_recusa_nomeia_o_documento_e_a_norma(self):
-        """`06` T2 — detecção sem localização não permite intervir."""
+        """`06` T2 — detecção sem localização não permite intervir.
+
+        A GRAFIA MUDOU COM A MIGRAÇÃO DA GUARDA, e a asserção acompanha o que
+        ela afirma em vez do texto exato: a mensagem passou a nomear
+        `05_SECURITY_REQUIREMENTS.md` §6 por extenso, em vez de `05` §6, porque
+        ela agora é lida por quem roda `range-cli` e não só por quem edita esta
+        fixture. Afirmar a grafia antiga faria o teste travar a melhora.
+        """
         with self.assertRaises(MaterializacaoFalhou) as capturado:
             materializa(REPO_ROOT / "tests" / "fixtures")
         mensagem = str(capturado.exception)
         self.assertIn(GABARITO, mensagem)
-        self.assertIn("`05` §6", mensagem)
+        self.assertIn("§6", mensagem)
+        self.assertIn("05_SECURITY_REQUIREMENTS", mensagem)
 
     def test_destino_NAO_versionado_e_aceito(self):
         """O positivo, sem o qual a recusa acima passaria por recusar tudo."""
