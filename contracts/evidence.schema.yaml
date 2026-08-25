@@ -89,12 +89,19 @@ $defs:
 
       # `projects_facts` obrigatorio e nao vazio: arquivo de evidencia que nao
       # projeta fato nenhum e conteudo autoral disfarcado de projecao.
+      #
+      # A FORMA vem de `ground_truth.schema.json#/$defs/fact_id_pattern`, pelo
+      # mesmo par de razoes de `materializes_facts` em `scenario.schema.v2.yaml`:
+      # `$ref` responde "se parece com um `fact_id`?" e `x-aurora-ref` responde
+      # "existe em `facts`?". A segunda exige o registro montado; a primeira vale
+      # sozinha, e e a unica que sobra quando o MANIFEST e conferido fora do pack.
       projects_facts:
         type: array
         minItems: 1
         uniqueItems: true
         items:
-          type: string
+          allOf:
+            - $ref: 'https://aurora-cyber-range.local/contracts/ground_truth.schema.json#/$defs/fact_id_pattern'
           x-aurora-ref: pack_facts
 
       sha256:
@@ -294,6 +301,25 @@ examples:
 # Instancia completa, um defeito, `rejected_by` nomeando quem recusa.
 # ---------------------------------------------------------------------------
 x-aurora-invalid-examples:
+
+  # A NEGATIVA DA CLAUSULA NOVA. Ate este commit `projects_facts.items` era
+  # `type: string` sem padrao: a lista podia citar qualquer coisa, e so
+  # `x-aurora-ref: pack_facts` reclamava — e ele exige o registro montado, que o
+  # MANIFEST conferido fora do pack nao tem. A forma passa a morder sozinha.
+  - reason: 'projects_facts com id fora da forma de fact_id: minusculo nao casa fact_id_pattern, e sem esta clausula so a resolucao pegaria — que exige o ground truth ao lado'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
+          projects_facts: ['gt-a-014']
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
 
   - reason: 'projects_facts vazio: arquivo autoral disfarcado de projecao'
     rejected_by: schema

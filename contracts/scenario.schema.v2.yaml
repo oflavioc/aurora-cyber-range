@@ -311,12 +311,25 @@ $defs:
           x-aurora-ref: adapter_flags
         x-aurora-effects-match-flag-types: true
 
+      # A FORMA passa a vir de `ground_truth.schema.json#/$defs/fact_id_pattern`,
+      # e ela nao substitui `x-aurora-ref: pack_facts` — as duas respondem
+      # perguntas diferentes, e ter so a segunda deixava a primeira sem dono:
+      #
+      #     forma (`$ref`)  o id se PARECE com um `fact_id`? Falha em `GT-A` ou
+      #                     `gt-a-014` mesmo com o ground truth ao lado.
+      #     resolucao       o id EXISTE em `facts`? E relacao entre documentos, e
+      #     (`x-aurora`)    so a `AuroraChecker` a resolve.
+      #
+      # A de forma vale onde a de resolucao nao alcanca: `x-aurora-ref` precisa
+      # do registro montado, e o registro precisa do `ground_truth.yaml` — pacote
+      # apenas-manifesto nao o tem (`04` secao 9). Ali a forma e tudo que sobra.
       materializes_facts:
         type: array
         minItems: 1
         uniqueItems: true
         items:
-          type: string
+          allOf:
+            - $ref: 'https://aurora-cyber-range.local/contracts/ground_truth.schema.json#/$defs/fact_id_pattern'
           x-aurora-ref: pack_facts
 
       # SEQUENCIA DE {source, window} — 04 secao 5 e 08 secao 5, que trazem o
@@ -706,6 +719,24 @@ $defs:
       #
       # O caminho pontuado de 04 secao 7 e a razao de `fact_id` nao poder conter
       # ponto: `facts.GT-A-020.records_affected` deixaria de ser desambiguavel.
+      #
+      # ESTE PADRAO NAO VIRA `$ref`, e a razao e da linguagem e nao de escolha.
+      # Ele e COMPOSTO — prefixo `facts.`, a forma de `fact_id`, e o nome do
+      # campo — e `$ref` SUBSTITUI o schema inteiro em vez de interpolar. Um
+      # padrao ancorado (`^...$`) nao se embute noutro; `allOf` tambem nao
+      # resolve, porque nao ha como aplicar a forma de `fact_id` ao SEGMENTO do
+      # meio de uma string. Nao ha construcao de JSON Schema 2020-12 que faca
+      # isto sem sair para vocabulario proprio.
+      #
+      # ENTAO A COPIA FICA, DECLARADA — e a fronteira e dita em vez de suposta:
+      # das quatro referencias que resolvem `fact_id`, TRES passaram a apontar
+      # para `ground_truth.schema.json#/$defs/fact_id_pattern` e esta continua
+      # repetindo a forma. Se o segmento `GT-[A-Z0-9]+-[0-9]+` divergir da fonte,
+      # nada acusa hoje.
+      #
+      # O que fecharia: um verificador que extraia o segmento embutido e o
+      # compare com o `pattern` da fonte. Ele nao nasce aqui — norma e mecanismo
+      # no mesmo PR sao o que o `spec_freeze` reprova.
       fact_check_against:
         type: string
         pattern: '^facts\.GT-[A-Z0-9]+-[0-9]+\.[a-z][a-z0-9_]*$'
@@ -1001,6 +1032,23 @@ x-aurora-invalid-examples:
         - id: A07
           t_relative: '00:47'
           titulo_operacional: 'Comunicado 07'
+
+  # A NEGATIVA DA CLAUSULA NOVA. Ate este commit `materializes_facts.items` era
+  # `type: string` sem padrao, e so `x-aurora-ref: pack_facts` reclamava — mas
+  # ele precisa do registro montado a partir do `ground_truth.yaml`, e pacote
+  # apenas-manifesto (`04` secao 9) nao o tem. Nesta fixture nao ha ground truth
+  # nenhum ao lado, entao ela e recusada pela FORMA e por mais nada: e assim que
+  # ela discrimina a clausula nova da que ja existia.
+  - reason: 'materializes_facts com id fora da forma de fact_id: GT-A-014 sem o segmento numerico nao casa fact_id_pattern, e a resolucao por x-aurora-ref nao alcanca pacote sem ground_truth'
+    rejected_by: schema
+    pointer: '#/$defs/injects_document'
+    instance:
+      injects:
+        - id: A07
+          t_relative: '00:47'
+          titulo_operacional: 'Comunicado 07'
+          objectives: [OBJ-01]
+          materializes_facts: ['GT-A']
 
   - reason: 'branch sem reconverge_at'
     rejected_by: schema
