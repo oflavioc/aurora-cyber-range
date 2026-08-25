@@ -242,12 +242,23 @@ isto que esta correção repõe.
 pode abrir sem a gramática de `exercise_time`; o que não pode é a peça 3 fechar sem
 ela.
 
-## 3. A peça 2 — a varredura que precede o delta do schema
+## 3. A peça 2 — o pack ganha produtor, e o schema ganha guarda
 
-O primeiro ato da peça 2 não foi código: foi **medir a pauta que ela herda**, antes
-de desenhar o delta de `schema_version`. A §2.5 traz o resultado; esta seção traz o
-que a varredura decidiu **sobre o escopo do pack** e sobre o ambiente em que os
-gates desta fase são lidos.
+> **O título mudou no fechamento.** Ele dizia *"a varredura que precede o delta
+> do schema"*, e era verdadeiro quando a peça abriu — o primeiro ato foi medir.
+> Ficou falso no fim: **não houve delta de schema**, e o que a peça entregou foi
+> outra coisa. Título que sobrevive à entrega que o contradiz é a §1.6, e ela é a
+> classe que este registro persegue desde a Fase 1.
+
+Quatro itens, cada um commitado em verde. O que segue é o que a auditoria precisa
+achar sem reconstruir a cadeia por leitura.
+
+**O que a peça fecha, em uma frase:** o gabarito existia como valor de retorno e
+não como arquivo, e as guardas que o protegem existiam como disciplina — passou a
+existir em disco, por comando, com o destino e a forma cobrados por mecanismo.
+
+As §§3.1 e 3.2 são da varredura de abertura; as §§3.3 a 3.5, do que a
+implementação decidiu e mediu; as §§3.6 a 3.9, o fechamento.
 
 ### 3.1 `information_distribution.yaml` fica FORA do pack desta peça, declarado
 
@@ -435,6 +446,152 @@ para ela *"o que sobra é a prova de container"*.
 **A P7-5 não deve ser desenhada como se cobrisse as três.** Declarar isso agora é
 mais barato que descobrir na peça 6 — é literalmente o argumento que a §7.1 usa
 sobre a sexta ocorrência.
+
+### 3.6 O que foi entregue, por item
+
+| # | Item | O que fecha |
+|---|---|---|
+| 1 | esqueleto de migração e recusa por versão | `SUPPORTED_SCHEMA_VERSIONS = (2,)` com a assimetria **decidida** e não pendente; a recusa passa a **instruir** em quatro perguntas — o que o pack declara, o que o engine aceita, o que fazer, e o inverso se a versão for **futura**. A quarta perna não estava prevista e é defeito real: sem ela a mensagem mandaria rebaixar um pack `v9` |
+| 2 | `SINCE_SELF` com uma origem só | as **duas** cópias eliminadas, 19 sítios (5 de produção, 14 de teste). O valor vem do contrato e desce por construtor até `Mundo`; os 38 sítios de `avalia(` não mudaram |
+| 3 | `range-cli scenario materialize` | o produtor do par, com **determinismo provado em três pernas** e recusa de destino versionado perguntando ao `git` — não ao `.gitignore`, que `git add -f` atravessa |
+| 4 | o linter de citação de fato | `GM_NOTES.md` com fato ausente ou em forma não casada recusa **na carga**, com sítio próprio |
+
+**As duas medições que mais mudaram o trabalho** não estão na tabela porque não
+são entrega, e sim o que a tornou possível: a varredura de abertura (§2.4.1),
+que achou quatro pendências herdadas que ninguém havia transcrito, e a medição
+do delta v3 (§3.5 do relatório de então), que mostrou que **não havia delta**.
+
+### 3.7 O que a peça NÃO fechou, e cada ausência tem razão medida
+
+**Nenhum dos três lados de citação tem artefato de PRODUÇÃO.** O que existe é o
+pacote materializado por `pack_completo.materializa()`, carregado por `load_pack`
+pelos seis passos do boot — **melhor que dicionário de teste, pior que artefato
+de produção**. As três razões, medidas:
+
+| Lado | Por que não há artefato |
+|---|---|
+| `GM_NOTES.md` | `scenarios/` está vazio. O produtor existe, e materializar exige o banco semeado; a senha está no `.env`, que é caminho negado |
+| `materializes_facts` | `tests/fixtures/pack_minimo/injects.yaml` não traz o campo |
+| `projects_facts` | não há `MANIFEST.json` na árvore; `evidence build` é da Fase 9 |
+
+**A lição do PR #57 continua valendo e está declarada na suíte:** lá, quatro
+testes corretos julgavam árvores montadas à mão, e o gerador de produção — que
+escrevia `since: containment_declared` — nunca passava por nenhum deles.
+
+---
+
+**"v1 migra automaticamente" fica como esqueleto declarado, e a divergência com a
+redação do DONE 7 é dita aqui de propósito.**
+
+Medido com `git log --all --diff-filter=A --name-only -- 'contracts/scenario.schema*'`:
+**nenhum contrato anterior ao v2 jamais existiu** neste repositório. O único
+arquivo que o comando devolve é `scenario.schema.v2.yaml`, em `31ddcfa`. O
+migrador existe como **registro** e nunca correu contra transição real.
+
+**O item é satisfeito pela forma normativa, e não pela literal.** `06` T12 escreve
+o critério em **N**: *"pack em `schema_version` N-1 carrega com migração e aviso;
+anterior a N-1 é recusado com instrução"*. O DONE 7 de `07` o instancia como
+*"pack em schema v1 migra automaticamente; v0 é recusado com instrução"* — e o
+`v1` literal pressupõe uma versão que nunca existiu.
+
+**Sem esta declaração, quem ler o critério no fechamento da fase encontra um item
+que não confere** — e a saída errada seria escrever um `v1_to_v2.py` identidade
+para fazer a linha passar. Migrador identidade faz o item de DoD passar, faz o
+teste dele passar, e não transforma nada: o gate ficaria verde sobre mecanismo
+nunca exercido, e a primeira transição de verdade encontraria o caminho
+"provado" e errado.
+
+---
+
+**A P5-4 saiu da fase, e ela está MAL FORMULADA na origem.**
+
+Ela nomeia **dois** conjuntos fora do enum — ruído de manutenção e credenciais
+compartilhadas. Medido em `domains/academus/seed/gabarito.py`, o gerador percorre
+**três**:
+
+```python
+for nome in ("ruido_de_manutencao", "credenciais_compartilhadas", "legitimos_normais"):
+```
+
+**`legitimos_normais` é o terceiro, e ele é diferente dos outros dois.** `02` §6.2
+atribui `defensibility` a **cinco** famílias — 1.0 indevido, 0.5 ambíguo, 0.0
+*"legítimo (inclusive os de aparência suspeita, manutenção e delegação)"* — e
+**não menciona legítimos normais**. A spec, portanto, **não decide** se o sexto
+conjunto é caso.
+
+**A pergunta do sexto conjunto não está formulada em pendência nenhuma.** Não é
+que a P5-4 a responda mal: ela não a faz. E ela não cabe na P5-4 sem reescrevê-la,
+porque a P5-4 é sobre conjuntos que *têm* `defensibility` e não cabem no enum, e
+este não tem. Fica registrado aqui, e quem retomar a P5-4 precisa decidir se abre
+a segunda.
+
+---
+
+**A P1-7 foi medida e não fechou** — o produtor não nomeia inject nenhum. O
+detalhe está na §6, com a medição; aqui fica só o ponteiro, porque fechar por
+estar na lista da peça seria marcar como entregue uma decisão que ninguém tomou.
+
+### 3.8 O que a peça 3 herda — e a fronteira da P6-3, medida
+
+**A gramática de `exercise_time` é a peça 3**, e a **P6-3** segue `ENTREGA` com os
+três gatilhos herdados intactos.
+
+**A pergunta que a peça 2 tinha de responder antes de passar adiante:** o produtor
+escreve `exercise_time` no `ground_truth.yaml` (`gabarito.py:182`, `quando.isoformat()`).
+**Isso ativa algum dos três gatilhos?** Medido, e a resposta é **não** — nos três:
+
+| Gatilho | Medição | Ativa? |
+|---|---|---|
+| o primeiro pack que precise de folha temporal | `confere_folhas_temporais` sobre o pack produzido **passa**: `predicados_de_verificacao()` tem só `absence_of` com `since: self`, e nenhum `before`/`after` | **não** |
+| a implementação do suporte temporal | não foi feita nesta peça | **não** |
+| o primeiro produtor de `fact_materialized` | `FACT_MATERIALIZED` tem **dois** usos em produção — o import em `verificacao.py:58` e uma **leitura** em `:333`. Nenhum `append` | **não** |
+
+**A distinção que decide o terceiro, e ela é de espécie:** *declarar um fato no
+pack não é produzir o fato*. O `exercise_time` que o produtor escreve é **campo de
+`facts` no `ground_truth.yaml`** — dado de gabarito, camada 1. O produtor de
+`fact_materialized` é o **motor em runtime**, emitindo evento quando o fato passa
+a existir no mundo simulado. São camadas diferentes de `00` §3, e confundi-las
+seria a mesma confusão de espécie que pôs um `event_type` no lugar de um
+qualificador de instante e derrubou a carga do pack no PR #57.
+
+**Consequência para a peça 3, dita para que ela não herde dúvida:** ela abre com
+os três gatilhos **intactos**, e não com gatilho vencido. `Mundo.fatos` continua
+vazio em produção — nada emite o evento —, e `SemGramaticaTemporal` continua
+inalcançável na árvore. A escolha normativa que a P6-3 cobra (contra o que o
+predicado temporal compara — `exercise_time`, `exercise_timestamp` ou marca de
+parede) segue sem caso de uso à vista, e a peça 3 a toma por decisão e não por
+pressão de defeito.
+
+### 3.9 O custo, medido — e é fato sobre o método
+
+| | |
+|---|---|
+| rodadas de medição antes de qualquer código | **cinco** |
+| PRs próprios contra `main` | **três** — #57 (conserto do `since` do gerador), #58+#59 (spec-change e contratos), #60 (spec-change do caminho e do produtor) |
+| rebases da branch, e âncoras regravadas | **cinco** de cada |
+
+**O desenho da D2 mudou três vezes, e cada mudança veio de medição:**
+
+| Desenho | O que o derrubou |
+|---|---|
+| **(a)** `v2 -> v3` com a P5-4 | a medição do delta: promover os dois conjuntos a caso muda a `fact_class` dos fatos que os sustentam, e com ela o predicado de contenção — que decide TTCV e TTRV. Não é expansão de enum; é mudança de semântica de verificação |
+| **(a')** o aperto de `since` como delta | `03` §3.1 já fixava `self` desde o `spec-change` #49, e a guarda de carga já recusava o resto. Nenhum pack válido de ontem deixou de ser válido — alinhamento, não transformação |
+| **(c)** sem delta disponível | o que sobrou, e o que a peça entregou: mecanismo construído e **declarado** como nunca tendo corrido contra transição real |
+
+**Isto é registro sobre o método, e não queixa.** O desenho foi feito **por
+descoberta**: cada uma das três formas parecia certa até a medição seguinte, e
+nenhuma caiu por argumento — todas caíram por número. Três PRs contra `main` no
+meio de uma peça não é sinal de peça mal planejada; é o preço de o repositório
+recusar norma e mecanismo no mesmo PR, e a alternativa seria um PR que o
+`spec_freeze` reprova.
+
+**E funcionou porque a árvore tem registro denso.** Cada uma das três derrubadas
+se apoiou em algo escrito antes por outra pessoa ou outra fase: a P5-4 tinha o
+custo das duas alternativas medido no `fase_5.md`; o `since` tinha o `spec-change`
+#49 explicando o que ele decidiu; a ausência de contrato v1 saiu de `git log`,
+que é registro que ninguém escreveu de propósito. **Sem esse registro, as três
+formas teriam sido decididas por plausibilidade** — e a (a) e a (a') são as duas
+mais plausíveis.
 
 ## 6. Pendências
 
