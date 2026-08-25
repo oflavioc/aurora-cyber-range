@@ -46,11 +46,21 @@ FASES_DE_07 = fases_de_07(FASES.read_text(encoding="utf-8"))
 
 #: O estado real, reconstruido para servir de base aos probes: cada mecanismo
 #: declarado cita a sua secao, e o universo e exatamente o declarado.
-CITADO_POR = {
-    caminho: {numero}
-    for numero, entrada in MECANISMOS.items()
-    for caminho in entrada.mecanismos
-}
+#:
+#: UM MECANISMO PODE ESTAR EM MAIS DE UMA SECAO, e a forma anterior nao dava
+#: conta disso. Ela era uma compreensao de dicionario que atribuia `{numero}`, e
+#: dicionario SOBRESCREVE: um caminho declarado sob duas secoes ficava com a
+#: ultima, e a primeira passava a parecer declarada por um arquivo que nao a
+#: cita — o controle verde reprovava por defeito da PROPRIA base.
+#:
+#: `tools/check_synthetic_data.py` foi o primeiro caso, na peca 3 da Fase 7: ele
+#: executa a §3 desde a Fase 0 e passou a constar tambem da §5, porque a clausula
+#: de IOC da §5.2 e aplicada pelas faixas da §3. O defeito era latente — nao havia
+#: mecanismo em duas secoes ate existir um.
+CITADO_POR: dict[str, set[int]] = {}
+for numero, entrada in MECANISMOS.items():
+    for caminho in entrada.mecanismos:
+        CITADO_POR.setdefault(caminho, set()).add(numero)
 VERSIONADOS = set(CITADO_POR) | {"scripts/check_novo.py"}
 UNIVERSO = {c for c in CITADO_POR if c.startswith(("tools/", "scripts/"))}
 

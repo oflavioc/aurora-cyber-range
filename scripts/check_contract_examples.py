@@ -193,8 +193,18 @@ def main(argv: list[str] | None = None) -> int:
     # -----------------------------------------------------------------------
     ev = contratos.get("evidence")
     if ev is not None:
-        sys.path.insert(0, str(REPO_ROOT / "tools"))
-        import check_synthetic_data as csd  # noqa: E402
+        # A FONTE DAS FAIXAS MUDOU DE LUGAR NA PECA 3 DA FASE 7, e este era o
+        # TERCEIRO consumidor delas. Elas moravam em
+        # `tools/check_synthetic_data.py` e passaram a `dados_sinteticos/`,
+        # pacote de topo e stdlib puro, para que o linter de pack pudesse fazer
+        # a mesma pergunta sem uma segunda implementacao.
+        #
+        # Este import quebrou ALTO no movimento, e e o comportamento certo: a
+        # asserçao daqui e "as faixas do contrato batem com as APLICADAS", e
+        # apontar para um modulo que nao as tem mais faria a comparacao virar
+        # `AttributeError` em vez de divergencia silenciosa.
+        sys.path.insert(0, str(REPO_ROOT))
+        import dados_sinteticos as csd  # noqa: E402
 
         declarados = {
             s.lstrip(".")
@@ -205,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         aplicados = set(csd.RESERVED_TLDS) | set(csd.RESERVED_DOMAINS)
         if declarados != aplicados:
             falhas.append(
-                "contracts/evidence.schema.yaml x tools/check_synthetic_data.py: "
+                "contracts/evidence.schema.yaml x dados_sinteticos/: "
                 "faixas de dominio divergentes.\n"
                 f"    so no contrato: {sorted(declarados - aplicados) or 'nenhum'}\n"
                 f"    so no verificador: {sorted(aplicados - declarados) or 'nenhum'}"

@@ -1,4 +1,19 @@
-"""`range-cli scenario materialize <domain> <pack_id>` — o produtor do pack.
+"""`range-cli` — a superficie de cenario. Dois verbos: `materialize` e `lint`.
+
+`04_SCENARIO_SCHEMA.md` §8 declara sete subcomandos; estes sao os dois que
+existem. Os demais tem fase: `dryrun` e a peca 4 desta fase, `evidence build` e
+`evidence verify` sao da Fase 9, e `validate` nao tem entrega propria enquanto
+`lint` o cobre por dentro — ver `range_cli/lint.py`.
+
+**A ORDEM EM QUE ELES NASCERAM E A DA FRONTEIRA DE ESCRITA**, e ela e propriedade
+a preservar: `04` §8.1 (a) registra que as allowlists de quem opera o repositorio
+liberam os subcomandos que so LEEM — `validate`, `lint`, `dryrun`,
+`evidence verify` — e param ai. `materialize` escreve e fica fora delas;
+`lint` le e entra. Um verbo novo nao herda a classificacao do irmao por comecar
+com o mesmo prefixo.
+
+--------------------------------------------------------------------------------
+`range-cli scenario materialize <domain> <pack_id>` — o produtor do pack.
 
 O QUE ELE FECHA
 ================
@@ -49,8 +64,11 @@ from pathlib import Path
 
 import yaml
 
+from range_cli import lint as lint_de_cenario
 from range_core.engine import destino as destino_de_pack
 from range_core.engine.loader import contract_source
+from range_core.engine.loader.contract_source import ContractSourceError
+from range_core.engine.loader.pack_loader import PackError
 
 #: Os dois arquivos do par, na ordem em que `04` §1 os lista.
 GROUND_TRUTH = "ground_truth.yaml"
@@ -174,11 +192,76 @@ def _parser() -> argparse.ArgumentParser:
     mat.add_argument(
         "--conta-alvo", required=True, help="a conta comprometida, do dataset semeado"
     )
+
+    verbo_lint = verbos.add_parser(
+        "lint",
+        help="confere um pacote de cenario e relata TODAS as recusas, com posicao",
+    )
+    verbo_lint.add_argument("path", help="o diretorio do pacote")
+    # `--flags` E OPCIONAL, e o default sai do `domain` do MANIFESTO. A razao de
+    # isso nao contradizer `04` §8.2 esta em `lint.flags_do_pack`: ali o dominio
+    # e campo declarado do arquivo que se pediu para conferir, e nao contexto de
+    # onde o comando correu.
+    verbo_lint.add_argument(
+        "--flags",
+        default=None,
+        help="o `flags.yaml` do adapter; o default vem do `domain` do manifesto",
+    )
     return parser
+
+
+#: `0` limpo, `2` recusado. O `2` e o mesmo de `materialize` desde a peca 2, e a
+#: uniformidade importa porque `04` §8 poe `lint` no CI: um verbo que sinalizasse
+#: recusa com `1` e outro com `2` faria o job depender de qual deles falhou.
+LIMPO, RECUSADO = 0, 2
+
+
+def _lint(args) -> int:
+    """`range-cli scenario lint <path>`. Le, nao escreve, e nao sobe engine.
+
+    NAO CARREGA O PACK — `varre_pack` roda a mesma lista de passos que
+    `load_pack`, e para ai. Construir `LoadedPack` exigiria pack VALIDO, que e
+    exatamente o que nao se pode supor de um pacote que se pediu para conferir.
+    """
+    raiz = Path.cwd()
+    pack_dir = Path(args.path)
+    try:
+        flags = (
+            lint_de_cenario.carrega_flags(Path(args.flags))
+            if args.flags
+            else lint_de_cenario.flags_do_pack(pack_dir, raiz)
+        )
+        achados = lint_de_cenario.lint(
+            pack_dir,
+            contracts=contract_source.read_contracts(),
+            adapter_flags=flags,
+        )
+    except (lint_de_cenario.LintRecusado, ContractSourceError) as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+    except PackError as erro:
+        # As recusas de `_abre` — diretorio, `manifest.yaml` ausente, documento
+        # ilegivel. Elas nao sao colhidas com as demais, e o docstring de `_abre`
+        # diz por que: sem elas nao ha pack sobre o qual relatar coisa alguma.
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+
+    if not achados:
+        print(f"{pack_dir}: sem achados.")
+        return LIMPO
+
+    for linha in lint_de_cenario.relatorio(achados):
+        print(linha, file=sys.stderr)
+    plural = "achado" if len(achados) == 1 else "achados"
+    print(f"{pack_dir}: {len(achados)} {plural}.", file=sys.stderr)
+    return RECUSADO
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+
+    if (args.grupo, args.verbo) == ("scenario", "lint"):
+        return _lint(args)
 
     if (args.grupo, args.verbo) != ("scenario", "materialize"):  # pragma: no cover
         print(f"subcomando nao implementado: {args.grupo} {args.verbo}", file=sys.stderr)

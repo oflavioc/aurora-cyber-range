@@ -41,7 +41,7 @@ quatro blocos de entrega.
 |---|---|---|
 | 1 | verificador de transcrição de pauta entre registros de fase | quinta ocorrência da classe da §7.1, medida no rebase que abriu esta fase — **FECHADA** |
 | 2 | pack: esqueleto de migração e recusa por versão, o produtor `range-cli scenario materialize`, o linter de citação de fato | DONE 7 e 8 — **FECHADA** |
-| 3 *(era 4)* | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 |
+| 3 *(era 4)* | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 — **FECHADA**, e ela também fechou a P7-7 |
 | 4 *(era 5)* | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 |
 | 5 *(era 7)* | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
 
@@ -710,6 +710,243 @@ que é registro que ninguém escreveu de propósito. **Sem esse registro, as tr�
 formas teriam sido decididas por plausibilidade** — e a (a) e a (a') são as duas
 mais plausíveis.
 
+## 4. A peça 3 — o linter ganha superfície, posição e colheita
+
+**Os três critérios DONE desta peça já recusavam antes dela**, e a peça começa
+dizendo isso porque é o que define o que ela de fato entregou.
+
+| DONE | Quem já recusava | Prova negativa no contrato |
+|---|---|---|
+| 1 — inject sem `objectives` e sem `noise: true` | `if/else` em `#/$defs/inject`, camada 1 | existia |
+| 2 — `event_type` inexistente em condição de branch | `x-aurora-ref: event_catalog`, camada 2 | **não existia** |
+| 3 — condição por juízo do facilitador | `branch_condition` com `oneOf` fechado e `additionalProperties: false` | existia |
+
+A ausência da fixture do DONE 2 foi medida na abertura: as únicas negativas de
+`event_catalog` na árvore eram de `objectives.schema.yaml` e de
+`ground_truth.schema.yaml`. **A regra que `04` §6.2 chama de "falha mais cara
+possível" não tinha prova no contrato que a declara.** Ela tem agora, e o valor
+plantado é `vpn_acess_revoked` — o nome certo com um `c` a menos, que é a forma
+real do defeito. Fixture com `evento_que_nao_existe` provaria a regra contra um
+caso que ninguém comete.
+
+### 4.1 O que a peça entregou, e o delta é de três espécies
+
+| # | Entrega | O que ela fecha |
+|---|---|---|
+| 1 | `range-cli scenario lint <path>` | a superfície: o CLI só tinha `materialize`. Terceiro chamador da mesma validação, por `varre_pack` |
+| 2 | **posição no arquivo** | `branches.yaml:10:22`, o que `06` T12 cobra **duas vezes** e o que nada produzia |
+| 3 | **colheita** | os passos viraram lista com dois consumidores: o boot para no primeiro, o linter colhe todos |
+| 4 | `t_relative` fora de ordem | regra declarada em `x-aurora-linter-rules` desde a Fase 1, sem mecanismo |
+| 5 | `fact_check_against` que não resolve | idem |
+| 6 | `x-aurora-linter-rules` com leitor | `scripts/check_regras_do_linter.py` + probes |
+| 7 | ausência de IOC no gabarito | a **P7-7**, cujo gatilho declarado era esta peça |
+
+### 4.2 A posição, e por que ela não é o caminho de instância
+
+As duas camadas de validação já produziam **caminho**: `jsonschema` devolve
+`e.json_path`, a `AuroraChecker` devolve o `ipath` dela, e — conferido, não
+suposto — **no mesmo dialeto**: `$` na raiz, `.chave`, `[i]`. É isso que permite
+um resolvedor só servir às duas.
+
+Caminho é posição no **documento**. `linha:coluna` é posição no **arquivo**, e é
+a que o critério cobra, porque é a que o autor cola no editor. Quem lê
+`$.branches[0].evaluate[0].when.all[0]` conta braços a mão; quem lê
+`branches.yaml:10:22` abre no lugar.
+
+**As duas leituras são dos mesmos bytes, e isso é a garantia.**
+`parse_document_com_texto` devolve documento e texto de uma leitura só, e
+`MapaDePosicoes` compõe a árvore de nós sobre aquele texto. Reler o arquivo
+abriria janela entre as duas, e nela a posição passaria a apontar para um arquivo
+que **não é o que foi validado** — erro pior que posição ausente, porque parece
+certo.
+
+**A coluna aponta para o VALOR, e não para a chave**, e há teste próprio para
+isso: `04` §6.2 diz que o erro de digitação faz a branch não ramificar, e quem
+conserta precisa do cursor sobre o nome errado, não sobre o `event:` que está
+certo.
+
+**O fallback se declara.** Caminho que não resolve exato devolve a posição do
+ancestral mais profundo, com `exata=False` e o caminho até onde resolveu; o
+relatório marca a linha com `~`. Cair para o ancestral em silêncio apontaria uma
+linha errada com a mesma confiança de uma certa — e a exigência de T12 é sobre
+**localizar**, então localização que mente é pior que a ausência dela.
+
+### 4.3 A colheita, e por que ela não é escopo inventado
+
+`04` §8 dá nomes e listas de checagem **distintos** a `validate` e a `lint`. Um
+linter que relatasse um defeito por execução mandaria o autor consertar e rodar
+de novo — seis vezes, num pack de seis documentos. Nesse regime o verbo `lint`
+não acrescentaria nada ao `validate`, e a spec não teria por que ter os dois.
+
+A colheita **não é uma segunda implementação**, e essa era a armadilha. Os passos
+de recusa passaram a ser uma lista — `_passos` — com dois consumidores:
+
+```
+load_pack   roda em ordem e para no primeiro que levantar   (comportamento intacto)
+varre_pack  roda a mesma lista colhendo todos               (o linter)
+```
+
+Duas listas seriam o gate aceitando pack que o boot recusa, com outro nome — a
+classe que a §1.4 do checkpoint da Fase 2 fechou em `contract_rules`.
+
+**A granularidade passou a ser por documento** nas duas camadas de contrato. Para
+o boot é indiferente, porque ele para no primeiro; para o linter é o que faz um
+`injects.yaml` defeituoso não esconder o `branches.yaml` ao lado.
+
+**O que NÃO é colhido são as recusas de `_abre`** — diretório, `manifest.yaml`
+ausente, documento ilegível. Elas sobem, e a razão é de espécie: um passo da lista
+julga o **conteúdo** do pack; estes três decidem se **há** pack. Colhê-los seria
+relatar achados sobre documentos que não foram lidos.
+
+### 4.4 `t_relative` fora de ordem é POR LINHA, e a diferença foi medida
+
+`04` §9 manda o `ransomware-universidade` ter *"Linhas A + B + ruído"*, e linhas
+correm em paralelo no relógio do exercício. **Sob ordem global, o exemplo
+positivo de `injects_document` do próprio contrato seria recusado**: ele declara
+`00:47, 00:55, 01:10, 01:15, 01:40` na linha A e `00:52` no inject de ruído, que
+não tem `linha`. Regra que reprova a fixture válida do contrato que a declara é
+regra escrita contra a fonte — a classe do B4 da terceira auditoria.
+
+**O que a regra NÃO é: garantia de disparo.** `inject_engine` ordena por
+`(t_relative_seconds, id)` e dispararia certo de qualquer jeito. A recusa é sobre
+**autoria** — um `01:50` digitado onde se queria `00:50` dispara na hora errada
+sem nada falhar, e a ordem do arquivo é o único sinal que sobra.
+
+**Na carga também, e não só no linter.** Regra que o `lint` recusasse e o boot
+aceitasse produziria pack reprovado pelo CI e carregado pelo engine. Vale para as
+três regras novas desta peça.
+
+### 4.5 O registro do linter tinha zero leitores, e já havia envelhecido
+
+`x-aurora-linter-rules` declarava sete validações a cargo do
+`range-cli scenario lint`, e **nenhum código o lia**. É literalmente o M1 da
+terceira auditoria — *"registro ignorado é prosa marcada como contrato"* —, no
+mesmo arquivo em que aquele achado já custou o `_verify_completude` do B1 da
+Fase 6, num registro vizinho.
+
+**E ele já mentia.** A medição regra a regra, na abertura:
+
+| Regra declarada | Estado medido |
+|---|---|
+| `branch_policy` aplicada | peça 4 |
+| `option` existe no `decision_point` **indicado** | **parcial** — `x-aurora-ref: pack_decision_options` prova existência global, não a do DP irmão |
+| `t_relative` fora de ordem | **sem implementação** |
+| `control_function` não é produto | declaradamente não mecanizável |
+| `GM_NOTES` com fato ausente | entregue na peça 2 |
+| `fact_check_against` resolve | **sem implementação** |
+| `required_rubrics` cobre objectives.yaml | **já mecanizada**, e a linha dizia o contrário |
+
+Cada entrada passou a ter `id`, `rule`, e **ou** `mecanismo` **ou**
+`destinatario` + `motivo`. O `sitio`, quando há, é conferido contra `PackSite`
+por AST: sítio renomeado derruba o gate em vez de virar entrada morta.
+
+**O limite é declarado, e é real:** a direção inversa não é coberta. Obrigação
+que `04` §8 enuncie e que ninguém tenha transcrito para o registro continua
+invisível — aquela lista é prosa corrida, e não há o que derivar dela. O
+verificador julga se cada entrada **tem dono**, não se as entradas são todas as
+que deveriam existir. Mesma forma do `check_gate_coverage.py`.
+
+### 4.6 A P7-7 fechou, e medi-la mostrou que eram TRÊS exigências
+
+A pendência cobrava *"o verificador do ator declarado"* como se fosse uma coisa.
+`05` §5.2 tem três, com três destinos diferentes:
+
+| Exigência | Destino |
+|---|---|
+| fonte pública citável | **meia** — o contrato exige `sources` não vazio; *"citável"* não é forma. `sources: [confia em mim]` casa o schema. Mesma classe do `control_function` |
+| TTPs não excedem o público na fonte | **não mecanizável** — o julgamento é contra documento **externo**, e nenhum verificador daqui tem como lê-lo |
+| nenhum IOC operacional | **mecanizada** |
+
+Fundir as três numa entrada faria o mecanismo da terceira cobrir as duas
+primeiras em silêncio. Elas são três entradas do registro, e as duas primeiras
+declaram `destinatario: revisão humana`.
+
+**A terceira não foi reimplementada, e é aí que está a decisão.** *"Este valor é
+dado sintético?"* é a mesma pergunta que `tools/check_synthetic_data.py` responde
+desde a Fase 0. O que faltava não era a resposta — era um **segundo chamador**:
+aquele verificador varre a **árvore versionada**, e `scenarios/` está fora do Git
+desde a peça 5 da Fase 5, então o pack nunca passou por ele.
+
+O predicado saiu para `dados_sinteticos/`, pacote de topo e stdlib puro, com três
+chamadores: o verificador da árvore, o linter de pack, e
+`scripts/check_contract_examples.py` — que já comparava as faixas do contrato com
+as aplicadas e **quebrou alto** no movimento, que é o comportamento certo.
+
+**Por que de topo, e não em `tools/` nem em `range-core/`.** Os dois chamadores
+principais vivem em mundos diferentes: `tools/` roda no job `arquitetura`, que
+**não instala nada**; `range_cli` e `range-core` rodam instalados. Em `tools/`, o
+`range-cli` instalado ficaria sem ele — `tools` não está em `packages` —, que é a
+assimetria que o `pyproject.toml` declara ter pago três vezes. Em `range-core/`,
+`tools/` passaria a importar a aplicação, que é o que a pureza daquele job existe
+para impedir.
+
+**E a assimetria cobrou na hora:** com o pacote novo em `packages` mas a
+instalação editável desatualizada, `check_readme_atual.py` passou a contar 550
+testes em vez de 835, com três falhas de carga. O número **parecia plausível** —
+que é exatamente o modo de falha que o próprio verificador descreve na mensagem
+dele. Fechou com `pip install -e .`.
+
+**O limite da terceira, medido e com teste próprio: domínio embutido em PROSA
+escapa.** O predicado classifica valores, e `hostnames_candidatos` desiste quando
+o texto tem espaço — `note_to_facilitator: "C2 em evil-infra.net"` **passa**.
+
+Não estender a varredura para prosa foi decisão, nesta ordem: mudar isso mudaria
+o comportamento de `check_synthetic_data.py` sobre a **árvore inteira**, dentro de
+uma peça que não pediu isso; e rede larga sobre prosa produz falso positivo em
+volume, que é como um gate deixa de ser lido. **Há teste que afirma o limite**, e
+ele fica vermelho no dia em que alguém o fechar — que é o aviso certo.
+
+**`threat_actor.sources` é isento da varredura, e é o único.** A §5.2 **exige**
+fonte pública citável ali, então `attack.mitre.org` numa `sources` é **citação**;
+o mesmo domínio num `source_ip` seria **infraestrutura**. A varredura não
+distingue as duas e não tem como. A isenção é de **subárvore**, e não de valor:
+isentar por valor faria o mesmo domínio passar em qualquer lugar do documento.
+
+### 4.7 Dois gates estavam VERMELHOS, e não por causa desta peça
+
+Achados ao rodar a varredura de verificadores, e os dois mudam o quadro com que
+esta peça abriu.
+
+| Gate | Desde | Causa |
+|---|---|---|
+| **D16** — `check_allowlist_do_auditor.py` | `8751c77`, **peça 1** | `check_progress_consistency_probes.py` nasceu e não entrou na allowlist do auditor |
+| **P37** — `check_gate_coverage.py` | **peça 2** | `range_cli/` nasceu como pacote de topo e nunca foi classificado para o `spec_freeze` |
+
+**Os dois dispararam, e o vermelho não foi lido.** O P37 é o mais duro: a
+mensagem dele é literalmente *"diretório novo no topo nasce invisível ao gate, e
+nada avisa"*. Avisou.
+
+**São a décima primeira e a décima segunda ocorrências da classe da §7.1, e são
+uma variante que aquele mapa não tinha.** As dez anteriores são de exigência
+afirmada e não varrida; estas duas são de **mecanismo que disparou e cujo sinal
+ninguém leu**. O degrau 1 — derivação em vez de afirmação — não as alcança: a
+derivação existia e funcionou. O que falha é a leitura.
+
+O D16 tem agravante próprio: a allowlist do auditor **já tinha** a regra escrita,
+e o comentário do `check_audit_base_probes` no mesmo arquivo registra a mesma
+falha da quarta auditoria da Fase 3 — *"prova negativa que fica fora da allowlist
+no commit que a cria"*. A regra estava escrita, ao lado, e não segurou.
+
+Os dois foram consertados nesta peça. **A varredura de verificadores passou a ser
+passo de fechamento de peça, e não de fechamento de fase** — foi ela que os achou,
+e ela custa um comando.
+
+### 4.8 O que a peça NÃO fechou
+
+**`lint` não roda no CI, e `04` §8 diz que deveria.** Não há pack lintável na
+árvore: `scenarios/` está fora do Git e `tests/fixtures/pack_minimo` é
+deliberadamente incompleto — o linter o recusa, corretamente, por
+`incomplete_pack`. Um step apontado para uma fixture que o linter não pode julgar
+seria gate verde sobre ausência. Registrado como **P7-9**.
+
+**A metade "no `decision_point` indicado"** da regra do `option` continua sem
+mecanismo, e agora está declarada como parcial no registro do contrato, com
+destinatário peça 4 — é lá que a árvore de `when` é interpretada.
+
+**`range-core` passou a importar um pacote de topo que nenhuma guarda enxerga.**
+`check_core_boundary.py` só opina sobre `domains/`; `check_core_contract_imports.py`
+só sobre `contracts/`. É a P2-15 um nível acima, e virou **P7-8**.
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
@@ -775,7 +1012,9 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ABERTA` | **Fase 12** — allowlist por tipo, degrau 1.5. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — allowlist de chamadores por emissor, degrau 2. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
-| P7-7 | `05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe | `ABERTA` | peça 4 desta fase, no lint; ver abaixo |
+| P7-7 | ~~`05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe~~ | `RESOLVIDA` | o gatilho declarado era a peça do lint, e ela chegou. Medi-la mostrou **três** exigências, não uma: a de IOC ganhou mecanismo, as duas outras ganharam `destinatario: revisão humana` com motivo; ver abaixo |
+| P7-8 | `range-core/` importa `dados_sinteticos`, e nenhuma guarda enxerga import de pacote de topo que não seja `contracts/` — é a P2-15 um nível acima | `ABERTA` | o segundo pacote de topo que o core importar, ou a Fase 12; ver abaixo |
+| P7-9 | `04` §8 diz que `lint` roda no CI, e não há pack lintável na árvore versionada | `ABERTA` | o primeiro pack lintável versionado, ou a Fase 12 com a documentação; ver abaixo |
 
 #### P1-7 — o id do inject pode vazar a linha, e quem decide é quem escreve o pack
 
@@ -1758,7 +1997,117 @@ direção que a §7.1 chama de degrau 1.
 Fase 8 abre o paralelismo, e multiplicar quem escreve registro antes de saber o que
 os 44 guardam é aumentar a dívida sem tê-la medido.
 
-#### P7-7 — o ator de ameaça declarado não tem verificador, e a obrigação mora fora de `fase_N.md`
+#### P7-7 — RESOLVIDA: eram TRÊS exigências, e só uma tinha mecanismo possível
+
+**O gatilho declarado era *"a peça 4 desta fase, no lint"*** — na numeração
+antiga, que é a peça 3 depois da redução da §1. Ele chegou, e a pendência fecha.
+
+**Ela cobrava uma coisa e eram três.** A nota da entrada `5` de
+`scripts/check_secoes_de_seguranca.py` já as nomeava — *"fonte citavel, TTP nao
+excedida, IOC ausente"* —, e a pendência as tratava como um verificador só.
+Medi-las mostrou três destinos diferentes; o detalhe está na §4.6, e aqui fica o
+que a pendência precisava responder:
+
+| Exigência | O que fechou |
+|---|---|
+| fonte pública citável | **meia**, e declarada assim. `sources` é `required` com `minItems: 1`; *"citável"* não é forma — `sources: [confia em mim]` casa o schema |
+| TTP não excedida | **nenhum mecanismo é possível**: o julgamento é contra documento externo |
+| IOC ausente | `confere_ausencia_de_ioc`, sítio `ioc_operacional`, na carga **e** no linter |
+
+**Fundir as três teria sido o modo errado de fechar**: o mecanismo da terceira
+passaria a cobrir as duas primeiras em silêncio, e a pendência ficaria marcada
+como resolvida sobre cobertura que não existe. As três são entradas separadas do
+`x-aurora-linter-rules`, e as duas primeiras dizem `destinatario: revisão
+humana`.
+
+**A entrada `5` do registro perdeu o `destinatario=(7, …)`**, que era o que a
+pendência avisava: *"se a peça 4 fechar sem ela, a entrada continua dizendo
+`destinatario=(7, …)` sobre uma fase que passou — e gatilho que já disparou e não
+venceu é o defeito que a P5-2 documenta"*. Ele saiu.
+
+**O que a pendência não previa, e apareceu ao fechá-la:** `tools/check_synthetic_data.py`
+**já executava** a cláusula de IOC — as faixas da §3 são a forma dela — e não
+constava do registro como mecanismo da §5. A direção inversa do
+`check_secoes_de_seguranca.py` o pegou quando o movimento do predicado o fez
+citar a seção. Registro que subestima a própria cobertura é a direção em que ele
+mente sem que nada acuse.
+
+**E o probe daquele verificador tinha um defeito latente**, exposto pelo primeiro
+mecanismo declarado sob **duas** seções: a base sintética montava
+`caminho -> {numero}` por compreensão de dicionário, e dicionário sobrescreve. O
+controle verde reprovava por defeito da própria base. Corrigido para acumular.
+
+#### P7-8 — o core importa pacote de topo, e nenhuma guarda enxerga isso
+
+**Nasceu na peça 3**, e ela é a **P2-15 um nível acima** — literalmente a mesma
+forma, com outro alvo.
+
+A §2.1 do registro da Fase 2 declarou um limite: *"`tools/check_core_boundary.py`
+detecta, por AST, só o que aponta para `domains`. Sobre `contracts` ele não tem
+opinião nenhuma"*. O gatilho disparou na peça do loader, e a resposta foi o
+`check_core_contract_imports.py` — whitelist do que o core importa de
+`contracts/`, com motivo por entrada.
+
+**O fato.** `range-core/engine/loader/pack_loader.py` passou a importar
+`dados_sinteticos`, pacote de topo criado nesta peça. As duas guardas existentes
+não o alcançam: uma só opina sobre `domains/`, a outra só sobre `contracts/`.
+**O import é legítimo** — o pacote é stdlib puro, agnóstico de domínio, e a
+alternativa era duplicar o predicado ou fazer `tools/` importar a aplicação. O
+que falta é guarda: sem ela, o próximo import de topo não encontra nada, e a
+ausência de opinião passa a valer mais que a permissão. É o argumento da P2-15,
+palavra por palavra.
+
+**A forma da saída, se alguém a tomar:** generalizar
+`check_core_contract_imports.py` de *"o que o core importa de `contracts/`"* para
+*"o que o core importa de fora de `range_core`"*, mantendo a whitelist com motivo
+por entrada. O custo é que a lista cresce; o que se compra é que crescer passe a
+ser uma conversa, que é o desenho que aquele arquivo já defende.
+
+**Por que não fechou aqui.** Generalizar uma guarda de invariante é mudança de
+mecanismo com prova negativa própria, e ela não pertence à peça do linter — seria
+a terceira superfície nascendo numa peça que já entregou duas. E o defeito é de
+**ausência de opinião**, não de violação: hoje há **um** import de topo no core
+além de `contracts`, e ele está declarado aqui.
+
+**Vence em:** o segundo pacote de topo que o core importar — momento em que a
+lista deixa de ser uma linha e passa a ser lista de verdade —, ou a Fase 12, o
+que vier primeiro.
+
+#### P7-9 — `lint` não roda no CI, e a árvore não tem pack para lintar
+
+**Nasceu na peça 3.** `04_SCENARIO_SCHEMA.md` §8 fecha com *"`validate`, `lint` e
+`evidence verify` rodam no CI"*, e o `lint` desta peça **não** tem step.
+
+**O fato, medido.** Não há pack lintável versionado. `scenarios/` está fora do
+Git desde a peça 5 da Fase 5, e `tests/fixtures/pack_minimo` é **deliberadamente
+incompleto** — o linter o recusa, corretamente, com sítio `incomplete_pack`,
+porque ele traz `injects.yaml` e `objectives.yaml` sem `ground_truth.yaml`.
+
+**Por que não foi resolvido com uma fixture nova.** Seria cumprir a letra: um
+step apontado para um pack fabricado para passar prova que o **executável corre**,
+e não que a árvore está limpa — a suíte já cobre o linter contra packs sintéticos
+completos, incluindo os quatro critérios com posição. O que o step acrescentaria é
+a variante *"cobertura que não alcança o ponto de entrada"* da §7.1, que a §1.1
+registra como o degrau 3 e que o proprietário já decidiu **não** tornar gate
+obrigatório.
+
+**E há a fronteira de `04` §8.1 (a) a preservar:** as allowlists liberam os
+subcomandos que só leem, e `lint` é um deles. Um step de CI não a toca — mas uma
+fixture de pack "de verdade" na árvore versionada toca a decisão da Fase 5 sobre
+onde pack mora, e essa decisão não é desta peça.
+
+**O que a ausência custa hoje:** nada mede que o `range-cli` **instalado** corre.
+A suíte chama `cli.main` em processo. É a mesma lacuna que a §3.4.1 desta fase
+mediu como DÉCIMA OCORRÊNCIA — cobertura que não alcança o ponto de entrada — e
+está nomeada aqui para não ser confundida com cobertura.
+
+**Vence em:** o primeiro pack lintável versionado, ou a Fase 12, que é onde a
+documentação e o segundo pack entram.
+
+**O achado original fica abaixo, sem edição** — ele é sobre o MODO como a
+pendência foi encontrada, e esse valor não caduca com o conserto.
+
+##### Como ela foi achada, e por que isso valia um id
 
 **Achada por RASTRO, e não pelo predicado da varredura** — e é isso que a torna
 interessante. O vocabulário da varredura (§2.4.1) não a alcançaria: ela não está em

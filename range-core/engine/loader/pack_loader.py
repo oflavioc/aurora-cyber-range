@@ -78,17 +78,20 @@ from range_core.engine.loader.canonical import (
     scope_from_contract,
 )
 from range_core.engine.loader.contract_rules import AuroraChecker, build_pack_registries
+from dados_sinteticos import achados_no_valor
 from range_core.engine.citacoes import (
     CitacaoInvalida,
     confere_citacoes_de_fato,
+    confere_fact_check_against,
     fatos_declarados,
+    fatos_por_id,
 )
 from range_core.engine.migrations import MIGRACOES, ha_migracao
 from range_core.rubrics.library import load_library
 from range_core.engine.loader.contract_source import (
     ContractSourceError,
     documents_by_id,
-    parse_document,
+    parse_document_com_texto,
     fact_id_pattern,
     registry_for,
     since_qualifiers,
@@ -167,6 +170,18 @@ class PackSite:
     #: casa — item 8 da DoD da Fase 7 e `06` T8. Cobre os tres lados que citam:
     #: `GM_NOTES.md`, `materializes_facts` e `projects_facts`.
     CITACAO_DE_FATO_INVALIDA = "citacao_de_fato_invalida"
+    #: `t_relative` declarado antes do inject anterior DA MESMA LINHA.
+    #: `04` §8 lista *"t_relative fora de ordem"* entre as checagens do
+    #: `range-cli scenario lint`, e ate a peca 3 da Fase 7 nada a executava.
+    T_RELATIVE_OUT_OF_ORDER = "t_relative_out_of_order"
+    #: `fact_check_against` cujo ponteiro nao resolve — fato ausente, ou campo
+    #: ausente do fato que existe. Declarada em `x-aurora-linter-rules` desde a
+    #: Fase 1 e sem mecanismo ate a peca 3 da Fase 7.
+    FACT_CHECK_UNRESOLVED = "fact_check_unresolved"
+    #: IOC operacional no `ground_truth.yaml` — IP ou dominio roteavel, CPF que
+    #: passa no digito verificador. `05_SECURITY_REQUIREMENTS.md` §5.2 e §3, e a
+    #: **P7-7**, cujo gatilho declarado era esta peca.
+    IOC_OPERACIONAL = "ioc_operacional"
 
 
 class PackError(Exception):
@@ -175,11 +190,35 @@ class PackError(Exception):
     Recusa alta e deliberada, pelo mesmo motivo do `PackMismatch` do fold: um
     pack meio validado produz exercicio plausivel e errado, e a divergencia
     aparece no AAR, fases adiante.
+
+    `arquivo` E `caminho` SAO OPCIONAIS, E SAO O QUE O LINTER LOCALIZA. Quem os
+    tem, os declara; quem nao os tem — recusa sobre o diretorio, sobre a versao —
+    os deixa em `None`, e o linter reporta a recusa sem `linha:coluna` em vez de
+    inventar uma. `06` T12 exige posicao para as recusas que a nomeiam, e nao
+    para todas: recusa de pack sem `manifest.yaml` nao tem linha nenhuma onde
+    caber.
+
+    Eles NAO entram na mensagem. A mensagem e prosa em portugues e vai ser
+    reescrita; estes sao dados, e e sobre dado que o relatorio se monta — a mesma
+    razao pela qual `site` existe desde a Fase 2.
     """
 
-    def __init__(self, site: str, message: str) -> None:
+    def __init__(
+        self,
+        site: str,
+        message: str,
+        *,
+        arquivo: str | None = None,
+        caminho: str | None = None,
+    ) -> None:
         super().__init__(f"[{site}] {message}")
         self.site = site
+        #: A mensagem SEM o prefixo de sitio. O linter ja imprime o sitio no
+        #: cabecalho do achado, e reimprimi-lo dentro do corpo dobraria a
+        #: etiqueta em toda linha do relatorio.
+        self.mensagem = message
+        self.arquivo = arquivo
+        self.caminho = caminho
 
 
 @dataclass(frozen=True, slots=True)
@@ -346,42 +385,19 @@ def load_pack(
 
     Nada e devolvido pela metade: ou o pack carrega inteiro, ou o engine nao
     sobe.
+
+    OS PASSOS 3 A 5 SAO UMA LISTA, E ELA TEM DOIS CONSUMIDORES — `_passos`. Este
+    aqui os roda em ordem e para no primeiro que levantar; `varre_pack` roda a
+    mesma lista colhendo todos. Duas listas seriam o gate aceitando pack que o
+    boot recusa, com outro nome — a classe que a §1.4 do checkpoint fechou em
+    `contract_rules`.
     """
-    raiz = Path(pack_dir)
-    if not raiz.is_dir():
-        raise PackError(PackSite.PACK_DIR_MISSING, f"{raiz}: nao e um diretorio de pack")
-
-    scenario = contracts["scenario"]
-    obrigatorios = (
-        (scenario.get("x-aurora-registry") or {}).get("package_files") or {}
-    ).get("required") or []
-
-    for arquivo in obrigatorios:
-        if not (raiz / arquivo).is_file():
-            raise PackError(
-                PackSite.REQUIRED_FILE_MISSING,
-                f"{raiz}: falta `{arquivo}`, que "
-                "`contracts/scenario.schema.v2.yaml` declara obrigatorio em "
-                "`x-aurora-registry.package_files.required`",
-            )
-
-    documentos = _read_documents(raiz, scope_from_contract(scenario))
-    _verify_completude(raiz, documentos, scenario)
+    raiz, documentos, _ = _abre(pack_dir, contracts)
     manifest = documentos["manifest.yaml"]
     content_hash = content_hash_v1(documentos)
 
-    _verify_schema_version(raiz, manifest)
-    _verify_schema(documentos, scenario, contracts)
-    _verify_engine_version(raiz, manifest)
-    _verify_rules(documentos, scenario, contracts, adapter_flags)
-    confere_folhas_temporais(documentos.get("ground_truth.yaml"))
-    # O QUALIFICADOR SAI DO CONTRATO, e `load_pack` ja recebe `contracts` — a
-    # origem estava ao alcance sem encanamento novo. `04` §4.1.
-    confere_qualificador_since(
-        documentos.get("ground_truth.yaml"),
-        qualificadores=since_qualifiers(dict(contracts)),
-    )
-    confere_citacoes_do_pack(raiz, documentos, contracts)
+    for passo in _passos(raiz, documentos, contracts, adapter_flags):
+        passo()
 
     injects = _build_injects(
         documentos.get("injects.yaml") or {}, documentos.get("ground_truth.yaml")
@@ -420,24 +436,193 @@ def load_pack(
     )
 
 
-def _read_documents(raiz: Path, escopo: tuple[str, ...]) -> dict[str, Mapping]:
-    """Os documentos de maquina PRESENTES, `caminho POSIX -> documento`.
+def _abre(
+    pack_dir: Path | str, contracts: Mapping[str, Mapping]
+) -> tuple[Path, dict[str, Mapping], dict[str, str]]:
+    """Os tres passos ANTERIORES a qualquer regra: diretorio, presenca, leitura.
+
+    ELES NAO ENTRAM EM `_passos`, e a exclusao e de especie. Um passo da lista
+    julga o CONTEUDO do pack e pode ser colhido ao lado dos outros; estes tres
+    decidem se ha pack. Sem `manifest.yaml` nao se sabe nem o que se esta lendo,
+    e um linter que "colhesse" essa recusa junto de outras estaria relatando
+    achados sobre documentos que nao leu.
+
+    Por isso `varre_pack` os deixa subir: a recusa e a mesma do boot, e a
+    resposta a ela e a mesma — arrume o pacote e rode de novo.
+    """
+    raiz = Path(pack_dir)
+    if not raiz.is_dir():
+        raise PackError(PackSite.PACK_DIR_MISSING, f"{raiz}: nao e um diretorio de pack")
+
+    scenario = contracts["scenario"]
+    obrigatorios = (
+        (scenario.get("x-aurora-registry") or {}).get("package_files") or {}
+    ).get("required") or []
+
+    for arquivo in obrigatorios:
+        if not (raiz / arquivo).is_file():
+            raise PackError(
+                PackSite.REQUIRED_FILE_MISSING,
+                f"{raiz}: falta `{arquivo}`, que "
+                "`contracts/scenario.schema.v2.yaml` declara obrigatorio em "
+                "`x-aurora-registry.package_files.required`",
+                arquivo=arquivo,
+            )
+
+    documentos, textos = _read_documents(raiz, scope_from_contract(scenario))
+    return raiz, documentos, textos
+
+
+def _passos(
+    raiz: Path,
+    documentos: Mapping[str, Mapping],
+    contracts: Mapping[str, Mapping],
+    adapter_flags: AdapterFlags,
+):
+    """A lista de recusas, na ordem. UM dono, dois consumidores.
+
+    A ORDEM E PARTE DA GARANTIA, e o docstring de `load_pack` a enuncia. O que
+    esta lista acrescenta e que ela deixa de estar escrita dentro de um dos dois
+    consumidores: enquanto `load_pack` era o unico, a ordem era o corpo dele, e
+    o linter teria de a repetir para relatar as mesmas recusas.
+
+    Cada elemento e um `callable` sem argumento que levanta `PackError` ou nao
+    faz nada. Quem consome decide o que fazer com o levantamento — parar, no
+    boot; colher, no linter.
+
+    GRANULARIDADE POR DOCUMENTO nas duas camadas de contrato. Para o boot e
+    indiferente, porque ele para na primeira; para o linter e o que faz um
+    `injects.yaml` defeituoso nao esconder o `branches.yaml` ao lado.
+    """
+    scenario = contracts["scenario"]
+    manifest = documentos.get("manifest.yaml") or {}
+    ground_truth = documentos.get("ground_truth.yaml")
+    base = scenario.get("$id", "")
+    mapa = sorted((scenario.get("x-aurora-documents") or {}).items())
+
+    yield lambda: _verify_completude(raiz, documentos, scenario)
+    yield lambda: _verify_schema_version(raiz, manifest)
+
+    registry = registry_for(dict(contracts))
+    for arquivo, ponteiro in mapa:
+        if arquivo not in documentos:
+            continue
+        alvo, origem = _alvo_de_schema(ponteiro, base)
+        yield (
+            lambda arquivo=arquivo, alvo=alvo, origem=origem: _verify_schema_documento(
+                arquivo, documentos[arquivo], alvo, origem, registry
+            )
+        )
+
+    yield lambda: _verify_engine_version(raiz, manifest)
+
+    # Os registros e o mapa de `$id` sao os mesmos para todo documento, e sao
+    # montados uma vez — a leitura da biblioteca de rubricas nao se paga quatro
+    # vezes por carga.
+    registros = _registros_do_pack(documentos, contracts, adapter_flags)
+    docs_por_id = documents_by_id(dict(contracts))
+    for arquivo, ponteiro in mapa:
+        if arquivo not in documentos:
+            continue
+        yield (
+            lambda arquivo=arquivo, ponteiro=ponteiro: _verify_rules_documento(
+                arquivo,
+                documentos[arquivo],
+                ponteiro,
+                base=base,
+                registros=registros,
+                docs_por_id=docs_por_id,
+                registry=registry,
+                adapter_flags=adapter_flags,
+            )
+        )
+
+    # DEPOIS da camada 1, e a ordem e a mesma razao de `_verify_engine_version`:
+    # `t_relative` malformado e `media_event` sem forma sao recusa do contrato, e
+    # rodar depois dele torna a garantia de forma disponivel em vez de suposta.
+    yield lambda: confere_ordem_de_t_relative(documentos.get("injects.yaml"))
+    yield lambda: confere_fact_check_do_pack(documentos)
+
+    # `05` §5.2 e a P7-7. ANTES das guardas de predicado: um pack com IOC real e
+    # defeito de outra especie — as outras recusas desta lista custam retrabalho
+    # de autoria, esta custa `05` §1 violado num artefato que roda na sala.
+    yield lambda: confere_ausencia_de_ioc(ground_truth)
+
+    yield lambda: confere_folhas_temporais(ground_truth)
+    # O QUALIFICADOR SAI DO CONTRATO, e `load_pack` ja recebe `contracts` — a
+    # origem estava ao alcance sem encanamento novo. `04` §4.1.
+    yield lambda: confere_qualificador_since(
+        ground_truth, qualificadores=since_qualifiers(dict(contracts))
+    )
+    yield lambda: confere_citacoes_do_pack(raiz, documentos, contracts)
+
+
+def varre_pack(
+    pack_dir: Path | str,
+    *,
+    contracts: Mapping[str, Mapping],
+    adapter_flags: AdapterFlags,
+) -> tuple[list[PackError], dict[str, str]]:
+    """TODAS as recusas do pack, e o texto de cada documento lido.
+
+    O SEGUNDO CONSUMIDOR DE `_passos` — `range-cli scenario lint`. A diferenca
+    com `load_pack` e uma so: aquele para na primeira recusa, este colhe a lista
+    inteira.
+
+    POR QUE COLHER, e nao chamar `load_pack` e traduzir o levantamento
+    ------------------------------------------------------------------
+    `04` §8 da nomes e listas de checagem DISTINTOS a `validate` e a `lint`, e a
+    diferenca util entre os dois e exatamente esta. Um linter que relata um
+    defeito por execucao manda o autor consertar e rodar de novo para descobrir
+    o proximo — e o pack de 4 h da `04` §9 tem seis documentos. Nesse regime o
+    verbo `lint` nao acrescentaria nada a `validate`, e a spec nao teria por que
+    ter os dois.
+
+    OS TEXTOS SOBEM JUNTO porque e sobre eles que a posicao se resolve, e eles
+    vem da MESMA leitura que produziu os documentos validados. Ver
+    `contract_source.parse_document_com_texto`.
+
+    O QUE NAO E COLHIDO: as recusas de `_abre` — diretorio, presenca de
+    `manifest.yaml`, documento ilegivel. Elas sobem, e o docstring de `_abre` diz
+    por que.
+    """
+    raiz, documentos, textos = _abre(pack_dir, contracts)
+    achados: list[PackError] = []
+    for passo in _passos(raiz, documentos, contracts, adapter_flags):
+        try:
+            passo()
+        except PackError as erro:
+            achados.append(erro)
+    return achados, textos
+
+
+def _read_documents(
+    raiz: Path, escopo: tuple[str, ...]
+) -> tuple[dict[str, Mapping], dict[str, str]]:
+    """Os documentos de maquina PRESENTES, e o texto de cada um.
 
     Ausencia nao e erro aqui: o pacote apenas-manifesto e forma legitima
     (`04` §9, e o `x-aurora-registry` do contrato separa `required` de
     `required_for_complete_pack` por causa dela). Quem cobra presenca e o passo
     anterior, contra a lista do contrato.
+
+    O TEXTO VEM DA MESMA LEITURA que produziu o documento — `parse_document_com_texto`
+    —, e nao de uma segunda. O linter resolve `linha:coluna` sobre ele, e a razao
+    de nao reler esta no docstring daquela funcao.
     """
     documentos: dict[str, Mapping] = {}
+    textos: dict[str, str] = {}
     for arquivo in escopo:
         caminho = raiz / arquivo
         if not caminho.is_file():
             continue
         try:
-            documentos[arquivo] = parse_document(caminho)
+            documentos[arquivo], textos[arquivo] = parse_document_com_texto(caminho)
         except ContractSourceError as exc:
-            raise PackError(PackSite.DOCUMENT_UNREADABLE, str(exc)) from exc
-    return documentos
+            raise PackError(
+                PackSite.DOCUMENT_UNREADABLE, str(exc), arquivo=arquivo
+            ) from exc
+    return documentos, textos
 
 
 def _verify_schema_version(raiz: Path, manifest: Mapping) -> None:
@@ -594,46 +779,46 @@ def _verify_completude(
     raise PackError(PackSite.INCOMPLETE_PACK, "\n".join(linhas))
 
 
-def _verify_schema(
-    documentos: Mapping[str, Mapping],
-    scenario: Mapping,
-    contracts: Mapping[str, Mapping],
-) -> None:
-    """Camada 1, sobre os documentos que `x-aurora-documents` mapeia.
+def _alvo_de_schema(ponteiro: str | None, base: str) -> tuple[dict, str]:
+    """`(o que validar contra, como se chama)` para um documento do pacote.
 
-    O mapa vem do CONTRATO, e nao de lista aqui: acrescentar um documento ao
-    pacote passa a ser mudanca de contrato, e o loader o valida sem que ninguem
-    tenha de lembrar de o acrescentar em dois lugares.
+    PONTEIRO RELATIVO resolve no contrato de cenario; URI ABSOLUTA resolve em
+    outro — `ground_truth.yaml` e `objectives.yaml` tem contrato proprio, e e por
+    isso que o mapa carrega `$ref` e nao so ponteiro (B1 da Fase 6).
     """
-    registry = registry_for(dict(contracts))
-    base = scenario.get("$id", "")
+    if ponteiro and "://" in ponteiro:
+        return {"$ref": ponteiro}, ponteiro
+    if ponteiro in (None, "#"):
+        return {"$ref": base}, f"contracts/scenario.schema.v2.yaml{ponteiro or ''}"
+    return (
+        {"$ref": f"{base}{ponteiro}"},
+        f"contracts/scenario.schema.v2.yaml{ponteiro}",
+    )
 
-    for arquivo, ponteiro in sorted((scenario.get("x-aurora-documents") or {}).items()):
-        if arquivo not in documentos:
-            continue
-        # PONTEIRO RELATIVO resolve neste contrato; URI ABSOLUTA resolve em
-        # outro — `ground_truth.yaml` e `objectives.yaml` tem contrato proprio, e
-        # e por isso que o mapa carrega `$ref` e nao so ponteiro (B1 da Fase 6).
-        if ponteiro and "://" in ponteiro:
-            alvo = {"$ref": ponteiro}
-            origem = ponteiro
-        elif ponteiro in (None, "#"):
-            alvo = {"$ref": base}
-            origem = f"contracts/scenario.schema.v2.yaml{ponteiro or ''}"
-        else:
-            alvo = {"$ref": f"{base}{ponteiro}"}
-            origem = f"contracts/scenario.schema.v2.yaml{ponteiro}"
-        erros = sorted(
-            Draft202012Validator(alvo, registry=registry).iter_errors(documentos[arquivo]),
-            key=str,
-        )
-        if erros:
-            detalhe = "\n".join(f"    {e.json_path}: {e.message}" for e in erros[:5])
-            raise PackError(
-                PackSite.DOCUMENT_INVALID,
-                f"`{arquivo}` nao valida contra `{origem}` "
-                f"({len(erros)} erro(s)):\n{detalhe}",
-            )
+
+def _verify_schema_documento(
+    arquivo: str, documento: Mapping, alvo: dict, origem: str, registry
+) -> None:
+    """Camada 1, sobre UM documento.
+
+    POR DOCUMENTO, E NAO SOBRE A COLECAO, e a granularidade e o que o linter
+    precisa: `load_pack` para na primeira recusa de qualquer jeito, e para ele a
+    diferenca e nenhuma. Para `range-cli scenario lint`, um passo por documento e
+    o que faz um `injects.yaml` defeituoso nao esconder o `branches.yaml` ao
+    lado — que e a diferenca entre um linter e um boot que nao carrega.
+    """
+    erros = sorted(
+        Draft202012Validator(alvo, registry=registry).iter_errors(documento), key=str
+    )
+    if not erros:
+        return
+    detalhe = "\n".join(f"    {e.json_path}: {e.message}" for e in erros[:5])
+    raise PackError(
+        PackSite.DOCUMENT_INVALID,
+        f"`{arquivo}` nao valida contra `{origem}` ({len(erros)} erro(s)):\n{detalhe}",
+        arquivo=arquivo,
+        caminho=erros[0].json_path,
+    )
 
 
 #: As duas folhas que a gramatica admite e o avaliador ainda nao implementa.
@@ -808,6 +993,246 @@ def confere_qualificador_since(
         )
 
 
+def confere_ordem_de_t_relative(injects_document: Mapping | None) -> None:
+    """*"`t_relative` fora de ordem e recusado"* — `04` §8 e `x-aurora-linter-rules`.
+
+    POR LINHA, E NAO PELA SEQUENCIA INTEIRA — e a diferenca foi MEDIDA, nao
+    escolhida por gosto. `04` §9 manda o `ransomware-universidade` ter *"Linhas A
+    + B + ruido"*, e linhas correm em paralelo no relogio do exercicio: exigir
+    ordem global obrigaria o autor a intercalar as tres num arquivo so, o que
+    troca um defeito de autoria por um custo de leitura em todo pack multilinha.
+
+    A MEDICAO: o exemplo positivo de `injects_document` em
+    `contracts/scenario.schema.v2.yaml` declara `00:47, 00:55, 01:10, 01:15,
+    01:40` na linha A e `00:52` no inject de ruido, que nao tem `linha`. Sob
+    ordem global ele seria RECUSADO — e ele e a fixture que o gate de exemplos
+    usa como valida. Regra que reprova o exemplo positivo do proprio contrato e
+    regra escrita contra a fonte, que e a classe do B4 da terceira auditoria.
+
+    INJECT SEM `linha` FORMA GRUPO PROPRIO. O campo e opcional no contrato, e o
+    inject de ruido do exemplo nao o tem — `03` §5.2 mantem a linha invisivel ao
+    operador, entao ela e do facilitador e nem todo inject a declara.
+
+    O QUE ISSO **NAO** E: garantia de disparo. `inject_engine` ordena por
+    `(t_relative_seconds, id)` e dispararia certo de qualquer jeito. Esta recusa
+    e sobre AUTORIA — um `01:50` digitado onde se queria `00:50` continua
+    disparando, na hora errada, e o unico sinal e a ordem do arquivo.
+
+    NA CARGA TAMBEM, e nao so no linter. Regra que o `lint` recusasse e o boot
+    aceitasse produziria pack reprovado pelo CI e carregado pelo engine — a
+    divergencia entre os dois chamadores que `contract_rules` existe para nao
+    deixar voltar.
+    """
+    anterior: dict[object, tuple[str, int]] = {}
+    for indice, bruto in enumerate((injects_document or {}).get("injects") or []):
+        if not isinstance(bruto, Mapping):
+            continue
+        valor = bruto.get("t_relative")
+        if valor is None:
+            continue  # a ausencia e recusa da camada 1, com sitio proprio
+        try:
+            segundos = t_relative_seconds(valor, str(bruto.get("id")))
+        except PackError:
+            return  # forma malformada: quem recusa e o passo dela, e antes deste
+        linha = bruto.get("linha")
+        anterior_id, anterior_segundos = anterior.get(linha, (None, -1))
+        if segundos < anterior_segundos:
+            rotulo = f"linha {linha!r}" if linha is not None else "injects sem `linha`"
+            raise PackError(
+                PackSite.T_RELATIVE_OUT_OF_ORDER,
+                f"inject {bruto.get('id')!r}: `t_relative: {valor!r}` vem depois "
+                f"de {anterior_id!r} (`{anterior_segundos // 3600:02d}:"
+                f"{anterior_segundos % 3600 // 60:02d}`) no arquivo, e ANTES dele "
+                f"no relogio — os dois estao na mesma {rotulo}.\n"
+                "    O engine ordena por `t_relative` e dispararia na ordem certa; "
+                "o que esta recusado aqui e a AUTORIA. Um `01:50` digitado onde "
+                "se queria `00:50` dispara na hora errada sem nada falhar, e a "
+                "ordem do arquivo e o unico sinal que sobra.\n"
+                "    A ordem e exigida DENTRO de cada linha, e nao entre linhas: "
+                "`04_SCENARIO_SCHEMA.md` §9 poe Linhas A, B e ruido em paralelo "
+                "no mesmo exercicio.",
+                arquivo="injects.yaml",
+                caminho=f"$.injects[{indice}].t_relative",
+            )
+        anterior[linha] = (bruto.get("id"), segundos)
+
+
+def _citacoes_de_fact_check(injects_document: Mapping | None) -> dict[str, str]:
+    """`caminho de instancia -> valor` de todo `fact_check_against` do pack.
+
+    A CHAVE E O CAMINHO, e nao o id do inject, porque e ela que o linter localiza
+    no arquivo. Ela entra na mensagem de `confere_fact_check_against` como o
+    "onde", entao o autor le o mesmo endereco na prosa e no `linha:coluna`.
+    """
+    citacoes: dict[str, str] = {}
+    for indice, bruto in enumerate((injects_document or {}).get("injects") or []):
+        if not isinstance(bruto, Mapping):
+            continue
+        media = bruto.get("media_event")
+        if isinstance(media, Mapping) and media.get("fact_check_against"):
+            citacoes[f"$.injects[{indice}].media_event.fact_check_against"] = str(
+                media["fact_check_against"]
+            )
+    return citacoes
+
+
+def confere_fact_check_do_pack(
+    documentos: Mapping[str, Mapping],
+) -> None:
+    """A quarta citacao de fato — `fact_check_against`, de `04` §7.
+
+    AS OUTRAS TRES JA TINHAM DONO, e esta nao tinha: `materializes_facts` e
+    `projects_facts` sao cobertas pelo par `$ref` + `x-aurora-ref`, e o
+    `GM_NOTES.md` pelo linter de citacao da peca 2. Esta nao e alcancavel por
+    `x-aurora-ref` por razao estrutural — o valor nao e um `fact_id`, e sim
+    `facts.<fact_id>.<campo>`, e o registro resolve valores inteiros.
+
+    SEM GROUND TRUTH NAO HA CONTRA O QUE CONFERIR, e a ausencia nao e erro aqui:
+    pacote apenas-manifesto (`04` §9) nao o tem, e `_verify_completude` ja separou
+    essa forma da defeituosa.
+    """
+    ground_truth = documentos.get("ground_truth.yaml")
+    if ground_truth is None:
+        return
+    citacoes = _citacoes_de_fact_check(documentos.get("injects.yaml"))
+    if not citacoes:
+        return
+    try:
+        confere_fact_check_against(
+            fatos=fatos_por_id(ground_truth), citacoes=citacoes
+        )
+    except CitacaoInvalida as erro:
+        raise PackError(
+            PackSite.FACT_CHECK_UNRESOLVED,
+            str(erro),
+            arquivo="injects.yaml",
+            # O "onde" da mensagem E o caminho, por construcao de
+            # `_citacoes_de_fact_check`. Reextrai-lo da prosa seria fazer o dado
+            # atravessar a mensagem para voltar a ser dado.
+            caminho=str(erro).split("`", 2)[1],
+        ) from erro
+
+
+#: O bloco de `05` §5.2 que EXIGE fonte publica citavel, e por isso e o unico
+#: lugar do gabarito onde nomear um dominio real e o proposito, e nao o defeito.
+#:
+#: `attack.mitre.org` numa `sources` e CITACAO; o mesmo dominio num `source_ip`
+#: ou numa projecao seria INFRAESTRUTURA. A varredura nao distingue as duas — e
+#: nao tem como —, entao a distincao entra como caminho isento, declarado.
+#:
+#: A ISENCAO E DE SUBARVORE, e nao de valor: isentar por valor faria o mesmo
+#: dominio passar em qualquer lugar do documento, que e exatamente o oposto do
+#: que a §5.2 quer.
+CAMINHO_ISENTO_DE_IOC = ("threat_actor", "sources")
+
+
+def _valores_com_caminho(no, caminho: str = "$"):
+    """`(caminho de instancia, valor)` de cada folha de texto, em ordem de leitura.
+
+    O DIALETO E O MESMO das duas camadas de contrato — `$`, `.chave`, `[i]` —,
+    e e por isso que o resolvedor de posicao do linter serve a esta recusa sem
+    codigo novo.
+
+    A subarvore de `CAMINHO_ISENTO_DE_IOC` nao e descida. Ver a constante.
+    """
+    if isinstance(no, Mapping):
+        for chave, valor in no.items():
+            if (str(chave),) == CAMINHO_ISENTO_DE_IOC[:1] and isinstance(valor, Mapping):
+                for filho, subvalor in valor.items():
+                    if str(filho) == CAMINHO_ISENTO_DE_IOC[1]:
+                        continue
+                    yield from _valores_com_caminho(
+                        subvalor, f"{caminho}.{chave}.{filho}"
+                    )
+                continue
+            yield from _valores_com_caminho(valor, f"{caminho}.{chave}")
+    elif isinstance(no, (list, tuple)):
+        for indice, filho in enumerate(no):
+            yield from _valores_com_caminho(filho, f"{caminho}[{indice}]")
+    elif isinstance(no, str):
+        yield caminho, no
+
+
+def confere_ausencia_de_ioc(ground_truth: Mapping | None) -> None:
+    """Nenhum IOC operacional no gabarito — `05` §5.2, e a **P7-7**.
+
+    A PERGUNTA NAO E REIMPLEMENTADA AQUI. Ela e a mesma que
+    `tools/check_synthetic_data.py` responde desde a Fase 0, e as duas passaram a
+    chamar `dados_sinteticos` — o pacote de topo que a peca 3 extraiu justamente
+    para nao haver duas respostas. Duas divergiriam no dia em que uma das faixas
+    mudasse, e a divergencia **nao falha alto**: ela deixa passar.
+
+    POR QUE A PERGUNTA PRECISAVA DE UM SEGUNDO CHAMADOR
+    ----------------------------------------------------
+    Aquele verificador varre a **arvore versionada**, e `scenarios/` esta fora do
+    Git desde a peca 5 da Fase 5. O pack — que e onde o gabarito e o ator de
+    ameaca moram — nunca passou por ele. O proprio `ground_truth.schema.yaml`
+    declara em `x-aurora-linter-rules` que `source_ip` fica *"guardado por
+    tools/check_synthetic_data.py"*, e para pack essa frase era falsa.
+
+    DAS TRES EXIGENCIAS DA §5.2, ESTA E A UNICA MECANIZAVEL, e as outras duas
+    estao declaradas no registro do contrato de cenario com destinatario
+    `revisao humana`:
+
+        fonte publica citavel   meia — o contrato exige `sources` nao vazio, e
+                                "citavel" nao e forma. Mesma classe do
+                                `control_function` de `04` §5.1
+        TTP nao excedida        julgamento contra documento EXTERNO
+        IOC ausente             ESTA
+
+    O ESCOPO E O DOCUMENTO INTEIRO, e nao so o bloco do ator. A §5.2 diz que
+    *"as faixas de documentacao da §3 continuam obrigatorias em toda evidencia"*,
+    e o `source_ip` de um `fact` e o caso mais provavel de vazamento — o ator
+    real e escrito com cuidado, o IP de um fato e copiado de um relatorio.
+
+    NA CARGA TAMBEM, e nao so no linter. Pack com IOC real nao pode subir: e a
+    unica das regras desta peca cujo custo de passar nao e retrabalho de autoria,
+    e sim `05` §1 violado num artefato que roda na frente de cliente.
+
+    O LIMITE, DECLARADO PORQUE E REAL: **dominio embutido em PROSA escapa.**
+    -------------------------------------------------------------------------
+    O predicado classifica VALORES — `hostnames_candidatos` extrai host de URL,
+    de e-mail ou de hostname nu, e desiste quando o texto tem espaco. Entao
+    `note_to_facilitator: "C2 em evil-infra.net"` **passa**, e foi medido.
+
+    A alternativa seria varrer prosa por padrao de dominio, e ela nao foi tomada
+    por dois motivos, nesta ordem: `tools/check_synthetic_data.py` declara desde
+    a Fase 0 que *"nao ha varredura textual do arquivo bruto"*, e mudar isso
+    mudaria o comportamento do verificador sobre a **arvore inteira** — seeds e
+    seus comentarios incluidos — dentro de uma peca que nao pediu isso; e a rede
+    larga sobre prosa produz falso positivo em volume, que e como um gate deixa
+    de ser lido.
+
+    **O campo mais exposto e o `note_to_facilitator`**, que e prosa por
+    definicao. Ali a garantia hoje e revisao humana, como nas outras duas
+    exigencias da §5.2 — e esta linha existe para que isso seja lacuna nomeada, e
+    nao cobertura suposta.
+    """
+    if ground_truth is None:
+        return
+    achados: list[str] = []
+    for caminho, valor in _valores_com_caminho(ground_truth):
+        for achado in achados_no_valor(valor):
+            achados.append(f"{caminho}: {achado.detalhe}")
+    if not achados:
+        return
+    raise PackError(
+        PackSite.IOC_OPERACIONAL,
+        "`ground_truth.yaml` traz dado que nao e sintetico:\n"
+        + "\n".join(f"    {linha}" for linha in achados[:5])
+        + (f"\n    ... e mais {len(achados) - 5}" if len(achados) > 5 else "")
+        + "\n    `05_SECURITY_REQUIREMENTS.md` §5.2 admite ator de ameaca REAL e "
+        "documentado, e proibe IOC operacional junto: sem hash de amostra, sem IP "
+        "ou dominio de infraestrutura real, sem chave. A §3 fixa as faixas, e "
+        "elas valem em toda evidencia.\n"
+        "    `threat_actor.sources` e ISENTO desta varredura, e e o unico: a "
+        "§5.2 EXIGE fonte publica citavel ali, entao nomear um dominio real "
+        "naquele campo e o proposito e nao o defeito.",
+        arquivo="ground_truth.yaml",
+        caminho=achados[0].split(":", 1)[0],
+    )
+
+
 #: O documento de prosa do facilitador. NAO esta em `x-aurora-documents` — ele
 #: nao e documento de maquina, e `scope_from_contract` o exclui por nao terminar
 #: em `.yaml`. E lido AQUI, e so para o linter.
@@ -896,21 +1321,18 @@ def confere_citacoes_do_pack(
         raise PackError(PackSite.CITACAO_DE_FATO_INVALIDA, str(erro)) from erro
 
 
-def _verify_rules(
+def _registros_do_pack(
     documentos: Mapping[str, Mapping],
-    scenario: Mapping,
     contracts: Mapping[str, Mapping],
     adapter_flags: AdapterFlags,
-) -> None:
-    """Camada 2 — as regras `x-aurora-*`, pelo modulo que o gate de CI usa.
+) -> dict:
+    """Os registros contra os quais `x-aurora-ref` resolve, montados UMA vez.
 
-    ITEM 9 DA DoD MORA AQUI, e nao numa checagem propria de flag. Uma segunda
-    implementacao de "a flag existe?" divergiria da primeira, e o gate passaria
-    a aceitar pack que o boot recusa. O que este passo acrescenta e a
-    CLASSIFICACAO: a violacao de `adapter_flags` sai com sitio proprio e com o
-    arquivo esperado na mensagem, que e o que T2 exige alem do nome da flag.
+    Hoisted para fora do laco por documento: eles nao dependem do documento que
+    esta sendo checado, e remonta-los por documento seria pagar a leitura da
+    biblioteca de rubricas quatro vezes por carga.
     """
-    registros = build_pack_registries(
+    return build_pack_registries(
         dict(contracts),
         dict(adapter_flags.specs),
         # A biblioteca de rubricas e do core (00 secao 5.8) e vem da arvore em
@@ -923,33 +1345,62 @@ def _verify_rules(
         objectives_document=documentos.get("objectives.yaml"),
         ground_truth_document=documentos.get("ground_truth.yaml"),
     )
-    registry = registry_for(dict(contracts))
-    docs_por_id = documents_by_id(dict(contracts))
-    base = scenario.get("$id", "")
 
-    for arquivo, ponteiro in sorted((scenario.get("x-aurora-documents") or {}).items()):
-        if arquivo not in documentos:
-            continue
-        checker = AuroraChecker(registros, docs_por_id)
-        violacoes = checker.check(base, ponteiro, documentos[arquivo], registry)
-        if not violacoes:
-            continue
 
-        flags = [detalhe for regra, detalhe in violacoes if regra == _REGRA_FLAG_DESCONHECIDA]
-        corpo = "\n".join(f"    {regra}: {detalhe}" for regra, detalhe in violacoes)
-        if flags:
-            raise PackError(
-                PackSite.UNDECLARED_FLAG,
-                f"`{arquivo}` cita flag que o adapter nao declara:\n{corpo}\n"
-                f"    declare a flag em `{adapter_flags.source}` — o arquivo que "
-                "`01_ARCHITECTURE.md` §5.2 normatiza como a declaracao do adapter — "
-                "ou corrija o pack. Nenhum servico le ou escreve flag nao declarada "
-                "(§5.4), e o engine nao sobe com o pack neste estado.",
-            )
+def _verify_rules_documento(
+    arquivo: str,
+    documento: Mapping,
+    ponteiro: str | None,
+    *,
+    base: str,
+    registros: dict,
+    docs_por_id: dict,
+    registry,
+    adapter_flags: AdapterFlags,
+) -> None:
+    """Camada 2 — as regras `x-aurora-*`, pelo modulo que o gate de CI usa.
+
+    ITEM 9 DA DoD MORA AQUI, e nao numa checagem propria de flag. Uma segunda
+    implementacao de "a flag existe?" divergiria da primeira, e o gate passaria
+    a aceitar pack que o boot recusa. O que este passo acrescenta e a
+    CLASSIFICACAO: a violacao de `adapter_flags` sai com sitio proprio e com o
+    arquivo esperado na mensagem, que e o que T2 exige alem do nome da flag.
+
+    O CAMINHO DA PRIMEIRA VIOLACAO SOBE NO ERRO, e e ele que o linter localiza.
+    A `AuroraChecker` ja o produzia — `$.branches[0].evaluate[0].when.all[0].event`
+    — e ele morria dentro da mensagem, que e prosa. `06` T12 cobra a posicao
+    justamente da recusa que nasce aqui: o `event_type` inexistente em condicao
+    de branch e uma violacao de `x-aurora-ref: event_catalog`.
+    """
+    checker = AuroraChecker(registros, docs_por_id)
+    violacoes = checker.check(base, ponteiro, documento, registry)
+    if not violacoes:
+        return
+
+    # `ipath` e a cabeca do detalhe, ate o primeiro `: `. A `AuroraChecker` o
+    # monta assim nas tres anotacoes, e le-lo de volta e mais barato que mudar a
+    # forma de retorno dela — que tem outro chamador, o gate de CI.
+    caminho = violacoes[0][1].split(":", 1)[0].strip()
+
+    flags = [detalhe for regra, detalhe in violacoes if regra == _REGRA_FLAG_DESCONHECIDA]
+    corpo = "\n".join(f"    {regra}: {detalhe}" for regra, detalhe in violacoes)
+    if flags:
         raise PackError(
-            PackSite.RULE_VIOLATION,
-            f"`{arquivo}` viola regra de integridade referencial:\n{corpo}",
+            PackSite.UNDECLARED_FLAG,
+            f"`{arquivo}` cita flag que o adapter nao declara:\n{corpo}\n"
+            f"    declare a flag em `{adapter_flags.source}` — o arquivo que "
+            "`01_ARCHITECTURE.md` §5.2 normatiza como a declaracao do adapter — "
+            "ou corrija o pack. Nenhum servico le ou escreve flag nao declarada "
+            "(§5.4), e o engine nao sobe com o pack neste estado.",
+            arquivo=arquivo,
+            caminho=caminho,
         )
+    raise PackError(
+        PackSite.RULE_VIOLATION,
+        f"`{arquivo}` viola regra de integridade referencial:\n{corpo}",
+        arquivo=arquivo,
+        caminho=caminho,
+    )
 
 
 def _fatos_com_projecao(ground_truth: Mapping | None) -> frozenset[str]:
