@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit. Este arquivo é SEMEADO vazio no commit de estrutura e preenchido por gen_pins.py em commit próprio na sequência (o gerador preserva exclusoes e declared).",
+    "gerado_de_head": "",
+    "gerado_em": "",
+    "exclusoes": [
+      "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
+      "docs/process/phase_anchors.tsv** (muda a cada fase por desenho)",
+      ".claude/project-memory/** (estado de processo — validado pelo stage state, não por pin)",
+      "*.zip",
+      ".claude/verify/pins.json"
+    ]
+  },
+  "declared": {},
+  "files": {}
+}

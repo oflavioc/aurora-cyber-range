@@ -1,0 +1,56 @@
+# Pipeline de verificação — fonte única dos stages (Onda 1 da Estrutura Agêntica).
+#
+# Consumido por run.sh, pelo hook Stop (post-turn-verify, com --light --no-mutate)
+# e pelo CI. Checagem nova entra AQUI, nunca no prompt de um agente.
+# Campos por stage:
+#   desc     — o que o stage garante
+#   run      — comando, executado na raiz do repositório
+#   parallel — true: roda no grupo concorrente (stages independentes entre si)
+#   mutates  — true: regenera arquivos (pulado com --no-mutate)
+#   heavy    — true: caro (pulado com --light; o hook Stop usa --light)
+#
+# ESTE É O PIPELINE MÍNIMO DO KIT. Os stages DO PRODUTO entram nos pontos
+# marcados abaixo: build determinístico, lint arquitetural (R9), suítes ×
+# contagens canônicas (expected_suites.json), campanhas de mutação (Onda 3),
+# oráculos da superfície congelada.
+
+stages:
+  env-doctor:
+    desc: "Toolchain presente e sã antes de qualquer verificação (FAIL aborta o pipeline)"
+    run: python .claude/verify/env_doctor.py
+    parallel: false
+    mutates: false
+    heavy: false
+  baseline:
+    desc: "Registry de pins × blobs de HEAD — à prova de CRLF/plataforma; arquivo novo sem pin = FAIL"
+    run: python .claude/verify/check_baseline.py
+    parallel: true
+    mutates: false
+    heavy: false
+  boundary:
+    desc: "Manifesto de boundary coerente: protegidos existem, pinados, e divergência nomeia o rito violado"
+    run: python .claude/verify/check_boundary.py
+    parallel: true
+    mutates: false
+    heavy: false
+  state:
+    desc: "planning-state de demandas em curso válido contra o schema; fases pós-red exigem red provado ou waiver"
+    run: python .claude/verify/check_state.py
+    parallel: true
+    mutates: false
+    heavy: false
+  tdd:
+    desc: "Regime red-first auditável: red.commit existe; done tem conformance; waivers listados"
+    run: python .claude/verify/check_tdd.py
+    parallel: true
+    mutates: false
+    heavy: false
+  # --- stages DO PRODUTO entram aqui (exemplos do projeto de origem): ---
+  # build:       builder reproduz o artefato publicado byte a byte, em diretório
+  #              efêmero, sem sujar a árvore (parallel: true)
+  # lint-arch:   regras R9 do produto — módulos com escopo próprio, APIs
+  #              registradas, superfícies inseguras proibidas (parallel: true)
+  # suites:      todas as suítes × contagens canônicas de expected_suites.json;
+  #              suíte fora do registro = FAIL (heavy: true)
+  # mutation:    campanhas de mutação por trigger de path (Onda 3; heavy: true)
+  # <oraculo>:   oráculo da superfície congelada × pin declarado (a régua da R1)
