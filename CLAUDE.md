@@ -133,3 +133,23 @@ Português do Brasil: interface, dados sintéticos, cenários, rubricas, documen
 `.env`, credenciais, tokens, chaves privadas, dumps de banco ou qualquer arquivo com dado real/não sintético.
 
 Evidência gerada em `scenarios/**/evidence/` também fica fora do Git: é projeção determinista de `ground_truth.yaml` + `RANDOM_SEED` e se reconstrói com `range-cli evidence build`.
+
+## Estrutura Agêntica (Ondas 0–1, em adoção)
+
+Camada de governança adicional, integrada por adição — **nada acima desta seção
+muda, e em conflito o que está acima prevalece**. O mapa completo do que foi
+adotado, adaptado ou deixado para decisão do operador está em
+[`docs/ADOCAO_ESTRUTURA_AGENTICA.md`](docs/ADOCAO_ESTRUTURA_AGENTICA.md)
+(decisão: [`docs/adr/0001`](docs/adr/0001-adocao-estrutura-agentica.md)).
+
+- **Regras** em `.claude/rules/` (R1–R14). A R1 — invariantes de produto com
+  gate mapeado — é **PROPOSTA pendente de ratificação do operador**.
+- **Demanda fora do roadmap** (comportamento novo que não é de fase): skill
+  `new-demand` (7 fases com aprovação por portão). Fases do roadmap seguem o
+  fluxo desta página, inalterado.
+- **Verificação local opcional**: `bash .claude/verify/run.sh` (pins × HEAD,
+  boundary, estado de demanda) e `bash .claude/verify/compliance-audit.sh`
+  (a própria configuração agêntica). Não substituem `tools/`, `scripts/` e o
+  CI — complementam.
+- **Pins** (`.claude/verify/pins.json`): alterou arquivo pinado → regenerar
+  com `python .claude/verify/gen_pins.py` no mesmo PR, em commit próprio.
