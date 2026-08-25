@@ -123,3 +123,6 @@ scenarios/**/evidence/
 # Fase 1 outra vez, e o verificador acima existe para que a proxima versao desta
 # frase nao dependa de alguem reparar.
 scenarios/
+
+# Estrutura Agentica: carimbo local do ultimo pipeline verde (maquina a maquina)
+.claude/verify/.last_green
