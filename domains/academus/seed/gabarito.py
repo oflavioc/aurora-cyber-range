@@ -280,38 +280,74 @@ def conferir(gabarito: "Gabarito") -> None:
     *"`GM_NOTES.md` nao pode conter fato ausente do ground truth — o linter
     compara e recusa divergencia."*
 
-    AS DUAS DIRECOES, e a segunda impede a recusa por vacuidade: fato citado e
-    ausente do ground truth RECUSA; e um `GM_NOTES` que nao cita fato nenhum
-    tambem recusa, porque ele passaria trivialmente e nao seria gabarito de coisa
-    alguma.
+    A METADE DE `GT-` SUBIU PARA O NUCLEO, e esta funcao a CHAMA
+    -------------------------------------------------------------
+    `range_core.engine.citacoes` confere fato citado contra `facts`, e faz isso
+    para os TRES lados que citam — `GM_NOTES.md`, `materializes_facts` e
+    `projects_facts`. A pergunta e agnostica de dominio: a forma do `fact_id`
+    tem o segmento do meio CURINGA (`^GT-[A-Z0-9]+-[0-9]+$`), entao o nucleo a
+    extrai sem saber o que e ACADEMUS.
+
+    **Manter aqui uma segunda implementacao seria a D4** dentro do mecanismo que
+    existe para citacao e declaracao nao divergirem — e ele so tem valor se
+    houver uma pergunta so.
+
+    A METADE DE `GC-` FICA, porque e outra pergunta
+    ------------------------------------------------
+    Caso da Linha B confere contra o conjunto que o DATASET semeado produziu, e
+    nao contra o ground truth em geral. Quem conhece o dataset e este modulo;
+    subir isso para o nucleo seria acoplamento de dominio entrando pela porta de
+    uma funcao util.
+
+    E A PERNA CONTRA VACUIDADE FICA AQUI TAMBEM, pelo mesmo criterio: exigir que
+    o `GM_NOTES` cite ALGUM identificador e exigencia sobre o GABARITO — `02`
+    §6.3 o descreve como o que EXPLICA cada conjunto —, e nao sobre pack em
+    geral. Um `GM_NOTES` de um pack sem Linha B pode legitimamente nao citar
+    caso nenhum.
     """
-    citados = fatos_citados(gabarito.gm_notes)
+    from range_core.engine.citacoes import CitacaoInvalida, confere_citacoes_de_fato
+    from range_core.engine.loader import contract_source
+
+    # --- os fatos: a pergunta do NUCLEO, com a forma vinda do contrato -------
+    try:
+        confere_citacoes_de_fato(
+            declarados={f["fact_id"] for f in gabarito.ground_truth["facts"]},
+            fontes={"GM_NOTES.md": gabarito.gm_notes},
+            forma=contract_source.fact_id_pattern(contract_source.read_contracts()),
+        )
+    except CitacaoInvalida as erro:
+        raise GabaritoDivergente(str(erro)) from erro
+
+    # --- os casos: a pergunta do DOMINIO ------------------------------------
+    citados = casos_citados(gabarito.gm_notes)
     declarados = {c["case_id"] for c in gabarito.ground_truth["line_b_cases"]}
-    declarados |= {f["fact_id"] for f in gabarito.ground_truth["facts"]}
 
     if orfaos := sorted(citados - declarados):
         raise GabaritoDivergente(
             f"o `GM_NOTES` cita {orfaos[:5]} e o `ground_truth` nao os tem. "
-            "`02` §6.3: a narrativa explica, e nao inventa — fato ausente do "
+            "`02` §6.3: a narrativa explica, e nao inventa — caso ausente do "
             "ground truth invalida o gabarito inteiro, porque o motor de "
             "calibracao le um e o facilitador conduz pelo outro."
         )
     if not citados:
         raise GabaritoDivergente(
-            "o `GM_NOTES` nao cita fato nenhum. A conferencia passaria por "
+            "o `GM_NOTES` nao cita caso nenhum. A conferencia passaria por "
             "vacuidade, e o documento nao seria gabarito de coisa alguma — "
             "`02` §6.3 o descreve como o que EXPLICA cada conjunto ao facilitador."
         )
 
 
-def fatos_citados(gm_notes: str) -> set[str]:
-    """Os `fact_id` e `case_id` que o `GM_NOTES` menciona — para o linter de T8.
+def casos_citados(gm_notes: str) -> set[str]:
+    """Os `case_id` que o `GM_NOTES` menciona — a metade de DOMINIO do linter.
 
-    *"Todo fato mencionado em `GM_NOTES.md` existe em `ground_truth.yaml`."* A
-    extracao e por FORMA do identificador, e nao por posicao no texto: o
+    Chamava-se `fatos_citados` e cobria `GC-` e `GT-` juntos. A metade de `GT-`
+    subiu para `range_core.engine.citacoes`, e o nome mudou junto: uma funcao
+    que so olha caso e se chama "fatos" e a prosa envelhecendo dentro do codigo.
+
+    A extracao e por FORMA do identificador, e nao por posicao no texto: o
     facilitador pode citar um caso em qualquer frase, e um linter que so olhasse
     a tabela deixaria passar exatamente a citacao solta que envelhece.
     """
     import re
 
-    return set(re.findall(r"\bG[CT]-[A-Z0-9-]*[0-9]+\b", gm_notes))
+    return set(re.findall(r"\bGC-[0-9]+\b", gm_notes))

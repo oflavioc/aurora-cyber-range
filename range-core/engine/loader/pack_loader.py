@@ -78,12 +78,18 @@ from range_core.engine.loader.canonical import (
     scope_from_contract,
 )
 from range_core.engine.loader.contract_rules import AuroraChecker, build_pack_registries
+from range_core.engine.citacoes import (
+    CitacaoInvalida,
+    confere_citacoes_de_fato,
+    fatos_declarados,
+)
 from range_core.engine.migrations import MIGRACOES, ha_migracao
 from range_core.rubrics.library import load_library
 from range_core.engine.loader.contract_source import (
     ContractSourceError,
     documents_by_id,
     parse_document,
+    fact_id_pattern,
     registry_for,
     since_qualifiers,
 )
@@ -157,6 +163,10 @@ class PackSite:
     #: Predicado de CONTENCAO com `absence_of` sem `since` — a forma que a §3.1
     #: exige, e sem a qual o pack cai no defeito que o `spec-change` #49 corrigiu.
     CONTAINMENT_ABSENCE_WITHOUT_SINCE = "containment_absence_without_since"
+    #: Fato citado e ausente de `facts`, ou citado em forma que o contrato nao
+    #: casa — item 8 da DoD da Fase 7 e `06` T8. Cobre os tres lados que citam:
+    #: `GM_NOTES.md`, `materializes_facts` e `projects_facts`.
+    CITACAO_DE_FATO_INVALIDA = "citacao_de_fato_invalida"
 
 
 class PackError(Exception):
@@ -371,6 +381,7 @@ def load_pack(
         documentos.get("ground_truth.yaml"),
         qualificadores=since_qualifiers(dict(contracts)),
     )
+    confere_citacoes_do_pack(raiz, documentos, contracts)
 
     injects = _build_injects(
         documentos.get("injects.yaml") or {}, documentos.get("ground_truth.yaml")
@@ -795,6 +806,94 @@ def confere_qualificador_since(
             "    A forma curta em string tambem cai aqui: ela nao carrega "
             "qualificador. Fora da contencao, ausencia total continua legitima."
         )
+
+
+#: O documento de prosa do facilitador. NAO esta em `x-aurora-documents` — ele
+#: nao e documento de maquina, e `scope_from_contract` o exclui por nao terminar
+#: em `.yaml`. E lido AQUI, e so para o linter.
+GM_NOTES = "GM_NOTES.md"
+
+
+def confere_citacoes_do_pack(
+    raiz: Path,
+    documentos: Mapping[str, Mapping],
+    contracts: Mapping[str, Mapping],
+) -> None:
+    """Item 8 da DoD e `06` T8 — os TRES lados que citam fato, contra `facts`.
+
+    NA CARGA, e nao so no `range-cli scenario lint`. A mesma razao de
+    `confere_folhas_temporais`: recusar enquanto ainda da para consertar o pack,
+    e nao quando a sala esta cheia. O verbo do CLI (peca 4) chamara ESTA funcao —
+    uma implementacao, dois chamadores, que e a §1.4 do checkpoint.
+
+    TRES LADOS CITAM FATO, E ESTA FUNCAO COBRE **UM**. A medicao e o que decide,
+    e ela foi feita antes de escrever:
+
+        materializes_facts  JA COBERTO, por DOIS mecanismos — `$ref` para
+                            `fact_id_pattern` (a forma, PR #59) e
+                            `x-aurora-ref: pack_facts` (a existencia, desde a
+                            Fase 2). Medido: plantar `GT-FANTASMA-999` ali
+                            recusa com sitio `rule_violation`, ANTES desta
+                            funcao rodar.
+        projects_facts      JA COBERTO pelo mesmo par, em
+                            `evidence.schema.yaml`. Nao ha MANIFEST na arvore —
+                            `evidence build` e da Fase 9 —, mas o mecanismo que
+                            o julgara ja existe e nao e este.
+        GM_NOTES.md         **NAO COBERTO POR NADA**, e e o que sobra para ca.
+
+    **POR QUE SO O `GM_NOTES` VEM PARA CA, e nao os tres.** Acrescentar os dois
+    primeiros seria a TERCEIRA implementacao de *"este fato existe?"* — e o
+    modulo de citacoes existe justamente para que essa pergunta tenha uma
+    resposta so. A D4 nao deixa de ser D4 por estar dentro do mecanismo que a
+    persegue.
+
+    **E o `GM_NOTES` nao e alcancavel pelos outros dois por razao ESTRUTURAL**,
+    e nao por esquecimento: `$ref` e `x-aurora-ref` operam sobre documento de
+    maquina, e ele e PROSA. `scope_from_contract` o exclui por nao terminar em
+    `.yaml`, e nenhuma regra do contrato tem como varrer markdown. E a unica das
+    tres portas que nao tinha guarda, e e o que o item 8 da DoD nomeia.
+
+    A FUNCAO DO NUCLEO CONTINUA GERAL, com as tres fontes: quem a chamar com um
+    MANIFEST na Fase 9 nao precisa de codigo novo, e o `range-cli scenario lint`
+    da peca 4 chamara ESTA — uma implementacao, dois chamadores.
+
+    `GM_NOTES.md` AUSENTE NAO E ERRO: ele e `optional` em
+    `x-aurora-registry.package_files`, e o pacote apenas-manifesto (`04` §9) nao
+    o tem.
+    """
+    ground_truth = documentos.get("ground_truth.yaml")
+    if ground_truth is None:
+        # Sem ground truth nao ha contra o que conferir. Pacote apenas-manifesto
+        # cai aqui, e `_verify_completude` ja separou essa forma da defeituosa.
+        return
+
+    fontes: dict[str, object] = {}
+
+    caminho_do_gm = raiz / GM_NOTES
+    if caminho_do_gm.is_file():
+        try:
+            fontes[GM_NOTES] = caminho_do_gm.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise PackError(
+                PackSite.DOCUMENT_UNREADABLE, f"{caminho_do_gm}: nao pode ser lido — {exc}"
+            ) from exc
+
+    # `materializes_facts` NAO ENTRA AQUI — ver o docstring. Ele ja e conferido
+    # duas vezes antes desta linha: pela forma, no `_verify_schema`, e pela
+    # existencia, no `_verify_rules`. Uma terceira conferencia nao acrescentaria
+    # garantia e acrescentaria uma copia da pergunta.
+
+    if not fontes:
+        return
+
+    try:
+        confere_citacoes_de_fato(
+            declarados=fatos_declarados(ground_truth),
+            fontes=fontes,
+            forma=fact_id_pattern(dict(contracts)),
+        )
+    except CitacaoInvalida as erro:
+        raise PackError(PackSite.CITACAO_DE_FATO_INVALIDA, str(erro)) from erro
 
 
 def _verify_rules(

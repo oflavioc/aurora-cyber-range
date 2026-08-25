@@ -99,9 +99,11 @@ class OArtefatoEhProduzidoEJulgado(unittest.TestCase):
         pode citar um caso em qualquer frase, e um linter que so olhasse a tabela
         deixaria passar a citacao solta.
         """
-        citados = gabarito.fatos_citados(self.gabarito.gm_notes)
+        # A METADE DE `GT-` SUBIU PARA O NUCLEO na peca 2, e este teste segue a
+        # divisao: `casos_citados` e a metade de dominio. A de fato tem suite
+        # propria em `tests/test_citacoes_de_fato.py`, contra os tres lados.
+        citados = gabarito.casos_citados(self.gabarito.gm_notes)
         declarados = {c["case_id"] for c in self.gabarito.ground_truth["line_b_cases"]}
-        declarados |= {f["fact_id"] for f in self.gabarito.ground_truth["facts"]}
         orfaos = citados - declarados
         self.assertEqual(
             set(),

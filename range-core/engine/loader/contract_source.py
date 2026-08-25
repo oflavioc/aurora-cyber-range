@@ -169,6 +169,33 @@ def rollback_reasons(contratos: dict[str, dict]) -> frozenset[str]:
     return frozenset(enum)
 
 
+def fact_id_pattern(contratos: dict[str, dict]) -> str:
+    """A forma de `fact_id`, LIDA do contrato.
+
+    `contracts/ground_truth.schema.yaml` §`$defs/fact_id_pattern`, que o PR #59
+    criou justamente para que as quatro referencias que resolvem `fact_id` — o
+    campo, `materializes_facts`, `projects_facts` e `fact_check_against` — nao
+    tivessem cada uma a sua copia.
+
+    O LINTER DE CITACAO A CONSOME COMO DADO, e nao a reescreve: ele e o quinto
+    lugar a falar dessa forma, e o primeiro que NAO e um campo de contrato.
+    Escreve-la la seria a copia que o #59 acabou de eliminar, ressuscitada num
+    modulo que ninguem pensaria em cruzar com o schema.
+    """
+    ground_truth = contratos.get("ground_truth") or {}
+    padrao = ((ground_truth.get("$defs") or {}).get("fact_id_pattern") or {}).get(
+        "pattern"
+    )
+    if not padrao:
+        raise ContractSourceError(
+            "contracts/ground_truth.schema.yaml sem "
+            "`$defs/fact_id_pattern.pattern`: sem ele o linter de citacao teria "
+            "de reescrever a forma, e citacao e declaracao passariam a poder "
+            "divergir — que e o que ele existe para impedir"
+        )
+    return padrao
+
+
 def formas_do_destino(contratos: dict[str, dict]) -> tuple[str, str]:
     """`(forma de domain, forma de pack_id)`, LIDAS do contrato.
 
