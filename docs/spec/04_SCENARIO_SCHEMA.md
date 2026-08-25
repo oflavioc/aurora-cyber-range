@@ -232,11 +232,34 @@ range-cli scenario lint <path>       # inject sem objetivo e sem noise, DP sem c
                                      # branch_policy, event_type inexistente,
                                      # GM_NOTES com fato ausente do ground truth
 range-cli scenario dryrun <path>     # percorre todos os caminhos de branch sem UI
+range-cli scenario materialize <domain> <pack_id>
+                                     # escreve o par ground_truth.yaml + GM_NOTES.md
+                                     # do pack; recusa destino versionado
 range-cli evidence build <path>      # gera projeções a partir do ground truth
 range-cli evidence verify <path>     # consistência fato → projeções
 ```
 
 `validate`, `lint` e `evidence verify` rodam no CI. `dryrun` é pré-requisito de ensaio.
+
+### 8.1 `materialize` escreve, e as três propriedades que decorrem disso
+
+**`materialize` é o único subcomando que produz o gabarito.** `evidence build` **consome** o ground truth para dele derivar projeções; `materialize` é quem escreve o ground truth. Dois `build` para operações opostas seriam confusão de espécie, e o nome os separa.
+
+Sem ele a superfície tem um buraco que só aparece na sala: quem for facilitar tem o gerador e não tem o arquivo.
+
+**(a) Ele está do lado de ESCRITA da fronteira, e a fronteira já existe.** As allowlists que restringem quem opera o repositório liberam `validate`, `lint`, `dryrun` e `evidence verify` — os que só leem — e param aí. `materialize` e `evidence build` ficam fora delas pela mesma razão, e isso é propriedade a preservar, não omissão a corrigir: um subcomando que escreve não entra numa lista de leitura porque o nome dele começa igual.
+
+**(b) O destino é `scenarios/<domain>/<pack_id>/`**, a forma que `00_MASTER_SPEC.md` §6 fixa no glossário. Os dois segmentos têm forma declarada em `contracts/scenario.schema.v2.yaml`: `domain` casa `^[a-z][a-z0-9_]*$` e `pack_id` casa `^[a-z][a-z0-9-]*$`. Caminho que não corresponda a essas formas é recusado antes de qualquer escrita.
+
+**(c) `materialize` RECUSA destino versionado**, e a recusa é dele e não do `.gitignore`. `05_SECURITY_REQUIREMENTS.md` §6 põe `ground_truth.yaml` e `GM_NOTES.md` fora do repositório servido, e este repositório é público: quem os lê antes do exercício tem o gabarito. `.gitignore` é convenção, e `git add -f` a atravessa — a garantia tem de ser propriedade do **caminho que escreve**, porque ele é o único ponto por onde o artefato nasce. A decisão é do `git`, perguntando se o alvo é rastreado, e não de uma lista de caminhos proibidos: lista não prevê o caminho que ninguém previu.
+
+### 8.2 `domain` e `pack_id` são parâmetros explícitos
+
+**`materialize` recebe os dois como argumento, e não os deriva de nada.** Não de adapter em uso, não de variável de ambiente, não de diretório corrente, não de configuração implícita.
+
+Derivar de contexto acoplaria o produtor ao domínio por um canal que nenhum verificador enxerga — e `01_ARCHITECTURE.md` §2 mantém `range-core/` sem conhecimento de `domains/` justamente para que esse acoplamento seja inexprimível, não apenas desencorajado. Um produtor que descobrisse o domínio "sozinho" reintroduziria a dependência por dado, que é a travessia que o invariante não vê.
+
+O custo é um argumento a mais na linha de comando. O que se compra é que o destino da escrita seja legível no comando que a produziu — e escrita de gabarito é exatamente o lugar onde "onde isso foi parar?" não pode depender de reconstruir contexto.
 
 ## 9. Pacotes a entregar
 
