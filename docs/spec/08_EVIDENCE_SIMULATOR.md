@@ -33,7 +33,7 @@ Cada fonte é **projeção determinística de um fato canônico**. Contradição
 
 ## 2. Fato canônico
 
-`scenarios/<pack>/ground_truth.yaml`, invisível aos participantes:
+`scenarios/<domain>/<pack_id>/ground_truth.yaml`, invisível aos participantes:
 
 ```yaml
 facts:
@@ -94,7 +94,7 @@ Abrir ou consultar fonte emite `evidence_source_opened` (`09_EVENT_MODEL.md`). O
 
 ## 7. Saída
 
-`scenarios/<domain>/<pack>/evidence/` com `MANIFEST.json`: cada arquivo, janela temporal, modo de entrega, hash, e os `fact_id` que projeta. O manifesto permite ao facilitador saber o que existe e ao teste verificar cobertura de projeção.
+`scenarios/<domain>/<pack_id>/evidence/` com `MANIFEST.json`: cada arquivo, janela temporal, modo de entrega, hash, e os `fact_id` que projeta. O manifesto permite ao facilitador saber o que existe e ao teste verificar cobertura de projeção.
 
 ## 8. Restrições
 

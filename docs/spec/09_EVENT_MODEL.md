@@ -257,7 +257,7 @@ hooks:
 >
 > Evidência `auto` é definida por **produtor identificável** (`03_EXERCISE_DESIGN.md` §1.2), e não pelo diretório em que o produtor mora. A forma anterior confundia os dois porque, quando ela foi escrita, o único produtor instrumentado era um adapter — omissão com forma de desenho, a mesma classe do `exercise_resumed`.
 
-E `scenarios/<pack>/objectives.yaml` faz o binding. **A forma normativa do arquivo é a de `03_EXERCISE_DESIGN.md` §1.1**; o bloco abaixo é uma instância completa dela, mostrada aqui pelo que interessa a esta seção — o `event_type` do hook aparecendo em `evidence.auto`:
+E `scenarios/<domain>/<pack_id>/objectives.yaml` faz o binding. **A forma normativa do arquivo é a de `03_EXERCISE_DESIGN.md` §1.1**; o bloco abaixo é uma instância completa dela, mostrada aqui pelo que interessa a esta seção — o `event_type` do hook aparecendo em `evidence.auto`:
 
 ```yaml
 objectives:
