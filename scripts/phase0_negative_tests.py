@@ -998,6 +998,46 @@ COPIAS_CONFERIDAS: list[str] = []
 COPIAS_AUSENTES: list[str] = []
 
 
+def divergem(fonte: Path, instalada: Path) -> bool:
+    """Os conteudos diferem? UMA pergunta, e nada alem dela.
+
+    EXTRAIDO DE `copia_em_sincronia` PARA TER DOIS CHAMADORES — a P6-9.
+    ------------------------------------------------------------------
+    O lancador da auditoria passou a SINCRONIZAR a copia instalada
+    (`scripts/sincroniza_escopo_de_usuario.py`), e ele precisa da mesma
+    comparacao. `copia_em_sincronia` nao servia: ela nao devolve valor e, no
+    ramo de divergencia, chama `_reject`, que levanta `SystemExit(1)` — ela
+    ABORTA onde o lancador tem de REPARAR.
+
+    Duplicar a comparacao seria a QUARTA implementacao dela. O docstring abaixo
+    registra que ja houve tres divergindo, e o H1 da primeira auditoria da Fase
+    4 fechou isso. Entao ela virou funcao, e os dois a chamam.
+
+    A COMPARACAO E POR LINHA, e a escolha e semantica — o argumento inteiro esta
+    em `copia_em_sincronia`, que e onde ele nasceu: o que se afirma e que o
+    codigo instalado e o mesmo, e o fim de linha de um arquivo versionado e
+    decidido pelo checkout, nao pelo autor.
+
+    **ELE NAO DECIDE O QUE FAZER COM AUSENCIA, e a omissao e o desenho.** Para o
+    harness, copia ausente e ESPERADA — o CI nao tem escopo de usuario. Para o
+    lancador, ausente significa COPIAR. As duas leituras estao certas nos seus
+    contextos, e se a assimetria entrasse aqui este predicado teria dois
+    comportamentos conforme quem chama — que e como se fabrica a proxima
+    divergencia. **Quem chama verifica existencia antes.**
+
+    **O `pre-commit` NAO USA ESTE PREDICADO**, e a exclusao e por natureza e nao
+    por esquecimento. Ele vai para `.git/hooks/`, dentro da arvore, e e hook do
+    GIT e nao do agente. E o unico par em que BYTES importam: ele e `#!/bin/sh`,
+    um CR no shebang o torna inexecutavel, e `sem_carriage_return` o afirma por
+    `read_bytes()`. Compara-lo por linha apagaria exatamente a diferenca que
+    importa nele.
+    """
+    return (
+        fonte.read_text(encoding="utf-8").splitlines()
+        != instalada.read_text(encoding="utf-8").splitlines()
+    )
+
+
 def copia_em_sincronia(rotulo: str, fonte: Path, instalada: Path, instrucao: str) -> None:
     """A copia instalada e o mesmo PROGRAMA que a fonte versionada.
 
@@ -1030,9 +1070,10 @@ def copia_em_sincronia(rotulo: str, fonte: Path, instalada: Path, instrucao: str
         )
         return
 
-    if fonte.read_text(encoding="utf-8").splitlines() != instalada.read_text(
-        encoding="utf-8"
-    ).splitlines():
+    # A COMPARACAO SAIU PARA `divergem`, e o comportamento aqui nao mudou: o
+    # ramo, a mensagem e o `_reject` sao os mesmos. A prova de que nada mudou e
+    # este harness seguir verde — ele e quem julga os verificadores.
+    if divergem(fonte, instalada):
         _reject(
             rotulo,
             f"fonte versionada e copia instalada DIVERGEM. {instrucao}",
