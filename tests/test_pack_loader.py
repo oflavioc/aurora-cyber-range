@@ -43,6 +43,7 @@ from contracts.generated.events import VPN_ACCESS_REVOKED
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.canonical import CANONICALIZATION_V1, content_hash_v1
 from range_core.engine.loader.pack_loader import (
+    SUPPORTED_SCHEMA_VERSIONS,
     AdapterFlags,
     confere_folhas_temporais,
     confere_qualificador_since,
@@ -346,13 +347,78 @@ class OutrasRecusas(_ComCopia):
         erro = self.recusa(destino, PackSite.DOCUMENT_UNREADABLE)
         self.assertIn("injects.yaml", str(erro))
 
-    def test_schema_version_nao_suportada_traz_instrucao(self):
-        """Antes da validacao de schema, de proposito: um pack v1 precisa da
-        instrucao de migracao, e nao de uma mensagem sobre `const: 2`."""
+    def _recusa_de_versao(self, declarada: str):
+        """Planta `schema_version: <declarada>` e devolve a recusa."""
+        destino = self.copia()
+        self.planta(
+            destino, "manifest.yaml", "schema_version: 2", f"schema_version: {declarada}"
+        )
+        return self._traz_instrucao(
+            self.recusa(destino, PackSite.UNSUPPORTED_SCHEMA_VERSION), declarada
+        )
+
+    def _traz_instrucao(self, erro, declarada: str):
+        """AS TRES PERGUNTAS que a DoD chama de "instrucao" — `04` §4.
+
+        *"Pack anterior a N-1 e recusado com INSTRUCAO de migracao"*. Recusa que
+        so diz "nao aceito" nao satisfaz o criterio: ela detecta e nao permite
+        intervir, que e a forma que `06` T2 ja recusou para a flag nao declarada.
+
+        A mensagem anterior falhava aqui e passava no teste, porque o teste
+        afirmava `"Fase 7"` — informacao de ROADMAP. Quem foi recusado ficava
+        sabendo de que fase o mecanismo era, e nao o que fazer com o pack.
+        """
+        texto = str(erro)
+        # (1) o que este pack declara
+        self.assertIn(f"`schema_version: {declarada}`", texto)
+        # (2) o que este engine aceita
+        self.assertIn(f"aceita {sorted(SUPPORTED_SCHEMA_VERSIONS)}", texto)
+        # (3) o que fazer — e o caminho do contrato que fixa a forma de destino
+        self.assertIn("O QUE FAZER", texto)
+        self.assertIn(
+            f"contracts/scenario.schema.v{max(SUPPORTED_SCHEMA_VERSIONS)}.yaml", texto
+        )
+        return erro
+
+    def test_v1_recusa_com_instrucao_e_diz_que_nao_ha_migrador(self):
+        """A metade do DONE 7 que NAO fecha por migracao, e a razao esta na msg.
+
+        `04` §4 manda o pack em N-1 carregar com migracao; nao ha migrador para
+        a v1 porque nunca houve contrato v1 — `engine/migrations/__init__.py`
+        traz a medicao. Entao a v1 cai na mesma recusa da v0, e a mensagem diz
+        POR QUE em vez de deixar quem le supor que e defeito.
+        """
+        erro = self._recusa_de_versao("1")
+        self.assertIn("NAO HA MIGRADOR", str(erro))
+
+    def test_v0_recusa_com_instrucao(self):
+        """*"v0 e recusado com instrucao"* — a metade do DONE 7 que fecha."""
+        erro = self._recusa_de_versao("0")
+        self.assertIn("NAO HA MIGRADOR", str(erro))
+
+    def test_versao_futura_recebe_a_instrucao_INVERSA(self):
+        """Sem esta perna, a mensagem mandaria rebaixar um pack novo demais.
+
+        `schema_version: 9` nao e pack velho: e engine velho. As duas caem no
+        mesmo sitio, e o texto tem de separar as duas leituras — mandar "leve o
+        pack para a v2 a mao" a quem tem um pack v9 e instrucao errada.
+        """
+        erro = self._recusa_de_versao("9")
+        self.assertIn("VERSAO FUTURA", str(erro))
+        self.assertIn("engine e velho demais", str(erro))
+
+    def test_a_recusa_de_versao_vem_ANTES_da_validacao_de_schema(self):
+        """A ordem e a garantia — `load_pack`, passo 3 antes do 4.
+
+        Um pack v1 tambem viola `const: 2` na camada de schema. Se a validacao
+        rodasse primeiro, a recusa seria `DOCUMENT_INVALID` com uma mensagem
+        sobre um campo, e a instrucao de migracao nunca sairia. O sitio e o
+        discriminante: sem esta afirmacao, trocar a ordem passaria despercebido.
+        """
         destino = self.copia()
         self.planta(destino, "manifest.yaml", "schema_version: 2", "schema_version: 1")
         erro = self.recusa(destino, PackSite.UNSUPPORTED_SCHEMA_VERSION)
-        self.assertIn("Fase 7", str(erro))
+        self.assertNotIn("nao valida contra", str(erro))
 
     def test_engine_velho_demais_para_o_pack(self):
         destino = self.copia()
