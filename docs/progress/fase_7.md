@@ -153,19 +153,123 @@ fechamento da fase.**
 O par **6→7 passa**. Os pares 0→1 até 5→6 são pulados por falta de coluna de
 estado, e 7→8 por não existir destino.
 
-### 2.5 O que a peça 2 herda
+### 2.4.1 A cobertura do predicado, medida na varredura que abriu a peça 2
 
-**Nenhum bloqueio.** O pack começa limpo: a peça 2 entrega a migração automática do
-schema v1, a recusa do v0 com instrução, e a recusa de fato do `GM_NOTES.md`
-ausente do `ground_truth.yaml` — e nada disso depende do que esta peça mexeu.
+Os três fatos abaixo foram **medidos**, e não estimados: a varredura de abertura
+da peça 2 rodou o gate e leu a faixa `fase_0.md` a `fase_5.md`. Eles ficam aqui, e
+não só no relatório daquela varredura, porque declaração de cobertura que vive
+fora do mecanismo é a §1.6 com outro nome.
 
-O que ela herda é **ferramenta**: a pauta da §6 agora tem estado legível por
-máquina, e qualquer pendência que a peça 2 fechar ou abrir passa a ser cobrada pelo
-predicado no fechamento da fase, sem depender de quem transcreve.
+**A faixa coberta hoje é um par de oito.** Seis são pulados por ausência de coluna
+de estado nos registros 0 a 5, e o sétimo — 7→8 — por não existir
+`docs/progress/fase_8.md`. O par conferido é 6→7. Isso não é defeito do predicado:
+é o preço de um vocabulário que nasceu na Fase 7 e não se aplica retroativamente,
+e a §6 declara essa fronteira. O que muda é que agora está **contado**.
+
+**DEFEITO CONHECIDO, com conserto em commit próprio: o `fase_0.md` não tem
+tabela-resumo, e o pulo 0→1 se anuncia com o motivo errado.** A §6 daquele
+registro é prosa em subseções `### P<n> —`, sem tabela nenhuma; `_localiza` para
+no primeiro `##` e devolve `None` antes de ver qualquer `|`. É por isso que o
+contador diz `com tabela-resumo, conferidos: 7` de oito. Mas a mensagem do pulo é
+**uma string só**, e ela afirma *"a tabela-resumo da fase 0 não declara coluna de
+estado (tabela de três colunas)"* — descrição verdadeira para os registros 1 a 5 e
+**falsa** para o 0. O pulo se anuncia, que é o que importa; anuncia-se com a causa
+errada, que é o defeito. **Registrado aqui e não consertado agora**: mexer em
+`scripts/` dentro do commit que registra a varredura é o acoplamento que este
+repositório recusa desde a regra de `spec-change` separado.
+
+**O mecanismo lê `fase_N.md` e nada mais, e isso é desenho.** Obrigação endereçada
+a uma fase que mora em **registro executável** — o caso medido é
+`scripts/check_secoes_de_seguranca.py:213`, entrada `5` com
+`destinatario=(7, …)` — é **inalcançável** por ele. Não é buraco a tapar: o
+predicado responde *"a pauta escrita chegou inteira?"*, e registro executável não é
+pauta escrita. O que a fronteira exige é que ela seja dita, porque um verificador
+que cobre uma superfície é lido como cobrindo todas.
+
+**O vocabulário da varredura, declarado para que a próxima saiba o que ela não
+procurou:** pack, `ground_truth.yaml`, `GM_NOTES.md`, `range-cli`,
+`schema_version`, branching, materialização de cenário. **O quinto achado não veio
+desse predicado** — veio por **rastro**, seguindo uma pendência já fechada
+(a P4-12) até o mecanismo em que o conteúdo dela sobreviveu. É a **P7-7**, e o
+modo como ela foi achada é a evidência de que o predicado por vocabulário não
+alcança o que não está em registro de fase.
+
+### 2.5 O que a peça 2 herda — quatro pendências, e não nenhuma
+
+> **CORRIGIDA.** A redação anterior desta seção dizia *"**Nenhum bloqueio.** O pack
+> começa limpo"*. A **varredura de abertura da peça 2** — a faixa `fase_0.md` a
+> `fase_5.md`, 13.606 linhas, com o predicado ajustado por arquivo à forma de cada
+> um — mediu **quatro pendências herdadas endereçadas a esta fase, e nenhuma delas
+> estava na §6**. A afirmação era falsa quando foi escrita, e falsa por um motivo
+> mecânico: o quarto predicado confere pares **consecutivos**, e o par 5→6 é pulado.
+> Pendência endereçada a uma fase que **salta** a seguinte não é alcançada nem
+> quando o par existe.
+
+**O que a peça 2 herda, medido:**
+
+| Id | Origem | Estado | O que ela obriga aqui |
+|---|---|---|---|
+| **P1-7** | `fase_1.md` §"P1-7" — caiu da cadeia no par 1→2 | `ENTREGA` | o pack é quem nomeia inject, e a convenção se decide ao escrevê-lo |
+| **P4-8** | `fase_4.md` §"P4-8" | `ABERTA` | nada na peça 2; a segunda perna do gatilho é a medição da peça 7 |
+| **P5-4** | `fase_5.md` §"P5-4" | `ENTREGA` | é **o delta do schema**, e portanto pré-condição do que a peça 2 desenha |
+| **P5-6** | `fase_5.md` §"P5-6" | `ENTREGA` | o subcomando que escreve o pack em disco |
+
+**As duas da Fase 5 fecham juntas, e a razão está na fonte.** `fase_5.md:1729-1733`
+já escreveu o acoplamento: *"a P5-6 é o **produtor** … a P5-4 é o **modelo** … Quem
+fechar a primeira sem olhar a segunda escreve um `ground_truth.yaml` que omite dois
+conjuntos sem que nada acuse, porque o schema não tem como recusar o que não sabe
+nomear."*
+
+**O que continua verdadeiro da redação anterior:** a peça 2 herda **ferramenta** —
+a pauta da §6 tem estado legível por máquina, e qualquer pendência que ela fechar
+ou abrir passa a ser cobrada pelo predicado no fechamento da fase. E a peça 1 não
+deixou bloqueio **de implementação**: o que ela deixou de fora foi a pauta, e é
+isto que esta correção repõe.
 
 **A P6-3 é pré-condição da peça 3, e não da 2** — a §1 já a registra assim. A peça 2
 pode abrir sem a gramática de `exercise_time`; o que não pode é a peça 3 fechar sem
 ela.
+
+## 3. A peça 2 — a varredura que precede o delta do schema
+
+O primeiro ato da peça 2 não foi código: foi **medir a pauta que ela herda**, antes
+de desenhar o delta de `schema_version`. A §2.5 traz o resultado; esta seção traz o
+que a varredura decidiu **sobre o escopo do pack** e sobre o ambiente em que os
+gates desta fase são lidos.
+
+### 3.1 `information_distribution.yaml` fica FORA do pack desta peça, declarado
+
+`04` §1 lista `information_distribution.yaml` entre os arquivos do pacote, e
+**nenhum dos contratos o cobre** — é a **P1-20**, aberta na Fase 1 com destinatário
+declarado **Fase 10** (`fase_1.md` §"P1-20": *"a assimetria de informação que ele
+governa chega na Fase 10"*).
+
+**Ela NÃO ganha linha na §6, e a ausência é decidida.** O critério da varredura
+exige destinatário nesta fase ou gatilho que esta fase satisfaça; a P1-20 tem
+destinatário Fase 10 e nenhuma condição que a Fase 7 dispare. Transcrevê-la aqui
+seria inventar herança, que é o defeito simétrico ao que a §2.5 acabou de corrigir.
+
+**Mas a adjacência é real e fica dita:** o pack completo que esta fase entrega
+materializaria um documento de pack que **nenhum contrato reivindica**, e um campo
+com erro de digitação ali sai `rc=0` em todos os gates. A decisão desta peça é
+**não escrevê-lo** — o `ransomware-universidade` desta fase entrega os documentos
+que têm contrato. Isso é limite declarado, não esquecimento, e é o que impede que a
+Fase 10 receba um arquivo já em uso e sem forma acordada.
+
+### 3.2 O interpretador do projeto é `py -3.12`, e isso é condição de leitura do gate
+
+Medido nesta árvore:
+
+| | |
+|---|---|
+| `py -3.12 -V` | **Python 3.12.10** — o interpretador do projeto |
+| `python -V` (o do `PATH`) | **Python 3.14.7** — sem PyYAML instalado |
+
+**Não existe venv neste repositório**: não há `.venv`, `venv` nem `pyvenv.cfg` na
+árvore. Quem rodar um verificador com o `python` do `PATH` recebe vermelho **de
+ambiente**, e vermelho de ambiente lido como vermelho de conteúdo é a pior forma de
+falso positivo — ele treina quem o vê a desconfiar do gate em vez do commit. Todo
+número desta fase sai de `py -3.12`.
 
 ## 6. Pendências
 
@@ -211,7 +315,11 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 
 | Id | O que é | Estado | Vence em |
 |---|---|---|---|
+| P1-7 | o id do inject pode vazar a linha, e o contrato só desacoplou o prefixo — herdada da Fase 1, §"P1-7"; caiu da cadeia no par 1→2 | `ENTREGA` | peça 2 desta fase — o pack é quem nomeia inject, e a convenção se decide ao escrevê-lo; ver abaixo |
+| P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume — herdada da Fase 4, §"P4-8" | `ABERTA` | a segunda perna do gatilho é a medição da peça 7 desta fase; ver abaixo |
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio; ver abaixo |
+| P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` — herdada da Fase 5, §"P5-4" | `ENTREGA` | peça 2 desta fase — é o delta do schema v3; ver abaixo |
+| P5-6 | o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/` — herdada da Fase 5, §"P5-6" | `ENTREGA` | peça 2 desta fase — o subcomando que escreve o pack; ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
 | P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ENTREGA` | peça 3 desta fase. Três gatilhos herdados: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado; ver abaixo |
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
@@ -227,6 +335,76 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | `ABERTA` | a peça 7 desta fase — o critério dos 3 s exige o pack materializado. A janela barata era a implementação da saída (b), e passou no PR #56; ver abaixo |
 | P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ENTREGA` | peça 6 desta fase — allowlist por tipo, degrau 1.5; ver §7.2 |
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ENTREGA` | peça 6 desta fase — allowlist de chamadores por emissor, degrau 2; ver §7.1 |
+| P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
+| P7-7 | `05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe | `ABERTA` | peça 4 desta fase, no lint; ver abaixo |
+
+#### P1-7 — o id do inject pode vazar a linha, e quem decide é quem escreve o pack
+
+**Herdada da Fase 1** (`docs/progress/fase_1.md`, §"P1-7"), e ela **caiu da cadeia
+no par 1→2**: o destinatário declarado era a Fase 3, e nem `fase_2.md` nem
+`fase_3.md` a transcreveram. Busca por `P1-7` em `fase_2.md` … `fase_7.md` retorna
+zero. Ficou cinco fases sem destino, e quem a achou foi a varredura de abertura
+desta peça.
+
+**O fato.** O padrão antigo `^[A-Z][0-9]{2}$` sugeria — pelo exemplo `id: A07` /
+`linha: A` de `04` §5 — que a letra do id acompanha a linha. Duas consequências,
+e a segunda é a que importa: se a letra codifica a linha, **o id vaza a linha**, e
+`03` §5.2 exige que o operador não enxergue que existe Linha B, sob pena de
+destruir o efeito de triagem sob viés. O operador vê a fila.
+
+**O que a Fase 1 consertou, e o que ela não podia consertar.** O contrato passou a
+declarar o prefixo **sem semântica de linha**, o que fecha a metade de schema. A
+metade que sobrou está escrita na fonte: *"se a API da Fase 3 entregar o id do
+inject ao operador, **e os packs continuarem nomeando por linha por hábito**, o
+vazamento volta pela porta dos dados."*
+
+**Por que ela é ENTREGA desta peça, e não pendência a carregar.** A primeira metade
+do gatilho já ocorreu — a Fase 3 entregou a API e a Fase 4 a superfície. A segunda
+metade é sobre **os packs**, e esta fase escreve o primeiro pack real (`04` §9).
+Não há como escrever `injects.yaml` sem escolher a convenção de id, e escolher por
+hábito é exatamente o que a pendência prevê. **A decisão acontece na peça 2 porque
+é ali que o arquivo nasce**; adiá-la para a peça 4 faria o linter conferir uma
+convenção que o pack já violou.
+
+**A alternativa que NÃO se deve escolher:** confiar no contrato. Ele desacoplou o
+padrão, e padrão permissivo não impede ninguém de escrever `A07` para a Linha A e
+`B03` para a Linha B — que valida e vaza.
+
+#### P4-8 — o caminho de leitura é síncrono, e a segunda perna do gatilho é a peça 7
+
+**Herdada da Fase 4** (`docs/progress/fase_4.md`, §"P4-8"), reconfirmada sem
+mudança na Fase 5 (`fase_5.md:1726`, *"herdadas da Fase 4, sem mudança —
+inalterados"*) e **ausente de `fase_6.md` e desta §6 até agora**. Como a P1-7, ela
+sobreviveu por estar num inventário que o predicado não lê.
+
+**O fato.** `GET /wallboard/state` é `async def` com corpo **síncrono**: a corrotina
+roda até o fim sem ceder o laço de eventos. Isso tem duas faces, e a primeira é
+benigna — é ela que faz 20 leituras simultâneas sobre cache frio produzirem **uma**
+reconstrução, e é assim que a P3-2 fechou. A segunda é que a mesma síncrona segura
+o laço inteiro durante a reconstrução: a 150 mil eventos são **2,874 s** (§3.8 da
+Fase 2) em que nenhuma outra rota responde, **inclusive os dois canais de
+WebSocket**.
+
+**O gatilho, literal:** *"a primeira das duas que ocorrer: um deploy com mais de um
+worker, ou **o primeiro volume de eventos em que a reconstrução passe de uma fração
+do orçamento de 1 s**"*.
+
+**Por que ela chega a esta fase, e por que NÃO é entrega da peça 2.** A segunda
+perna é **a medição do item 9 da DoD desta fase** — reconstrução completa da
+projeção do exercício de 4 h do `ransomware-universidade`, cobrada em **< 3 s**. É
+a peça 7 que produz esse número, e é ele que dispara ou libera o gatilho. Os dois
+instrumentos que a pendência nomeia — `scripts/mede_cache_frio.py` e
+`scripts/bench_reconstruction.py` — já existem, e por isso a medição não custa
+desenho novo.
+
+**O que a peça 7 tem de fazer com ela, dito agora para não ser decidido no aperto:**
+o número dos 3 s não responde sozinho. `< 3 s` satisfaz a DoD **e** pode já ter
+passado da fração de 1 s que este gatilho nomeia — as duas afirmações convivem, e
+ler só a primeira fecharia a DoD deixando a pendência vencer em silêncio.
+
+**Vence em:** a medição da peça 7, **ou** um deploy com mais de um worker, o que
+vier primeiro. A saída não é single-flight — com um worker não há voo concorrente,
+e com N workers single-flight dentro do processo não resolve nada entre processos.
 
 #### P5-2 — a categoria de trilha sem produtor, migrada da Fase 6 com gatilho corrigido
 
@@ -282,6 +460,74 @@ Fase 6"* e foi corrigido no commit de fechamento da Fase 6 — ele era a §1.6
 inscrita no código: uma afirmação verdadeira quando nasceu, falsa quando outra
 decisão a contradisse, e que nenhum verificador alcança porque é prosa em
 comentário.
+
+#### P5-4 — seis conjuntos, três valores de enum: é o delta do schema
+
+**Herdada da Fase 5** (`docs/progress/fase_5.md`, §"P5-4"), com destinatário
+**Fase 7** declarado na fonte — *"que é a dona do pack e do `ground_truth.yaml`
+completo"* — e ausente desta §6 até a varredura desta peça.
+
+**O fato.** `contracts/ground_truth.schema.yaml` fecha `line_b_case.set` em três
+valores: `indevido_comprovado`, `ambiguo` e `legitimo_aparencia_suspeita`. `02`
+§6.1 nomeia **seis** conjuntos, e `02` §6.2 dá `defensibility` 0.0 a *"legítimo
+(inclusive os de aparência suspeita, **manutenção e delegação**)"* — o que implica
+que os seis são casos.
+
+**O que a Fase 5 fez, e as duas alternativas que ela recusou com motivo.** Ruído de
+manutenção e credenciais compartilhadas ficaram no **dataset** e fora de
+`line_b_cases`. Rotulá-los `legitimo_aparencia_suspeita` faria o gabarito afirmar
+algo falso — que eles *parecem* suspeitos à primeira vista —, e a calibração
+trataria os dois como os 34, misturando dois erros que `02` §6.2 manda separar.
+Alargar o enum é mudar semântica dentro da mesma `schema_version`, e `04` §4
+proíbe.
+
+**A consequência, medida e não suposta:** uma equipe que classifique uma linha de
+manutenção como suspeita **não tem caso no gabarito contra o qual ser pontuada**.
+Isso não custava nada enquanto o Brier não corria; custa a partir do momento em que
+o pack existe.
+
+**Por que ela é ENTREGA da peça 2.** A saída provável que a fonte já registra é
+**`schema_version` nova** — e é exatamente isso que a peça 2 desenha. A P5-4 não é
+vizinha do trabalho de migração: **ela é o conteúdo do delta**. Desenhar o caminho
+v1→v2 e a recusa do v0 sem decidir o que muda em v3 seria construir a máquina de
+migrar sem saber o que ela vai migrar.
+
+**Vence em:** a peça 2, junto com a **P5-6**. Ver o acoplamento no detalhe dela.
+
+#### P5-6 — o gabarito não tem produtor em disco, e é o subcomando que falta
+
+**Herdada da Fase 5** (`docs/progress/fase_5.md`, §"P5-6"), aberta pelo L3 da
+quinta auditoria daquela fase e aceita como LOW, com destinatário **Fase 7**.
+Também ausente desta §6 até agora.
+
+**O fato.** `gabarito.gerar()` devolve o artefato **em memória**; o linter roda
+dentro dele e o teste produz o texto e o julga — inclusive executando a query de
+referência contra o banco. O item 6 da DoD da Fase 5 tem prova executável por esse
+caminho, e é por isso que isto nunca foi lacuna de entrega. **O que falta é o
+produtor em disco:** nenhum comando escreve o par `ground_truth.yaml` +
+`GM_NOTES.md` em `scenarios/`. Quem for facilitar um exercício hoje tem o gerador e
+não tem o arquivo.
+
+**Gatilho declarado:** *"o commit em que `range-cli` ganhar o subcomando que
+escreve o pack"* — e ele é desta peça, porque é a peça 2 que abre a superfície de
+pack. A D10 da Fase 5 já decidiu que o artefato **nasce por comando** em vez de ser
+versionado; este produtor é a metade que falta daquela decisão, e não uma correção
+dela.
+
+**O ACOPLAMENTO COM A P5-4, e é a razão de as duas fecharem juntas.** Está escrito
+na fonte, `fase_5.md:1729-1733`, e é o parágrafo que esta peça precisa ter à vista
+antes de escrever a primeira linha:
+
+> *"As duas da Fase 7 vão juntas e não são a mesma. A P5-6 é o **produtor** — o
+> comando que escreve o par no disco; a P5-4 é o **modelo** — os seis conjuntos que
+> não cabem nos três valores do enum. Quem fechar a primeira sem olhar a segunda
+> escreve um `ground_truth.yaml` que omite dois conjuntos sem que nada acuse,
+> porque o schema não tem como recusar o que não sabe nomear."*
+
+**A frase final é a que decide a ordem:** o schema não recusa o que não sabe
+nomear. Um produtor escrito antes do delta grava um gabarito incompleto e **verde**
+— e gabarito incompleto que passa em todos os gates é a forma de erro que este
+repositório persegue desde a Fase 0.
 
 #### P6-2 — o *start* de `TTA` sem origem em contrato, e o ramo (b) já decidido
 
@@ -855,6 +1101,81 @@ hasheia.
 porque ali o gravador escolhia o que hasheia e acrescentar o pack custava quase
 nada. O PR #56 passou sem isso. O defeito não nasceu ali — ele preexiste ao SHA e
 à árvore —, mas o conserto deixou de ser de graça.
+
+#### P7-6 — 44 registros de auditoria que ninguém varreu por destinatário
+
+**Nasceu da varredura de abertura da peça 2**, e nasceu do que ela **não** cobriu.
+
+**O fato, contado na árvore:** `docs/progress/` tem **44** arquivos `audit_*.md`,
+de `audit_20260814T020307Z.md` a `audit_20260823T155304Z.md` — 14 a 23 de agosto de
+2026. Eles são versionados desde a decisão registrada no `fase_0.md` §"P11":
+*"cada linha é a única prova de uma rodada que já aconteceu, não artefato
+reconstruível"*.
+
+**A lacuna.** Achado de auditoria que **não foi promovido a pendência** não aparece
+em `fase_N.md` nenhum. O quarto predicado de `check_progress_consistency.py` lê
+`fase_N.md` e nada mais — a §2.4.1 declara essa fronteira —, e a varredura desta
+peça leu a mesma superfície. **Nenhum dos dois alcança os 44.** Um BLOCKER
+corrigido no commit e nunca transcrito, um MEDIUM aceito com ressalva, um LOW cuja
+ressalva envelheceu: os três têm a mesma forma, e a forma é invisível.
+
+**Por que isto é pendência e não trabalho da peça 2.** Varrer 44 registros de
+auditoria por destinatário é medição de outra ordem, e fazê-la dentro da peça que
+desenha o schema é escopo crescendo — o mesmo argumento com que a P6-8 e a P6-7
+não foram consertadas dentro da correção que as achou. E a medição precisa de um
+predicado que ainda não existe: *"este achado virou pendência em algum
+`fase_N.md`?"* exige casar achado com id, e achado de auditoria **não tem id
+estável** entre rodadas.
+
+**As duas formas, para quando a decisão vier.** **(a)** varredura única, manual,
+com o resultado promovido a pendências — barata, e não impede a 45ª. **(b)** regra
+no rito de auditoria: todo achado não corrigido no mesmo PR nasce com linha na §6
+da fase corrente — mecanismo no produtor em vez de varredura no consumidor, e é a
+direção que a §7.1 chama de degrau 1.
+
+**Vence em:** o fechamento desta fase. É deliberado que caia ali e não depois: a
+Fase 8 abre o paralelismo, e multiplicar quem escreve registro antes de saber o que
+os 44 guardam é aumentar a dívida sem tê-la medido.
+
+#### P7-7 — o ator de ameaça declarado não tem verificador, e a obrigação mora fora de `fase_N.md`
+
+**Achada por RASTRO, e não pelo predicado da varredura** — e é isso que a torna
+interessante. O vocabulário da varredura (§2.4.1) não a alcançaria: ela não está em
+registro de fase nenhum. Ela apareceu seguindo a **P4-12**, que está **FECHADA**
+(`fase_5.md:1713`), até o mecanismo em que o conteúdo dela sobreviveu.
+
+**Onde ela mora:** `scripts/check_secoes_de_seguranca.py:213-228`, entrada `5` do
+registro seção → verificador, com `destinatario=(7, …)`. É a **única** das oito
+entradas que aponta para esta fase; as outras apontam para 9, para 12, e cinco não
+apontam para lugar nenhum. O texto é da própria entrada:
+
+> *"a §5.2 exige fonte publica citavel declarada em `ground_truth.yaml`, e o
+> primeiro pack e da Fase 7. Sem pack nao ha ator declarado a conferir"*
+
+E a nota da mesma entrada declara o que falta, com as três exigências nomeadas:
+
+> *"**COBERTURA PARCIAL**: os dois contratos carregam a distincao da §5.1
+> (fornecedor de produto sempre ficticio) e a forma do bloco `threat_actor` da
+> §5.2. O que falta e verificador que confira o ator DECLARADO contra as exigencias
+> da §5.2 — **fonte citavel, TTP nao excedida, IOC ausente**."*
+
+**Por que ela é peça 4 e não peça 2.** A peça 2 faz o pack **existir**; conferir o
+ator declarado é regra de **linter sobre pack existente**, que é o objeto da peça 4
+(`range-cli scenario lint`). Escrevê-la na peça 2 seria a segunda superfície de
+recusa nascendo fora do lugar onde as outras seis já vão morar.
+
+**O que ela obriga da peça 2, mesmo não sendo dela:** o `ground_truth.yaml` que a
+peça 2 desenhar precisa **admitir** o bloco `threat_actor` com fonte citável, ou a
+peça 4 chegará a um schema que não tem onde pôr o que ela conferiria.
+
+**O achado tem valor além de si, e ele está na §2.4.1:** obrigação endereçada a uma
+fase que mora em registro executável é inalcançável pelo quarto predicado, **por
+desenho**. Esta é a primeira instância medida dessa classe, e é por isso que ela
+ganhou id em vez de virar nota de rodapé.
+
+**Vence em:** a peça 4 desta fase, no lint. Se a peça 4 fechar sem ela, a entrada
+`5` do registro continua dizendo `destinatario=(7, …)` sobre uma fase que passou —
+e gatilho que já disparou e não venceu é o defeito que a P5-2 documenta.
 
 #### P6-9 — VENCIDA: a terceira divergência chegou antes do gatilho
 
