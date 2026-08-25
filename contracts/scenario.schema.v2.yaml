@@ -754,15 +754,99 @@ $defs:
 #
 # Estas dependem de relacao entre documentos ou de julgamento, e nao sao
 # garantia deste arquivo. Obrigacao do `range-cli scenario lint` (Fase 7).
+#
+# ESTE REGISTRO PASSOU A TER LEITOR — scripts/check_regras_do_linter.py.
+#
+# Ate a peca 3 da Fase 7 ele era uma sequencia de SETE STRINGS que nenhum codigo
+# lia. E prosa marcada como contrato, que e literalmente a classe do M1 da
+# terceira auditoria — a mesma que `x-aurora-registry.package_files` custou para
+# fechar, e que `_verify_completude` executa desde o B1 da Fase 6.
+#
+# E ELE JA TINHA ENVELHECIDO. A ultima linha — `required_rubrics` cobrindo
+# objectives.yaml — descrevia como obrigacao futura do linter algo que
+# `objectives.schema.yaml` mecanizou por `x-aurora-ref: pack_required_rubrics`,
+# e ninguem tinha por que cruzar as duas. Registro sem leitor nao envelhece com
+# aviso: ele envelhece em silencio, que e o modo caro.
+#
+# A FORMA DE CADA ENTRADA, e o que o verificador cobra:
+#
+#   id            estavel, e e por ele que a entrada e citada
+#   rule          o enunciado, em prosa — para humano
+#   mecanismo     ONDE a regra e executada. Ausente exige `destinatario`
+#   sitio         o `PackSite` que a recusa carrega, quando ha um. O
+#                 verificador confere que ele EXISTE em `PackSite` — sitio
+#                 renomeado derruba o gate em vez de virar entrada morta
+#   destinatario  a fase ou pendencia que trara o mecanismo, quando nao ha
+#   motivo        por que ainda nao ha, ou o que do mecanismo ainda falta
+#
+# O QUE ELE NAO COBRE, DITO PORQUE E LIMITE REAL: a direcao inversa. Uma
+# obrigacao de linter que `04` §8 enuncie e que ninguem tenha transcrito para ca
+# continua invisivel — a lista daquela secao e prosa, e nao ha o que derivar
+# dela. O verificador julga se cada entrada TEM dono, e nao se as entradas sao
+# todas as que deveriam existir.
 # ---------------------------------------------------------------------------
 x-aurora-linter-rules:
-  - 'branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado'
-  - 'todo option referenciado deve existir no decision_point indicado'
-  - 't_relative fora de ordem e recusado'
-  - '`control_function` nomeia funcao de controle, NUNCA produto ou fornecedor (05 secao 5.1) — nao mecanizavel por padrao'
-  - 'GM_NOTES.md com fato ausente do ground_truth e recusado (00 secao 5.10)'
-  - '`fact_check_against` deve resolver para um campo existente do fato indicado'
-  - '`required_rubrics` deve cobrir toda rubrica citada em objectives.yaml'
+
+  - id: branch_policy_aplicada
+    rule: 'branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado'
+    destinatario: 'Fase 7, peca 4 — item 4 da DoD de 07_IMPLEMENTATION_PHASES.md'
+    motivo: 'A politica so pode ser aplicada por quem conta pontos de ramificacao por linha e caminhos por ponto, e isso e a mesma travessia que o `dryrun` percorre. Separar as duas duplicaria a caminhada do grafo de branches.'
+
+  - id: option_existe_no_decision_point_indicado
+    rule: 'todo option referenciado deve existir no decision_point indicado'
+    mecanismo: 'x-aurora-ref:pack_decision_options, em #/$defs/branch_option'
+    sitio: rule_violation
+    destinatario: 'Fase 7, peca 4'
+    motivo: 'PARCIAL, e a metade que falta e a palavra "indicado". O registro prova que a opcao existe em ALGUM decision_point do pack; a folha `option` nao carrega o `decision`, que viaja numa folha IRMA da mesma condicao, e casar as duas exige interpretar a arvore de `when` — que e o que a peca 4 faz. Hoje uma condicao que case `decision: DP-A03` com `option: monitor` passa mesmo que `monitor` pertenca a outro ponto de decisao.'
+
+  - id: t_relative_em_ordem
+    rule: 't_relative fora de ordem e recusado'
+    mecanismo: 'range-core/engine/loader/pack_loader.py, confere_ordem_de_t_relative'
+    sitio: t_relative_out_of_order
+
+  - id: control_function_nao_e_produto
+    rule: '`control_function` nomeia funcao de controle, NUNCA produto ou fornecedor (05 secao 5.1)'
+    destinatario: 'revisao humana'
+    motivo: 'NAO MECANIZAVEL POR PADRAO, e a declaracao e antiga: `produto_xyz_edr` casa o `pattern` do campo tao bem quanto `federated_session_revocation`. Nenhuma forma separa funcao de controle de nome de fornecedor, e um verificador por lista de fornecedores seria a lista que nao preve o proximo.'
+
+  - id: gm_notes_sem_fato_ausente
+    rule: 'GM_NOTES.md com fato ausente do ground_truth e recusado (00 secao 5.10)'
+    mecanismo: 'range-core/engine/citacoes.py, confere_citacoes_de_fato'
+    sitio: citacao_de_fato_invalida
+
+  - id: fact_check_against_resolve
+    rule: '`fact_check_against` deve resolver para um campo existente do fato indicado'
+    mecanismo: 'range-core/engine/citacoes.py, confere_fact_check_against'
+    sitio: fact_check_unresolved
+
+  # AS TRES EXIGENCIAS DE `05` §5.2, uma entrada cada — e a razao de serem tres
+  # e que so UMA delas tem mecanismo possivel. A P7-7 cobrava "o verificador do
+  # ator declarado" como se fosse uma coisa; medi-la mostrou que sao tres, com
+  # tres destinos diferentes. Fundi-las numa entrada so faria o `mecanismo` da
+  # terceira cobrir as duas primeiras em silencio.
+
+  - id: threat_actor_com_fonte_citavel
+    rule: '`threat_actor` declara fonte publica citavel (05 secao 5.2)'
+    mecanismo: 'contracts/ground_truth.schema.yaml, $defs/threat_actor — `sources` em `required`, com minItems 1'
+    destinatario: 'revisao humana'
+    motivo: 'PARCIAL. O contrato garante que o campo existe e nao esta vazio; garantir que a fonte e CITAVEL nao e questao de forma — `sources: [confia em mim]` casa o schema. Mesma classe do `control_function`, e pelo mesmo motivo: nenhum padrao separa citacao de afirmacao.'
+
+  - id: threat_actor_ttp_nao_excedida
+    rule: 'as TTPs reproduzidas nao excedem o que ja e publico na fonte citada (05 secao 5.2)'
+    destinatario: 'revisao humana'
+    motivo: 'NAO MECANIZAVEL. O julgamento e contra um documento EXTERNO — o relatorio ou a pagina do MITRE que a `sources` cita —, e nenhum verificador deste repositorio tem como le-lo. Declarar um mecanismo aqui seria afirmar cobertura que nao existe.'
+
+  - id: sem_ioc_operacional_no_gabarito
+    rule: 'nenhum IOC operacional no ground_truth: sem IP ou dominio de infraestrutura real, sem CPF valido (05 secao 5.2 e secao 3)'
+    mecanismo: 'range-core/engine/loader/pack_loader.py, confere_ausencia_de_ioc — pelo predicado de dados_sinteticos/, o MESMO que tools/check_synthetic_data.py usa'
+    sitio: ioc_operacional
+    destinatario: 'revisao humana'
+    motivo: 'PARCIAL, e o limite e de forma: o predicado classifica VALORES, entao dominio embutido em PROSA escapa — `note_to_facilitator: "C2 em evil-infra.net"` passa, e foi medido. `threat_actor.sources` e isento por desenho: a §5.2 EXIGE fonte publica citavel ali.'
+
+  - id: required_rubrics_cobre_objectives
+    rule: '`required_rubrics` deve cobrir toda rubrica citada em objectives.yaml'
+    mecanismo: 'x-aurora-ref:pack_required_rubrics, em objectives.schema.yaml'
+    sitio: rule_violation
 
 # ---------------------------------------------------------------------------
 # BLOCOS DA SPEC QUE ESTE CONTRATO GOVERNA — ver scripts/check_spec_examples.py.
@@ -1069,6 +1153,34 @@ x-aurora-invalid-examples:
             - id: x
               default: true
               next: A09B
+
+  # A NEGATIVA QUE FALTAVA AO ITEM 2 DA DoD DA FASE 7, e a ausencia foi medida na
+  # abertura da peca 3: `x-aurora-ref: event_catalog` estava declarado em
+  # `#/$defs/branch_event` desde a Fase 1, e as UNICAS fixtures que o
+  # exercitavam eram de `objectives.schema.yaml` e de
+  # `ground_truth.schema.yaml`. A regra que 04 secao 6.2 chama de "falha mais
+  # cara possivel" nao tinha prova no contrato que a declara.
+  #
+  # `vpn_acess_revoked` — um `c` a menos. E a forma real do defeito: nao um nome
+  # inventado, e sim um erro de digitacao num nome que existe. Fixture com
+  # `evento_que_nao_existe` provaria a regra contra um caso que ninguem comete.
+  - reason: 'event_type inexistente em condicao de branch: a branch silenciosamente nao ramifica, e ninguem percebe ate o exercicio ao vivo'
+    rejected_by: 'x-aurora-ref:event_catalog'
+    pointer: '#/$defs/branches_document'
+    instance:
+      branches:
+        - id: BR-A-04
+          at_inject: A08
+          reconverge_at: A12
+          evaluate:
+            - id: contained_early
+              when:
+                all:
+                  - event: vpn_acess_revoked
+              next: A09B
+            - id: not_contained
+              default: true
+              next: A09C
 
   - reason: 'condicao de branch que depende de juizo: cenario deixa de ser ensaiavel'
     rejected_by: schema

@@ -156,8 +156,20 @@ $defs:
 
       # Faixa sintetica obrigatoria (05 secao 3): documentacao (RFC 5737) ou
       # privada. NAO e verificavel por schema — CIDR nao cabe em `pattern` sem
-      # virar regex ilegivel e errada. Quem guarda e tools/check_synthetic_data.py,
-      # sobre os arquivos de dado, e o registro em evidence.schema.yaml.
+      # virar regex ilegivel e errada.
+      #
+      # QUEM GUARDA SAO DOIS, e o segundo entrou na peca 3 da Fase 7. A redacao
+      # anterior dizia so `tools/check_synthetic_data.py`, "sobre os arquivos de
+      # dado" — e para PACK aquilo era falso desde a peca 5 da Fase 5, que pos
+      # `scenarios/` fora do Git: o verificador varre a arvore VERSIONADA, e o
+      # `ground_truth.yaml` de um pack nunca passava por ele. A afirmacao nasceu
+      # verdadeira e envelheceu com uma decisao tomada em outro lugar.
+      #
+      #   tools/check_synthetic_data.py     a arvore versionada
+      #   confere_ausencia_de_ioc           o pack, na carga e no linter
+      #
+      # Os dois chamam o MESMO predicado, em `dados_sinteticos/`. Mais o
+      # registro em evidence.schema.yaml.
       source_ip:
         type: string
 
@@ -473,7 +485,7 @@ $defs:
 
 x-aurora-linter-rules:
   - 'GM_NOTES.md nao pode conter fato ausente daqui (00 secao 5.10)'
-  - '`source_ip` dentro da faixa sintetica de 05 secao 3, guardado por tools/check_synthetic_data.py'
+  - '`source_ip` dentro da faixa sintetica de 05 secao 3 — e NENHUM IOC operacional em lugar nenhum deste documento (05 secao 5.2). Guardado por confere_ausencia_de_ioc na carga e no linter, e por tools/check_synthetic_data.py sobre a arvore versionada; os dois chamam o mesmo predicado de dados_sinteticos/. A redacao anterior citava so o segundo, e para PACK ela era falsa: `scenarios/` esta fora do Git, entao a varredura da arvore nunca alcancava o gabarito'
   - '`payload` de predicate_event deve casar com o payload declarado para aquele event_type (Fase 2)'
 
 # ---------------------------------------------------------------------------

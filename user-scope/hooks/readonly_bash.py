@@ -163,7 +163,17 @@ ALLOWED = [
     rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+scripts/"
     rf"(?:phase0_negative_tests|check_contract_examples|check_contract_examples_probes"
     rf"|check_spec_examples|check_spec_examples_probes"
-    rf"|check_progress_consistency"
+    # `check_progress_consistency_probes` ENTROU TARDE, e o atraso e o achado.
+    # O verificador esta aqui desde a Fase 1; a prova negativa dele nasceu em
+    # `8751c77`, na peca 1 desta fase, e NAO foi acrescentada junto. Desde aquele
+    # commit o D16 — `check_allowlist_do_auditor.py` — reprovava, e o vermelho
+    # atravessou a peca 2 inteira sem ser lido.
+    #
+    # E a mesma forma do M5 da quarta auditoria da Fase 3, registrada dez linhas
+    # abaixo sobre o `check_audit_base_probes`: prova negativa que fica fora da
+    # allowlist no commit que a cria. A regra estava escrita, e nao segurou —
+    # decima primeira ocorrencia da classe da §7.1 do registro desta fase.
+    rf"|check_progress_consistency|check_progress_consistency_probes"
     rf"|check_store_read_surface|check_store_read_surface_probes"
     rf"|check_core_contract_imports|check_core_contract_imports_probes"
     # `check_gate_coverage` — P37. Sem executa-la, o auditor le a tabela de
@@ -171,6 +181,12 @@ ALLOWED = [
     # mesmo motivo das outras: verificador cuja prova nao roda e verificador
     # cuja propriedade o auditor aceita da palavra de quem o escreveu.
     rf"|check_gate_coverage|check_gate_coverage_probes"
+    # `check_regras_do_linter` — Fase 7, peca 3. Cruza `x-aurora-linter-rules`
+    # com os sitios de `PackSite`. Sem executa-la, o auditor le sete entradas de
+    # contrato e uma classe de constantes e casa as duas a olho — que e a forma
+    # de auditar que este verificador existe para nao aceitar, e e como o
+    # registro envelheceu sem que nada acusasse.
+    rf"|check_regras_do_linter|check_regras_do_linter_probes"
     # `check_spec_flags` — Fase 3. Cruza flag citada na spec com flag declarada
     # no adapter. Sem executa-la, o auditor le duas listas e compara a olho, que
     # e a forma de auditar que o item existe para nao aceitar.

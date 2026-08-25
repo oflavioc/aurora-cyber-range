@@ -180,3 +180,86 @@ def fatos_declarados(ground_truth: Mapping | None) -> set[str]:
         for fato in (ground_truth or {}).get("facts") or []
         if fato.get("fact_id")
     }
+
+
+def fatos_por_id(ground_truth: Mapping | None) -> dict[str, Mapping]:
+    """`fact_id -> o fato inteiro`. O conjunto de `fatos_declarados` sao as chaves.
+
+    A quarta citacao precisa do FATO, e nao so do id dele: `fact_check_against`
+    aponta para um CAMPO, e conferir o campo exige ter o mapeamento em maos.
+    """
+    return {
+        str(fato["fact_id"]): fato
+        for fato in (ground_truth or {}).get("facts") or []
+        if isinstance(fato, Mapping) and fato.get("fact_id")
+    }
+
+
+#: `facts.GT-A-020.records_affected` — o prefixo, o id, o campo.
+#:
+#: A FORMA JA E CONFERIDA PELO CONTRATO (`scenario.schema.v2.yaml`,
+#: `media_event.fact_check_against`), e este corte NAO a reimplementa: ele so
+#: separa as tres partes de um valor que ja passou por la. Reescrever a forma
+#: aqui seria a quinta copia de `fact_id_pattern`, e o PR #59 existiu para
+#: eliminar as anteriores.
+_PREFIXO_DE_FATO = "facts."
+
+
+def confere_fact_check_against(
+    *, fatos: Mapping[str, Mapping], citacoes: Mapping[str, str]
+) -> None:
+    """`fact_check_against` resolve para um campo EXISTENTE do fato indicado.
+
+    A REGRA ESTAVA DECLARADA E SEM MECANISMO. `contracts/scenario.schema.v2.yaml`
+    a lista em `x-aurora-linter-rules` — *"`fact_check_against` deve resolver para
+    um campo existente do fato indicado"* — e nada a executava: o contrato confere
+    a FORMA por `pattern`, e forma nao e resolucao. `facts.GT-A-999.inventado`
+    casa o padrao perfeitamente.
+
+    E ELA E DA MESMA CLASSE DO `event_type` INEXISTENTE, pelo mesmo motivo que
+    `04` §6.2 usa para aquele: nada falha. `04` §7 diz que o campo *"permite ao
+    AAR comparar automaticamente o numero comunicado com o ground truth"*, e um
+    ponteiro que nao resolve faz a comparacao simplesmente nao acontecer — a
+    divergencia entre o que foi dito fora e o que de fato ocorreu deixa de ser
+    detectada, e ninguem percebe, porque o AAR nao tem como saber que devia ter
+    comparado alguma coisa. `06` T14 cobra essa deteccao na Fase 10; a recusa
+    aqui e para que ela tenha contra o que rodar.
+
+    AS DUAS METADES SAO SEPARADAS NA MENSAGEM. Fato inexistente e erro de
+    citacao; campo inexistente num fato que existe e erro de projecao — o autor
+    acertou o fato e errou o que ele carrega. Fundir os dois mandaria metade dos
+    casos procurar no lugar errado.
+    """
+    for onde, valor in sorted(citacoes.items()):
+        texto = str(valor)
+        if not texto.startswith(_PREFIXO_DE_FATO):
+            raise CitacaoInvalida(
+                f"`{onde}`: `fact_check_against: {texto!r}` nao comeca por "
+                f"`{_PREFIXO_DE_FATO}`. `04_SCENARIO_SCHEMA.md` §7 fixa a forma "
+                "`facts.<fact_id>.<campo>`, e so ela resolve."
+            )
+        resto = texto[len(_PREFIXO_DE_FATO) :]
+        fact_id, _, campo = resto.partition(".")
+
+        if fact_id not in fatos:
+            raise CitacaoInvalida(
+                f"`{onde}`: `fact_check_against` aponta para o fato {fact_id!r}, "
+                "que o `ground_truth.yaml` nao declara.\n"
+                f"    Declarados em `facts`: {sorted(fatos)[:5]}"
+                f"{' ...' if len(fatos) > 5 else ''}\n"
+                "    `04` §7 usa este campo para o AAR comparar o numero "
+                "comunicado com o ground truth. Ponteiro que nao resolve nao "
+                "falha: a comparacao deixa de acontecer, e a divergencia entre o "
+                "que foi dito fora e o que ocorreu passa em branco."
+            )
+
+        if not campo or campo not in fatos[fact_id]:
+            disponiveis = sorted(c for c in fatos[fact_id] if c != "fact_id")
+            raise CitacaoInvalida(
+                f"`{onde}`: o fato {fact_id!r} existe, e nao tem o campo "
+                f"{campo!r}.\n"
+                f"    Campos declarados nele: {disponiveis}\n"
+                "    O fato esta certo e o campo esta errado — e a metade do "
+                "defeito que faz o autor procurar no arquivo errado se as duas "
+                "recusas forem a mesma."
+            )
