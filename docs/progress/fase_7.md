@@ -40,10 +40,22 @@ fase e um que nasceu da quinta ocorrência da classe que a §7.1 mede.
 deixa de ser afirmada em cada registro de fase e passa a ser derivada deles. É o
 único degrau que faz a classe deixar de existir em vez de ficar visível.
 
-**A peça 7 depende da P7-3.** O critério dos 3 s é prova de desempenho, e prova
-de desempenho depende do pack materializado — que é exatamente o que a árvore não
-cobre. A P7-3 vence na implementação da saída (b) da P7-2, e essa implementação é
-conserto pontual contra `main`, fora desta branch.
+> **~~A peça 7 depende da P7-3.~~ SUPERADO na peça 2.** A afirmação era: *"o
+> critério dos 3 s é prova de desempenho, e prova de desempenho depende do pack
+> materializado — que é exatamente o que a árvore não cobre. A P7-3 vence na
+> implementação da saída (b) da P7-2, e essa implementação é conserto pontual
+> contra `main`, fora desta branch."*
+>
+> **A dependência deixou de existir**, e não por decisão: a peça 2 entregou o
+> produtor de pack, e com ele o determinismo passou a ser propriedade **provada**
+> do artefato. Um pack cujos bytes são função dos insumos não precisa da árvore
+> para ser comparado — ele é reproduzível por comando. A P7-3 fecha na §3.5, e a
+> peça 7 passa a depender só do pack existir, o que ela já pode fazer nascer.
+>
+> A previsão de *onde* a P7-3 venceria também estava errada: ela dizia "na
+> implementação da saída (b) da P7-2", e o PR #56 passou sem tocá-la — está
+> registrado no detalhe dela como *"a janela barata passou"*. Quem a fechou foi
+> o produtor, três peças depois e por outro caminho.
 
 **A CLI não é peça própria.** Ela é a superfície das peças 2, 4 e 5: o primeiro
 critério DONE já a nomeia (`range-cli scenario lint`), e o resto se expõe por ela.
@@ -271,6 +283,159 @@ ambiente**, e vermelho de ambiente lido como vermelho de conteúdo é a pior for
 falso positivo — ele treina quem o vê a desconfiar do gate em vez do commit. Todo
 número desta fase sai de `py -3.12`.
 
+### 3.3 As duas decisões de desenho que nenhuma norma decidia
+
+As duas são desta peça, e ficam declaradas aqui porque a spec não as decide — o
+que ela decide é o que elas não podem contradizer.
+
+#### 3.3.1 `range_cli/` é pacote de TOPO, e o invariante 1 é quem decide
+
+`01` §2 lista `range-core/`, `domains/`, `scenarios/`, `contracts/`, `tools/` e
+`docs/`. **O CLI não aparece em nenhum.** Medido: `grep -n "range-cli\|cli/"` em
+`01_ARCHITECTURE.md` devolve zero. `04` §8 fixa a *superfície* — nome do
+executável, grupos, verbos — e não o lugar.
+
+**A escolha não é de gosto: é o invariante 1.** O produtor chama
+`domains.<x>.seed.gabarito`, e `tools/check_core_boundary.py` impõe por AST que
+`range-core/` não importe nada de `domains/`. Um `range-core/cli/` reprovaria no
+primeiro import.
+
+**E a saída que a `academus-api` usa não serve aqui**, que é a parte medida. Em
+`range-core/api/processo.py:119` o adapter entra como **dado**: as flags chegam
+por caminho de arquivo, lidas com `yaml.safe_load`, e por isso o core nunca
+importa o domínio. **Gerador é código.** `gabarito.gerar` é uma função com
+comportamento; não há caminho de arquivo que a substitua, e injetá-la por
+configuração seria import dinâmico com outro nome — a mesma travessia que o
+invariante existe para tornar inexprimível, entrando pela porta que ele não
+enxerga.
+
+Então o CLI é **raiz de composição**, no mesmo sentido que `processo.py`, e a
+diferença é exatamente essa: aquele consegue ficar dentro do core porque só
+precisa de dado do domínio; este precisa de código, e por isso mora fora.
+
+#### 3.3.2 A guarda de destino mora em `range-core/engine/destino.py`
+
+A guarda que pergunta *"este destino é rastreado?"* nasceu em
+`tests/fixtures/pack_completo.py`, porque a primeira que precisou dela foi uma
+fixture. **Produção não importa de `tests/`**, e o produtor — que é a razão
+inteira de ela existir — não a alcançava.
+
+**Copiar seria a D4 dentro do mecanismo que existe para o gabarito não nascer no
+lugar errado.** Duas cópias de uma guarda de segurança divergem, e a que diverge
+em silêncio é a que ninguém está olhando. Ela mudou de casa, e a fixture passou a
+usá-la — restou **uma** implementação e **uma** mensagem.
+
+**Por que `engine/` e não o CLI:**
+
+| | |
+|---|---|
+| a leitura do pack já mora em `engine/loader/` | esta é a outra metade da mesma pergunta, do lado da escrita |
+| ela é agnóstica de domínio | não sabe o que é `academus`, e não precisa |
+| não importa `domains/` nem `contracts/` | as duas formas de segmento chegam **por parâmetro**, pela regra de `04` §4.1 — `contract_source.formas_do_destino` as lê uma vez, na raiz de composição |
+| **no CLI seria pior** | a fixture de teste passaria a depender do CLI para montar um pacote, e o CLI é superfície, não biblioteca |
+
+### 3.4 Três achados de execução, e o terceiro é variante nova da classe da §7.1
+
+#### 3.4.1 DÉCIMA OCORRÊNCIA: cobertura que não alcança o PONTO DE ENTRADA
+
+**A variante é nova**, e é a que interessa à peça 6.
+
+`materialize` recebia o motor **pronto**, e `main` o montava **antes** de chamá-la.
+Consequência: `range-cli scenario materialize Academus x` tentava conectar no
+banco **antes** de descobrir que `Academus` não casa a forma do contrato. Pior —
+`engine_do_ambiente()` exige um argumento `url` que `main` não passava, então o
+comando estourava com `TypeError` em vez de recusar.
+
+**E isso contradizia o cabeçalho escrito no próprio arquivo**, que afirma *"a
+ordem dos passos é a garantia: forma dos segmentos, destino não rastreado,
+geração, escrita"*. A prosa dizia uma coisa e o `main` fazia outra, a dez linhas
+de distância.
+
+**Por que dezessete testes não viram:** eles chamam `materialize` **direto**, e
+pulam o `main`. A cobertura alcançava a função e não o **ponto de entrada** — e o
+ponto de entrada é onde a ordem de fato acontece.
+
+**Quem achou foi rodar o executável de verdade.** Não o teste, não o gate, não a
+leitura: `range-cli --help` e uma invocação com argumento inválido.
+
+**Fechado por mecanismo, e não por lembrança.** `abre_motor` passou a ser
+**fábrica**, chamada só depois das guardas — a ordem virou propriedade da
+assinatura. E dois testes nasceram: `_MOTOR_PROIBIDO`, uma fábrica que **reprova
+se for chamada**, e um que roda `main` inteiro sem `DATABASE_URL` e exige recusa
+por **forma**, não por falta de banco.
+
+#### 3.4.2 A perna de ordem de inserção não era redundante, e isso foi medido
+
+O teste de determinismo tem duas pernas: duas materializações produzem os mesmos
+bytes, e a ordem das chaves não depende da ordem de inserção. A segunda parecia
+redundante.
+
+**Não é, e a violação plantada mostrou por quê.** Com `sort_keys=False`:
+
+| perna | resultado com a violação |
+|---|---|
+| duas materializações, mesmos bytes | **PASSOU** |
+| ordem de inserção não vaza | **FALHOU** |
+
+A comparação de bytes passou porque os dois dicionários eram **o mesmo objeto**,
+montado uma vez: a ordem de inserção era idêntica nas duas execuções. Ela só
+pegaria o defeito no dia em que dois gabaritos equivalentes fossem montados em
+ordens diferentes — e aí o pack seria irreprodutível sem nada ter ficado
+vermelho.
+
+É a mesma forma do controle positivo da P6-11: sem a segunda perna, a primeira
+prova menos do que parece provar.
+
+#### 3.4.3 `check_readme_atual.py` recusa a contagem em vez de responder errado
+
+`range_cli` entrou no `pyproject.toml` e a instalação editável não foi refeita.
+O módulo só resolvia por CWD, e `tests/test_range_cli_materialize.py` deixava de
+importar fora dele.
+
+**O verificador não reportou um número quase certo.** Ele reportou:
+
+```
+a descoberta de testes acusou erro de carga: ['F']. A contagem nao vale
+enquanto isso nao fechar — modulo que nao importa vira um caso de falha e
+mantem o total parecido com o certo.
+```
+
+O total teria sido **767** em vez de 783: dezessete testes virando um
+`_FailedTest`. Diferença de dezesseis num número que ninguém confere de cabeça —
+e passaria.
+
+**É a forma certa de guarda, e vale registrar como exemplo:** ela prefere **não
+responder** a responder errado. É a mesma direção que `check_progress_consistency`
+usa nos pulos, que `check_audit_base` usa na âncora ausente, e a oposta da que
+esta linhagem aposentou duas vezes — o verificador que sai `ok` quando não sabe.
+
+E pegou a assimetria de instalação **antes** de custar uma rodada: é a quarta vez
+que o `pyproject.toml` a paga, e a primeira em que um verificador a viu.
+
+### 3.5 As três variantes da classe da §7.1, medidas nesta peça
+
+A §7.1 mede *"uma exigência é afirmada num lugar e os sítios que a satisfazem não
+são varridos quando ela muda"*. **Esta peça produziu três variantes distintas**,
+e as três são insumo do desenho da **P7-5** na peça 6 — porque cada uma escapa
+por um caminho diferente, e uma allowlist de chamadores por emissor só alcança a
+primeira.
+
+| Variante | O caso desta peça | Por que escapa |
+|---|---|---|
+| **predicado estreito** | a varredura da §2.4.1 procurou quem faz *parse* do JSON da prova e concluiu que o lançador não lê o campo; `start_checkpoint_audit.sh:652` fazia `grep -q` dentro do artefato | a varredura **aconteceu**; o predicado é que não alcançava a forma. `grep` dentro de `.sh` não é import, e o degrau 2 resolve por import |
+| **defeito sem sujeito** | `SINCE_SELF` em duas cópias, e o `since: containment_declared` do gerador | ninguém **afirmava** o defeito, então não havia o que varrer. O mecanismo não era varredura: era **derivação** — uma origem só, e a divergência deixa de ser expressável |
+| **cobertura que não alcança o ponto de entrada** | §3.4.1 — dezessete testes sobre `materialize`, zero sobre `main` | a exigência estava escrita **no arquivo certo**, e a cobertura era **da função**. Nenhuma varredura de import a alcança: é execução, e a §7.1 já nomeia isso como o degrau 3 |
+
+**O que isso diz à peça 6, e é a parte que ela precisa antes de desenhar:** a
+allowlist de chamadores por emissor cobre a **primeira** variante e nada das
+outras duas. A segunda se fecha por derivação — e derivação faz a classe deixar
+de existir, que é o degrau 1. A terceira é execução, e a §7.1 já registra que
+para ela *"o que sobra é a prova de container"*.
+
+**A P7-5 não deve ser desenhada como se cobrisse as três.** Declarar isso agora é
+mais barato que descobrir na peça 6 — é literalmente o argumento que a §7.1 usa
+sobre a sexta ocorrência.
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
@@ -315,11 +480,11 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 
 | Id | O que é | Estado | Vence em |
 |---|---|---|---|
-| P1-7 | o id do inject pode vazar a linha, e o contrato só desacoplou o prefixo — herdada da Fase 1, §"P1-7"; caiu da cadeia no par 1→2 | `ENTREGA` | peça 2 desta fase — o pack é quem nomeia inject, e a convenção se decide ao escrevê-lo; ver abaixo |
+| P1-7 | o id do inject pode vazar a linha, e o contrato só desacoplou o prefixo — herdada da Fase 1, §"P1-7"; caiu da cadeia no par 1→2 | `ENTREGA` | **NÃO fechou na peça 2** — o produtor escreve `ground_truth.yaml` e `GM_NOTES.md`, e nenhum dos dois nomeia inject. Medido; ver abaixo |
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume — herdada da Fase 4, §"P4-8" | `ABERTA` | a segunda perna do gatilho é a medição da peça 7 desta fase; ver abaixo |
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio; ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` — herdada da Fase 5, §"P5-4" | `ENTREGA` | peça 2 desta fase — é o delta do schema v3; ver abaixo |
-| P5-6 | o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/` — herdada da Fase 5, §"P5-6" | `ENTREGA` | peça 2 desta fase — o subcomando que escreve o pack; ver abaixo |
+| P5-6 | ~~o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/`~~ — herdada da Fase 5, §"P5-6" | `RESOLVIDA` | o gatilho declarado ocorreu: `range-cli scenario materialize`, na peça 2. A outra metade fechou no PR #57; ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
 | P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ENTREGA` | peça 3 desta fase. Três gatilhos herdados: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado; ver abaixo |
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
@@ -332,7 +497,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | `ABERTA` | o artefato que torne a afirmação reexecutável, ou a primeira vez que alguém precise da cobertura que a tabela declara; ver abaixo |
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | `ABERTA` | decisão do proprietário sobre qual das três linhas esta fase entrega; ver abaixo |
 | P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | `RESOLVIDA` | implementada no PR #56, pela saída (b): a prova nomeia a árvore; ver abaixo |
-| P7-3 | a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5 | `ABERTA` | a peça 7 desta fase — o critério dos 3 s exige o pack materializado. A janela barata era a implementação da saída (b), e passou no PR #56; ver abaixo |
+| P7-3 | ~~a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5~~ | `RESOLVIDA` | deixou de ser buraco e virou invariante na peça 2: o pack é determinista com prova negativa, e a escrita recusa destino versionado perguntando ao `git`; ver abaixo |
 | P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ENTREGA` | peça 6 desta fase — allowlist por tipo, degrau 1.5; ver §7.2 |
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ENTREGA` | peça 6 desta fase — allowlist de chamadores por emissor, degrau 2; ver §7.1 |
 | P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
@@ -358,13 +523,32 @@ metade que sobrou está escrita na fonte: *"se a API da Fase 3 entregar o id do
 inject ao operador, **e os packs continuarem nomeando por linha por hábito**, o
 vazamento volta pela porta dos dados."*
 
-**Por que ela é ENTREGA desta peça, e não pendência a carregar.** A primeira metade
-do gatilho já ocorreu — a Fase 3 entregou a API e a Fase 4 a superfície. A segunda
-metade é sobre **os packs**, e esta fase escreve o primeiro pack real (`04` §9).
-Não há como escrever `injects.yaml` sem escolher a convenção de id, e escolher por
-hábito é exatamente o que a pendência prevê. **A decisão acontece na peça 2 porque
-é ali que o arquivo nasce**; adiá-la para a peça 4 faria o linter conferir uma
-convenção que o pack já violou.
+**Por que ela é ENTREGA desta fase.** A primeira metade do gatilho já ocorreu — a
+Fase 3 entregou a API e a Fase 4 a superfície. A segunda metade é sobre **os
+packs**, e esta fase escreve o primeiro pack real (`04` §9). Não há como escrever
+`injects.yaml` sem escolher a convenção de id, e escolher por hábito é exatamente
+o que a pendência prevê.
+
+**ELA NÃO FECHOU NA PEÇA 2, e a §2.5 previu que fecharia.** A previsão dizia *"o
+pack é quem nomeia inject, e a convenção se decide ao escrevê-lo"* — e o que a
+peça 2 entregou não escreve inject nenhum. Medido antes de mexer no estado:
+
+| Medição | Resultado |
+|---|---|
+| arquivos que `materialize` escreve | **dois** — `ground_truth.yaml` e `GM_NOTES.md` (`range_cli/cli.py:56-57`) |
+| chaves do `ground_truth` que o gerador produz | `facts`, `line_b_cases`, `verification_predicates` — nenhuma é inject |
+| ocorrências de `inject` no gerador, no produtor e na guarda de destino | **zero** |
+
+**A previsão errou o objeto, não o momento.** `injects.yaml` é conteúdo de
+cenário, e conteúdo de cenário é do `scenario-designer` — que só pode escrever em
+`scenarios/`, por hook. O produtor materializa o **gabarito**, que é projeção do
+dataset semeado; ele não tem inject a nomear porque a Linha B não tem injects.
+
+**Ela fica `ENTREGA` e o gatilho fica**, porque a fase ainda escreve o pack
+completo `ransomware-universidade` — que tem Linhas A + B + ruído e, aí sim,
+`injects.yaml`. **Fechá-la aqui por estar na lista da peça 2 seria marcar como
+entregue uma decisão que ninguém tomou** — e é a classe que o registro da Fase 6
+mede na §1.6: afirmação que nasce de expectativa e não de medição.
 
 **A alternativa que NÃO se deve escolher:** confiar no contrato. Ele desacoplou o
 padrão, e padrão permissivo não impede ninguém de escrever `A07` para a Linha A e
@@ -494,11 +678,32 @@ migrar sem saber o que ela vai migrar.
 
 **Vence em:** a peça 2, junto com a **P5-6**. Ver o acoplamento no detalhe dela.
 
-#### P5-6 — o gabarito não tem produtor em disco, e é o subcomando que falta
+#### P5-6 — RESOLVIDA: o produtor existe, e o gatilho declarado foi o commit dele
 
 **Herdada da Fase 5** (`docs/progress/fase_5.md`, §"P5-6"), aberta pelo L3 da
 quinta auditoria daquela fase e aceita como LOW, com destinatário **Fase 7**.
-Também ausente desta §6 até agora.
+Também ausente desta §6 até a peça 2.
+
+> **FECHADA na peça 2.** O gatilho declarado era *"o commit em que `range-cli`
+> ganhar o subcomando que escreve o pack"*, e ele ocorreu:
+> `range-cli scenario materialize <domain> <pack_id>`.
+>
+> **A pendência tinha duas metades, e a primeira já havia fechado.** O PR #57
+> corrigiu o `since` do gerador — sem ele o pack produzido **não carregava**, e
+> um produtor que gravasse artefato que o próprio loader recusa não fecharia
+> pendência nenhuma. Esta peça fecha a outra: o comando que põe o par no disco.
+>
+> **O que ele entrega além do arquivo**, e é o que faz a P7-3 fechar junto: a
+> escrita **recusa destino versionado** perguntando ao `git` — não ao
+> `.gitignore`, que `git add -f` atravessa — e é **determinista**, com prova
+> negativa em três pernas. O gabarito deixou de depender de disciplina para não
+> nascer no lugar errado.
+>
+> **Uma decisão de forma, declarada:** o linter de `02` §6.3 **não** foi
+> reimplementado no produtor. Ele já roda dentro de `gerar`, e o docstring de
+> `GabaritoDivergente` diz por quê — *"se rodasse depois, existiria um artefato
+> inválido no disco entre a escrita e a conferência, e é nessa janela que alguém
+> o copia"*. Conferir de novo seria a segunda implementação da mesma pergunta.
 
 **O fato.** `gabarito.gerar()` devolve o artefato **em memória**; o linter roda
 dentro dele e o teste produz o texto e o julga — inclusive executando a query de
@@ -1093,14 +1298,39 @@ trocado por baixo dela.
 mesma cegueira: o commit também só cobre o rastreado. A (b) não cria o buraco —
 ela o torna nomeável, porque passa a declarar o que de fato mede.
 
-**Vence em:** a peça 7 desta fase — o critério dos 3 s exige o pack
-materializado, e é ali que a prova afirmaria estar em dia com um pack que não
-hasheia.
-
 **A janela barata passou.** O gatilho anterior era a implementação da saída (b),
 porque ali o gravador escolhia o que hasheia e acrescentar o pack custava quase
 nada. O PR #56 passou sem isso. O defeito não nasceu ali — ele preexiste ao SHA e
 à árvore —, mas o conserto deixou de ser de graça.
+
+> **RESOLVIDA na peça 2, e por um caminho que nenhuma das previsões apontava.**
+> A pendência dizia *"vence na peça 7 desta fase"*, e a §1 dizia que a peça 7
+> **dependia** dela. As duas afirmações caíram, e a razão é a mesma.
+>
+> **O buraco era: a prova nomeia a árvore, e a árvore não cobre o pack.** A saída
+> que se imaginava era hashear o pack junto — acrescentar conteúdo não rastreado
+> ao que a prova mede.
+>
+> **A saída que apareceu é melhor, e ela dissolve o buraco em vez de tapá-lo:**
+> o pack passou a ser **reproduzível por comando**. `range-cli scenario
+> materialize` é determinista — mesmos insumos, mesmos bytes —, e o determinismo
+> tem prova negativa em três pernas, com timestamp e `sort_keys=False` plantados
+> e medidos.
+>
+> Um artefato que é **função dos insumos** não precisa ser hasheado junto da
+> árvore para que a prova seja honesta: os insumos estão na árvore — o gerador, a
+> query de referência, o template — e o `RANDOM_SEED` é declarado. A prova
+> continua nomeando a árvore, e agora isso **basta**, porque o pack não é mais
+> conteúdo independente: é saída de código versionado.
+>
+> **E a metade de segurança fechou junto:** a escrita recusa destino versionado
+> perguntando ao `git`. O pack não mora no rastreado por **propriedade do único
+> caminho que o escreve**, e não por convenção do `.gitignore` — que `git add -f`
+> atravessa. Era essa a parte que fazia o buraco ser buraco: nada garantia onde o
+> pack estava.
+>
+> **A consequência para a §1 está corrigida lá**: a peça 7 não depende mais desta
+> pendência. Ela depende do pack existir, e a peça 2 entregou quem o faz nascer.
 
 #### P7-6 — 44 registros de auditoria que ninguém varreu por destinatário
 
