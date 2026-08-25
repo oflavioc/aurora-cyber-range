@@ -35,6 +35,10 @@ import yaml
 from sqlalchemy import text
 
 from domains.academus.seed import carga, dataset, gabarito, linha_b
+from range_core.engine.loader.pack_loader import (
+    confere_folhas_temporais,
+    confere_qualificador_since,
+)
 
 from _academus_banco import TABELAS, engine, exige_banco
 
@@ -176,6 +180,43 @@ class OArtefatoEhProduzidoEJulgado(unittest.TestCase):
             por_conjunto.setdefault(caso["set"], set()).add(caso["defensibility"])
         self.assertEqual({"indevido_comprovado": {1.0}, "ambiguo": {0.5},
                           "legitimo_aparencia_suspeita": {0.0}}, por_conjunto)
+
+
+class OPackQueOGeradorMontaCARREGA(unittest.TestCase):
+    """O gabarito nao serve de nada se o loader recusar o pack que ele escreve.
+
+    NAO EXIGE BANCO, e a ausencia e o ponto. `verification_predicates` nao
+    depende do seed nem da trilha semeada — e a mesma arvore em toda execucao.
+    Enquanto ela morava dentro de `gerar`, exercita-la custava Postgres, e por
+    isso a guarda de carga nunca foi rodada contra ELA: as quatro pernas de
+    `tests/test_pack_loader.py::QualificadorSince` julgam arvores montadas a
+    mao, que por construcao escrevem a forma certa.
+
+    E EXATAMENTE O BURACO QUE O H1 DA QUARTA AUDITORIA DA FASE 6 DESCREVE, num
+    degrau acima: la o campo sumia no avaliador e 684 testes verdes nao viam;
+    aqui o campo esta escrito com um valor que a norma nao define, e a guarda
+    que existe para pega-lo nunca viu o artefato real.
+
+    A DIRECAO E "CARREGA", e nao "tem tal valor". Afirmar a string faria o teste
+    repetir o gerador e passar junto com ele no dia em que os dois errassem
+    igual. Passar pela guarda pergunta a quem decide.
+    """
+
+    def test_o_qualificador_since_do_gerador_atravessa_a_guarda_de_carga(self) -> None:
+        """`03` §3.1: `self` e a UNICA forma de v1, e a carga recusa outra."""
+        confere_qualificador_since(
+            {"verification_predicates": gabarito.predicados_de_verificacao()}
+        )
+
+    def test_o_gerador_nao_declara_folha_temporal(self) -> None:
+        """A guarda irma — `before`/`after` sem gramatica, P6-3.
+
+        Sem ela, este modulo provaria uma das duas guardas de predicado e
+        deixaria a outra sem sujeito pelo mesmo motivo.
+        """
+        confere_folhas_temporais(
+            {"verification_predicates": gabarito.predicados_de_verificacao()}
+        )
 
 
 @exige_banco
