@@ -192,6 +192,18 @@ jobs:
       - name: teste negativo da cobertura do gate
         run: python scripts/check_gate_coverage_probes.py
 
+      # Fase 7, peca 3. `x-aurora-linter-rules` declarava sete validacoes a cargo
+      # do `range-cli scenario lint` e NENHUM codigo o lia — prosa marcada como
+      # contrato, que e a classe do M1 da terceira auditoria, no mesmo arquivo em
+      # que ela ja custou o `_verify_completude`. E o registro ja tinha
+      # envelhecido: uma das sete descrevia como futura uma regra que
+      # `objectives.schema.yaml` mecanizou.
+      - name: regras do linter com mecanismo ou destinatario
+        run: python scripts/check_regras_do_linter.py
+
+      - name: teste negativo das regras do linter
+        run: python scripts/check_regras_do_linter_probes.py
+
       # P4-12, e ela e a generalizacao do B1 acima em vez da repeticao dele. A
       # §4 atravessou sete pecas sem ser lida porque NADA APONTAVA PARA ELA; o
       # verificador do banner consertou aquela secao, e nao a propriedade.
@@ -499,8 +511,27 @@ jobs:
           # spec-change do repositorio, UM tocou `docs/process/` — e o que ele
           # tocou foi o `PHASE_0_CHECKLIST.md`, que agora e SPEC. A
           # justificativa descrevia exatamente o caso que esta linha separa.
+          # `range_cli/` ENTRA, e o atraso e o achado. Ele nasceu na peca 2 da
+          # Fase 7 como pacote de TOPO — decisao registrada na §3.3.1 daquele
+          # registro, e tomada pelo invariante 1 —, e ninguem o classificou
+          # aqui. Desde aquele commit `check_gate_coverage.py` reprovava, com a
+          # mensagem que ela existe para dar: *"diretorio novo no topo nasce
+          # invisivel ao gate, e nada avisa"*. Ela avisou. O vermelho atravessou
+          # o resto da peca 2 e a abertura da peca 3 sem ser lido.
+          #
+          # O criterio e o mesmo das outras entradas — SER MECANISMO QUE APLICA
+          # A SPEC. `range_cli/lint.py` executa as validacoes obrigatorias de
+          # `04_SCENARIO_SCHEMA.md` §6.2, e `range_cli/cli.py` executa a recusa
+          # de destino versionado de `05_SECURITY_REQUIREMENTS.md` §6. Sem esta
+          # entrada, o mesmo PR que altera `04` §6.2 pode afrouxar o linter que
+          # a aplica.
+          # `dados_sinteticos/` entra pelo mesmo criterio: e o predicado que
+          # executa `05_SECURITY_REQUIREMENTS.md` §3 e a clausula de IOC da
+          # §5.2, com dois chamadores — o verificador da arvore e o linter de
+          # pack. Sem esta entrada, o mesmo PR que afrouxasse a §3 podia alargar
+          # as faixas que a aplicam.
           CODE=$(git diff --name-only "$BASE_SHA" HEAD -- \
-            range-core/ domains/ contracts/ \
+            range-core/ range_cli/ dados_sinteticos/ domains/ contracts/ \
             tools/ scripts/ .claude/ .github/ user-scope/ \
             docs/process/ ':(exclude)docs/process/PHASE_0_CHECKLIST.md' \
             CLAUDE.md .gitignore .gitattributes Dockerfile .dockerignore \

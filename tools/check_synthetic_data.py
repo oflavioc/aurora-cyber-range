@@ -34,11 +34,9 @@ em vez de silenciosa:
 from __future__ import annotations
 
 import csv
-import ipaddress
 import json
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
 
 # Requisito 5 da Fase 0: verificacao nao modifica arquivo algum.
 sys.dont_write_bytecode = True
@@ -58,69 +56,43 @@ from _common import (  # noqa: E402
 )
 
 # ---------------------------------------------------------------------------
-# Regras de excecao — constantes nomeadas, deliberadamente
-# ---------------------------------------------------------------------------
+# O PREDICADO SAIU DAQUI — `dados_sinteticos/`, e o movimento e da peca 3 da
+# Fase 7.
 #
-# Uma regra de excecao enterrada no meio do codigo nao e auditavel. Todas as
-# listas abaixo sao declaradas aqui, no topo, e cada uma cita a norma que a
-# justifica. A primeira delas vai precisar crescer conforme novos tipos de
-# artefato entrarem nos packs de cenario.
+# As constantes de excecao e a classificacao de valor viviam neste arquivo desde
+# a Fase 0, e ele varre a ARVORE VERSIONADA. `scenarios/` esta fora do Git desde
+# a peca 5 da Fase 5 — entao o PACK, que e onde o gabarito e o ator de ameaca
+# moram, nunca passou por aqui.
+#
+# A P7-7 cobra o verificador do `threat_actor` declarado, e a exigencia de `05`
+# §5.2 que e mecanizavel — *"nenhum IOC operacional"* — E A MESMA PERGUNTA que
+# este arquivo ja respondia, sobre um artefato que ele nao alcanca.
+#
+# Reimplementa-la no `range-cli scenario lint` seria a D4 com outro nome: duas
+# respostas para a mesma pergunta, divergindo no dia em que uma das faixas
+# mudasse. E a divergencia aqui NAO FALHA ALTO — ela deixa passar.
+#
+# O QUE FICOU NESTE ARQUIVO e a VARREDURA: quais diretorios, quais formatos,
+# quais isencoes. E ai que os dois chamadores legitimamente diferem — um
+# percorre a arvore por diretorio, o outro percorre o documento de um pack.
+#
+# `dados_sinteticos` e stdlib pura e de TOPO pelo mesmo motivo que este job nao
+# instala nada. O `sys.path` abaixo o alcanca pela raiz derivada de `__file__`,
+# entao ele resolve com ou sem instalacao.
+# ---------------------------------------------------------------------------
 
-#: Ultimo rotulo que indica NOME DE ARQUIVO, nao dominio. Sem esta lista,
-#: "relatorio.pdf" seria acusado de dominio nao reservado.
-#: CRESCE conforme novos formatos de artefato aparecem nos packs.
-NON_DOMAIN_TRAILING_LABELS = frozenset(
-    {
-        "bak", "cef", "conf", "csv", "eml", "env", "gz", "htm", "html", "ics",
-        "ini", "jpeg", "jpg", "js", "json", "jsonl", "log", "md", "mjs", "pdf",
-        "png", "py", "sh", "sql", "svg", "toml", "ts", "tsx", "txt", "webp",
-        "xml", "yaml", "yml", "zip",
-    }
-)
+sys.path.insert(0, str(REPO_ROOT))
 
-#: TLDs reservados a documentacao, teste e uso local. RFC 2606 e RFC 6761 para
-#: `example`, `invalid`, `test` e `localhost`; RFC 6762 (mDNS) para `local`.
-#:
-#: A citacao anterior nomeava so 2606 e 6761, que nao cobrem `local` — L3 da
-#: quinta auditoria. Esta lista e espelhada em
-#: contracts/evidence.schema.yaml::allowed_domain_suffixes, e as duas divergiam
-#: enquanto o comentario de la afirmava alinhamento.
-RESERVED_TLDS = frozenset({"example", "invalid", "test", "localhost", "local"})
-
-#: Dominios de segundo nivel reservados a documentacao. RFC 2606 secao 3.
-RESERVED_DOMAINS = frozenset({"example.com", "example.net", "example.org"})
-
-#: Faixas de documentacao. RFC 5737 (IPv4) e RFC 3849 (IPv6). Declaradas
-#: explicitamente para nao depender da classificacao de is_private, que varia
-#: entre versoes do modulo ipaddress.
-DOCUMENTATION_NETWORKS = tuple(
-    ipaddress.ip_network(cidr)
-    for cidr in (
-        "192.0.2.0/24",
-        "198.51.100.0/24",
-        "203.0.113.0/24",
-        "2001:db8::/32",
-    )
+from dados_sinteticos import (  # noqa: E402
+    RULE_DOMAIN,
+    RULE_IDENTIFIER,
+    RULE_IP,
+    achados_na_arvore,
 )
 
 #: Diretorios de dado sintetico. Contratos (flags.yaml, schemas) ficam de
 #: fora: nome de flag tem a mesma forma de hostname e seria falso positivo.
 DATA_SUFFIXES = (".json", ".jsonl", ".yaml", ".yml", ".csv")
-
-MAX_HOSTNAME_LENGTH = 253
-MAX_LABEL_LENGTH = 63
-
-#: CPF: 11 digitos nus, ou 14 caracteres no formato NNN.NNN.NNN-NN. Apenas
-#: essas duas formas canonicas sao tratadas como candidato, para nao classificar
-#: qualquer numero longo como identificador.
-CPF_DIGITS = 11
-CPF_FORMATTED_LENGTH = 14
-CPF_DOT_POSITIONS = (3, 7)
-CPF_DASH_POSITION = 11
-
-RULE_IP = "DADO SINTETICO - endereco IP fora das faixas permitidas"
-RULE_DOMAIN = "DADO SINTETICO - dominio fora das faixas reservadas"
-RULE_IDENTIFIER = "DADO SINTETICO - CPF passa na validacao de digito verificador"
 
 
 def _scanned_subdirs(root: Path) -> list[str]:
@@ -131,178 +103,16 @@ def _scanned_subdirs(root: Path) -> list[str]:
     return subdirs
 
 
-# ---------------------------------------------------------------------------
-# Classificacao de valores
-# ---------------------------------------------------------------------------
-
-
-def _ip_is_allowed(address: ipaddress._BaseAddress) -> bool:
-    if any(address in network for network in DOCUMENTATION_NETWORKS):
-        return True
-    return bool(
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_unspecified
-        or address.is_reserved
-    )
-
-
-def _cpf_candidate(value: str) -> str | None:
-    """Digitos do CPF quando o valor esta numa das duas formas canonicas."""
-    text = value.strip()
-    if len(text) == CPF_DIGITS and text.isdigit():
-        return text
-    if len(text) == CPF_FORMATTED_LENGTH:
-        if all(text[position] == "." for position in CPF_DOT_POSITIONS) and (
-            text[CPF_DASH_POSITION] == "-"
-        ):
-            digits = text.replace(".", "").replace("-", "")
-            if digits.isdigit():
-                return digits
-    return None
-
-
-def _cpf_check_digits_valid(digits: str) -> bool:
-    """Validacao oficial de CPF. Sequencia de digito repetido nunca e valida."""
-    if len(digits) != CPF_DIGITS or len(set(digits)) == 1:
-        return False
-    for size in (9, 10):
-        total = sum(int(digits[i]) * (size + 1 - i) for i in range(size))
-        expected = (total * 10) % 11
-        if expected == 10:
-            expected = 0
-        if expected != int(digits[size]):
-            return False
-    return True
-
-
-def _as_ip(value: str):
-    try:
-        return ipaddress.ip_address(value)
-    except ValueError:
-        return None
-
-
-def _hostname_candidates(value: str):
-    """Extrai hostnames de um valor: URL, e-mail ou hostname nu."""
-    text = value.strip()
-    if not text:
-        return
-    if "://" in text:
-        host = urlsplit(text).hostname
-        if host:
-            yield host
-        return
-    if "@" in text:
-        _, _, tail = text.rpartition("@")
-        if tail:
-            yield tail.strip()
-        return
-    if " " in text or "/" in text:
-        return
-    yield text
-
-
-def _is_hostname_shaped(host: str) -> bool:
-    if len(host) > MAX_HOSTNAME_LENGTH:
-        return False
-    labels = host.rstrip(".").split(".")
-    if len(labels) < 2:
-        return False
-    for label in labels:
-        if not label or len(label) > MAX_LABEL_LENGTH:
-            return False
-        if label.startswith("-") or label.endswith("-"):
-            return False
-        if not label.replace("-", "").isalnum():
-            return False
-        if not label.isascii():
-            return False
-    tail = labels[-1].lower()
-    if not tail.isalpha() or len(tail) < 2:
-        return False
-    if tail in NON_DOMAIN_TRAILING_LABELS:
-        return False
-    return True
-
-
-def _hostname_is_allowed(host: str) -> bool:
-    labels = host.rstrip(".").lower().split(".")
-    if labels[-1] in RESERVED_TLDS:
-        return True
-    return ".".join(labels[-2:]) in RESERVED_DOMAINS
-
-
-def _check_string(value: str, source: str, exempt: frozenset[str], violations: list[Violation]):
-    if value in exempt:
-        return
-
-    cpf = _cpf_candidate(value)
-    if cpf is not None:
-        if _cpf_check_digits_valid(cpf):
-            violations.append(
-                Violation(
-                    source,
-                    0,
-                    RULE_IDENTIFIER,
-                    f"'{value}' e um CPF valido. 05_SECURITY_REQUIREMENTS secao 3 "
-                    "exige que CPF sintetico FALHE a validacao de digito "
-                    "verificador; caso contrario e indistinguivel de dado real.",
-                )
-            )
-        return
-
-    address = _as_ip(value)
-    if address is not None:
-        if not _ip_is_allowed(address):
-            violations.append(
-                Violation(
-                    source,
-                    0,
-                    RULE_IP,
-                    f"'{value}' nao esta em faixa privada nem de documentacao "
-                    "(RFC 1918, RFC 5737, RFC 3849).",
-                )
-            )
-        return
-
-    for host in _hostname_candidates(value):
-        if host in exempt:
-            continue
-        candidate = _as_ip(host)
-        if candidate is not None:
-            if not _ip_is_allowed(candidate):
-                violations.append(
-                    Violation(
-                        source,
-                        0,
-                        RULE_IP,
-                        f"'{host}' nao esta em faixa privada nem de documentacao.",
-                    )
-                )
-            continue
-        if _is_hostname_shaped(host) and not _hostname_is_allowed(host):
-            violations.append(
-                Violation(
-                    source,
-                    0,
-                    RULE_DOMAIN,
-                    f"'{host}' nao esta em faixa reservada a documentacao "
-                    "(RFC 2606, RFC 6761).",
-                )
-            )
-
-
 def _walk(value, source: str, exempt: frozenset[str], violations: list[Violation]) -> None:
-    if isinstance(value, str):
-        _check_string(value, source, exempt, violations)
-    elif isinstance(value, dict):
-        for item in value.values():
-            _walk(item, source, exempt, violations)
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            _walk(item, source, exempt, violations)
+    """A travessia, agora um EMBRULHO: o predicado e de `dados_sinteticos`.
+
+    A `Violation` de `tools/_common` continua sendo o vocabulario deste
+    verificador — o modulo compartilhado devolve `Achado`, sem opiniao sobre
+    onde ele apareceu, e cada chamador acrescenta a localizacao que so ele
+    conhece. Aqui e arquivo e linha; no linter de pack e o caminho de instancia.
+    """
+    for achado in achados_na_arvore(value, isentos=exempt):
+        violations.append(Violation(source, 0, achado.regra, achado.detalhe))
 
 
 # ---------------------------------------------------------------------------

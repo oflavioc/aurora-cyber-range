@@ -215,16 +215,30 @@ MECANISMOS: dict[int, Entrada] = {
         mecanismos=(
             "contracts/ground_truth.schema.yaml",
             "contracts/scenario.schema.v2.yaml",
+            "dados_sinteticos/__init__.py",
+            "range-core/engine/loader/pack_loader.py",
+            # ELE JA EXECUTAVA a clausula de IOC da §5.2 — as faixas da §3 sao a
+            # forma dela — e nao constava. Entrou quando o movimento do
+            # predicado o fez CITAR a secao, e a direcao inversa desta checagem
+            # o pegou: verificador que executa uma secao sem constar do registro
+            # faz o registro SUBESTIMAR a cobertura.
+            "tools/check_synthetic_data.py",
         ),
-        destinatario=(
-            7,
-            "a §5.2 exige fonte publica citavel declarada em `ground_truth.yaml`, e "
-            "o primeiro pack e da Fase 7. Sem pack nao ha ator declarado a conferir",
-        ),
-        nota="COBERTURA PARCIAL: os dois contratos carregam a distincao da §5.1 "
-        "(fornecedor de produto sempre ficticio) e a forma do bloco `threat_actor` "
-        "da §5.2. O que falta e verificador que confira o ator DECLARADO contra as "
-        "exigencias da §5.2 — fonte citavel, TTP nao excedida, IOC ausente",
+        destinatario=None,
+        nota="COBERTURA PARCIAL, E AGORA MEDIDA POR EXIGENCIA — peca 3 da Fase 7, "
+        "fechando a P7-7. O `destinatario=(7, ...)` saiu daqui porque a fase "
+        "chegou; a redacao anterior falava de UM verificador do ator declarado, e "
+        "medir mostrou que sao TRES exigencias com tres destinos. (a) FONTE "
+        "CITAVEL: meia — `sources` e `required` com minItems 1, e 'citavel' nao e "
+        "forma. (b) TTP NAO EXCEDIDA: nao mecanizavel, o julgamento e contra "
+        "documento externo. (c) IOC AUSENTE: mecanizada em "
+        "`confere_ausencia_de_ioc`, pelo MESMO predicado de `dados_sinteticos/` "
+        "que `tools/check_synthetic_data.py` usa — necessario porque aquele varre "
+        "a arvore versionada e `scenarios/` esta fora do Git, entao o pack nunca "
+        "passava por ele. Limite de (c): o predicado classifica valores, e "
+        "dominio embutido em PROSA escapa. As tres estao no "
+        "`x-aurora-linter-rules` de `scenario.schema.v2.yaml`, com "
+        "`destinatario: revisao humana` onde nao ha mecanismo",
     ),
     6: Entrada(
         titulo="Deploy",

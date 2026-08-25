@@ -109,8 +109,12 @@ MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
         [
             (
                 "loader",
-                "        if flags:\n",
-                "        if False:\n",
+                # QUATRO ESPACOS, e nao oito: a camada 2 deixou de ser um laco
+                # sobre os documentos e passou a ser uma funcao por documento
+                # (`_verify_rules_documento`), chamada pela lista de `_passos`.
+                # O `if` desceu um nivel de indentacao junto.
+                "    if flags:\n",
+                "    if False:\n",
             )
         ],
         {

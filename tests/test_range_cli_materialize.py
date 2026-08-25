@@ -200,15 +200,41 @@ class OsParametrosSaoEXPLICITOS(unittest.TestCase):
     def test_os_outros_subcomandos_de_04_secao_8_NAO_existem(self) -> None:
         """Casca vazia seria superficie que PARECE existir.
 
-        `validate`, `lint`, `dryrun` e `migrate` sao das pecas 4 e 5; `evidence`
-        e da Fase 9. Um `lint` que saisse zero sem conferir nada seria pior que
-        a ausencia dele — a ausencia grita.
+        `dryrun` e da peca 4; `migrate` nao tem entrega enquanto nao houver
+        transicao real a migrar (ver `engine/migrations/__init__.py`); `evidence`
+        e da Fase 9. Um verbo que saisse zero sem conferir nada seria pior que a
+        ausencia dele — a ausencia grita.
+
+        **`lint` E `validate` SAIRAM DESTA LISTA, e por motivos DIFERENTES.** A
+        redacao anterior os punha aqui junto dos outros, e ela envelheceu com a
+        entrega da peca 3 — a classe da §1.6 do registro da Fase 1. O modo de
+        corrigir e reescrever a lista, e nao acrescentar uma ressalva.
+
+        `lint` **existe** desde a peca 3, e o teste dele e
+        `tests/test_range_cli_lint.py`. `validate` **nao existe e nao vai
+        existir como verbo separado nesta fase**: `04` §8 divide as checagens
+        entre os dois, e `lint` roda a lista inteira de `_passos` — a de
+        `validate` inclusive. Um `validate` seria um `lint` com menos checagens,
+        e nenhum criterio de DoD o cobra.
         """
-        for verbo in ("validate", "lint", "dryrun", "migrate"):
+        for verbo in ("validate", "dryrun", "migrate"):
             with self.assertRaises(SystemExit):
                 cli._parser().parse_args(["scenario", verbo, "x"])
         with self.assertRaises(SystemExit):
             cli._parser().parse_args(["evidence", "build", "x"])
+
+    def test_lint_existe_e_recebe_o_caminho_do_pacote(self) -> None:
+        """A outra metade: a lista acima so prova ausencia se `lint` estiver fora.
+
+        Sem esta perna, remover `lint` do parser por engano deixaria a suite
+        verde — o teste de ausencia passaria com mais um verbo, que e o mesmo
+        defeito de discriminante que `PackSite` existe para nao ter.
+        """
+        args = cli._parser().parse_args(["scenario", "lint", "algum/pacote"])
+        self.assertEqual((args.grupo, args.verbo), ("scenario", "lint"))
+        self.assertEqual(args.path, "algum/pacote")
+        # `--flags` e opcional: o default sai do `domain` do manifesto.
+        self.assertIsNone(args.flags)
 
 
 class OESCRITOR_E_DETERMINISTA(unittest.TestCase):

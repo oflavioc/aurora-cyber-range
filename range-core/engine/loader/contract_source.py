@@ -88,8 +88,19 @@ def contracts_dir() -> Path:
     )
 
 
-def parse_document(caminho: Path) -> dict:
-    """Um documento YAML, ou `ContractSourceError` nomeando o arquivo.
+def parse_document_com_texto(caminho: Path) -> tuple[dict, str]:
+    """O documento E o texto de que ele saiu, de UMA leitura so.
+
+    O TEXTO SOBE JUNTO PORQUE O LINTER PRECISA DELE, e precisa dele SEM reler.
+    `range-cli scenario lint` resolve `linha:coluna` compondo a arvore de nos do
+    YAML (`engine/loader/posicao.py`), e a exigencia de T12 e sobre LOCALIZAR:
+    posicao calculada sobre uma segunda leitura aponta para o arquivo que esta
+    no disco agora, e nao para o que foi validado. Entre as duas leituras cabe
+    uma edicao, e o relatorio passaria a mentir com a mesma confianca com que
+    acerta.
+
+    Devolver o texto em vez de expor um `compose` aqui mantem este modulo com um
+    trabalho so — ler e parsear —, e deixa a arvore de nos com quem a consome.
 
     `yaml.safe_load` nunca constroi objeto arbitrario — nao ha `!!python/object`
     aqui, e isso importa porque pack e conteudo de terceiro do ponto de vista do
@@ -104,12 +115,22 @@ def parse_document(caminho: Path) -> dict:
     except yaml.YAMLError as exc:
         raise ContractSourceError(f"{caminho}: YAML invalido — {exc}") from exc
     if documento is None:
-        return {}
+        return {}, texto
     if not isinstance(documento, dict):
         raise ContractSourceError(
             f"{caminho}: documento de topo e {type(documento).__name__}, esperado mapeamento"
         )
-    return documento
+    return documento, texto
+
+
+def parse_document(caminho: Path) -> dict:
+    """Só o documento — para quem não tem o que fazer com o texto.
+
+    Uma implementacao, dois chamadores: quem so precisa do documento nao paga
+    por uma leitura propria, e as duas formas nao podem divergir porque uma
+    delega a outra.
+    """
+    return parse_document_com_texto(caminho)[0]
 
 
 def read_contracts(raiz: Path | None = None) -> dict[str, dict]:

@@ -239,6 +239,20 @@ packages = [
   # `range_core.api.processo` — a diferenca e que aquele so precisa de DADO do
   # dominio e este precisa de CODIGO, e por isso mora fora.
   "range_cli",
+  # *"ESTE VALOR E DADO SINTETICO?"* — uma implementacao, dois chamadores.
+  #
+  # PACOTE DE TOPO E STDLIB PURA, e as duas coisas sao exigidas pelos dois
+  # chamadores, que vivem em mundos diferentes: `tools/check_synthetic_data.py`
+  # roda por `python tools/x.py` no job `arquitetura`, que NAO INSTALA NADA;
+  # `range_cli/lint.py` e `range-core/engine/loader/pack_loader.py` rodam
+  # instalados.
+  #
+  # Deixa-lo em `tools/` faria o `range-cli` instalado ficar sem ele — `tools`
+  # nao esta nesta lista, e o import resolveria so com o CWD na raiz. E a MESMA
+  # assimetria que `package-dir`, `package-data` e a entrada do adapter ja
+  # pagaram tres vezes neste arquivo. Po-lo em `range-core/` faria `tools/`
+  # importar a aplicacao, que e o que a pureza daquele job existe para impedir.
+  "dados_sinteticos",
 ]
 
 [project.scripts]
