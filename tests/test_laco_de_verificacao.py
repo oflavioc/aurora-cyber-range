@@ -57,6 +57,8 @@ from pack_completo import materializa  # noqa: E402
 PACK = materializa()
 CONTRATOS = contract_source.read_contracts()
 MOTIVOS = contract_source.rollback_reasons(CONTRATOS)
+#: Do contrato, pela mesma porta e pelo mesmo motivo que `MOTIVOS`.
+QUALIFICADORES = contract_source.since_qualifiers(CONTRATOS)
 FLAGS = AdapterFlags.from_document(
     parse_yaml(REPO_ROOT / "domains" / "academus" / "flags.yaml"),
     source="domains/academus/flags.yaml",
@@ -104,6 +106,7 @@ class _ComLaco(unittest.TestCase):
             store=self.store,
             predicados=CONTENCAO_QUANDO_O_PORTAL_CAI,
             declarations=PACK_CARREGADO.declarations,
+            since_qualifiers=QUALIFICADORES,
         )
         self.engine = InjectEngine(
             pack=PACK_CARREGADO,
@@ -323,7 +326,7 @@ class RollbackQueNaoAlcancaOVeredito(_ComLaco):
         self.assertTrue(
             avalia(
                 CONTENCAO_QUANDO_O_PORTAL_CAI[PREDICADO_CONTENCAO],
-                mundo_corrente(correntes, flags),
+                mundo_corrente(correntes, flags, since_qualifiers=QUALIFICADORES),
             )
         )
 

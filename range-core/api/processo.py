@@ -133,6 +133,11 @@ def criar() -> FastAPI:
         store=store,
         predicados=pack.verification_predicates,
         declarations=pack.declarations,
+        # DO CONTRATO, LIDO UMA VEZ AQUI — `04` §4.1. O avaliador tinha o seu
+        # próprio `SINCE_SELF = "self"`, gêmeo do que existia no loader, e as
+        # duas cópias concordavam por coincidência. É a mesma forma com que
+        # `rollback_reasons` desce para o `InjectEngine`, três linhas abaixo.
+        since_qualifiers=contract_source.since_qualifiers(contratos),
     )
 
     exercicio = Exercicio(
