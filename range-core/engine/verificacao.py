@@ -50,7 +50,7 @@ que mudou foi a pergunta sobre o veredito, que agora é de epoch e é uma só.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from contracts.generated.events import (
@@ -78,9 +78,22 @@ PRODUTOR = "inject-engine"
 # e `test_laco_de_verificacao` o importam do emissor, que é onde ele é escrito.
 
 
-#: `03` §3.1 — a única forma de `since` definida em v1. Outro valor é recusado na
-#: carga, e recusado aqui como segunda linha.
-SINCE_SELF = "self"
+#: A CONSTANTE SAIU DAQUI, e a ausência é o conserto — `04` §4.1.
+#:
+#: Era `SINCE_SELF = "self"`, escrito neste arquivo **e** em
+#: `engine/loader/pack_loader.py`. As duas cópias concordavam por coincidência:
+#: nenhum import entre elas, nenhum verificador cruzando, e os dois comentários
+#: citando a mesma seção como se isso bastasse. Mudar uma e esquecer a outra
+#: faria a carga recusar um pack que o avaliador aceitaria, ou o inverso.
+#:
+#: E ESTA ERA A CÓPIA MAIS PERIGOSA DAS DUAS, não a menos: o docstring de
+#: `avalia` declara esta guarda como SEGUNDA LINHA, para *"predicado que veio
+#: por outro caminho"*. Copia que só dispara depois de as outras falharem é
+#: copia que envelhece sem ninguém olhando.
+#:
+#: O valor agora chega em `Mundo.since_qualifiers`, derivado de
+#: `contracts/ground_truth.schema.yaml` §`$defs/since_qualifier` por
+#: `contract_source.since_qualifiers`, lido uma vez na raiz de composição.
 
 
 class SemGramaticaTemporal(Exception):
@@ -188,6 +201,19 @@ class Mundo:
     fatos: frozenset[str]
     flags: Mapping[str, FlagValue]
     referencia: InstanteDeReferencia | None = None
+    #: OS QUALIFICADORES DE `since`, VINDOS DO CONTRATO — `04` §4.1.
+    #:
+    #: Chega como DADO, e não como constante deste módulo. Até aqui era
+    #: `SINCE_SELF = "self"` escrito neste arquivo **e** em
+    #: `engine/loader/pack_loader.py`, sem import entre os dois: as duas cópias
+    #: concordavam por coincidência, e mudar uma sem a outra faria carga e
+    #: avaliação discordarem sobre o mesmo campo. A origem única é
+    #: `contract_source.since_qualifiers`, lida uma vez na raiz de composição.
+    #:
+    #: `kw_only` porque ele é OBRIGATÓRIO e entra depois de um campo com
+    #: default. Sem isso a única saída seria dar-lhe um default — e default aqui
+    #: seria a segunda origem voltando pela porta dos fundos.
+    since_qualifiers: frozenset[str] = field(kw_only=True)
 
 
 def avalia(no: Mapping, mundo: Mundo) -> bool:
@@ -239,17 +265,19 @@ def avalia(no: Mapping, mundo: Mundo) -> bool:
         since = alvo.get("since")
         if since is None:
             return classe not in mundo.fatos
-        if since != SINCE_SELF:
+        if since not in mundo.since_qualifiers:
             raise PredicadoMalformado(
                 f"`absence_of.since` com valor nao definido: {since!r}.\n"
-                f"    `03` §3.1 define {SINCE_SELF!r} como a UNICA forma de v1. A "
-                "guarda de carga recusa este pack antes do boot; chegar aqui "
-                "significa que o predicado veio por outro caminho, e avaliar um "
-                "qualificador que ninguem definiu seria inventar semantica."
+                f"    O contrato declara {sorted(mundo.since_qualifiers)!r} em "
+                "`ground_truth.schema.yaml` §`$defs/since_qualifier`, e `03` §3.1 "
+                "e quem os define. A guarda de carga recusa este pack antes do "
+                "boot; chegar aqui significa que o predicado veio por outro "
+                "caminho, e avaliar um qualificador que ninguem definiu seria "
+                "inventar semantica."
             )
         if mundo.referencia is None:
             raise SemGramaticaTemporal(
-                f"`absence_of` com `since: {SINCE_SELF}` sem instante de "
+                f"`absence_of` com `since: {since}` sem instante de "
                 "referencia: nao ha `exercise_started` na linhagem corrente.\n"
                 "    A ausencia e exigida A PARTIR do instante em que o predicado "
                 "passou a ser avaliado, e antes do inicio esse instante nao "
@@ -258,7 +286,7 @@ def avalia(no: Mapping, mundo: Mundo) -> bool:
             )
         if classe in mundo.fatos:
             raise SemGramaticaTemporal(
-                f"`absence_of` com `since: {SINCE_SELF}` sobre a classe "
+                f"`absence_of` com `since: {since}` sobre a classe "
                 f"{classe!r}, que ESTA na linhagem corrente.\n"
                 f"    Instante de referencia: evento {mundo.referencia.event_id} "
                 f"({mundo.referencia.origem}), `exercise_time` "
@@ -284,13 +312,20 @@ def avalia(no: Mapping, mundo: Mundo) -> bool:
 
 
 def mundo_corrente(
-    eventos: Sequence[Event], flags: Mapping[str, FlagValue]
+    eventos: Sequence[Event],
+    flags: Mapping[str, FlagValue],
+    *,
+    since_qualifiers: frozenset[str],
 ) -> Mundo:
     """Monta o mundo a partir dos eventos **já filtrados pela linhagem**.
 
     Recebe os eventos correntes, e não o fluxo total: a filtragem é passo
     anterior e explícito em `avaliar_e_emitir`, para que ela seja legível como
     cálculo e não como recorte de quem monta.
+
+    `since_qualifiers` ATRAVESSA, e não é lido aqui: `04` §4.1 põe a leitura do
+    contrato na raiz de composição, e este módulo é caminho quente — ele roda a
+    cada gravação.
     """
     fatos = {
         str(e.payload.get("fact_class"))
@@ -302,6 +337,7 @@ def mundo_corrente(
         fatos=frozenset(fatos),
         flags=MappingProxyType(dict(flags)),
         referencia=instante_de_referencia(eventos),
+        since_qualifiers=since_qualifiers,
     )
 
 
@@ -309,6 +345,8 @@ def avaliar_e_emitir(
     store: EventStore,
     predicados: Mapping[str, Mapping],
     flags: Mapping[str, FlagValue],
+    *,
+    since_qualifiers: frozenset[str],
 ) -> list[Event]:
     """Avalia os predicados do pack sobre a linhagem corrente, e emite as transições.
 
@@ -326,7 +364,7 @@ def avaliar_e_emitir(
     """
     fluxo = store.read_all()
     correntes = eventos_da_linhagem_corrente(fluxo)
-    mundo = mundo_corrente(correntes, flags)
+    mundo = mundo_corrente(correntes, flags, since_qualifiers=since_qualifiers)
     corrente = current_epoch(fluxo)
 
     emitidos: list[Event] = []
@@ -398,6 +436,11 @@ class LacoDeVerificacao:
     store: EventStore
     predicados: Mapping[str, Mapping]
     declarations: object
+    #: Do contrato, por `contract_source.since_qualifiers`, lido UMA vez na raiz
+    #: de composição — `04` §4.1. É este campo que faz a guarda do avaliador
+    #: deixar de ter literal próprio e passar a concordar com a de carga por
+    #: construção, e não por lembrança.
+    since_qualifiers: frozenset[str]
 
     def avaliar(self) -> list[Event]:
         """Devolve os vereditos emitidos — vazio no caso comum.
@@ -412,4 +455,9 @@ class LacoDeVerificacao:
         from range_core.state.simulation_state import project
 
         flags = project(self.store.read_all(), self.declarations).flags
-        return avaliar_e_emitir(self.store, self.predicados, flags)
+        return avaliar_e_emitir(
+            self.store,
+            self.predicados,
+            flags,
+            since_qualifiers=self.since_qualifiers,
+        )
