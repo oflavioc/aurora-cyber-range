@@ -45,6 +45,73 @@ properties:
 
 $defs:
 
+  # ===========================================================================
+  # AS FORMAS COMPARTILHADAS — este contrato e a FONTE das tres.
+  #
+  # POR QUE AQUI, e a escolha e argumentada e nao de conveniencia: `fact_id` e
+  # `case_id` sao DEFINIDOS neste documento, porque e ele que declara `facts` e
+  # `line_b_cases`. Quem os referencia — `assessment.schema.yaml`,
+  # `scenario.schema.v2.yaml`, `evidence.schema.yaml` — fala SOBRE entidades que
+  # moram aqui. Pôr a forma no consumidor inverteria a direcao: o gabarito
+  # passaria a depender da submissao para saber que forma tem um caso seu.
+  #
+  # O QUE ISTO FECHA: a cópia de `^GC-[0-9]+$` vivia em DOIS arquivos, declarada
+  # em comentario e sem nenhum verificador cruzando os dois. Duas cópias da mesma
+  # forma divergem no dia em que uma muda, e a divergencia aqui nao falha alto:
+  # a juncao submissao -> gabarito passa a nao casar por FORMA, e o caso sai do
+  # Brier como "nao avaliado" — nota pior por defeito de digitacao, e nao por
+  # julgamento. E o que o comentario de `assessment.schema.yaml` ja temia.
+  #
+  # `$ref` ENTRE ARQUIVOS RESOLVE, e nao e novidade deste contrato: hoje
+  # `events.schema.yaml` referencia `assessment.schema.json` e
+  # `rubrics.schema.json`, e `scenario.schema.v2.yaml` referencia
+  # `objectives.schema.json`. O `Registry` de `referencing` e montado por `$id`
+  # em `engine/loader/contract_source.py::registry_for` e em
+  # `scripts/check_contract_examples.py`, e os dois consomem a MESMA construcao.
+  # ===========================================================================
+
+  # `fact_id` — decisao D6 da Fase 1, preservada sem alteracao de forma.
+  #
+  # A spec mostra `GT-A-014` e nunca declara padrao. A forma anterior,
+  # `^GT-[A-Z]-[0-9]{3}$`, impunha teto de 999 fatos por linha com linha de um
+  # unico caractere. O segmento do meio e CURINGA de proposito — `[A-Z0-9]+` —
+  # porque ele nomeia a linha do cenario, e linha nao e vocabulario fechado.
+  #
+  # O ponto continua proibido pelo padrao, e nao por estilo: `04` secao 7 usa o
+  # id dentro de um caminho pontuado, `facts.GT-A-020.records_affected`.
+  fact_id_pattern:
+    type: string
+    pattern: '^GT-[A-Z0-9]+-[0-9]+$'
+    description: 'Identificador de fato do ground truth — 04 secao 3 e 08 secao 2. Forma unica para as quatro referencias que a resolvem: facts.fact_id aqui, materializes_facts de inject (04 secao 5), projects_facts do MANIFEST (08 secao 7) e fact_check_against de media_event (04 secao 7), esta ultima por composicao declarada.'
+
+  # `case_id` — a forma que ERA duplicada.
+  #
+  # O padrao restrito nao compra verificacao sozinho: o que pega erro real e
+  # UNICIDADE (`x-aurora-unique` no uso) e RESOLUCAO. O que a forma compra e a
+  # JUNCAO: e por `case_id` que a submissao encontra o gabarito.
+  case_id_pattern:
+    type: string
+    pattern: '^GC-[0-9]+$'
+    description: 'Identificador de caso da Linha B — 04 secao 3 e 02 secao 6.3. E por ele que assessment.case_id (03 secao 5.1) encontra a entrada de line_b_cases; forma divergente faria a juncao falhar por FORMA, e o caso sairia do Brier como nao avaliado.'
+
+  # `since` — o qualificador de instante de `absence_of`.
+  #
+  # ESTE $def NAO CRIA NORMA. `03_EXERCISE_DESIGN.md` secao 3.1 ja fixa:
+  # *"`self` e a unica forma definida em v1. O campo aceita string no contrato,
+  # e qualquer outro valor e recusado na carga enquanto nao houver semantica
+  # declarada para ele"*. O contrato e que estava MAIS PERMISSIVO que a norma —
+  # `type: string` livre —, e a guarda de carga
+  # (`engine/loader/pack_loader.py::confere_qualificador_since`) carregava
+  # sozinha uma exigencia que o contrato podia ter expressado.
+  #
+  # `enum` E NAO `const`, e a escolha e sobre o futuro: quando a gramatica de
+  # `exercise_time` chegar (P6-3) e uma segunda forma for definida, ela entra
+  # como valor novo aqui. `const` obrigaria a reescrever a chave para acrescentar
+  # um valor, e reescrever chave e mudanca de forma, nao de vocabulario.
+  since_qualifier:
+    enum: [self]
+    description: 'Qualificador de instante de absence_of — 03 secao 3.1. E QUALIFICADOR DE INSTANTE, e nao referencia a evento: self significa a partir do instante em que este predicado passou a ser avaliado na linhagem corrente. self e a unica forma definida em v1.'
+
   # -------------------------------------------------------------------------
   # FATOS — 08 secao 2.
   #
@@ -59,22 +126,17 @@ $defs:
     properties:
 
       # ---------------------------------------------------------------------
-      # fact_id — decisao D6 da Fase 1.
+      # fact_id — a FORMA saiu daqui e virou `$defs/fact_id_pattern`, que este
+      # documento define e os outros tres referenciam. O argumento da D6 da Fase
+      # 1 esta preservado la, e o padrao nao mudou.
       #
-      # A spec mostra `GT-A-014` e nunca declara padrao. A forma anterior,
-      # `^GT-[A-Z]-[0-9]{3}$`, era invencao minha e impunha teto de 999 fatos
-      # por linha com linha de um unico caractere. Padrao restrito nao comprava
-      # verificacao: o que pega erro real e UNICIDADE aqui e RESOLUCAO nas tres
-      # referencias — `materializes_facts` de inject (04 secao 5),
-      # `projects_facts` do MANIFEST (08 secao 7) e `fact_check_against` de
-      # media_event (04 secao 7).
-      #
-      # O ponto continua proibido pelo padrao, e nao por estilo: 04 secao 7 usa
-      # o id dentro de um caminho pontuado, `facts.GT-A-020.records_affected`.
+      # `x-aurora-unique` FICA AQUI, e a separacao e deliberada: forma e
+      # propriedade do identificador; unicidade e propriedade DESTA COLECAO.
+      # `materializes_facts` cita fatos e nao os declara — exigir unicidade la
+      # proibiria dois injects de materializarem o mesmo fato.
       # ---------------------------------------------------------------------
       fact_id:
-        type: string
-        pattern: '^GT-[A-Z0-9]+-[0-9]+$'
+        $ref: '#/$defs/fact_id_pattern'
         x-aurora-unique: true
 
       fact_class:
@@ -312,8 +374,12 @@ $defs:
               fact_class:
                 type: string
                 minLength: 1
+              # A FORMA passa a ser a de `$defs/since_qualifier`. O campo era
+              # `type: string` livre, e `03` secao 3.1 ja dizia que `self` e a
+              # unica forma de v1 — o contrato estava mais permissivo que a
+              # norma, e a guarda de carga carregava sozinha a exigencia.
               since:
-                type: string
+                $ref: '#/$defs/since_qualifier'
 
   predicate_before:
     type: object
@@ -348,9 +414,12 @@ $defs:
       # D6: `case_id` nao tinha padrao nenhum enquanto `fact_id` tinha um
       # estrito. Mesma classe de identificador, mesmo tratamento — legibilidade
       # sem teto, unicidade como verificacao.
+      #
+      # A FORMA saiu daqui e virou `$defs/case_id_pattern`. `assessment.schema.yaml`
+      # a referencia pelo `$id` deste documento, e com isso a igualdade entre os
+      # dois deixou de ser convencao mantida a mao.
       case_id:
-        type: string
-        pattern: '^GC-[0-9]+$'
+        $ref: '#/$defs/case_id_pattern'
         x-aurora-unique: true
       defensibility:
         type: number
@@ -542,6 +611,62 @@ examples:
 # que rodasse so o schema daria por provado o que nao provou.
 # ---------------------------------------------------------------------------
 x-aurora-invalid-examples:
+
+  # AS TRES NEGATIVAS DAS CLAUSULAS NOVAS. Clausula sem fixture negativa e regra
+  # que PARECE verificada e nao e: ela passa por existir, e ninguem sabe se ela
+  # morde. As tres formas de `since` que a §3.1 nao define entram aqui, e a de
+  # `fact_id` fora de forma tambem — ate este commit, os 15 negativos deste
+  # contrato nao tocavam `since` em nenhum deles.
+
+  - reason: 'since com valor que 03 secao 3.1 nao define: self e a unica forma de v1, e o contrato deixava passar qualquer string'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - absence_of:
+                fact_class: exfiltration
+                since: exercise_start
+        service_restoration:
+          not_applicable: 'fora do escopo desta fixture'
+
+  # A FORMA QUE O GERADOR DA LINHA B ESCREVIA ATE O PR #57, e ela esta aqui por
+  # isso: `containment_declared` e `event_type` de camada `declaration`
+  # (`09` secao 4.0), e `since` e qualificador de INSTANTE. A confusao e de
+  # especie, e o contrato nao a via porque o campo era string livre.
+  - reason: 'since recebendo event_type: since e qualificador de instante, e declaration nunca toca ground truth (00 secao 3)'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: GT-A-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - absence_of:
+                fact_class: exfiltration
+                since: containment_declared
+        service_restoration:
+          not_applicable: 'fora do escopo desta fixture'
+
+  - reason: 'fact_id fora da forma de fact_id_pattern: o $ref tem de morder na fonte, e nao so nos consumidores'
+    rejected_by: schema
+    instance:
+      facts:
+        - fact_id: gt-a-001
+          fact_class: initial_access
+          exercise_time: 'T-1d 00:00'
+      verification_predicates:
+        containment:
+          all:
+            - event: vpn_access_revoked
+        service_restoration:
+          not_applicable: 'fora do escopo desta fixture'
 
   - reason: 'sem verification_predicates: TTCV e TTRV incomputaveis, pack nao carrega'
     rejected_by: schema

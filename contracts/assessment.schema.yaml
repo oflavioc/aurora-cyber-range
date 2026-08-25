@@ -75,14 +75,24 @@ $defs:
     required: [case_id, classification, confidence]
     properties:
 
-      # O MESMO PADRAO de `line_b_case.case_id` em ground_truth.schema.yaml, e a
-      # igualdade nao e coincidencia: e por `case_id` que a submissao encontra o
-      # gabarito. Padrao divergente faria a juncao falhar por forma, e o caso
-      # sairia do Brier como "nao avaliado" — que e nota pior por defeito de
-      # digitacao, e nao por julgamento.
+      # A MESMA FORMA de `line_b_case.case_id`, e agora a igualdade e MECANICA e
+      # nao convencao: este campo REFERENCIA `$defs/case_id_pattern` de
+      # `ground_truth.schema.yaml` em vez de repetir o padrao.
+      #
+      # ATE AQUI ERAM DUAS COPIAS, e o comentario que elas tinham dizia que a
+      # igualdade "nao e coincidencia" — ou seja, pedia que quem editasse uma
+      # lembrasse da outra. Nenhum verificador cruzava as duas: `codegen --check`
+      # compara contrato com artefato gerado, `check_contract_examples.py`
+      # executa exemplos, e nenhum dos 40 verificadores de `scripts/` e `tools/`
+      # confere igualdade entre constantes duplicadas em arquivos diferentes.
+      # Lembranca nao e mecanismo, e a classe D4 e exatamente esta.
+      #
+      # O QUE A DIVERGENCIA CUSTARIA, e o motivo continua o de antes: e por
+      # `case_id` que a submissao encontra o gabarito. Padrao divergente faria a
+      # juncao falhar por FORMA, e o caso sairia do Brier como "nao avaliado" —
+      # nota pior por defeito de digitacao, e nao por julgamento.
       case_id:
-        type: string
-        pattern: '^GC-[0-9]+$'
+        $ref: 'https://aurora-cyber-range.local/contracts/ground_truth.schema.json#/$defs/case_id_pattern'
 
       # `03` secao 5.1, o comentario do bloco normativo.
       classification:
@@ -216,6 +226,19 @@ x-aurora-invalid-examples:
     document:
       assessment:
         case_id: 29
+        classification: suspicious
+        confidence: 72
+
+  # A NEGATIVA QUE O `$ref` EXIGE, e a de cima nao a cobre: `case_id: 29` e
+  # inteiro, entao ela falha por TIPO e passaria mesmo que o padrao tivesse
+  # sumido. Esta e string bem formada com a forma errada — se o `$ref` para
+  # `ground_truth.schema.json#/$defs/case_id_pattern` deixar de resolver, e ela
+  # que fica verde e acusa.
+  - reason: 'case_id string com forma errada: prova que o $ref para case_id_pattern resolve e o padrao morde, o que case_id: 29 nao prova (falha por tipo)'
+    rejected_by: schema
+    document:
+      assessment:
+        case_id: GT-029
         classification: suspicious
         confidence: 72
 
