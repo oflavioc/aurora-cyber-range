@@ -170,6 +170,40 @@ if [ "$GUARDA_RC" != "0" ]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# P6-9 — A COPIA INSTALADA DO ESCOPO DE USUARIO E SINCRONIZADA AQUI.
+#
+# `bootstrap.sh` copia tres arquivos versionados para `~/.claude/`, e ninguem os
+# mantinha em dia depois disso. A copia e a que o Claude Code EXECUTA: sem esta
+# etapa, o auditor abre constrangido por um hook que nao e o que a arvore
+# declara. Ocorreu tres vezes, e as tres remediacoes foram manuais.
+#
+# AQUI, E NAO EM OUTRO LUGAR, por duas razoes de ordem:
+#
+#   DEPOIS DA GUARDA DE BASE  ela e a ultima coisa barata. Sincronizar antes
+#                             gastaria escrita fora da arvore numa auditoria que
+#                             a guarda vai recusar.
+#   ANTES DO WORKTREE         montar worktree, venv e stack e o trabalho caro.
+#                             Falhar a sincronia depois deles desperdicaria tudo.
+#
+# ESTE E O UNICO PONTO EM QUE O LANCADOR ESCREVE FORA DA ARVORE. Ate aqui ele so
+# tocava `.aurora-worktrees/`, o worktree e `docs/progress/`. O custo esta aceito
+# e declarado na P6-9; as guardas sao as do `bootstrap.sh`, que e o precedente —
+# destino derivado, escrita so quando diverge, e smoke test depois.
+#
+# FALHA ALTO. Nao ha ramo de "segue sem sincronizar": ele reabriria a pendencia
+# no exato momento em que ela custa mais.
+#
+# O python e o NU, da arvore principal, como `check_audit_base.py`: esta etapa e
+# stdlib pura e roda ANTES de o venv da auditoria existir.
+# ---------------------------------------------------------------------------
+echo "Sincronizando a copia instalada do escopo de usuario (P6-9)..."
+if ! python "$ROOT/scripts/sincroniza_escopo_de_usuario.py"; then
+  echo "ERRO: a auditoria NAO segue com o escopo de usuario dessincronizado." >&2
+  echo "      O auditor rodaria constrangido por um hook que nao e o da arvore." >&2
+  exit 1
+fi
+
 mkdir -p .aurora-worktrees
 # Caminho FIXO de proposito. A confianca de workspace do Claude Code e por
 # caminho: um diretorio novo a cada auditoria seria sempre nao-confiado, e os

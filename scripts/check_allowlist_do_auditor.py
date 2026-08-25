@@ -17,6 +17,28 @@ fora por decisao — o que se cobra e a DECLARACAO, com motivo, na forma do
 `DESCRITIVO` de `check_gate_coverage.py`. O custo de acrescentar e uma frase, e e
 ela que separa "decidimos que fica de fora" de "ninguem olhou".
 
+ELE LE A FONTE VERSIONADA, E NAO A COPIA INSTALADA — declarado, nao suposto
+-----------------------------------------------------------------------------
+`HOOK` aponta para `user-scope/hooks/readonly_bash.py`, que e a fonte no
+repositorio. **A copia que o Claude Code de fato executa vive em
+`~/.claude/hooks/`, e este verificador nao a le.**
+
+Sao duas perguntas, e ele responde uma:
+
+    RESPONDE     "a FONTE declara este script?"
+    NAO RESPONDE "o auditor consegue de fato executa-lo?"
+
+A segunda depende da copia instalada estar em dia com a fonte, e isso e assunto
+de outro mecanismo: `scripts/sincroniza_escopo_de_usuario.py`, que o lancador
+roda antes de abrir a sessao — a **P6-9**. A deteccao da divergencia continua
+com `phase0_negative_tests.py`, que compara as duas.
+
+**A declaracao esta aqui porque a ausencia dela era a propria classe que a
+pendencia mede.** Ate a P6-9 este cabecalho nao dizia qual das duas copias ele
+lia, e quem o lesse concluiria que "a allowlist esta certa" significa "o auditor
+roda o script" — que e a segunda pergunta, e ele nao a faz. Verificador que nao
+declara a sua fronteira e lido como cobrindo mais do que cobre.
+
 AS QUATRO DIRECOES
 -------------------
     (a) script versionado em `scripts/` ausente da allowlist e sem
@@ -122,6 +144,10 @@ FORA: dict[str, str] = {
     "numero e nao confirma o primeiro. Ver a §10.4 do registro da Fase 5",
     "reancorar_sessao": "ESCREVE o sentinela em `.git/`. Dar operacao de escrita "
     "ao julgador e a separacao de papeis que o auditor nao ter `Write` mantem",
+    "sincroniza_escopo_de_usuario": "ESCREVE em `~/.claude/`, FORA da arvore — "
+    "mesma classe do `reancorar_sessao`, e mais forte. Dar ao julgador uma "
+    "operacao que reescreve o hook que o constrange e a separacao de papeis "
+    "invertida. Quem o roda e o LANCADOR, antes de a sessao abrir",
     "sobe_sala": "sobe servidor HTTP em primeiro plano e nao termina. Processo "
     "de longa duracao e rede na sessao do auditor",
 }
