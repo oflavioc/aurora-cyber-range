@@ -231,7 +231,21 @@ packages = [
   "domains.academus.models",
   "domains.academus.panels",
   "domains.academus.seed",
+  # A SUPERFICIE DE LINHA DE COMANDO — `04_SCENARIO_SCHEMA.md` §8.
+  #
+  # PACOTE DE TOPO, e nao `range_core.cli`: o produtor de pack chama o gerador
+  # do dominio (`domains.<x>.seed.gabarito`), e o invariante 1 proibe
+  # `range-core/` de importar `domains/`. Ele e raiz de composicao, como
+  # `range_core.api.processo` — a diferenca e que aquele so precisa de DADO do
+  # dominio e este precisa de CODIGO, e por isso mora fora.
+  "range_cli",
 ]
+
+[project.scripts]
+# `04` §8 fixa o nome do executavel, e as duas allowlists de hook ancoram nele
+# (`^range-cli\s+scenario\s+...`). Trocar o nome aqui quebraria as duas sem que
+# nada acusasse — elas casam texto de comando, nao modulo.
+range-cli = "range_cli.cli:main"
 
 [tool.setuptools.package-dir]
 range_core = "range-core"

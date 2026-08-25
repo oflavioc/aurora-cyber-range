@@ -62,9 +62,10 @@ que ele continua fora do Git.
 from __future__ import annotations
 
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
+
+from range_core.engine import destino as destino_de_pack
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MINIMO = REPO_ROOT / "tests" / "fixtures" / "pack_minimo"
@@ -82,36 +83,6 @@ def _versionados_da_fixture() -> list[Path]:
 
 class MaterializacaoFalhou(RuntimeError):
     """O pacote completo não pôde ser montado. Falha ALTO — ver o cabeçalho."""
-
-
-def _e_versionado(alvo: Path) -> bool:
-    """`git` decide, e não uma lista de caminhos escrita aqui.
-
-    Perguntar ao `git` é o que torna a guarda válida para caminho que ninguém
-    previu — inclusive um `tests/fixtures/pack_completo/` que alguém criasse por
-    engano. Lista de proibidos não prevê a próxima palavra.
-    """
-    try:
-        saida = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", str(alvo)],
-            cwd=REPO_ROOT, capture_output=True, text=True,
-        )
-    except OSError as erro:  # pragma: no cover - ambiente sem git
-        raise MaterializacaoFalhou(
-            f"`git` nao pode ser executado para decidir se {alvo} e versionado: "
-            f"{erro}. Sem essa decisao o helper poderia gravar gabarito em "
-            "caminho rastreado, e `05` §6 nao admite."
-        ) from erro
-    if saida.returncode == 0:
-        return True
-
-    # Diretório: `--error-unmatch` só responde por arquivo. Se QUALQUER coisa
-    # dentro dele for versionada, o destino é versionado.
-    listagem = subprocess.run(
-        ["git", "ls-files", "--", str(alvo)],
-        cwd=REPO_ROOT, capture_output=True, text=True,
-    )
-    return bool(listagem.stdout.strip())
 
 
 def materializa(destino: Path | str | None = None) -> Path:
@@ -133,15 +104,20 @@ def materializa(destino: Path | str | None = None) -> Path:
         tempfile.mkdtemp(prefix="aurora-pack-completo-")
     )
 
-    if _e_versionado(alvo):
-        raise MaterializacaoFalhou(
-            f"{alvo} e VERSIONADO, e o pacote completo carrega `{GABARITO}`.\n"
-            "    `05` §6 e `CLAUDE.md` poem o gabarito fora do repositorio "
-            "publico, e `scripts/check_gabarito_fora_do_git.py` reprova o PR que "
-            "o versionar — sem excecao por caminho, de proposito.\n"
-            "    Materialize em temporario, ou num caminho coberto pelo "
-            "`.gitignore`."
-        )
+    # A GUARDA MOROU AQUI E MUDOU DE CASA. Ela é a mesma que o produtor de pack
+    # usa (`range-cli scenario materialize`), e produção não importa de `tests/`
+    # — então ela foi para `range-core/engine/destino.py`, e este módulo passou a
+    # USÁ-LA. Manter uma cópia aqui seria a D4 dentro do exato mecanismo que
+    # existe para o gabarito não nascer no lugar errado.
+    #
+    # O TIPO DO ERRO CONTINUA SENDO O DESTE MÓDULO, e a tradução é deliberada:
+    # sete sítios tratam `MaterializacaoFalhou`, e trocar a exceção faria a
+    # mudança de casa vazar para lugares que nada têm com ela. A MENSAGEM é a de
+    # lá — continua havendo uma só, que é o ponto da migração.
+    try:
+        destino_de_pack.recusa_se_versionado(alvo)
+    except destino_de_pack.DestinoInvalido as erro:
+        raise MaterializacaoFalhou(str(erro)) from erro
 
     try:
         alvo.mkdir(parents=True, exist_ok=True)
