@@ -169,6 +169,35 @@ def rollback_reasons(contratos: dict[str, dict]) -> frozenset[str]:
     return frozenset(enum)
 
 
+def formas_do_destino(contratos: dict[str, dict]) -> tuple[str, str]:
+    """`(forma de domain, forma de pack_id)`, LIDAS do contrato.
+
+    `04_SCENARIO_SCHEMA.md` §8.1 (b) manda o destino do pack ser
+    `scenarios/<domain>/<pack_id>/`, e diz que *"os dois segmentos tem forma
+    declarada em `contracts/scenario.schema.v2.yaml`"*. Sao as mesmas duas
+    formas que o manifesto usa — e a igualdade nao e coincidencia: o diretorio
+    em que o pack mora e o `pack_id` que ele declara.
+
+    MESMA FORMA DE `rollback_reasons` e `since_qualifiers`: recebe os contratos
+    ja parseados, faz a busca, nao toca disco. `engine/destino.py` as recebe por
+    parametro em vez de as reescrever, pela regra de `04` §4.1 — duas copias de
+    um padrao divergem, e foi por isso que `case_id` deixou de ter duas no #59.
+    """
+    scenario = contratos.get("scenario") or {}
+    propriedades = scenario.get("properties") or {}
+    formas = []
+    for campo in ("domain", "pack_id"):
+        padrao = (propriedades.get(campo) or {}).get("pattern")
+        if not padrao:
+            raise ContractSourceError(
+                f"contracts/scenario.schema.v2.yaml sem `properties.{campo}.pattern`: "
+                "sem ele o produtor de pack teria de reescrever a forma do "
+                "segmento, e `04` §8.1 a declara como sendo a do contrato"
+            )
+        formas.append(padrao)
+    return formas[0], formas[1]
+
+
 def since_qualifiers(contratos: dict[str, dict]) -> frozenset[str]:
     """Os qualificadores de instante de `absence_of`, LIDOS do contrato.
 
