@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "descricao": "Manifesto de boundary (R6). Consumido por guard-boundary.sh (bloqueio em tempo de edição), check_boundary.py (stage do pipeline) e compliance-audit.sh (deny coerente). No aurora a classe frozen fica VAZIA por decisão de adoção: a superfície congelada é docs/spec/ e ela já tem mecanismo próprio e mais forte (gate spec_freeze + PR spec-change). As seções produto e dados parametrizam guard-tdd e guard-data: produto.globs vazio = guard-tdd desativado até a Onda 3.",
+    "onda": 0
+  },
+  "classes": {
+    "frozen": {
+      "rito": "docs/spec/ muda só por PR spec-change com aprovação humana (gate spec_freeze do CI) — a classe fica vazia aqui para não criar segunda autoridade.",
+      "paths": []
+    },
+    "generated": {
+      "rito": "Nunca editado à mão. Regenerado exclusivamente por tools/codegen.py; codegen.py --check prova identidade no CI.",
+      "paths": [
+        "contracts/generated/events.py",
+        "contracts/generated/events.ts"
+      ]
+    },
+    "legacy": {
+      "rito": "Congelado até reconciliação formal. Nunca editar.",
+      "paths": []
+    },
+    "registry": {
+      "rito": "Regenerado exclusivamente por gen_pins.py, no mesmo PR que altera qualquer arquivo pinado, com motivo no commit.",
+      "paths": [
+        ".claude/verify/pins.json"
+      ]
+    }
+  },
+  "produto": {
+    "globs": []
+  },
+  "dados": {
+    "sensiveis": [
+      "scenarios/*",
+      "*ground_truth.yaml",
+      "*gm_notes.md"
+    ],
+    "excecoes": []
+  }
+}

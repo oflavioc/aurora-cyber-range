@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "descricao": "Registro canônico das contagens verdes por suíte (R10 §3): contagens saem da prosa e viram dado conferido por máquina — 'qualquer desvio = parar e reportar', mecanicamente. PREENCHIMENTO: um objeto por suíte em `suites` (leves), `heavy` (caras, puladas com --light) ou `visual` (exigem ambiente especial; executadas pelo CI). Formato por suíte: {\"cmd\": \"<comando>\", \"pass\": N, \"fail\": 0} — `pass` aceita lista [min, max] quando um gate declara NÃO EXECUTADO dependente de ambiente (o próprio relatório da suíte o nomeia). O stage `suites` do produto roda cada cmd e compara: FAIL != 0 ou PASS fora do esperado = FAIL do stage. Suíte nova entra AQUI no mesmo PR que a cria.",
+    "onda": 1
+  },
+  "suites": {},
+  "heavy": {},
+  "visual": {}
+}

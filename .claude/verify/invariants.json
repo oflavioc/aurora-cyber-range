@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "descricao": "Mapa invariante→gate da R1 (.claude/rules/product-invariants.md). STATUS: PROPOSTA pendente de ratificação do proprietário — os gates listados são os verificadores JÁ EXISTENTES que mais se aproximam de cada invariante; 'parcial' e 'candidato' estão anotados na própria R1. Auditado pelo compliance-audit.sh (seção invariantes): gate listado tem de existir no disco.",
+    "status": "proposta"
+  },
+  "invariantes": [
+    { "id": "INV-1", "resumo": "nenhum ataque é executado", "gates": ["tools/check_security_constraints.py", "tools/check_synthetic_data.py"] },
+    { "id": "INV-2", "resumo": "event store append-only", "gates": ["scripts/check_store_read_surface.py"] },
+    { "id": "INV-3", "resumo": "rollback com evento explícito e novo simulation_epoch", "gates": ["scripts/demo_fase4.py"] },
+    { "id": "INV-4", "resumo": "motor não conhece domínio", "gates": ["tools/check_core_boundary.py", "scripts/check_core_contract_imports.py"] },
+    { "id": "INV-5", "resumo": "domínio não conhece inject; flags/eventos só do catálogo", "gates": ["tools/check_contract_literals.py", "tools/codegen.py"] },
+    { "id": "INV-6", "resumo": "evento não carrega objective_ids", "gates": ["tools/check_event_envelope.py"] },
+    { "id": "INV-7", "resumo": "telas refletem estado real; derivação é do servidor", "gates": ["scripts/check_web_sem_derivacao.py"] },
+    { "id": "INV-8", "resumo": "declaração nunca altera ground truth", "gates": ["scripts/check_insumo_de_metrica.py"] },
+    { "id": "INV-9", "resumo": "gabarito fora do repositório público", "gates": ["scripts/check_gabarito_fora_do_git.py"] },
+    { "id": "INV-10", "resumo": "banner de simulação em toda tela e artefato", "gates": ["scripts/check_banner_de_simulacao.py"] }
+  ]
+}

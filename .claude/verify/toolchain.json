@@ -1,0 +1,11 @@
+{
+  "_meta": {
+    "descricao": "Toolchain do aurora, validada pelo env_doctor.py (stage 0) ANTES de qualquer suíte. require ausente = FAIL (aborta); optional ausente = WARN nomeado. python>=3.10 e git são validados sempre. Node NÃO entra de propósito: o build das telas roda dentro da imagem pinada do compose (decisão registrada no invariants.yml), não no host."
+  },
+  "require": [
+    { "cmd": "docker", "nota": "compose, stack de containers e build das telas" }
+  ],
+  "optional": [
+    { "cmd": "gh", "nota": "abertura de PR e auditoria de checkpoint" }
+  ]
+}

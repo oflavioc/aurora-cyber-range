@@ -1,5 +1,5 @@
 {
-  "$comment": "Hooks dao feedback rapido dentro do Claude Code; o CI e o gate real. Auto Mode desabilitado neste projeto. Regras de caminho usam nome simples (semantica gitignore) para casar em qualquer profundidade.",
+  "$comment": "Hooks dao feedback rapido dentro do Claude Code; o CI e o gate real. Auto Mode desabilitado neste projeto. Regras de caminho usam nome simples (semantica gitignore) para casar em qualquer profundidade. Estrutura Agentica (Onda 0): guard-boundary/guard-tdd/guard-data/state-eval/post-turn-verify registrados aqui — a secao hooks do compliance-audit confere; o deny espelha o boundary.json (secao deny do mesmo audit).",
   "permissions": {
     "defaultMode": "default",
     "disableAutoMode": "disable",
@@ -11,7 +11,19 @@
       "Read(.env.*.local)",
       "Edit(.env.*.local)",
       "Read(secrets/**)",
-      "Edit(secrets/**)"
+      "Edit(secrets/**)",
+      "Edit(contracts/generated/events.py)",
+      "Write(contracts/generated/events.py)",
+      "Edit(contracts/generated/events.ts)",
+      "Write(contracts/generated/events.ts)",
+      "Edit(.claude/verify/pins.json)",
+      "Write(.claude/verify/pins.json)"
+    ],
+    "allow": [
+      "Bash(python .claude/verify/*)",
+      "Bash(python3 .claude/verify/*)",
+      "Bash(bash .claude/verify/run.sh*)",
+      "Bash(bash .claude/verify/compliance-audit.sh*)"
     ]
   },
   "hooks": {
@@ -22,6 +34,45 @@
           {
             "type": "command",
             "command": "python .claude/hooks/check_architecture.py"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-boundary.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-tdd.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-data.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/state-eval.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-turn-verify.sh"
           }
         ]
       }
