@@ -78,6 +78,7 @@ from range_core.engine.loader.canonical import (
     scope_from_contract,
 )
 from range_core.engine.loader.contract_rules import AuroraChecker, build_pack_registries
+from range_core.engine.migrations import MIGRACOES, ha_migracao
 from range_core.rubrics.library import load_library
 from range_core.engine.loader.contract_source import (
     ContractSourceError,
@@ -96,11 +97,22 @@ from range_core.state.simulation_state import (
 )
 
 #: `04` §4 manda o engine declarar as duas. `SUPPORTED_SCHEMA_VERSIONS` deveria
-#: ser `[N, N-1]`, e aqui e so `[N]`: **nao existe contrato v1 neste
-#: repositorio**, e suportar uma versao cujo contrato nao existe exigiria a
-#: migracao em memoria, que e item de DoD da Fase 7 ("pack em schema v1 migra
-#: automaticamente; v0 e recusado com instrucao"). Declarar suporte que nao ha
-#: seria pior que declarar o suporte real.
+#: ser `[N, N-1]`, e aqui e so `[N]` — e a assimetria e DECIDIDA, nao pendente.
+#:
+#: **Nenhum contrato anterior ao v2 jamais existiu neste repositorio.** Medido
+#: com `git log --all --diff-filter=A --name-only -- 'contracts/scenario.schema*'`,
+#: que devolve um arquivo so: `scenario.schema.v2.yaml`, em `31ddcfa`. Entao
+#: `[N, N-1]` aqui seria `[2, 1]`, e a v1 nao tem contrato, nao tem migrador e
+#: nunca teve pack. Declarar suporte a ela seria a afirmacao falsa que este
+#: modulo recusa fazer desde a Fase 2.
+#:
+#: O comentario anterior dizia que a migracao de N-1 *"e item de DoD da Fase
+#: 7"*, como se a fase fosse resolver a assimetria. A Fase 7 **e esta**, e a
+#: peca 2 mediu que nao ha delta a migrar: a P5-4 excede o que cabe num schema e
+#: saiu da fase, e o aperto de `since` foi alinhamento com norma que ja existia,
+#: nao transformacao. O porque inteiro esta em `engine/migrations/__init__.py`.
+#:
+#: `(3, 2)` no dia em que houver `v2_to_v3.py` com corpo e teste. Nao antes.
 ENGINE_VERSION = "1.0"
 SUPPORTED_SCHEMA_VERSIONS: tuple[int, ...] = (2,)
 
@@ -423,16 +435,73 @@ def _verify_schema_version(raiz: Path, manifest: Mapping) -> None:
     O contrato declara `const: 2`, entao um pack v1 falharia na camada 1 com uma
     mensagem sobre um campo. O que ele precisa e da INSTRUCAO DE MIGRACAO, e ela
     so pode vir de quem sabe o que "v1" significa.
+
+    A MENSAGEM ANTERIOR NAO DAVA INSTRUCAO, e o criterio da DoD e "recusado COM
+    INSTRUCAO". Ela dizia *"a migracao automatica de N-1 e entregavel da Fase 7,
+    e ate la nao ha caminho de carga"* — informacao de ROADMAP, nao de conserto:
+    quem lia ficava sabendo de que fase o mecanismo era, e nao o que fazer com o
+    pack na mao. E ela envelheceu duas vezes de uma so vez, porque a Fase 7 e
+    esta, e o "ate la" passou a apontar para o presente. E a §1.6 no codigo.
+
+    A DE AGORA RESPONDE TRES PERGUNTAS, na ordem em que quem foi recusado as faz:
+    o que este pack declara, o que este engine aceita, e o que fazer agora.
     """
     versao = manifest.get("schema_version")
-    if versao not in SUPPORTED_SCHEMA_VERSIONS:
-        raise PackError(
-            PackSite.UNSUPPORTED_SCHEMA_VERSION,
-            f"{raiz}/manifest.yaml: `schema_version: {versao!r}`, e este engine "
-            f"suporta {list(SUPPORTED_SCHEMA_VERSIONS)}. A migracao automatica de "
-            "N-1 e entregavel da Fase 7 (`07_IMPLEMENTATION_PHASES.md`), e ate la "
-            "nao ha caminho de carga para outra versao.",
+    if versao in SUPPORTED_SCHEMA_VERSIONS:
+        return
+    raise PackError(
+        PackSite.UNSUPPORTED_SCHEMA_VERSION,
+        _instrucao_de_versao(raiz, versao),
+    )
+
+
+def _instrucao_de_versao(raiz: Path, versao: object) -> str:
+    """As tres perguntas, e a terceira depende de haver migrador declarado.
+
+    O RAMO E LIDO DO REGISTRO, e nao inferido da aritmetica das versoes: uma
+    conta como `versao == max(SUPPORTED) - 1` afirmaria que existe caminho de
+    migracao so porque a distancia e de um, e e exatamente essa afirmacao que
+    hoje seria falsa. Quem sabe se ha migrador e `migrations.MIGRACOES`.
+    """
+    suportadas = sorted(SUPPORTED_SCHEMA_VERSIONS)
+    alvo = max(SUPPORTED_SCHEMA_VERSIONS)
+
+    linhas = [
+        f"{raiz}/manifest.yaml: `schema_version: {versao!r}`, e este engine "
+        f"aceita {suportadas}.",
+    ]
+
+    if isinstance(versao, int) and ha_migracao(versao):
+        linhas.append(
+            f"    HA CAMINHO DE MIGRACAO de {versao} para {alvo}, em "
+            f"`range-core/engine/migrations/{MIGRACOES[versao]}.py` — se voce "
+            "esta lendo isto, ele existe e nao foi aplicado, o que e defeito do "
+            "loader e nao do pack. Abra uma issue com esta mensagem."
         )
+        return "\n".join(linhas)
+
+    linhas.append(
+        f"    NAO HA MIGRADOR declarado para {versao!r}: "
+        "`range-core/engine/migrations/MIGRACOES` esta vazio, e o cabecalho "
+        "daquele modulo diz por que — nenhum contrato anterior ao v2 jamais "
+        "existiu neste repositorio, entao nao ha transicao que alguem pudesse "
+        "ter escrito."
+    )
+    linhas.append(
+        f"    O QUE FAZER: leve o pack para `schema_version: {alvo}` a mao. A "
+        f"forma exigida esta em `contracts/scenario.schema.v{alvo}.yaml` — que "
+        "e o contrato que o loader aplica no passo seguinte a este — e o "
+        "manifesto normativo esta em `04_SCENARIO_SCHEMA.md` §2. Rode o loader "
+        "de novo: a recusa seguinte, se houver, ja nomeia o campo."
+    )
+    linhas.append(
+        f"    SE {versao!r} FOR UMA VERSAO FUTURA, o conserto e o inverso — este "
+        "engine e velho demais para o pack, e atualiza-lo e o caminho. "
+        "`04` §4 fixa `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]`; aqui ele e "
+        f"{suportadas} porque N-1 nunca existiu, e declarar suporte a uma versao "
+        "sem contrato seria pior que declarar o suporte real."
+    )
+    return "\n".join(linhas)
 
 
 def _verify_engine_version(raiz: Path, manifest: Mapping) -> None:
