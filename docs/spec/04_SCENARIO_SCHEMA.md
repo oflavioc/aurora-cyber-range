@@ -93,6 +93,24 @@ Sem `verification_predicates`, o pack não carrega — TTCV e TTRV seriam incomp
 - Migrações em `range-core/engine/migrations/v<n>_to_v<n+1>.py`, cada uma com teste
 - **Nunca alterar semântica de campo dentro da mesma `schema_version`**
 
+### 4.1 Forma declarada uma vez, e constante derivada de contrato entra no núcleo como dado
+
+**Uma forma que dois contratos exigem é definida em `$defs` de um só, e referenciada por `$ref` a partir dos outros.** O contrato-fonte é aquele que **declara a entidade**, não o que a menciona: `fact_id` e `case_id` moram em `ground_truth.schema.yaml` porque é ele que declara `facts` e `line_b_cases`. Duas cópias da mesma forma são duas coisas que divergem, e a divergência entre contratos não falha alto — ela faz a junção deixar de casar, e o efeito aparece como dado ausente em vez de erro.
+
+Quando a composição impedir o `$ref` — um padrão que embute outro, como `fact_check_against` — a cópia é **declarada no ponto**, com o que a mantém em acordo dito por escrito. Cópia declarada é dívida nomeada; cópia silenciosa é a mesma dívida sem ninguém para cobrá-la.
+
+**A constante derivada de contrato entra no núcleo como DADO, por construtor, lida uma vez na raiz de composição.** Nenhum módulo de `range-core/` lê `contracts/` em caminho quente: quem lê é a fábrica que sobe o processo, e o valor viaja como argumento até quem o consome, que o valida na construção.
+
+A forma já está em uso e é o precedente a seguir — a taxonomia de motivo de rollback:
+
+| Passo | Onde |
+|---|---|
+| o contrato é lido, uma vez, no boot | `range-core/engine/loader/contract_source.py:151` (`rollback_reasons`), chamado de `range-core/api/processo.py:144`, dentro da fábrica que `uvicorn --factory` invoca |
+| o valor entra no objeto de núcleo como dado | `range-core/engine/inject_engine.py:211` — `rollback_reasons: Collection[str]` |
+| o receptor valida na construção e congela | `inject_engine.py:214-225` — taxonomia sem `technical_failure` derruba o **boot**, não o exercício |
+
+O que isso compra é a ausência de uma segunda origem: a constante existe uma vez, no contrato, e nenhum módulo a repete. O que custa é um parâmetro obrigatório a mais em quem a consome — e é por isso que ela chega **validada na construção**, e não conferida a cada uso.
+
 ## 5. Inject
 
 ```yaml
