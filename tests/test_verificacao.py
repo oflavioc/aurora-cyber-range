@@ -40,10 +40,16 @@ from range_core.events.envelope import Correlation
 from range_core.events.epoch import current_epoch
 from range_core.events.linhagem import eventos_da_linhagem_corrente
 from range_core.events.store import EventDraft, InMemoryEventStore
+from range_core.engine.loader import contract_source
 from range_core.events.veredito import (
     NOME_DO_PREDICADO,
     veredito_da_epoch_corrente,
 )
+
+#: Do CONTRATO, e nao literal: desde a peca 2 da Fase 7 o avaliador nao tem mais
+#: `SINCE_SELF` proprio, e o valor chega em `Mundo`. Escrever `{"self"}` aqui
+#: poria de volta, no teste, a segunda origem que o codigo acabou de perder.
+QUALIFICADORES = contract_source.since_qualifiers(contract_source.read_contracts())
 
 #: O predicado de contenção do exemplo normativo de `03` §3.1, reduzido às duas
 #: folhas `event` — que é o que basta para o eixo desta suíte.
@@ -106,7 +112,12 @@ class _ComFluxo(unittest.TestCase):
         )
 
     def avalia_contencao(self, flags=None):
-        return avaliar_e_emitir(self.store, {"containment": CONTENCAO}, flags or {})
+        return avaliar_e_emitir(
+            self.store,
+            {"containment": CONTENCAO},
+            flags or {},
+            since_qualifiers=QUALIFICADORES,
+        )
 
     def vereditos(self):
         return [
@@ -120,7 +131,12 @@ class AvaliadorPuro(unittest.TestCase):
     """A árvore, com o mundo como parâmetro. Não sabe o que é epoch."""
 
     def mundo(self, tipos=(), fatos=(), flags=None) -> Mundo:
-        return Mundo(frozenset(tipos), frozenset(fatos), flags or {})
+        return Mundo(
+            frozenset(tipos),
+            frozenset(fatos),
+            flags or {},
+            since_qualifiers=QUALIFICADORES,
+        )
 
     def test_all_exige_todas(self):
         self.assertFalse(avalia(CONTENCAO, self.mundo({VPN_ACCESS_REVOKED})))
@@ -183,7 +199,13 @@ class QualificadorSince(unittest.TestCase):
     """
 
     def mundo(self, tipos=(), fatos=(), flags=None, referencia=_REFERENCIA) -> Mundo:
-        return Mundo(frozenset(tipos), frozenset(fatos), flags or {}, referencia)
+        return Mundo(
+            frozenset(tipos),
+            frozenset(fatos),
+            flags or {},
+            referencia,
+            since_qualifiers=QUALIFICADORES,
+        )
 
     def test_o_predicado_normativo_da_secao_3_1_satisfaz(self):
         """O caso canônico: exfiltração em `T-17d`, contenção verificada.
@@ -385,6 +407,7 @@ class NaoAplicavel(_ComFluxo):
             self.store,
             {"service_restoration": {"not_applicable": "sem servico derrubado"}},
             {},
+            since_qualifiers=QUALIFICADORES,
         )
         self.assertEqual(emitidos, [])
 

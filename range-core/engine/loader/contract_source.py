@@ -167,3 +167,39 @@ def rollback_reasons(contratos: dict[str, dict]) -> frozenset[str]:
             "sem a taxonomia, o engine aceitaria qualquer motivo"
         )
     return frozenset(enum)
+
+
+def since_qualifiers(contratos: dict[str, dict]) -> frozenset[str]:
+    """Os qualificadores de instante de `absence_of`, LIDOS do contrato.
+
+    `03_EXERCISE_DESIGN.md` §3.1 fixa `self` como a UNICA forma de v1;
+    `contracts/ground_truth.schema.yaml` a declara em `$defs/since_qualifier`
+    desde o PR #59, que trocou `type: string` livre por `enum`.
+
+    MESMA FORMA DE `rollback_reasons`, e o paralelo e o argumento: recebe os
+    contratos JA PARSEADOS, faz a busca, e nao toca disco. Quem le disco e
+    `read_contracts`, uma vez, na raiz de composicao — `04` §4.1.
+
+    O QUE ESTA FUNCAO DESFAZ. `SINCE_SELF = "self"` estava definido DUAS vezes,
+    em `engine/loader/pack_loader.py` e em `engine/verificacao.py`, sem import
+    entre elas e sem verificador cruzando. As duas concordavam por COINCIDENCIA
+    — os dois comentarios citavam a mesma fonte, e a unica guarda era lembrar.
+    Mudar uma e esquecer a outra faria carga e avaliacao discordarem sobre o
+    mesmo campo: um pack recusado no boot que o avaliador aceitaria, ou o
+    inverso. E a classe D4.
+
+    CONJUNTO, E NAO VALOR UNICO, pelo mesmo motivo de `rollback_reasons` e com um
+    gatilho ja datado: a P6-3 traz a gramatica de `exercise_time`, e com ela uma
+    segunda forma de `since` passa a ser definivel. Devolver a string faria a
+    assinatura mudar no dia em que o enum ganhasse o segundo valor; devolver o
+    conjunto faz o valor novo atravessar sem tocar em codigo nenhum.
+    """
+    ground_truth = contratos.get("ground_truth") or {}
+    enum = ((ground_truth.get("$defs") or {}).get("since_qualifier") or {}).get("enum")
+    if not enum:
+        raise ContractSourceError(
+            "contracts/ground_truth.schema.yaml sem `$defs/since_qualifier`: "
+            "sem ele, a guarda de carga e o avaliador voltariam a ter cada um o "
+            "seu literal, que e o defeito que esta funcao existe para desfazer"
+        )
+    return frozenset(enum)

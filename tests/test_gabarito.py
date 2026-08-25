@@ -204,8 +204,13 @@ class OPackQueOGeradorMontaCARREGA(unittest.TestCase):
 
     def test_o_qualificador_since_do_gerador_atravessa_a_guarda_de_carga(self) -> None:
         """`03` §3.1: `self` e a UNICA forma de v1, e a carga recusa outra."""
+        from range_core.engine.loader import contract_source
+
         confere_qualificador_since(
-            {"verification_predicates": gabarito.predicados_de_verificacao()}
+            {"verification_predicates": gabarito.predicados_de_verificacao()},
+            qualificadores=contract_source.since_qualifiers(
+                contract_source.read_contracts()
+            ),
         )
 
     def test_o_gerador_nao_declara_folha_temporal(self) -> None:

@@ -84,6 +84,7 @@ from range_core.engine.loader.contract_source import (
     documents_by_id,
     parse_document,
     registry_for,
+    since_qualifiers,
 )
 from range_core.events.envelope import FlagValue
 from range_core.state.simulation_state import (
@@ -352,7 +353,12 @@ def load_pack(
     _verify_engine_version(raiz, manifest)
     _verify_rules(documentos, scenario, contracts, adapter_flags)
     confere_folhas_temporais(documentos.get("ground_truth.yaml"))
-    confere_qualificador_since(documentos.get("ground_truth.yaml"))
+    # O QUALIFICADOR SAI DO CONTRATO, e `load_pack` ja recebe `contracts` — a
+    # origem estava ao alcance sem encanamento novo. `04` §4.1.
+    confere_qualificador_since(
+        documentos.get("ground_truth.yaml"),
+        qualificadores=since_qualifiers(dict(contracts)),
+    )
 
     injects = _build_injects(
         documentos.get("injects.yaml") or {}, documentos.get("ground_truth.yaml")
@@ -605,8 +611,16 @@ def confere_folhas_temporais(ground_truth: Mapping | None) -> None:
         )
 
 
-#: `03` §3.1 — a unica forma de `since` definida em v1.
-SINCE_SELF = "self"
+#: A CONSTANTE SAIU DAQUI — `04` §4.1. Era `SINCE_SELF = "self"`, e a mesma
+#: linha existia em `engine/verificacao.py`, sem import entre as duas. O valor
+#: agora vem do contrato, por `contract_source.since_qualifiers`, e `load_pack`
+#: o passa adiante: ele ja recebe `contracts`, entao a origem estava ao alcance
+#: sem encanamento novo.
+#:
+#: `PREDICADO_QUE_EXIGE_SINCE` FICA, e a diferenca e de especie: qual predicado
+#: exige o qualificador e norma de `03` §3.1 sobre a CHAVE, e nao vocabulario
+#: que o contrato declare. Deriva-lo seria inventar um registro para um fato que
+#: nao esta em contrato nenhum.
 
 #: O predicado cuja forma normativa EXIGE o qualificador. A exigencia e da §3.1,
 #: e e da chave: `service_restoration` nao afirma o presente, e ausencia total ali
@@ -630,7 +644,9 @@ def _folhas_absence_of(no, caminho: str = "") -> list[tuple[str, object]]:
     return achadas
 
 
-def confere_qualificador_since(ground_truth: Mapping | None) -> None:
+def confere_qualificador_since(
+    ground_truth: Mapping | None, *, qualificadores: frozenset[str]
+) -> None:
     """Recusa NA CARGA as duas formas que `03` §3.1 nao admite — H1 da 4a auditoria.
 
     AS DUAS PERNAS SAO DEFEITOS PERMANENTES, e nao ausencia de implementacao
@@ -659,6 +675,13 @@ def confere_qualificador_since(ground_truth: Mapping | None) -> None:
     NAO HA PERNA PARA `self`: o avaliador o implementa. Recusar a forma normativa
     faria o cenario canonico da propria spec deixar de carregar, que e pior que o
     defeito que a recusa corrigiria — e foi correcao de rota do proprietario.
+
+    `qualificadores` CHEGA COMO DADO — `04` §4.1. Ele sai de
+    `contracts/ground_truth.schema.yaml` §`$defs/since_qualifier` por
+    `contract_source.since_qualifiers`, e nao de constante deste modulo. Ate o
+    primeiro bloco da peca 2 da Fase 7 a linha `SINCE_SELF = "self"` existia
+    aqui **e** em `engine/verificacao.py`, e a concordancia entre as duas era
+    coincidencia mantida a mao.
     """
     predicados = (ground_truth or {}).get("verification_predicates") or {}
     valor_nao_definido: list[str] = []
@@ -668,7 +691,7 @@ def confere_qualificador_since(ground_truth: Mapping | None) -> None:
         for caminho, alvo in _folhas_absence_of(arvore):
             onde = f"{nome}.{caminho}"
             if isinstance(alvo, Mapping) and "since" in alvo:
-                if alvo["since"] != SINCE_SELF:
+                if alvo["since"] not in qualificadores:
                     valor_nao_definido.append(f"{onde} (since: {alvo['since']!r})")
             elif nome == PREDICADO_QUE_EXIGE_SINCE:
                 contencao_sem_since.append(onde)
@@ -679,10 +702,12 @@ def confere_qualificador_since(ground_truth: Mapping | None) -> None:
             "`absence_of.since` com valor nao definido: "
             + ", ".join(valor_nao_definido)
             + ".\n"
-            f"    `03_EXERCISE_DESIGN.md` §3.1 define `{SINCE_SELF}` como a UNICA "
-            "forma de v1, e recusa qualquer outro valor na carga enquanto nao "
-            "houver semantica declarada para ele. Recusar aqui e recusar "
-            "enquanto da para consertar o pack; avaliar seria inventar."
+            f"    O contrato declara {sorted(qualificadores)!r} em "
+            "`ground_truth.schema.yaml` §`$defs/since_qualifier`, e "
+            "`03_EXERCISE_DESIGN.md` §3.1 e quem os define. Qualquer outro valor "
+            "e recusado na carga enquanto nao houver semantica declarada para "
+            "ele. Recusar aqui e recusar enquanto da para consertar o pack; "
+            "avaliar seria inventar."
         )
 
     if contencao_sem_since:
@@ -691,7 +716,8 @@ def confere_qualificador_since(ground_truth: Mapping | None) -> None:
             "predicado de contencao com `absence_of` sem qualificador: "
             + ", ".join(contencao_sem_since)
             + ".\n"
-            f"    `03_EXERCISE_DESIGN.md` §3.1 exige `since: {SINCE_SELF}` na "
+            f"    `03_EXERCISE_DESIGN.md` §3.1 exige `since` — o contrato "
+            f"declara {sorted(qualificadores)!r} — na "
             "folha `absence_of` do predicado de CONTENCAO. Sem ele a ausencia "
             "vale sobre a linhagem inteira — o predicado passa a afirmar que o "
             "fato NUNCA ocorreu, e nenhum cenario que materialize exfiltracao "

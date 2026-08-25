@@ -66,6 +66,9 @@ PACK = materializa()
 FLAGS_DO_ADAPTER = Path("domains") / "academus" / "flags.yaml"
 
 CONTRATOS = contract_source.read_contracts()
+#: Do contrato, e nao literal: o teste tem de usar a MESMA origem que a
+#: producao, ou ele deixa de acusar o dia em que o contrato mudar.
+QUALIFICADORES = contract_source.since_qualifiers(CONTRATOS)
 FLAGS = AdapterFlags.from_document(
     yaml.safe_load((REPO_ROOT / FLAGS_DO_ADAPTER).read_text(encoding="utf-8")),
     source=FLAGS_DO_ADAPTER.as_posix(),
@@ -543,7 +546,8 @@ class QualificadorSince(unittest.TestCase):
                             ]
                         }
                     }
-                }
+                },
+                qualificadores=QUALIFICADORES,
             )
         erro = capturado.exception
         self.assertEqual(erro.site, PackSite.SINCE_UNDEFINED_VALUE)
@@ -561,12 +565,17 @@ class QualificadorSince(unittest.TestCase):
                             "all": [{"absence_of": {"fact_class": "exfiltration"}}]
                         }
                     }
-                }
+                },
+                qualificadores=QUALIFICADORES,
             )
         erro = capturado.exception
         self.assertEqual(erro.site, PackSite.CONTAINMENT_ABSENCE_WITHOUT_SINCE)
         self.assertIn("containment.all[0].absence_of", str(erro))
-        self.assertIn("since: self", str(erro))
+        # A mensagem nomeia o vocabulario ACEITO, e ele sai do contrato: antes o
+        # texto dizia `since: self` porque o literal morava no modulo. Afirmar a
+        # frase antiga faria este teste travar a derivacao que a peca 2 fez.
+        for aceito in sorted(QUALIFICADORES):
+            self.assertIn(repr(aceito), str(erro))
 
     def test_a_forma_CURTA_em_string_na_contencao_tambem_recusa(self):
         """Sem esta direcao, a forma curta e o desvio: ela nao carrega `since`.
@@ -580,7 +589,8 @@ class QualificadorSince(unittest.TestCase):
                     "verification_predicates": {
                         "containment": {"all": [{"absence_of": "exfiltration"}]}
                     }
-                }
+                },
+                qualificadores=QUALIFICADORES,
             )
         self.assertEqual(
             capturado.exception.site, PackSite.CONTAINMENT_ABSENCE_WITHOUT_SINCE
@@ -601,13 +611,18 @@ class QualificadorSince(unittest.TestCase):
                             "all": [{"absence_of": {"fact_class": "data_loss"}}]
                         },
                     }
-                }
+                },
+                qualificadores=QUALIFICADORES,
             )
         )
 
     def test_a_forma_NORMATIVA_passa(self):
         """O controle positivo: o predicado que a §3.1 escreve carrega."""
-        self.assertIsNone(confere_qualificador_since(self.CONTENCAO_NORMATIVA))
+        self.assertIsNone(
+            confere_qualificador_since(
+                self.CONTENCAO_NORMATIVA, qualificadores=QUALIFICADORES
+            )
+        )
 
     def test_valor_nao_definido_FORA_da_contencao_tambem_recusa(self):
         """`self` e a unica forma definida em v1 — a regra e da folha, nao da chave."""
@@ -624,13 +639,16 @@ class QualificadorSince(unittest.TestCase):
                             }
                         }
                     }
-                }
+                },
+                qualificadores=QUALIFICADORES,
             )
         self.assertEqual(capturado.exception.site, PackSite.SINCE_UNDEFINED_VALUE)
         self.assertIn("service_restoration.not.absence_of", str(capturado.exception))
 
     def test_pack_sem_ground_truth_nao_levanta_aqui(self):
-        self.assertIsNone(confere_qualificador_since(None))
+        self.assertIsNone(
+            confere_qualificador_since(None, qualificadores=QUALIFICADORES)
+        )
 
 
 class DoisParsers(unittest.TestCase):
