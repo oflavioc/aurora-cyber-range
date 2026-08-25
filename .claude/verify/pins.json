@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "fc2690db90002379dfda6944e3e894fcabdb1b5c",
+    "gerado_de_head": "e3e18c00c780ea579282dc819ae99c9acd653f7b",
     "gerado_em": "2026-08-25",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -67,7 +67,7 @@
     ".env.example": "01c201eb3f1572e13c289c469b88cee15b4a32ff55209e75d3495362120e21bd",
     ".gitattributes": "6b5bb01ed3887943581321eb76cbb03b7eac0c2f903a5382b311a30227a34ebb",
     ".github/workflows/invariants.yml": "79bf0dd9880c44132368aaedcce49c3689d76ced5660bc1e5a9f02de43fc79b6",
-    ".gitignore": "f0931987633fad1731d20346be7a1a7594b07223a5139815efdbb190875d5ab3",
+    ".gitignore": "bdff3ac5746a1245a045f52e28d89261cb71aefdc6e820333e7d32dfba5ae189",
     "CHANGELOG_V3.md": "1fb48eea18c4596d618b1858c853380825f9a72a98c9533c3aba03e775c78c0b",
     "CLAUDE.md": "2cc3088deb3ce3d60e8e80e89926bee80cc847b92e9aea8a86af82af10b354cb",
     "Dockerfile": "025122cd9859fc7649af41106919846a9ae97ccc32baff14916669dc368acf17",
