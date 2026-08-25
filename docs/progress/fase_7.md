@@ -20,25 +20,95 @@ está escrita lá.
 > observação está registrada como candidata a mecanismo no `fase_6.md`, §1. Quem
 > começar esta fase deve atualizar esta linha **na peça 1**, e não no fechamento.
 
-## 1. Plano da fase — sete peças
+## 1. Plano da fase — cinco peças
+
+> **REDUZIDA de sete para cinco, por decisão do proprietário.** As peças 3
+> (gramática de `exercise_time`) e 6 (as duas allowlists) saíram, reagendadas com
+> gatilho declarado. O critério de corte, dito com todas as letras: **o que
+> quebra durante exercício ao vivo com cliente** — e as duas não passam nele. A
+> §1.1 traz a razão medida de cada uma.
+>
+> **A numeração antiga fica entre parênteses nas linhas movidas**, e não é
+> enfeite: os registros de fechamento das peças 1 e 2 e todos os commits desta
+> branch citam "peça 4", "peça 6" e "peça 7" com o sentido antigo. Renumerar sem
+> deixar rastro apagaria a ligação entre a pauta e o registro em que ela nasceu —
+> é a mesma razão pela qual a §6 preserva o prefixo herdado das pendências.
 
 Os nove critérios DONE de `07_IMPLEMENTATION_PHASES.md` §"Fase 7" se agrupam em
-quatro blocos de entrega. Somam-se três mecanismos: dois decididos na §7 desta
-fase e um que nasceu da quinta ocorrência da classe que a §7.1 mede.
+quatro blocos de entrega.
 
 | Peça | O que entrega | Origem |
 |---|---|---|
-| 1 | verificador de transcrição de pauta entre registros de fase | quinta ocorrência da classe da §7.1, medida no rebase que abriu esta fase |
-| 2 | pack: schema v1 migra automaticamente, v0 recusado com instrução; fato do `GM_NOTES.md` ausente do `ground_truth.yaml` recusado | DONE 7 e 8 |
-| 3 | gramática de `exercise_time` | P6-3, pré-condição desta peça — o gatilho declarado é o primeiro pack que precise |
-| 4 | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 |
-| 5 | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 |
-| 6 | as duas allowlists, com esqueleto comum | P7-4 e P7-5 |
-| 7 | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
+| 1 | verificador de transcrição de pauta entre registros de fase | quinta ocorrência da classe da §7.1, medida no rebase que abriu esta fase — **FECHADA** |
+| 2 | pack: esqueleto de migração e recusa por versão, o produtor `range-cli scenario materialize`, o linter de citação de fato | DONE 7 e 8 — **FECHADA** |
+| 3 *(era 4)* | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 |
+| 4 *(era 5)* | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 |
+| 5 *(era 7)* | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
 
 **A peça 1 vem primeiro porque é degrau 1** na taxonomia da §7.1 — a exigência
 deixa de ser afirmada em cada registro de fase e passa a ser derivada deles. É o
 único degrau que faz a classe deixar de existir em vez de ficar visível.
+
+### 1.1 As duas peças que saíram, e por que cada uma passa no corte
+
+O critério é **o que quebra durante exercício ao vivo com cliente**. As duas têm
+valor real; nenhuma das duas quebra na sala.
+
+#### A peça 3 antiga — a gramática de `exercise_time`
+
+**Nada quebra ao vivo por ela não existir, e isso é medição da Fase 6, não
+suposição.** Não existe produtor de `fact_materialized`: `Mundo.fatos` é vazio em
+produção, e **nenhum comportamento de hoje depende da escolha** que a P6-3 cobra.
+
+**A ausência é CONTIDA, e não silenciosa** — é o que separa este adiamento de uma
+lacuna. Duas guardas a delimitam, e as duas foram entregues na Fase 6:
+
+| Guarda | O que ela faz |
+|---|---|
+| `confere_folhas_temporais` | recusa o pack **na carga**, nomeando a folha e o motivo, enquanto ainda dá para consertar |
+| `SemGramaticaTemporal` no avaliador | **levanta** em vez de responder. As duas respostas plausíveis são piores: falso faz a contenção nunca verificar, verdadeiro a faz verificar com vazamento em curso |
+
+**O que quebraria ao vivo é um pack que use `before`/`after` — e a carga recusa
+esse pack.** O defeito não chega à sala: ele chega ao boot, que é onde a §3.1 da
+Fase 6 decidiu pô-lo.
+
+**E os três gatilhos da P6-3 foram medidos um a um no fechamento da peça 2**
+(§3.8), justamente para que esta decisão não fosse tomada no escuro: **nenhum
+disparou**. O produtor de pack escreve `exercise_time` como campo de `facts`, e
+declarar um fato no pack não é produzir o fato — `FACT_MATERIALIZED` tem dois
+usos em produção, o import e uma leitura, e nenhum `append`.
+
+#### A peça 6 antiga — as duas allowlists
+
+**Elas são mecanismo contra a classe da §7.1, e o valor é real — mas INTERNO.**
+Uma exigência afirmada num lugar cujos sítios não são varridos quando ela muda
+custa rodadas de auditoria e retrabalho. Não custa nada na frente do cliente: o
+exercício roda igual.
+
+**E o escopo é maior do que a §1 supunha quando as adotou.** A peça 2 mediu
+(§3.5) que a classe tem **três variantes distintas**, cada uma escapando por um
+caminho diferente:
+
+| Variante | O mecanismo que a alcança |
+|---|---|
+| predicado estreito | allowlist de chamadores por emissor — a P7-5, degrau 2 |
+| defeito sem sujeito | **derivação**, e não varredura — degrau 1, faz a classe deixar de existir |
+| cobertura que não alcança o ponto de entrada | **execução** — degrau 3, e a §7.1 já registra que ali *"o que sobra é a prova de container"* |
+
+Adotar "as duas allowlists" como uma peça supunha um mecanismo para uma classe.
+São três mecanismos para três variantes, e um deles exige prova de container —
+que o proprietário já decidiu **não** tornar gate obrigatório (§7.1).
+
+**O CUSTO, dito sem suavizar.** A §7.1 registra que **duas regras escritas não
+seguraram a classe**, e que ela reincidiu **cinco vezes na Fase 6** — hoje dez,
+com as ocorrências que esta fase acrescentou. O parágrafo que fecha aquele mapa
+diz que o modo de falha *"não é ignorar a regra, é não reconhecer que esta
+mudança é uma instância dela"*, e que mecanismo não pede classificação: dispara
+sobre o artefato.
+
+**Adiar é aceitar que a próxima ocorrência custe uma rodada.** Não há leitura
+otimista disponível: a classe reincidiu dez vezes, e nada no adiamento a torna
+menos provável. **Foi decisão informada**, com o número na mesa.
 
 > **~~A peça 7 depende da P7-3.~~ SUPERADO na peça 2.** A afirmação era: *"o
 > critério dos 3 s é prova de desempenho, e prova de desempenho depende do pack
@@ -60,11 +130,32 @@ deixa de ser afirmada em cada registro de fase e passa a ser derivada deles. É 
 **A CLI não é peça própria.** Ela é a superfície das peças 2, 4 e 5: o primeiro
 critério DONE já a nomeia (`range-cli scenario lint`), e o resto se expõe por ela.
 
-**O verde de `check_progress_consistency.py` é condição de fechamento.** Ele
-reprova hoje por P7-4 e P7-5, cujas seções são o desenho das duas allowlists e
-nascem na peça 6. Até lá o vermelho é esperado e tem causa nomeada — gate que fica
-vermelho por motivo conhecido a fase inteira é gate que se aprende a ignorar, e é
-assim que ele deixa de pegar o dia em que ficar vermelho por outro motivo.
+**O verde de `check_progress_consistency.py` é condição de fechamento, e ele está
+VERDE desde a redução de escopo.**
+
+> **A causa do vermelho mudou, e a redação anterior caducou junto.** Ela dizia:
+> *"ele reprova hoje por P7-4 e P7-5, cujas seções são o desenho das duas
+> allowlists e nascem na peça 6. Até lá o vermelho é esperado e tem causa
+> nomeada."*
+>
+> **Aquela causa deixou de existir quando a peça 6 saiu da fase.** As duas
+> pendências continuam na tabela — agora `ABERTA`, com destinatário Fase 12 —, e
+> a peça que escreveria as seções delas não existe mais. Mantido o texto antigo,
+> o vermelho passaria a durar **o resto da fase inteira sem peça que o
+> consertasse**.
+>
+> **E é exatamente o modo de falha que o próprio parágrafo avisava:** *"gate que
+> fica vermelho por motivo conhecido a fase inteira é gate que se aprende a
+> ignorar, e é assim que ele deixa de pegar o dia em que ficar vermelho por outro
+> motivo."* A redução de escopo transformaria o aviso em profecia.
+>
+> **Por isso as duas seções de detalhe foram escritas agora**, e não adiadas com
+> a peça: elas não descrevem o mecanismo que ninguém vai construir nesta fase —
+> descrevem a **pendência**, que é o que a §6 cobra. O material existia: os dois
+> mapas da §7 e as três variantes que a peça 2 mediu.
+
+Gate que fica vermelho por motivo conhecido a fase inteira é gate que se aprende
+a ignorar. A saída não é declarar melhor o vermelho: é não tê-lo.
 
 ## 2. A peça 1 — a pauta herdada deixa de depender de quem transcreve
 
@@ -643,7 +734,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` — herdada da Fase 5, §"P5-4" | `ENTREGA` | peça 2 desta fase — é o delta do schema v3; ver abaixo |
 | P5-6 | ~~o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/`~~ — herdada da Fase 5, §"P5-6" | `RESOLVIDA` | o gatilho declarado ocorreu: `range-cli scenario materialize`, na peça 2. A outra metade fechou no PR #57; ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
-| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ENTREGA` | peça 3 desta fase. Três gatilhos herdados: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`, que bate em `SemGramaticaTemporal` por desenho deliberado; ver abaixo |
+| P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ABERTA` | os TRÊS gatilhos herdados da Fase 6, intactos: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`. Medidos um a um no fechamento da peça 2 — nenhum disparou; ver abaixo |
 | P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | `LATENTE` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro — o literal ocorreu no trabalho da P7-2 sem que o defeito aparecesse; ver abaixo |
 | P6-7 | rota que declara `emite` e não chama emissor nenhum — a metade do fluxo continua aberta; herdada da Fase 6, §"P6-7" | `ABERTA` | a próxima rota que declare `emite` em serviço cuja fábrica já constrói o produtor, ou a Fase 8, o que vier primeiro; ver abaixo |
@@ -655,8 +746,8 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | `ABERTA` | decisão do proprietário sobre qual das três linhas esta fase entrega; ver abaixo |
 | P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | `RESOLVIDA` | implementada no PR #56, pela saída (b): a prova nomeia a árvore; ver abaixo |
 | P7-3 | ~~a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5~~ | `RESOLVIDA` | deixou de ser buraco e virou invariante na peça 2: o pack é determinista com prova negativa, e a escrita recusa destino versionado perguntando ao `git`; ver abaixo |
-| P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ENTREGA` | peça 6 desta fase — allowlist por tipo, degrau 1.5; ver §7.2 |
-| P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ENTREGA` | peça 6 desta fase — allowlist de chamadores por emissor, degrau 2; ver §7.1 |
+| P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ABERTA` | **Fase 12** — allowlist por tipo, degrau 1.5. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
+| P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — allowlist de chamadores por emissor, degrau 2. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
 | P7-7 | `05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe | `ABERTA` | peça 4 desta fase, no lint; ver abaixo |
 
@@ -952,10 +1043,28 @@ desde o `spec-change` #49.
 diferentes depois de um rollback, e por isso é escolha normativa e não improviso
 de implementação.
 
-**Vence em:** três gatilhos, e o primeiro dispara nesta fase — o primeiro pack que
-precise de folha temporal, a implementação do suporte temporal, ou o primeiro
+**Vence em:** os três gatilhos herdados da Fase 6, **intactos** — o primeiro pack
+que precise de folha temporal, a implementação do suporte temporal, ou o primeiro
 produtor de `fact_materialized`, que baterá em `SemGramaticaTemporal` na primeira
 execução. É deliberado que bata: a decisão precisa acontecer ali.
+
+> **SAIU DA FASE 7 na redução de escopo, e volta a `ABERTA`.** Ela havia sido
+> promovida a `ENTREGA` — *"peça 3 desta fase"* —, e a peça 3 antiga não existe
+> mais. O critério de corte está na §1.1: **nada quebra ao vivo por esta
+> gramática não existir**, porque a ausência é **contida** por duas guardas que a
+> Fase 6 entregou, e o pack que a exigiria é recusado na carga.
+>
+> **O GATILHO NÃO FOI REESCRITO**, e isso é decisão e não descuido. Os três são
+> os que a Fase 6 declarou, e o primeiro deles — *"o primeiro pack que precise"* —
+> continua valendo tal como está. Inventar gatilho novo aqui repetiria o que a
+> P5-2 documenta como o erro mais caro desta linhagem: gatilho que já disparou e
+> não venceu **treina a próxima leitura a ignorá-lo**.
+>
+> **E os três foram medidos um a um no fechamento da peça 2** (§3.8), para que a
+> saída da fase não fosse decidida no escuro: **nenhum disparou**. O produtor de
+> pack escreve `exercise_time` como campo de `facts` no `ground_truth.yaml`, e
+> declarar um fato no pack **não é produzir o fato** — `FACT_MATERIALIZED` tem
+> dois usos em produção, o import e uma leitura, e nenhum `append`.
 
 #### P6-5 — `review_scope` carrega a lista, e é entrega desta fase
 
@@ -1488,6 +1597,105 @@ nada. O PR #56 passou sem isso. O defeito não nasceu ali — ele preexiste ao S
 >
 > **A consequência para a §1 está corrigida lá**: a peça 7 não depende mais desta
 > pendência. Ela depende do pack existir, e a peça 2 entregou quem o faz nascer.
+
+#### P7-4 — a mesma pergunta com duas respostas, e a allowlist por tipo
+
+**Nasceu DECIDIDA na §7.2 desta fase**, e o mapa inteiro está lá — esta seção é a
+pendência, e não a repetição do mapa.
+
+**O fato.** Nada garante que dois módulos que perguntam a mesma coisa sobre um
+`event_type` cheguem à mesma resposta. Medido por AST na §7.2:
+`ROLLBACK_PERFORMED` tem **8** selecionadores, `EXERCISE_STARTED` 5,
+`INJECT_FIRED` 4, `INTEGRITY_VALIDATION_DECLARED` 3, `ASSESSMENT_SUBMITTED` 2, e
+os outros nove tipos 1.
+
+**Isso mata a regra ingênua antes de ela ser proposta:** *"um dono por tipo"*
+faria dos oito consumidores de `ROLLBACK_PERFORMED` uma função com oito sentidos
+— eles fazem perguntas **diferentes** sobre o mesmo evento.
+
+**A forma decidida é allowlist por tipo, declarada com o motivo** — a mesma de
+`check_core_contract_imports.py`. Ela é testável contra o defeito que a originou:
+escrever `_ja_satisfeito_na_corrente` faria `VERIFICATION_PREDICATE_SATISFIED`
+passar de um para **dois** selecionadores, e a allowlist reprovaria até alguém
+escrever por quê.
+
+**O limite, aceito como está:** é **degrau 1.5**, e cobra **declaração, não
+concordância**. Dois consumidores declarados podem continuar divergindo, e nenhum
+AST decide se duas buscas têm o mesmo propósito, porque propósito não é
+estrutura. O que muda é **quando** a duplicação fica visível: no commit que a
+cria, em vez de na nona auditoria.
+
+**SAIU DA FASE 7 na redução de escopo**, com a peça 6. A razão está na §1.1: o
+valor é real e **interno** — nada disso quebra na frente do cliente.
+
+**Vence em: a Fase 12** — observabilidade e documentação, que é onde disciplina
+interna cabe.
+
+**E o gatilho é a FASE, e não "a próxima ocorrência da classe".** A distinção é a
+lição da **P6-9**, e ela custou três ocorrências: gatilho por ocorrência dispara
+**quando o dano já aconteceu**. A P6-9 chegou à mesa `VENCIDA` porque o gatilho
+dela descrevia onde a divergência *dói*, e não onde ela *ocorre* — e as três
+remediações foram todas manuais, depois do fato. Datar por fase custa que a
+pendência não "venza" quando a classe reincidir; o que se ganha é que ela não
+dependa de alguém reconhecer a reincidência, que é exatamente a capacidade que a
+§7.1 mediu como ausente dez vezes.
+
+**Forma comum com a P7-5, preservada:** as duas são allowlist declarada com
+motivo, na linha de `check_core_contract_imports.py`. O esqueleto é o mesmo; o
+que muda é o objeto governado. Duas sintaxes de allowlist para a mesma forma
+seria a D4 que os dois mecanismos existem para pegar — e quem as implementar na
+Fase 12 deve fazê-las juntas por isso, e não por conveniência.
+
+**Fonte:** §7.2 desta fase, e `docs/progress/fase_6.md` §8.5.
+
+#### P7-5 — os chamadores de cada emissor, e o degrau 2
+
+**Nasceu DECIDIDA na §7.1 desta fase**, e o mapa dos três degraus está lá.
+
+**O fato.** Quando o contrato de um emissor muda — `EXIGIDAS`, `_payload`,
+`token.claims` —, os sítios que o satisfazem não são varridos. A classe reincidiu
+**quatro vezes na Fase 6**: o sétimo contrato com o CI ainda afirmando seis; o
+venv da auditoria ausente da branch; a precondição de boot do pack sem varrer o
+gravador; o contrato do token sem varrer o chamador de produção.
+
+**Duas regras escritas não a impediram**, e o registro da Fase 6 diz por quê: o
+modo de falha **não é ignorar a regra**, é **não reconhecer que esta mudança é
+uma instância dela**. A regra cobra varredura depois de uma classificação, e é a
+classificação que falha. Mecanismo não pede classificação: dispara sobre o
+artefato.
+
+**A forma decidida é o degrau 2** — AST pura, na forma do `check_core_boundary.py`:
+achar as chamadas, resolver o módulo importado, exigir que o arquivo esteja na
+lista daquele emissor. Os emissores são **três e fechados**, e metade da tabela já
+existe em `check_api_surface.py::PERFIS`. **Teria pego o B1 da §7.6.**
+
+**O limite, medido e não suposto:** é por arquivo, e iria cega no dia em que um
+arquivo falasse com duas superfícies. O que fecha esse buraco é o achado negativo
+da §7.6 — **nenhum cliente precisa do `issue` do núcleo** —, e é essa propriedade,
+e não a lista, que faz o degrau valer.
+
+**E a peça 2 mediu que ele cobre UMA das três variantes**, o que a §1 não sabia
+quando adotou a pendência. A §3.5 nomeia as três: **predicado estreito** (que o
+degrau 2 alcança), **defeito sem sujeito** (que se fecha por derivação, degrau 1,
+e faz a classe deixar de existir) e **cobertura que não alcança o ponto de
+entrada** (que é execução, degrau 3). A sexta ocorrência já havia mostrado o
+limite por outro lado: `start_checkpoint_audit.sh:652` fazia `grep -q` dentro do
+artefato, e **`grep` dentro de `.sh` não é import** — o degrau 2 não alcança esse
+caminho.
+
+**Quem a implementar na Fase 12 não deve desenhá-la como se cobrisse as três.**
+Declarar isso agora é mais barato que descobrir lá, e é literalmente o argumento
+que a §7.1 usa sobre a própria sexta ocorrência.
+
+**SAIU DA FASE 7 na redução de escopo**, e **vence em: a Fase 12**, pelo mesmo
+gatilho por fase da P7-4 — e pela mesma razão, que é a lição da P6-9.
+
+**A vizinhança com a P6-7, e ela não é identidade.** A P6-7 pergunta *"esta rota,
+executada, emite?"* e é o **degrau 3**. Não se fecham juntas. Mas quem
+implementar esta esbarra naquela fronteira, porque as duas leem
+`api_surface.yaml` e param em lugares diferentes.
+
+**Fonte:** §7.1 desta fase, e `docs/progress/fase_6.md` §7.7.
 
 #### P7-6 — 44 registros de auditoria que ninguém varreu por destinatário
 
