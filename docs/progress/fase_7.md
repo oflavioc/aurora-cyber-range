@@ -514,6 +514,32 @@ esta linhagem aposentou duas vezes — o verificador que sai `ok` quando não sa
 E pegou a assimetria de instalação **antes** de custar uma rodada: é a quarta vez
 que o `pyproject.toml` a paga, e a primeira em que um verificador a viu.
 
+#### 3.4.4 `git stash` apareceu duas vezes — dado para a P6-6, e não pendência nova
+
+A **P6-6** registra que o sentinela de branch intercepta `Write`/`Edit` e **não**
+`Bash`, e nomeia `git stash` como *"esse risco por uma porta que nenhuma das três
+formas mapeou"*. Ela era, até aqui, uma observação sem instância.
+
+**Passou a ter duas, as duas nesta sessão:**
+
+| Onde | O que aconteceu |
+|---|---|
+| spec-change #58 | `git stash push -- contracts/` para separar as duas metades do trabalho, e `git stash pop` depois de trocar de branch. Funcionou, e o `pop` foi conferido |
+| conserto da P6-9 | `git stash -u` antes de rodar o lançador — e ele **removeu o próprio conserto**, fazendo a medição rodar a versão antiga. O `grep` da saída voltou vazio, e por um instante pareceu que o conserto não funcionava |
+
+**A segunda é a que interessa**, e ela é exatamente a forma que a P6-6 descreve:
+trabalho pensado sobre uma árvore, executado contra outra. Nenhum hook viu —
+`git stash` não é `Write` nem `Edit`, e o sentinela nunca foi invocado. O
+prejuízo foi de minutos e a medição foi refeita corretamente; o que a torna
+registrável é que **o modo de falha ocorreu**, e não que ele tenha custado caro.
+
+**Isto NÃO abre pendência.** A P6-6 já existe, já nomeia `git stash` por nome, e
+**vence na Fase 8** — quando o paralelismo começar e várias branches viverem ao
+mesmo tempo. O que muda é que ela deixa de ser hipótese: quem for decidir entre
+as três formas lá terá **duas ocorrências medidas** em vez de um risco
+raciocinado, e a segunda mostra que o dano não precisa de duas branches — basta
+uma árvore com trabalho não commitado.
+
 ### 3.5 As três variantes da classe da §7.1, medidas nesta peça
 
 A §7.1 mede *"uma exigência é afirmada num lugar e os sítios que a satisfazem não
@@ -739,7 +765,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | `LATENTE` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro — o literal ocorreu no trabalho da P7-2 sem que o defeito aparecesse; ver abaixo |
 | P6-7 | rota que declara `emite` e não chama emissor nenhum — a metade do fluxo continua aberta; herdada da Fase 6, §"P6-7" | `ABERTA` | a próxima rota que declare `emite` em serviço cuja fábrica já constrói o produtor, ou a Fase 8, o que vier primeiro; ver abaixo |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | `DECIDIDA` | a medição dos consumidores, ou a Fase 10, o que vier primeiro; ver abaixo |
-| P6-9 | a cópia instalada do hook do auditor não é sincronizada por ninguém — herdada da Fase 6, §"P6-9" | `VENCIDA` | qualquer edição da fonte do hook — ocorreu três vezes, a última no PR #56; ver abaixo |
+| P6-9 | ~~a cópia instalada do hook do auditor não é sincronizada por ninguém~~ — herdada da Fase 6, §"P6-9" | `RESOLVIDA` | o lançador passou a sincronizar as três cópias antes de abrir a sessão — PR #61; ver abaixo |
 | P6-11 | payload cru alimenta o Brier: `confidence: 900` produz escore 64,0 | `RESOLVIDA` | venceu na L1 da terceira auditoria da Fase 6; conserto no PR #54; ver abaixo |
 | P6-12 | a condição (4) da contrassinatura não pode disparar em produção: `sub == persona`, e `actor_id` vira função da persona | `ABERTA` | a palavra do proprietário entre as saídas (a) e (b); ver abaixo |
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | `ABERTA` | o artefato que torne a afirmação reexecutável, ou a primeira vez que alguém precise da cobertura que a tabela declara; ver abaixo |
@@ -1772,7 +1798,7 @@ ganhou id em vez de virar nota de rodapé.
 `5` do registro continua dizendo `destinatario=(7, …)` sobre uma fase que passou —
 e gatilho que já disparou e não venceu é o defeito que a P5-2 documenta.
 
-#### P6-9 — VENCIDA: a terceira divergência chegou antes do gatilho
+#### P6-9 — RESOLVIDA: o lançador sincroniza, e a comparação passa a ter dois chamadores
 
 **A terceira ocorrência aconteceu no PR #56.** Editar os comentários de
 `user-scope/hooks/readonly_bash.py` fez `phase0_negative_tests.py` reprovar na
@@ -1786,6 +1812,103 @@ divergência **dói**, não onde ela **ocorre**.
 
 **As três formas seguem mapeadas na Fase 6, §P6-9, e nenhuma foi escolhida.**
 Decisão do proprietário.
+
+> **RESOLVIDA no PR #61**, conserto puro contra `main` e fora desta branch — o
+> mesmo rito da P6-11 e da P7-2.
+>
+> **A FORMA ESCOLHIDA É A PRIMEIRA: o lançador sincroniza.** As outras duas
+> caem, e as razões são medidas:
+>
+> | Forma | Por que não |
+> |---|---|
+> | (2) o verificador acusa melhor | **não conserta.** `phase0_negative_tests.py` já acusava — pegou nas três ocorrências. O que faltava não era detecção: era o passo ficar **antes** de o lançador abrir a sessão |
+> | (3) disciplina declarada | é o que falhou. Três ocorrências, três remediações manuais |
+>
+> **ERAM TRÊS PARES, E NÃO UM** — a medição que precedeu o conserto mudou o
+> escopo dele: `readonly_bash.py`, `sentinela_de_branch.py` e
+> `checkpoint-auditor.md`. Consertar o primeiro deixando os irmãos vivos seria a
+> §9.6, que é a correção que fecha a instância e deixa a classe viva.
+>
+> **O QUARTO FICA FORA, e a exclusão é declarada em dois lugares no código.**
+> `user-scope/hooks/pre-commit` → `.git/hooks/pre-commit` vai para **dentro** da
+> árvore, é hook do **git** e não do agente, e é **o único par em que BYTES
+> importam**: ele é `#!/bin/sh`, e um CR no shebang o torna inexecutável.
+> `sem_carriage_return` o afirma por `read_bytes()`; sincronizá-lo por linha
+> apagaria exatamente a diferença que importa nele.
+>
+> **O CUSTO ACEITO, e ele é estreito:** o lançador passa a **escrever fora da
+> árvore**. Até aqui só tocava `.aurora-worktrees/`, o worktree e
+> `docs/progress/`. As guardas vieram do `bootstrap.sh`, que é o único
+> precedente de escrita em `~/` no repositório: destino **derivado** de
+> `Path.home()` e nunca parametrizável, escrita **só quando diverge**, razão
+> declarada no ponto, falha **alta** em qualquer erro — e **SMOKE TEST depois de
+> escrever**. Não confiar que a cópia deu certo: exercitá-la. O `readonly_bash`
+> tem de bloquear `rm -rf`; o sentinela tem de responder com rc 0 ou 2, que são
+> os dois vereditos legítimos porque dependem da branch.
+>
+> **A comparação virou predicado, e a razão não foi estética.**
+> `copia_em_sincronia` não servia: ela não devolve valor e, no ramo de
+> divergência, chama `_reject`, que levanta `SystemExit(1)` — ela **aborta onde
+> o lançador tem de reparar**. Duplicá-la seria a **quarta** implementação da
+> mesma comparação, e o H1 da primeira auditoria da Fase 4 fechou as três
+> anteriores. Então `divergem(fonte, instalada)` saiu dela, e os dois a chamam.
+>
+> A assimetria da ausência ficou **fora** do predicado: para o harness, cópia
+> ausente é **esperada** (o CI não tem escopo de usuário); para o lançador,
+> ausente significa **copiar**. Se ela entrasse ali, o predicado teria dois
+> comportamentos conforme quem chama — que é como se fabrica a próxima
+> divergência.
+>
+> ##### O VERMELHO 1, e ele é a prova de que a pendência era o que dizia ser
+>
+> Divergência plantada em `~/.claude/hooks/sentinela_de_branch.py`, lançador
+> rodado **antes** do conserto:
+>
+> ```
+> Preparing worktree (detached HEAD 44e641e)
+> Criando o venv da auditoria e instalando a arvore auditada (P3-4)...
+> Subindo a stack efemera da auditoria (Postgres + Redis)...
+> Rodando as provas de container do commit auditado (P4-10)...
+> Medindo o seed completo do commit auditado (~5 min; Forma B da Fase 5)...
+> ```
+>
+> Ele atravessou a guarda de base, montou o worktree, criou o venv, instalou a
+> árvore, subiu a stack, rodou as provas de container e entrou no seed — **com o
+> hook instalado divergente**. `grep -i "hook|sincron|sentinela|.claude"` sobre a
+> saída inteira: **zero**.
+>
+> **Não era só que ninguém sincronizava: ninguém sequer olhava**, no exato rito
+> cujo produto depende de o hook ser o que a árvore declara.
+>
+> Depois do conserto, a mesma divergência:
+>
+> ```
+> Sincronizando a copia instalada do escopo de usuario (P6-9)...
+> Escopo de usuario SINCRONIZADO (1 de 3):
+>   sentinela de branch: atualizada (divergia da fonte)
+>   smoke test passou em cada copia escrita que e programa.
+> Preparing worktree (detached HEAD 932996e)
+> ```
+>
+> A etapa aparece **entre** a guarda de base e o worktree, e a posição é por
+> ordem de custo: depois da guarda, que é a última coisa barata; antes do
+> worktree, porque falhar depois de venv e stack desperdiçaria o trabalho caro.
+>
+> ##### Um achado de lado, e ele é da mesma classe que a pendência mede
+>
+> `scripts/check_allowlist_do_auditor.py` lê a **fonte versionada** — `HOOK`
+> aponta para `user-scope/hooks/readonly_bash.py` — e **não declarava isso**.
+>
+> Ele responde *"a fonte declara este script?"* e **não** responde *"o auditor
+> consegue de fato executá-lo?"*. A segunda depende da cópia instalada estar em
+> dia, que era justamente o que ninguém garantia. Quem lesse o cabeçalho
+> concluiria que "a allowlist está certa" significa "o auditor roda o script" —
+> que é a segunda pergunta, e ele não a faz.
+>
+> **É a §7.3.1: verificador que não declara a própria fronteira é lido como
+> cobrindo mais do que cobre.** Corrigido **por declaração**, sem tocar em
+> comportamento — o mecanismo estava certo; o que faltava era ele dizer o que
+> não fazia.
 
 ---
 
