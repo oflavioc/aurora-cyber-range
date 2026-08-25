@@ -51,7 +51,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from contracts.generated.events import CONTAINMENT_DECLARED
 from domains.academus.seed import dataset, linha_b
 from range_core.events.integrity import canonical_json
 
@@ -80,6 +79,53 @@ CONJUNTOS_DE_CASO = (
 class Gabarito:
     ground_truth: dict
     gm_notes: str
+
+
+def predicados_de_verificacao() -> dict:
+    """`verification_predicates` do gabarito da Linha B — `03` §3.1.
+
+    E FUNCAO DE MODULO, e nao literal enterrado em `gerar`. A arvore nao depende
+    do seed nem do banco: ela e a mesma em toda execucao. Enquanto morava dentro
+    de `gerar`, a unica forma de exercita-la era subir Postgres e semear — entao
+    a guarda de carga que a julga (`pack_loader.confere_qualificador_since`)
+    nunca era exercida contra ELA, so contra arvores montadas a mao no teste.
+
+    E o mesmo argumento que `tests/fixtures/pack_completo.py` escreve sobre a
+    propria fixture: a forma que a spec escreve tem de atravessar o loader, ou a
+    guarda fica provada contra o duplo em vez de contra o artefato.
+
+    Devolve estrutura NOVA a cada chamada: constante de modulo seria mapeamento
+    mutavel compartilhado entre gabaritos, e o `ground_truth` que `gerar`
+    devolve e dicionario comum que qualquer chamador pode alterar.
+    """
+    return {
+        # CONTIDO = a conta comprometida parou. Predicado sobre o mundo, e
+        # nao sobre declaracao — `09` §4.0.
+        "containment": {
+            "absence_of": {
+                "fact_class": "grade_change_retroactive",
+                # `SINCE_SELF` do loader, escrito como literal e nao importado:
+                # `domains/` nao importa de `range_core.engine.loader` em lugar
+                # nenhum, e criar a primeira dependencia para reusar uma string
+                # de quatro letras trocaria um acoplamento barato por um caro.
+                #
+                # ESTE CAMPO E QUALIFICADOR DE INSTANTE, e nao referencia a
+                # evento. Ele dizia `containment_declared`, e a confusao era de
+                # ESPECIE: `03` §3.1 define `self` como *"a partir do instante
+                # em que este predicado passou a ser avaliado na linhagem
+                # corrente"*, e `containment_declared` e `event_type` de camada
+                # `declaration` (`09` §4.0) — o que a equipe AFIRMA, que `00`
+                # §3 proibe de tocar ground truth. O contrato deixa o campo como
+                # string livre, entao nada acusava; quem recusa e a guarda de
+                # carga, e ela recusava o pack inteiro.
+                "since": "self",
+            }
+        },
+        "service_restoration": {
+            "not_applicable": "a Linha B nao derruba servico: o incidente e "
+            "de integridade, e restauracao nao e a pergunta"
+        },
+    }
 
 
 def _consulta(motor, sql: str, conta_alvo: str) -> list:
@@ -148,23 +194,7 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
     ground_truth = {
         "facts": fatos,
         "line_b_cases": casos,
-        "verification_predicates": {
-            # CONTIDO = a conta comprometida parou. Predicado sobre o mundo, e
-            # nao sobre declaracao — `09` §4.0.
-            "containment": {
-                "absence_of": {
-                    "fact_class": "grade_change_retroactive",
-                    # A CONSTANTE GERADA, e nao a string: o invariante 2 recusa
-                    # `event_type` literal fora dos geradores, e recusou este —
-                    # `02` §6.3 nao me livra de `09` §4.
-                    "since": CONTAINMENT_DECLARED,
-                }
-            },
-            "service_restoration": {
-                "not_applicable": "a Linha B nao derruba servico: o incidente e "
-                "de integridade, e restauracao nao e a pergunta"
-            },
-        },
+        "verification_predicates": predicados_de_verificacao(),
     }
 
     produzido = Gabarito(
