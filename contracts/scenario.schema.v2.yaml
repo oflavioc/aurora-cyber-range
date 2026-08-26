@@ -193,7 +193,6 @@ $defs:
     required:
       - max_branch_points_per_line
       - max_paths_per_branch
-      - reconvergence_required
     additionalProperties: false
     properties:
       max_branch_points_per_line:
@@ -205,6 +204,15 @@ $defs:
       max_paths_per_branch:
         type: integer
         minimum: 1
+      # TRANSITORIO — spec-change `branch-policy-sem-reconvergence-required`
+      # em voo. O campo era exigido e nunca teve efeito possivel: o `$def` de
+      # `branch` exige `reconverge_at` INCONDICIONALMENTE (04 secao 6.2), entao
+      # `false` era aceito e mentia. Decisao do proprietario (2026-08-25):
+      # reconvergencia e sempre obrigatoria e o campo SAI. Ele fica aqui como
+      # opcional apenas ate o spec-change remover a linha do exemplo da secao 2
+      # — o executor de exemplos valida aquele bloco contra este schema, e o
+      # spec_freeze proibe mudar norma e mecanismo no mesmo PR. A remocao da
+      # propriedade e da peca 4 da Fase 7, junto da aplicacao da politica.
       reconvergence_required:
         type: boolean
 
