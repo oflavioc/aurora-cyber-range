@@ -79,6 +79,12 @@ DESCRITIVO: dict[str, str] = {
     "gate, e os digests dele ja tem guarda propria em check_pinned_images.py, "
     "que cruza os TRES arquivos que declaram imagem",
     ".env.example": "placeholders; o `.env` real nao e versionado",
+    "docs/adr/": "registro de decisao: diz o que foi decidido e por que, nao o "
+    "que deve acontecer; a norma que uma decisao cria vive em .claude/rules/ "
+    "ou em docs/spec/, cada uma sob seu proprio gate",
+    "docs/ADOCAO_ESTRUTURA_AGENTICA.md": "mapa da integracao da Estrutura "
+    "Agentica: registra o que foi instalado, o que prevaleceu e as decisoes do "
+    "proprietario — registro, como docs/progress/",
 }
 
 
