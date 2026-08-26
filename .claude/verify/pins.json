@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "52609518eb475cacb504471b0bf461512b65d516",
+    "gerado_de_head": "ca369769d046a4dc6cc7d2a0aab5ecb812b87919",
     "gerado_em": "2026-08-25",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -91,7 +91,7 @@
     "contracts/ground_truth.schema.yaml": "27b6512cb9471f35f11c2e431c1fb186c016287d26af4a98288c5145be215220",
     "contracts/objectives.schema.yaml": "ce420228367b01167ea516293e858fd186d7c8dfff271c95a4530f63d983f4a9",
     "contracts/rubrics.schema.yaml": "cd49a5c8c8709cb8ee7a1880d3318cb36e58b1658c388e14b57dfa13a019ee19",
-    "contracts/scenario.schema.v2.yaml": "2f5acc454204d4fe7da562166f57e0adf8e1f9a7c036d2c50bacbefe377f98e1",
+    "contracts/scenario.schema.v2.yaml": "83b6a0bc8d7f1f340ec6702f2eb81cd7069164dfa9880294e0137e62c03b2749",
     "contracts/state_flags.schema.yaml": "9a0854f2c5dfe1c301039f945b82a7127fd925198dc2c9e684b552a230dbf2b0",
     "docker-compose.audit.yml": "dd2d316e52cc04b6f4d5b1f8f4ce11a3a1678cf5eae1214e64ed931ba184a67a",
     "docker-compose.yml": "dd45c2905160be338747fa30759ffbc684240c0d9f7d53f3e0f065d74d696bb6",
