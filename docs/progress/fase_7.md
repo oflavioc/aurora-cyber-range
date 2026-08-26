@@ -1058,6 +1058,76 @@ destinatário peça 4 — é lá que a árvore de `when` é interpretada.
 `check_core_boundary.py` só opina sobre `domains/`; `check_core_contract_imports.py`
 só sobre `contracts/`. É a P2-15 um nível acima, e virou **P7-8**.
 
+## 5. A peça 4 — branching
+
+> **É a peça 4 do plano reduzido, e era a 5.** Onde texto herdado disser
+> "peça 5" com sentido de branching, vale a tabela da §1.
+
+### 5.1 Abertura — a medição, e a tensão que precisou de três PRs antes do primeiro commit
+
+**Os três critérios DONE desta peça, medidos na abertura:**
+
+| DONE | Estado medido |
+|---|---|
+| 5 — branch sem `reconverge_at` recusado | **já recusa**, camada 1: `required` do `$def branch` (`scenario.schema.v2.yaml`), desde a reescrita do contrato. Nada a implementar |
+| 4 — `branch_policy` aplicada | **só a forma existe** — o `$def branch_policy` valida os campos do manifesto; contagem não existe em camada nenhuma. `x-aurora-linter-rules → branch_policy_aplicada` declara o destinatário: esta peça |
+| 6 — `dryrun` percorre todos os caminhos | **nada existe** — `cli.py` declara o verbo como "peça 4 desta fase" e recusa o subcomando |
+
+**A tensão medida na abertura tinha de ser resolvida ANTES de qualquer código**,
+porque "aplicar a `branch_policy`" exigiria dar semântica a um campo que não
+podia ter nenhuma: `reconvergence_required` era booleano **exigido** pelo
+contrato, e o `$def branch` exige `reconverge_at` incondicionalmente — `false`
+era aceito e mentia. Decisão do proprietário (2026-08-25, no chat, entre três
+saídas apresentadas): **o campo sai; reconvergência é sempre obrigatória**.
+Executada em três PRs, na ordem que os próprios gates forçavam:
+
+1. **#63** `contratos:` — o campo deixa de ser exigido (transição; o executor
+   de exemplos valida o bloco da §2 do `04` contra o schema, e norma+mecanismo
+   no mesmo PR é o que o `spec_freeze` reprova).
+2. **#65** `estrutura:` — a colisão que o #64 expôs de brinde: `docs/spec/` e
+   `README.md` eram pinados (R8), repin mora em `.claude/`, e `.claude/` é
+   conjunto CODE do `spec_freeze` — **todo** spec-change reprovaria. Saíram dos
+   pins, pelo rito (`gen_pins.py --exclude`, com motivo).
+3. **#64** `spec-change:` — a linha sai do exemplo da §2 do `04`, com nota;
+   contador do README 26→27.
+
+A propriedade transitória que o #63 deixou no schema morre **nesta peça**,
+junto da aplicação da política — código com código.
+
+### 5.2 As decisões de semântica da travessia, declaradas antes do código
+
+A spec dá o exemplo normativo (`04` §6) e as duas contagens (`04` §2), e não
+define o resto. O que segue é decisão desta peça, registrada para ser revisável
+em vez de arqueológica:
+
+1. **A linha de um ponto de ramificação** é o campo `line` da branch; ausente,
+   é a `linha` do inject de `at_inject`. O exemplo normativo declara `line: A`
+   explícito, e o campo é opcional no contrato.
+2. **`max_branch_points_per_line` conta pontos por linha** (agrupados pela
+   regra 1); **`max_paths_per_branch` conta os braços de `evaluate`** — no
+   exemplo, `contained_early` + `not_contained` = 2 caminhos.
+3. **O caminho de um braço** é `at_inject` → `next` → os injects comuns da
+   linha na janela `(t(next), t(reconverge_at))` — excluídos os `next` dos
+   braços irmãos, que são a divergência — → `reconverge_at`.
+4. **A travessia recusa o que não pode percorrer**: `next` com `t_relative`
+   anterior ao de `at_inject`; `reconverge_at` anterior ao `next`; `next` ou
+   `reconverge_at` fora da linha do ponto. São recusas do `dryrun` ("percorre
+   todos os caminhos **sem erro**", `06` T12), não do lint — pack que linta
+   limpo e não ensaia é exatamente o que o verbo existe para pegar antes da
+   sala (`04` §8: "dryrun é pré-requisito de ensaio").
+5. **A metade "indicado" da regra do `option`** (registro
+   `option_existe_no_decision_point_indicado`, parcial desde a peça 3):
+   interpreta-se o par `decision` + `option` quando as duas folhas são irmãs
+   DIRETAS da mesma conjunção `all` — que é a forma do vocabulário de `04`
+   §6.1 ("`decision` + `option`"). `option` em um `all` cujo `decision` irmão
+   não existe no pack é recusado pela mesma regra: não há "indicado" onde
+   existir. Folha `option` sem irmão `decision` segue coberta só pela
+   existência global (`x-aurora-ref`), e isso fica declarado no registro.
+6. **A contagem da política e o `dryrun` usam a mesma travessia** — é o motivo
+   registrado em `x-aurora-linter-rules` desde a peça 3, e vira módulo:
+   `range-core/engine/loader/branching.py`, um dono, dois consumidores (o
+   passo do lint/boot e o verbo do CLI).
+
 ## 6. Pendências
 
 Prefixo `P7-` para as que nascerem aqui. A tabela abaixo começa com o que foi
