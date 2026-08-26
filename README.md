@@ -179,7 +179,7 @@ As restrições vivem em [`docs/spec/05_SECURITY_REQUIREMENTS.md`](docs/spec/05_
 
 O projeto é construído com assistência de IA sob um regime de verificação explícito, e o regime é parte do produto.
 
-**A especificação é congelada.** A tag `spec-v1.0` marca o ponto em que `docs/spec/` virou imutável durante a implementação. Ela mudou **26 vezes** desde então, e nenhuma delas junto com código: cada uma exigiu PR próprio com título `spec-change:`, com um gate de CI que reprova o PR que toca a norma e o mecanismo ao mesmo tempo. Se o código não bate com a spec, o código está errado.
+**A especificação é congelada.** A tag `spec-v1.0` marca o ponto em que `docs/spec/` virou imutável durante a implementação. Ela mudou **27 vezes** desde então, e nenhuma delas junto com código: cada uma exigiu PR próprio com título `spec-change:`, com um gate de CI que reprova o PR que toca a norma e o mecanismo ao mesmo tempo. Se o código não bate com a spec, o código está errado.
 
 **Os invariantes são gate, não convenção.** Quatro regras arquiteturais — o core não importa domínio, nenhuma string solta de nome de flag, nenhum `event_type` fora do catálogo, nenhum evento carregando `objective_ids` — têm hook local para feedback rápido e teste de CI como porta real.
 

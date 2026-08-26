@@ -37,12 +37,13 @@ evidence_sources: [email, vpn, identity_audit, database_audit]
 branch_policy:
   max_branch_points_per_line: 1
   max_paths_per_branch: 2
-  reconvergence_required: true
 calibration:
   threshold: 0.15          # Brier máximo para considerar integridade validada (TTIV)
 ```
 
 `required_rubrics` inclui a **versão**. Rubrica ausente ou em versão diferente impede a carga.
+
+> **`branch_policy` teve um terceiro campo, `reconvergence_required: true`, e ele saiu neste `spec-change`.** Era booleano exigido sem efeito possível: a §6.2 recusa branch sem `reconverge_at` **incondicionalmente** — e o DoD 5 da Fase 7 repete a forma incondicional —, então `false` era aceito e mentia. A tensão foi medida na abertura da peça 4 de branching, quando "aplicar a `branch_policy`" exigiria dar semântica a um campo que não pode ter nenhuma. Decisão do proprietário (2026-08-25): **reconvergência é sempre obrigatória** — branch sem reconvergência torna não-limitado um exercício de `duration_minutes` fixa, contra o princípio de cenário ensaiável e determinístico da §6.1. A política fica com os dois contadores, que são o que a §6.2 sempre definiu como "aplicada": excesso de pontos ou de caminhos.
 
 ## 3. Ground truth
 
