@@ -200,15 +200,15 @@ class OsParametrosSaoEXPLICITOS(unittest.TestCase):
     def test_os_outros_subcomandos_de_04_secao_8_NAO_existem(self) -> None:
         """Casca vazia seria superficie que PARECE existir.
 
-        `dryrun` e da peca 4; `migrate` nao tem entrega enquanto nao houver
-        transicao real a migrar (ver `engine/migrations/__init__.py`); `evidence`
-        e da Fase 9. Um verbo que saisse zero sem conferir nada seria pior que a
-        ausencia dele — a ausencia grita.
+        `migrate` nao tem entrega enquanto nao houver transicao real a migrar
+        (ver `engine/migrations/__init__.py`); `evidence` e da Fase 9. Um verbo
+        que saisse zero sem conferir nada seria pior que a ausencia dele — a
+        ausencia grita.
 
-        **`lint` E `validate` SAIRAM DESTA LISTA, e por motivos DIFERENTES.** A
-        redacao anterior os punha aqui junto dos outros, e ela envelheceu com a
-        entrega da peca 3 — a classe da §1.6 do registro da Fase 1. O modo de
-        corrigir e reescrever a lista, e nao acrescentar uma ressalva.
+        **`dryrun` SAIU DESTA LISTA na peca 4**, pelo mesmo movimento que tirou
+        `lint` na peca 3 — a classe da §1.6 do registro da Fase 1: a lista se
+        reescreve, nao ganha ressalva. O teste dele e
+        `tests/test_range_cli_dryrun.py`, e a perna de presenca esta abaixo.
 
         `lint` **existe** desde a peca 3, e o teste dele e
         `tests/test_range_cli_lint.py`. `validate` **nao existe e nao vai
@@ -217,11 +217,16 @@ class OsParametrosSaoEXPLICITOS(unittest.TestCase):
         `validate` inclusive. Um `validate` seria um `lint` com menos checagens,
         e nenhum criterio de DoD o cobra.
         """
-        for verbo in ("validate", "dryrun", "migrate"):
+        for verbo in ("validate", "migrate"):
             with self.assertRaises(SystemExit):
                 cli._parser().parse_args(["scenario", verbo, "x"])
         with self.assertRaises(SystemExit):
             cli._parser().parse_args(["evidence", "build", "x"])
+
+    def test_dryrun_existe_e_recebe_o_caminho_do_pacote(self) -> None:
+        """A perna de presenca do `dryrun` — mesma razao da de `lint` abaixo."""
+        args = cli._parser().parse_args(["scenario", "dryrun", "algum/pacote"])
+        self.assertEqual((args.grupo, args.verbo), ("scenario", "dryrun"))
 
     def test_lint_existe_e_recebe_o_caminho_do_pacote(self) -> None:
         """A outra metade: a lista acima so prova ausencia se `lint` estiver fora.
