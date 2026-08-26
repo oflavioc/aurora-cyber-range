@@ -5,6 +5,26 @@
 > Princípio da integração: **onde o aurora já tem mecanismo equivalente ou
 > melhor, o mecanismo existente prevalece** — nada foi sobrescrito.
 
+## 0. Decisões do proprietário — 2026-08-25
+
+Tomadas em sessão, no chat, após apresentação das colisões:
+
+1. **A Estrutura Agêntica é a estrutura permanente de desenvolvimento do
+   projeto inteiro daqui em diante** — não um complemento pontual. Todo
+   trabalho da Fase 8 em diante nasce dentro dela.
+2. **A Fase 7 fecha pelo processo atual** (peças 4 e 5, auditoria de
+   checkpoint e P7-6 sob as regras que regeram as peças 1–3) — a auditoria
+   não muda de chão no meio da fase. A instanciação corre em paralelo, nesta
+   branch própria.
+3. **Trunk + âncoras prevalece sobre o gitflow do kit** — confirmada a
+   adaptação da R14 que documenta o fluxo real (fase = branch = PR rebase em
+   `main`, âncora obrigatória, squash proibido). O predicado
+   `check_audit_base` permanece válido sem mudança.
+4. **Primeira instalação: Ondas 0–1.** A Onda 2 (8 papéis + SDD governando
+   também o roadmap) entra **na abertura da Fase 8** — o desenho da
+   reconciliação fase↔demanda é a primeira tarefa dessa abertura. A Onda 3
+   segue aguardando a dor (primeira regressão que red-first teria evitado).
+
 ## 1. Adotado limpo (instalado nesta branch — Ondas 0/1 do BOOTSTRAP)
 
 | Peça | Onde | Nota |
@@ -29,7 +49,7 @@
 | Auditoria de configuração (`compliance-audit.sh`) | `check_gate_coverage.py`, `check_allowlist_do_auditor.py` etc. | Complementares: o do aurora audita o CI e o auditor; o do kit audita hooks/deny/invariantes/waivers — instalados ambos |
 | Auditoria de fase (Fase 6 da SDD: QA+PO) | `checkpoint-auditor` externo com worktree | Para fases do roadmap, o do aurora prevalece; a validação da SDD vale só para demandas |
 | `expected_suites.json` com contagens | README com contador de testes + `check_readme_atual.py` | O do aurora já confere prosa×árvore no CI. `expected_suites.json` instalado VAZIO; preencher é decisão do operador (§3) |
-| 8 agentes do kit | `scenario-designer`, `spec-guardian`, `checkpoint-auditor` | Onda 2 NÃO instalada — os agentes existentes permanecem; os 8 papéis entram quando houver a primeira demanda fora do roadmap |
+| 8 agentes do kit | `scenario-designer`, `spec-guardian`, `checkpoint-auditor` | Onda 2 NÃO instalada — os agentes existentes permanecem; os 8 papéis entram na abertura da Fase 8 (decisão §0.4) |
 
 ## 3. Conflitos e decisões que só o proprietário pode tomar
 
@@ -50,14 +70,15 @@
 5. **AGENTS.md desatualizado** — cópia envelhecida do CLAUDE.md (cita
    `~/.Codex/agents/` e a versão pré-decisão da seção de gabarito).
    Sincronizar, gerar de fonte única ou aposentar? Não tocado nesta branch.
-6. **Onda 2 (8 papéis instanciados) e Onda 3 (guard-tdd ativo +
-   `produto.globs`)** — instalar quando houver a dor: primeira demanda fora do
-   roadmap (Onda 2); primeira regressão que red-first teria evitado (Onda 3).
+6. ~~**Onda 2 e Onda 3** — gatilhos~~ **DECIDIDO (§0.4)**: Onda 2 na
+   abertura da Fase 8; Onda 3 segue aguardando a dor (primeira regressão que
+   red-first teria evitado).
 7. **O kit vira repositório publicado?** — `C:\Projetos\estrutura-agentica-kit`
    é hoje um repo git local sem remote.
-8. **Base desta branch** — ela nasceu do HEAD atual (`fase-7-pack-branching-cli`),
-   conforme instrução da missão; se preferir integrá-la a partir de `main`,
-   é um rebase simples (nenhum arquivo desta branch colide com a fase-7).
+8. ~~**Base desta branch**~~ **RESOLVIDO (consequência de §0.2)**: rebase
+   `--onto origin/main` executado em 2026-08-25 — a branch carrega só os
+   commits de estrutura, com repin em commit próprio. O PR desta branch é
+   independente da fase-7 e pode mergear antes ou depois dela.
 
 ## 4. Como ratificar a R1
 
