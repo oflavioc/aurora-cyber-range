@@ -204,17 +204,14 @@ $defs:
       max_paths_per_branch:
         type: integer
         minimum: 1
-      # TRANSITORIO — spec-change `branch-policy-sem-reconvergence-required`
-      # em voo. O campo era exigido e nunca teve efeito possivel: o `$def` de
-      # `branch` exige `reconverge_at` INCONDICIONALMENTE (04 secao 6.2), entao
-      # `false` era aceito e mentia. Decisao do proprietario (2026-08-25):
-      # reconvergencia e sempre obrigatoria e o campo SAI. Ele fica aqui como
-      # opcional apenas ate o spec-change remover a linha do exemplo da secao 2
-      # — o executor de exemplos valida aquele bloco contra este schema, e o
-      # spec_freeze proibe mudar norma e mecanismo no mesmo PR. A remocao da
-      # propriedade e da peca 4 da Fase 7, junto da aplicacao da politica.
-      reconvergence_required:
-        type: boolean
+      # `reconvergence_required` MOROU AQUI e saiu em tres tempos: exigido e
+      # sem efeito possivel (o `$def` de `branch` exige `reconverge_at`
+      # INCONDICIONALMENTE, entao `false` era aceito e mentia), virou opcional
+      # transitorio no PR #63, saiu da norma no spec-change #64, e morreu de
+      # vez na peca 4 — junto da aplicacao da politica, codigo com codigo.
+      # `additionalProperties: false` acima e o que RECUSA o campo daqui em
+      # diante: pack que ainda o declare recebe recusa de camada 1, que e o
+      # comportamento certo para um botao que nunca ligou em nada.
 
   calibration:
     type: object
@@ -789,15 +786,15 @@ x-aurora-linter-rules:
 
   - id: branch_policy_aplicada
     rule: 'branch_policy do manifesto e aplicada: excesso de pontos de ramificacao ou de caminhos e recusado'
-    destinatario: 'Fase 7, peca 4 — item 4 da DoD de 07_IMPLEMENTATION_PHASES.md'
-    motivo: 'A politica so pode ser aplicada por quem conta pontos de ramificacao por linha e caminhos por ponto, e isso e a mesma travessia que o `dryrun` percorre. Separar as duas duplicaria a caminhada do grafo de branches.'
+    mecanismo: 'range-core/engine/loader/branching.py, confere_branch_policy — na lista de _passos, entao na carga E no lint'
+    sitio: branch_policy_exceeded
+    motivo: 'A politica e aplicada por quem conta pontos por linha e caminhos por ponto sobre a MESMA estrutura que o `dryrun` percorre (`pontos_de_ramificacao`) — a caminhada do grafo tem um dono. Entregue na peca 4 da Fase 7; semantica declarada em docs/progress/fase_7.md §5.2.'
 
   - id: option_existe_no_decision_point_indicado
     rule: 'todo option referenciado deve existir no decision_point indicado'
-    mecanismo: 'x-aurora-ref:pack_decision_options, em #/$defs/branch_option'
-    sitio: rule_violation
-    destinatario: 'Fase 7, peca 4'
-    motivo: 'PARCIAL, e a metade que falta e a palavra "indicado". O registro prova que a opcao existe em ALGUM decision_point do pack; a folha `option` nao carrega o `decision`, que viaja numa folha IRMA da mesma condicao, e casar as duas exige interpretar a arvore de `when` — que e o que a peca 4 faz. Hoje uma condicao que case `decision: DP-A03` com `option: monitor` passa mesmo que `monitor` pertenca a outro ponto de decisao.'
+    mecanismo: 'x-aurora-ref:pack_decision_options em #/$defs/branch_option (existencia global) + range-core/engine/loader/branching.py, confere_option_no_decision_point (a metade "indicado": o par decision+option irmaos da mesma conjuncao `all`)'
+    sitio: option_fora_do_decision_point
+    motivo: 'As duas metades tem mecanismos distintos porque recusam coisas distintas: o registro prova que a opcao existe em ALGUM decision_point; o passo da peca 4 interpreta a arvore de `when` e recusa a opcao que nao pertence ao ponto que a folha `decision` IRMA indica — inclusive quando o proprio ponto indicado nao existe. Folha `option` sem irmao `decision` segue coberta so pela existencia global: disjuncao e negacao nao indicam nada.'
 
   - id: t_relative_em_ordem
     rule: 't_relative fora de ordem e recusado'
