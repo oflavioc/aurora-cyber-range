@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "09078e8c449fd71285044891ec5044066edbe2c4",
+    "gerado_de_head": "c4cf639d34d74514134439237cdcee51cff841e7",
     "gerado_em": "2026-08-25",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -95,7 +95,7 @@
     "contracts/state_flags.schema.yaml": "9a0854f2c5dfe1c301039f945b82a7127fd925198dc2c9e684b552a230dbf2b0",
     "docker-compose.audit.yml": "dd2d316e52cc04b6f4d5b1f8f4ce11a3a1678cf5eae1214e64ed931ba184a67a",
     "docker-compose.yml": "dd45c2905160be338747fa30759ffbc684240c0d9f7d53f3e0f065d74d696bb6",
-    "docs/ADOCAO_ESTRUTURA_AGENTICA.md": "daf0a89995509b5b720a41487626c30f81587650ba00dce57f11f313dcfd4091",
+    "docs/ADOCAO_ESTRUTURA_AGENTICA.md": "7e6ad8a69a483e640263e6103b80b65e75f724b04f35de0f1d8764050685e764",
     "docs/BRIEFING.md": "37e871c7f79c11feaaaa0ec30d72f1db26ba4991c049e971a21bdd50e6ddfc79",
     "docs/adr/0001-adocao-estrutura-agentica.md": "022a00c802aa6c60af76e0c3491957df81992548a35d9b320c4f122abd15a8a0",
     "docs/process/BOOTSTRAP.md": "7c6aedcd6ce1fcfb53a464fdca431d5af9a0de3756e93a0fe65eac2bf7c7fccb",
