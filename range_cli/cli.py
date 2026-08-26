@@ -1,9 +1,15 @@
-"""`range-cli` — a superficie de cenario. Dois verbos: `materialize` e `lint`.
+"""`range-cli` — a superficie de cenario. Tres verbos: `materialize`, `lint` e
+`dryrun`.
 
-`04_SCENARIO_SCHEMA.md` §8 declara sete subcomandos; estes sao os dois que
-existem. Os demais tem fase: `dryrun` e a peca 4 desta fase, `evidence build` e
-`evidence verify` sao da Fase 9, e `validate` nao tem entrega propria enquanto
-`lint` o cobre por dentro — ver `range_cli/lint.py`.
+`04_SCENARIO_SCHEMA.md` §8 declara sete subcomandos; estes sao os tres que
+existem. Os demais tem fase: `evidence build` e `evidence verify` sao da Fase
+9, e `validate` nao tem entrega propria enquanto `lint` o cobre por dentro —
+ver `range_cli/lint.py`.
+
+`dryrun` PERCORRE E NAO AVALIA: ele enumera todos os caminhos de branch (`06`
+T12) e recusa o que nao consegue percorrer — quem avalia condicao em exercicio
+e o engine. E ele linta ANTES de andar: travessia sobre pack com achados nao
+afirma nada, porque os proprios ids e tempos que ela pisa podem ser o defeito.
 
 **A ORDEM EM QUE ELES NASCERAM E A DA FRONTEIRA DE ESCRITA**, e ela e propriedade
 a preservar: `04` §8.1 (a) registra que as allowlists de quem opera o repositorio
@@ -207,6 +213,18 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="o `flags.yaml` do adapter; o default vem do `domain` do manifesto",
     )
+
+    verbo_dryrun = verbos.add_parser(
+        "dryrun",
+        help="percorre todos os caminhos de branch, sem UI; recusa o que nao anda",
+    )
+    verbo_dryrun.add_argument("path", help="o diretorio do pacote")
+    # Mesmo contrato de `lint`, pelo mesmo argumento de `lint.flags_do_pack`.
+    verbo_dryrun.add_argument(
+        "--flags",
+        default=None,
+        help="o `flags.yaml` do adapter; o default vem do `domain` do manifesto",
+    )
     return parser
 
 
@@ -257,11 +275,86 @@ def _lint(args) -> int:
     return RECUSADO
 
 
+def _dryrun(args) -> int:
+    """`range-cli scenario dryrun <path>`. Le, nao escreve, e nao sobe engine.
+
+    LINT PRIMEIRO, TRAVESSIA DEPOIS — e a ordem e a garantia. Os achados saem
+    no mesmo formato do `lint`, para o autor consertar uma vez; so um pack sem
+    achados tem caminhos cuja enumeracao afirma alguma coisa. A recusa de
+    travessia (`branch_walk_impossible`) e o que ESTE verbo acrescenta: a
+    branch bem-formada que nenhuma camada anterior ve e que nao ensaia.
+    """
+    from range_core.engine.loader import branching
+    from range_core.engine.loader import pack_loader
+
+    raiz = Path.cwd()
+    pack_dir = Path(args.path)
+    contracts = contract_source.read_contracts()
+    try:
+        flags = (
+            lint_de_cenario.carrega_flags(Path(args.flags))
+            if args.flags
+            else lint_de_cenario.flags_do_pack(pack_dir, raiz)
+        )
+        achados = lint_de_cenario.lint(
+            pack_dir, contracts=contracts, adapter_flags=flags
+        )
+    except (lint_de_cenario.LintRecusado, ContractSourceError, PackError) as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+
+    if achados:
+        for linha in lint_de_cenario.relatorio(achados):
+            print(linha, file=sys.stderr)
+        plural = "achado" if len(achados) == 1 else "achados"
+        print(
+            f"{pack_dir}: dryrun recusado — {len(achados)} {plural} de lint. "
+            "Travessia sobre pack com achados nao afirma nada.",
+            file=sys.stderr,
+        )
+        return RECUSADO
+
+    documentos = pack_loader.le_documentos(pack_dir, contracts)
+    try:
+        caminhos = branching.percorre(
+            documentos.get("injects.yaml"), documentos.get("branches.yaml")
+        )
+    except PackError as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+
+    if not caminhos:
+        print(f"{pack_dir}: sem branches — nenhum caminho a percorrer.")
+        return LIMPO
+
+    pontos = []
+    for caminho in caminhos:
+        if caminho.ponto not in pontos:
+            pontos.append(caminho.ponto)
+            rotulo = f"linha {caminho.ponto.line!r}" if caminho.ponto.line is not None else "sem linha"
+            print(
+                f"{caminho.ponto.id} [{rotulo}] @ {caminho.ponto.at_inject} "
+                f"-> reconverge {caminho.ponto.reconverge_at}"
+            )
+        marca = " (default)" if caminho.braco.default else ""
+        print(f"  {caminho.braco.id}{marca}: " + " -> ".join(caminho.sequencia))
+    plural_p = "ponto" if len(pontos) == 1 else "pontos"
+    plural_c = "caminho" if len(caminhos) == 1 else "caminhos"
+    print(
+        f"{pack_dir}: {len(pontos)} {plural_p} de ramificacao, "
+        f"{len(caminhos)} {plural_c}, todos percorridos."
+    )
+    return LIMPO
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
 
     if (args.grupo, args.verbo) == ("scenario", "lint"):
         return _lint(args)
+
+    if (args.grupo, args.verbo) == ("scenario", "dryrun"):
+        return _dryrun(args)
 
     if (args.grupo, args.verbo) != ("scenario", "materialize"):  # pragma: no cover
         print(f"subcomando nao implementado: {args.grupo} {args.verbo}", file=sys.stderr)
