@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "9e127b19e9bec7ea87e19208afc19955a3c3e48f",
+    "gerado_de_head": "52609518eb475cacb504471b0bf461512b65d516",
     "gerado_em": "2026-08-25",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -256,7 +256,7 @@
     "scripts/check_fold_authority_probes.py": "7b9138e6645f89727413221c001f36adf75dcc616f423034f3e02f17e6c18afd",
     "scripts/check_gabarito_fora_do_git.py": "56c658c79a6e2a40dbd6c4b05d78dc68bb1c468553677e01df875dd73129a1d0",
     "scripts/check_gabarito_fora_do_git_probes.py": "afb16aa15e461cc5e22174e945916e2f2e9fc0c1c3b398b31c729a01d1f67b20",
-    "scripts/check_gate_coverage.py": "e770bc1dbcce3eb5eaceee8c3c8dfa0ede6c0779daee4a71f68e39a272418220",
+    "scripts/check_gate_coverage.py": "591f2b6fb66546900770f6ff5c366b0e5e525f5418dffe9bdaccc3d7525846cf",
     "scripts/check_gate_coverage_probes.py": "dba9466a80609bfe0295b2cd9816cc27d45ceccb5b7598c068a1e751f0d31755",
     "scripts/check_hooks_com_emissor.py": "b3160ec15b54767cd8c688bf49ae3fd626fcf3400dc9791e5292675013074a4d",
     "scripts/check_hooks_com_emissor_probes.py": "9ad252d39821b5361b860e6bb4d728ac83fca066b97af19b66d3384fecf29d9a",
