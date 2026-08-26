@@ -182,6 +182,20 @@ class PackSite:
     #: passa no digito verificador. `05_SECURITY_REQUIREMENTS.md` §5.2 e §3, e a
     #: **P7-7**, cujo gatilho declarado era esta peca.
     IOC_OPERACIONAL = "ioc_operacional"
+    #: Excesso de pontos de ramificacao por linha ou de caminhos por ponto,
+    #: contra a `branch_policy` do manifesto — item 4 da DoD da Fase 7 e `06`
+    #: T12. Peca 4; o mecanismo e `branching.confere_branch_policy`.
+    BRANCH_POLICY_EXCEEDED = "branch_policy_exceeded"
+    #: `option` que nao pertence ao `decision_point` que a folha `decision`
+    #: IRMA indica — a metade "indicado" de `04` §6.2, parcial no registro
+    #: `x-aurora-linter-rules` desde a peca 3. Peca 4;
+    #: `branching.confere_option_no_decision_point`.
+    OPTION_FORA_DO_DECISION_POINT = "option_fora_do_decision_point"
+    #: Branch bem-formada cujo caminho nao e percorrivel — `next` que nao vem
+    #: depois do ponto, `reconverge_at` antes do `next`, inject fora da linha.
+    #: Recusa do `dryrun` (`06` T12: "percorre todos os caminhos SEM ERRO"),
+    #: nao do lint; `branching.percorre`.
+    BRANCH_WALK_IMPOSSIBLE = "branch_walk_impossible"
 
 
 class PackError(Exception):
@@ -541,6 +555,19 @@ def _passos(
     # `t_relative` malformado e `media_event` sem forma sao recusa do contrato, e
     # rodar depois dele torna a garantia de forma disponivel em vez de suposta.
     yield lambda: confere_ordem_de_t_relative(documentos.get("injects.yaml"))
+
+    # IMPORT TARDIO, e a direcao e decidida: `branching` importa `PackError` e
+    # `PackSite` daqui no topo, e a outra ponta no topo seria ciclo. A forma
+    # tardia ja e precedente de `range_cli/cli.py`.
+    from range_core.engine.loader import branching
+
+    yield lambda: branching.confere_branch_policy(
+        manifest, documentos.get("injects.yaml"), documentos.get("branches.yaml")
+    )
+    yield lambda: branching.confere_option_no_decision_point(
+        documentos.get("injects.yaml"), documentos.get("branches.yaml")
+    )
+
     yield lambda: confere_fact_check_do_pack(documentos)
 
     # `05` §5.2 e a P7-7. ANTES das guardas de predicado: um pack com IOC real e
@@ -594,6 +621,21 @@ def varre_pack(
         except PackError as erro:
             achados.append(erro)
     return achados, textos
+
+
+def le_documentos(
+    pack_dir: Path | str, contracts: Mapping[str, Mapping]
+) -> Mapping[str, Mapping]:
+    """Os documentos do pack, lidos como o boot os le — e NADA conferido.
+
+    Existe para o `dryrun`: o verbo linta primeiro (e para nos achados), e a
+    travessia precisa dos documentos que a MESMA leitura produziu — reler por
+    outro caminho seria a segunda implementacao da abertura, com as recusas de
+    `_abre` reescritas em outro lugar. Quem chama e responsavel por so
+    atravessar depois de um lint limpo.
+    """
+    _, documentos, _ = _abre(Path(pack_dir), contracts)
+    return documentos
 
 
 def _read_documents(
