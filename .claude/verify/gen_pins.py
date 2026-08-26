@@ -8,11 +8,18 @@ nunca de literais espalhados. Os hashes são computados dos BLOBS de HEAD —
 Uso:
   python .claude/verify/gen_pins.py            # grava .claude/verify/pins.json
   python .claude/verify/gen_pins.py --stdout   # imprime sem gravar
+  python .claude/verify/gen_pins.py --exclude "<padrão>" "<motivo>"
+                                               # adiciona exclusão e regenera
 
 Exclusões e pins declarativos: se .claude/verify/pins.json já existe, as
 exclusões vêm de _meta.exclusoes e os declarativos de `declared` (preservados
 na regeneração). Na primeira geração valem os DEFAULTS abaixo — ajuste-os ao
 projeto (docs de alta rotatividade, evidência binária, estado de processo).
+
+Exclusão nova entra por `--exclude`, nunca por edição do pins.json: o registry
+é classe protegida do boundary (R6) e a regra da R12 é alterar a lógica no
+gerador, nunca a saída. O padrão aceita três formas: `dir/**` (prefixo),
+`*.ext` (sufixo) e caminho exato, sem curinga.
 """
 import hashlib, json, subprocess, sys
 from datetime import date
@@ -46,16 +53,22 @@ def load_prev():
     except Exception:
         return {}
 
-def build():
+def build(novas_exclusoes=()):
     prev = load_prev()
-    exclusoes = prev.get("_meta", {}).get("exclusoes", DEFAULT_EXCLUSOES)
+    exclusoes = list(prev.get("_meta", {}).get("exclusoes", DEFAULT_EXCLUSOES))
+    ja = {e.split(" (")[0] for e in exclusoes}
+    for entrada in novas_exclusoes:
+        if entrada.split(" (")[0] not in ja:
+            exclusoes.append(entrada)
     declared = prev.get("declared", {})
     _excl = [e.split(" (")[0] for e in exclusoes]  # anotação entre parênteses é doc, não padrão
     excl_prefixes = tuple(e[:-2] for e in _excl if e.endswith("**"))
     excl_suffixes = tuple(e[1:] for e in _excl if e.startswith("*."))
+    # caminho exato: padrão sem curinga nenhum (as duas formas acima não o alcançam)
+    excl_exatas = {e for e in _excl if "*" not in e}
     files = {}
     for f in sorted(tracked()):
-        if f == SELF or (excl_prefixes and f.startswith(excl_prefixes)) or (excl_suffixes and f.endswith(excl_suffixes)):
+        if f == SELF or f in excl_exatas or (excl_prefixes and f.startswith(excl_prefixes)) or (excl_suffixes and f.endswith(excl_suffixes)):
             continue
         files[f] = hashlib.sha256(blob(f)).hexdigest()
     return {
@@ -84,7 +97,19 @@ if __name__ == "__main__":
             print("   ", l)
         print("Commite o conteúdo PRIMEIRO; pins vêm em commit próprio na sequência.")
         sys.exit(1)
-    reg = build()
+    novas = []
+    argv = sys.argv[1:]
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--exclude":
+            if len(argv) - i < 3:
+                print('[FAIL] --exclude exige dois argumentos: "<padrão>" "<motivo>"')
+                sys.exit(1)
+            novas.append(f"{argv[i + 1]} ({argv[i + 2]})")
+            i += 3
+        else:
+            i += 1
+    reg = build(novas)
     text = json.dumps(reg, ensure_ascii=False, indent=2, sort_keys=False) + "\n"
     if "--stdout" in sys.argv:
         sys.stdout.write(text)
