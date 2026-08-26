@@ -53,9 +53,9 @@ Tomadas em sessão, no chat, após apresentação das colisões:
 
 ## 3. Conflitos e decisões que só o proprietário pode tomar
 
-1. **Ratificar (ou não) as 10 invariantes propostas na R1** — nenhuma vale
-   antes disso. Os gates "candidatos" (INV-2 append-only dedicado, INV-3
-   rollback nomeado, INV-7 frame-total) viram tarefas se confirmados.
+1. ~~**Ratificar as 10 invariantes da R1**~~ **DECIDIDO (2026-08-25)**: as
+   10 confirmadas sem reformulação ("Confirmo as 10"). Os gates candidatos
+   viraram as tarefas da §5.
 2. **`.gitattributes` global (`* text=auto eol=lf`)** — o kit manda; o aurora
    cobre só `*.sh` e `user-scope/hooks/**`. Estender exige commit de
    renormalização da árvore e conferência dos verificadores que hasheiam
@@ -80,9 +80,17 @@ Tomadas em sessão, no chat, após apresentação das colisões:
    commits de estrutura, com repin em commit próprio. O PR desta branch é
    independente da fase-7 e pode mergear antes ou depois dela.
 
-## 4. Como ratificar a R1
+## 4. Ratificação da R1 — registro
 
-Ler `.claude/rules/product-invariants.md`, confirmar/editar/rejeitar linha a
-linha, remover o aviso de PROPOSTA e ajustar `invariants.json`. A partir daí o
-`compliance-audit.sh` (seção `invariantes`) passa a cobrar gate existente para
-cada linha — invariante sem gate é prosa.
+O proprietário confirmou as 10 linhas em 2026-08-25, no chat, sem
+reformulação. O aviso de PROPOSTA saiu da R1, `invariants.json` está com
+`status: ratificada`, e o `compliance-audit.sh` (seção `invariantes`) cobra
+gate existente para cada linha — invariante sem gate é prosa.
+
+## 5. Tarefas abertas pela ratificação (gatilho: abertura da Fase 8)
+
+| Tarefa | O que falta | Dono |
+|---|---|---|
+| T-INV-2 | Teste de aceitação append-only dedicado (hoje só a superfície de leitura é conferida por `check_store_read_surface.py`) | `qa-engineer` (Onda 2); até lá, o proprietário |
+| T-INV-3 | O par 503/201 em volta do rollback vira gate nomeado no registro canônico (hoje é teste da Fase 4 sem nome de gate) | idem |
+| T-INV-7 | A metade "frame é estado TOTAL, nunca delta" ganha gate próprio (hoje `check_web_sem_derivacao.py` cobre só a derivação) | idem |

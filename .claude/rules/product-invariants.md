@@ -1,18 +1,18 @@
-# R1 — Invariantes de produto (PROPOSTA — PENDENTE DE RATIFICAÇÃO DO PROPRIETÁRIO)
+# R1 — Invariantes de produto
 
-> **STATUS: nenhuma linha desta tabela foi ratificada.** Este rascunho foi
+> **STATUS: RATIFICADA.** As 10 linhas foram confirmadas pelo proprietário em
+> 2026-08-25, no chat, sem reformulação ("Confirmo as 10"). O rascunho foi
 > derivado do README, do CLAUDE.md e do `invariants.yml` existente durante a
 > adoção da Estrutura Agêntica (ver `docs/ADOCAO_ESTRUTURA_AGENTICA.md`).
-> Só o proprietário ratifica; até lá, a autoridade normativa segue sendo
-> exclusivamente `docs/spec/` — esta página não cria norma nova, apenas dá às
-> normas existentes o formato "invariante → gate" auditado pelo
-> `compliance-audit.sh` (seção `invariantes`, mapa em
+> A autoridade normativa segue sendo `docs/spec/` — esta página não cria
+> norma nova, apenas dá às normas existentes o formato "invariante → gate"
+> auditado pelo `compliance-audit.sh` (seção `invariantes`, mapa em
 > `.claude/verify/invariants.json`).
 
 Severidade: **bloqueante**. Dono: `product-owner` (papel a instanciar na Onda 2;
 hoje, o proprietário). **A regra-mãe: invariante sem gate é prosa.**
 
-| # | Invariante (proposta) | Gate executável (existente ou candidato) |
+| # | Invariante | Gate executável (existente ou candidato) |
 |---|---|---|
 | INV-1 | **Nenhum ataque é executado.** Sem exploit, malware, ransomware funcional, criptografia real de arquivo, movimentação lateral, payload, backdoor ou vulnerabilidade intencional; todo efeito de incidente é flag de estado | `tools/check_security_constraints.py` + `tools/check_synthetic_data.py` (job `seguranca` do CI) — **existente** |
 | INV-2 | **O event store é append-only.** Ações, consultas, submissões, declarações e avaliações nunca são apagadas nem alteradas | `scripts/check_store_read_surface.py` (superfície de leitura) — **parcial**; candidato: teste de aceitação T-append-only dedicado |
@@ -33,9 +33,11 @@ mecânico: PR separado `spec-change:` com aprovação humana, aplicado pelo gate
 "porta pesada" do projeto. Não há "porta leve" proposta: spec só muda por
 spec-change.
 
-## Como ratificar
+## Gates candidatos — tarefas abertas pela ratificação
 
-Para cada linha: o proprietário confirma (a linha fica), reformula (edita) ou
-rejeita (sai). Gates "candidatos" viram tarefa com dono quando a linha for
-confirmada. Depois da ratificação, remover o aviso de PROPOSTA no topo e
-atualizar `.claude/verify/invariants.json`.
+Com as linhas confirmadas, os gates "candidatos" viram tarefa com dono
+(registradas em `docs/ADOCAO_ESTRUTURA_AGENTICA.md` §5, gatilho na abertura
+da Fase 8): T-INV-2 (teste de aceitação append-only dedicado), T-INV-3
+(gate nomeado de rollback no registro canônico) e T-INV-7 (gate próprio de
+frame-total). Até lá, os gates parciais listados na tabela seguem sendo o
+que o `compliance-audit.sh` cobra.
