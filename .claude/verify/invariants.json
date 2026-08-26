@@ -1,7 +1,8 @@
 {
   "_meta": {
-    "descricao": "Mapa invariante→gate da R1 (.claude/rules/product-invariants.md). STATUS: PROPOSTA pendente de ratificação do proprietário — os gates listados são os verificadores JÁ EXISTENTES que mais se aproximam de cada invariante; 'parcial' e 'candidato' estão anotados na própria R1. Auditado pelo compliance-audit.sh (seção invariantes): gate listado tem de existir no disco.",
-    "status": "proposta"
+    "descricao": "Mapa invariante→gate da R1 (.claude/rules/product-invariants.md). STATUS: ratificada pelo proprietário em 2026-08-25 ('Confirmo as 10'), sem reformulação — os gates listados são os verificadores JÁ EXISTENTES que mais se aproximam de cada invariante; 'parcial' e 'candidato' estão anotados na própria R1 e as tarefas T-INV-2/3/7 na ADOCAO §5. Auditado pelo compliance-audit.sh (seção invariantes): gate listado tem de existir no disco.",
+    "status": "ratificada",
+    "ratificada_em": "2026-08-25"
   },
   "invariantes": [
     { "id": "INV-1", "resumo": "nenhum ataque é executado", "gates": ["tools/check_security_constraints.py", "tools/check_synthetic_data.py"] },
