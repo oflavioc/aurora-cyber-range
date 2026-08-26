@@ -28,6 +28,8 @@ pins = reg["files"]
 _excl = [e.split(" (")[0] for e in reg["_meta"]["exclusoes"]]  # anotação entre parênteses é doc, não padrão
 excl_prefixes = tuple(e[:-2] for e in _excl if e.endswith("**"))
 excl_suffixes = tuple(e[1:] for e in _excl if e.startswith("*."))
+# caminho exato: padrão sem curinga — o mesmo trio de formas do gen_pins.py
+excl_exatas = {e for e in _excl if "*" not in e}
 
 tracked = [f for f in subprocess.run(["git", "ls-files"], capture_output=True, text=True).stdout.splitlines() if f]
 
@@ -42,7 +44,7 @@ for path, want in pins.items():
         bad.append((path, want[:12], got[:12]))
 
 for f in tracked:
-    if f == SELF or (excl_prefixes and f.startswith(excl_prefixes)) or (excl_suffixes and f.endswith(excl_suffixes)):
+    if f == SELF or f in excl_exatas or (excl_prefixes and f.startswith(excl_prefixes)) or (excl_suffixes and f.endswith(excl_suffixes)):
         continue
     if f not in pins:
         unpinned.append(f)
