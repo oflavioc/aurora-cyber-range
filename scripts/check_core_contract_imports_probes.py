@@ -12,6 +12,11 @@ checagem que so visse `from contracts... import` seria contornavel sem ma fe —
 `importlib.import_module` e o que alguem escreve para carregar por nome
 calculado, e o import relativo e o que aparece quando alguem move um arquivo.
 
+O QUINTO e a GENERALIZACAO da P7-8: raiz de topo que NAO e `contracts`
+(`range_cli` — que ate esta prova nao era importado pelo core por propriedade
+que ninguem declarava e nada guardava). Ele fixa que a whitelist opina sobre
+QUALQUER pacote de topo, e nao so sobre o alvo original da P2-15.
+
 Dois sao DEFEITOS DA PROPRIA LISTA, e sao os que sustentam a forma whitelist:
 declaracao que nao corresponde mais ao codigo, e arquivo declarado que deixou de
 importar. Sem esses dois, a lista envelheceria virando permissao ampla — que e o
@@ -73,6 +78,12 @@ PROBES: list[tuple[str, str, str, str]] = [
         DECLARADO,
         "import contracts\n",
         "declarado ['contracts.generated.events']",
+    ),
+    (
+        "raiz de topo NAO-contracts em arquivo nao declarado (P7-8)",
+        LIMPO,
+        "import range_cli\n",
+        "NAO esta declarado",
     ),
 ]
 

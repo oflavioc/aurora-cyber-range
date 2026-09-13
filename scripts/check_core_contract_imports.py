@@ -1,5 +1,27 @@
 #!/usr/bin/env python3
-"""P2-15 — o que o core importa de `contracts/` e exatamente o declarado aqui.
+"""P2-15/P7-8 — o que o core importa de FORA de `range_core` e o declarado aqui.
+
+GENERALIZADA NO FECHAMENTO DA FASE 7 — a P7-8, que e a P2-15 um nivel acima
+-----------------------------------------------------------------------------
+A forma original desta checagem opinava so sobre `contracts/`. A Fase 7 criou
+DOIS pacotes de topo em duas pecas (`range_cli/` na peca 2, `dados_sinteticos/`
+na peca 3 — o segundo ja importado pelo core), e dois em duas pecas nao e ritmo
+de excecao: a fronteira core/adapter empurra composicao para o topo por
+desenho. Sem generalizar, o proximo pacote de topo nao encontraria guarda
+nenhuma, e a ausencia de opiniao valeria mais que a permissao.
+
+A generalizacao e a que a propria pendencia prescreveu: de *"o que o core
+importa de `contracts/`"* para *"o que o core importa de fora de
+`range_core`"*, mantendo a whitelist com motivo por entrada. As raizes de topo
+sao DESCOBERTAS na arvore, e nao listadas aqui — PEP 420 dispensa
+`__init__.py` (e `contracts/` e exatamente esse caso), entao todo diretorio de
+topo com nome importavel e raiz em potencial, e o proximo ja nasce no alcance.
+
+`domains/` fica FORA desta lista com dono declarado: o invariante 1 tem
+verificador dedicado (`tools/check_core_boundary.py`), e duas guardas com
+opiniao sobre a mesma pergunta e o que a §1.4 do checkpoint da Fase 2 fechou.
+
+O texto original da P2-15, que continua valendo por inteiro:
 
 O QUE ESTA CHECAGEM EXISTE PARA FECHAR
 ---------------------------------------
@@ -65,9 +87,33 @@ sys.dont_write_bytecode = True
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CORE_ROOT = REPO_ROOT / "range-core"
 
-CONTRACTS = "contracts"
+RULE = "P2-15/P7-8 - o que o core importa de fora de range_core"
 
-RULE = "P2-15 - o que o core importa de contracts/"
+#: Raiz de topo com verificador PROPRIO, fora do alcance desta lista — duas
+#: guardas com opiniao sobre a mesma pergunta divergem em silencio (§1.4).
+COM_DONO_PROPRIO: dict[str, str] = {
+    "domains": "tools/check_core_boundary.py (invariante 1)",
+}
+
+
+def raizes_de_topo() -> frozenset[str]:
+    """Todo diretorio de topo do repositorio com nome importavel.
+
+    DESCOBERTA, e nao lista: PEP 420 faz de qualquer diretorio no sys.path um
+    pacote de namespace — `contracts/` nao tem `__init__.py` e importa assim
+    mesmo. `isidentifier()` exclui o que nao pode ser import (`range-core`,
+    `user-scope`); o proprio `range-core` fica fora tambem por ser o vigiado.
+    O conjunto varia com a arvore local (ex.: `scenarios/` existe fora do Git)
+    e isso e inocuo: raiz sem import no core nunca aparece no resultado.
+    """
+    return frozenset(
+        d.name
+        for d in REPO_ROOT.iterdir()
+        if d.is_dir()
+        and not d.name.startswith(".")
+        and d.name.isidentifier()
+        and d.name not in COM_DONO_PROPRIO
+    )
 
 #: A SUPERFICIE DECLARADA: caminho POSIX relativo a `range-core/` -> (modulos
 #: importados, motivo).
@@ -190,21 +236,30 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "entrar",
     ),
     "engine/loader/contract_source.py": (
-        frozenset({CONTRACTS}),
-        "A EXCECAO, e a unica: importa o PACOTE para resolver o diretorio e ler "
-        "os `.yaml` em tempo de execucao. E o gatilho que a §2.1 do registro da "
-        "Fase 2 previu. Caminho relativo a este arquivo quebraria fora da "
-        "arvore, e `__path__` cobre pacote de namespace e instalacao editavel",
+        frozenset({"contracts"}),
+        "A EXCECAO de contracts/, e a unica: importa o PACOTE para resolver o "
+        "diretorio e ler os `.yaml` em tempo de execucao. E o gatilho que a "
+        "§2.1 do registro da Fase 2 previu. Caminho relativo a este arquivo "
+        "quebraria fora da arvore, e `__path__` cobre pacote de namespace e "
+        "instalacao editavel",
+    ),
+    "engine/loader/pack_loader.py": (
+        frozenset({"dados_sinteticos"}),
+        "P7-8, a entrada que motivou a generalizacao: o detector de IOC opera "
+        "sobre VALOR (`achados_no_valor`) e e stdlib puro, agnostico de "
+        "dominio. As alternativas eram duplicar o predicado dentro do core ou "
+        "fazer `tools/` importar a aplicacao — as duas perdem, e o pacote de "
+        "topo existe exatamente para os dois mundos lerem a mesma resposta",
     ),
 }
 
 
-def _targets_contracts(module: str | None) -> bool:
-    return bool(module) and (module == CONTRACTS or module.startswith(CONTRACTS + "."))
+def _targets_topo(module: str | None, raizes: frozenset[str]) -> bool:
+    return bool(module) and module.split(".", 1)[0] in raizes
 
 
-def _relative_escapes_into_contracts(
-    path: Path, level: int, module: str | None, repo_root: Path
+def _relative_escapes_to_topo(
+    path: Path, level: int, module: str | None, repo_root: Path, raizes: frozenset[str]
 ) -> bool:
     """`from ...contracts import x` — import relativo que sai do core.
 
@@ -230,7 +285,7 @@ def _relative_escapes_into_contracts(
         relativo = alvo.relative_to(repo_root)
     except ValueError:
         return False
-    return bool(relativo.parts) and relativo.parts[0] == CONTRACTS
+    return bool(relativo.parts) and relativo.parts[0] in raizes
 
 
 def _literal_argument(node: ast.Call) -> str | None:
@@ -249,8 +304,8 @@ def _callee_name(node: ast.Call) -> str | None:
     return None
 
 
-def imports_de_contracts(path: Path, repo_root: Path) -> set[str]:
-    """Os modulos de `contracts` que o arquivo importa, em qualquer das formas.
+def imports_de_topo(path: Path, repo_root: Path, raizes: frozenset[str]) -> set[str]:
+    """Os modulos de raiz de topo que o arquivo importa, em qualquer das formas.
 
     Direto, com alias, relativo que escape, e dinamico via `import_module` ou
     `__import__` — as mesmas quatro que o verificador do invariante 1 cobre. Uma
@@ -264,19 +319,19 @@ def imports_de_contracts(path: Path, repo_root: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if _targets_contracts(alias.name):
+                if _targets_topo(alias.name, raizes):
                     encontrados.add(alias.name)
         elif isinstance(node, ast.ImportFrom):
-            if node.level and _relative_escapes_into_contracts(
-                path, node.level, node.module, repo_root
+            if node.level and _relative_escapes_to_topo(
+                path, node.level, node.module, repo_root, raizes
             ):
                 encontrados.add(f"{'.' * node.level}{node.module or ''}")
-            elif not node.level and _targets_contracts(node.module):
+            elif not node.level and _targets_topo(node.module, raizes):
                 encontrados.add(node.module)
         elif isinstance(node, ast.Call):
             if _callee_name(node) in ("import_module", "__import__"):
                 literal = _literal_argument(node)
-                if literal is not None and _targets_contracts(literal):
+                if literal is not None and _targets_topo(literal, raizes):
                     encontrados.add(literal)
 
     return encontrados
@@ -296,9 +351,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{RULE}: {raiz} nao e diretorio", file=sys.stderr)
         return 2
 
+    raizes = raizes_de_topo()
+
     encontrado: dict[str, set[str]] = {}
     for caminho in sorted(raiz.rglob("*.py")):
-        modulos = imports_de_contracts(caminho, raiz.parent)
+        modulos = imports_de_topo(caminho, raiz.parent, raizes)
         if modulos:
             encontrado[caminho.relative_to(raiz).as_posix()] = modulos
 
@@ -306,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for arquivo in sorted(set(encontrado) - set(DECLARED)):
         falhas.append(
-            f"range-core/{arquivo} importa de `contracts/` "
+            f"range-core/{arquivo} importa pacote de topo "
             f"({sorted(encontrado[arquivo])}) e NAO esta declarado.\n"
             f"    Se o import pertence, declare-o em {Path(__file__).name} com o "
             "motivo. A lista e whitelist: o custo de acrescentar e uma conversa, "
@@ -315,8 +372,8 @@ def main(argv: list[str] | None = None) -> int:
 
     for arquivo in sorted(set(DECLARED) - set(encontrado)):
         falhas.append(
-            f"range-core/{arquivo} esta declarado e nao importa mais de "
-            "`contracts/`.\n"
+            f"range-core/{arquivo} esta declarado e nao importa mais nenhum "
+            "pacote de topo.\n"
             "    Declaracao que sobra e permissao que ninguem pediu: remova a "
             "entrada."
         )
@@ -337,8 +394,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"{RULE}: {len(DECLARED)} arquivos declarados, todos batendo. "
-        "Nenhum outro modulo do core importa de `contracts/`."
+        f"{RULE}: {len(DECLARED)} arquivos declarados, todos batendo, contra "
+        f"{len(raizes)} raizes de topo descobertas. Nenhum outro modulo do core "
+        "importa pacote de topo — `domains/` tem dono proprio "
+        f"({COM_DONO_PROPRIO['domains']})."
     )
     return 0
 
