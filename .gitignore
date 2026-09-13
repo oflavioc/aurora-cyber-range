@@ -126,3 +126,4 @@ scenarios/
 
 # Estrutura Agentica: carimbo local do ultimo pipeline verde (maquina a maquina)
 .claude/verify/.last_green
+.aurora-prova-do-exercicio-4h.json

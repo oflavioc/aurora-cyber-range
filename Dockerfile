@@ -61,6 +61,14 @@ COPY alembic/ ./alembic/
 COPY contracts/ ./contracts/
 COPY range-core/ ./range-core/
 COPY domains/ ./domains/
+# Os DOIS pacotes de topo da Fase 7 — B1 da 2ª auditoria dela: o pyproject os
+# declara (`:241`, `:255`), o pip do RUN abaixo os exige, e a fase que os criou
+# nao tocou este arquivo. Sem `range_cli/` o setup morre em "package directory
+# does not exist"; sem `dados_sinteticos/` o engine nem importa, porque
+# `pack_loader.py` o importa no topo. A licao e a mesma do comentario acima:
+# o que nao estiver COPIADO simplesmente nao existe na imagem.
+COPY range_cli/ ./range_cli/
+COPY dados_sinteticos/ ./dados_sinteticos/
 
 # As telas construidas entram ANTES do `pip install`, senao o wheel sai sem
 # `web/dist/*/index.html` — a consequencia que a entrada de `package-data`

@@ -255,22 +255,15 @@ def cronometra(funcao):
     return time.perf_counter() - inicio, resultado
 
 
-def main(argv: list[str] | None = None) -> int:
-    argumentos = list(sys.argv[1:] if argv is None else argv)
-    if len(argumentos) != 1:
-        print(
-            "uso: AURORA_TEST_DATABASE_URL=... python "
-            "scripts/medida_do_exercicio_4h.py <dir-do-pack>",
-            file=sys.stderr,
-        )
-        return 2
-    url = os.environ.get("AURORA_TEST_DATABASE_URL")
-    if not url:
-        print("AURORA_TEST_DATABASE_URL nao definida.", file=sys.stderr)
-        return 1
-    dsn = normalize_dsn(url)
+def mede(pack_dir: Path, url: str) -> dict:
+    """A medicao inteira, como DADO — um dono, dois chamadores.
 
-    pack_dir = Path(argumentos[0])
+    Os chamadores sao o `main` abaixo e `scripts/prova_do_exercicio_4h.py`,
+    que grava o resultado amarrado a arvore (a classe P4-10, exigida pelo H2
+    da 2ª auditoria da fase). Duas execucoes da medicao divergiriam no numero
+    sem que nada dissesse qual delas a prova gravou.
+    """
+    dsn = normalize_dsn(url)
     raiz = Path.cwd()
     contracts = contract_source.read_contracts()
     flags = lint_de_cenario.flags_do_pack(pack_dir, raiz)
@@ -297,25 +290,64 @@ def main(argv: list[str] | None = None) -> int:
     t_project, _ = cronometra(lambda: project(lidos, pack.declarations))
     total_s = t_read + t_project
 
-    decisoes = sum(1 for e in eventos if e.event_type == DECISION_MADE)
+    return {
+        "data": datetime.date.today().isoformat(),
+        "maquina": platform.platform(),
+        "python": platform.python_version(),
+        "stack": f"{versao_pg} | psycopg {psycopg.__version__} | migration {revisao}",
+        "pack_id": pack.pack_id,
+        "content_hash": pack.content_hash,
+        "eventos": len(eventos),
+        "injects": len(pack.injects),
+        "decisoes": sum(1 for e in eventos if e.event_type == DECISION_MADE),
+        "acoes_de_participante": ACOES_DE_PARTICIPANTE,
+        "rollbacks": ROLLBACKS,
+        "read_all_s": t_read,
+        "cadeia_s": t_cadeia,
+        "project_s": t_project,
+        "total_s": total_s,
+        "orcamento_s": ORCAMENTO_S,
+        "passa": total_s < ORCAMENTO_S,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    argumentos = list(sys.argv[1:] if argv is None else argv)
+    if len(argumentos) != 1:
+        print(
+            "uso: AURORA_TEST_DATABASE_URL=... python "
+            "scripts/medida_do_exercicio_4h.py <dir-do-pack>",
+            file=sys.stderr,
+        )
+        return 2
+    url = os.environ.get("AURORA_TEST_DATABASE_URL")
+    if not url:
+        print("AURORA_TEST_DATABASE_URL nao definida.", file=sys.stderr)
+        return 1
+
+    m = mede(Path(argumentos[0]), url)
+
     print("DoD 9 da Fase 7 — o exercicio de 4 h do ransomware-universidade")
-    print(f"  data:    {datetime.date.today().isoformat()}")
-    print(f"  maquina: {platform.platform()} | python {platform.python_version()}")
-    print(f"  stack:   {versao_pg} | psycopg {psycopg.__version__} | migration {revisao}")
-    print(f"  pack:    {pack.pack_id} | content_hash {pack.content_hash[:24]}…")
+    print(f"  data:    {m['data']}")
+    print(f"  maquina: {m['maquina']} | python {m['python']}")
+    print(f"  stack:   {m['stack']}")
+    print(f"  pack:    {m['pack_id']} | content_hash {m['content_hash'][:24]}…")
     print(
-        f"  fluxo:   {len(eventos)} eventos = 1 started + "
-        f"{len(pack.injects)} inject_fired + {decisoes} decision_made + "
-        f"{ACOES_DE_PARTICIPANTE} acoes de participante + {ROLLBACKS} rollbacks"
+        f"  fluxo:   {m['eventos']} eventos = 1 started + "
+        f"{m['injects']} inject_fired + {m['decisoes']} decision_made + "
+        f"{m['acoes_de_participante']} acoes de participante + {m['rollbacks']} rollbacks"
     )
     print(
-        f"  medida:  read_all {t_read:.3f}s (cadeia {t_cadeia:.3f}s, "
-        f"consulta {t_read - t_cadeia:.3f}s) + project {t_project:.3f}s "
-        f"= {total_s:.3f}s"
+        f"  medida:  read_all {m['read_all_s']:.3f}s (cadeia {m['cadeia_s']:.3f}s, "
+        f"consulta {m['read_all_s'] - m['cadeia_s']:.3f}s) + project {m['project_s']:.3f}s "
+        f"= {m['total_s']:.3f}s"
     )
-    veredito = "PASSA" if total_s < ORCAMENTO_S else "FALHA"
-    print(f"  item 9:  {veredito} — {total_s:.3f}s contra o orcamento de {ORCAMENTO_S:.0f} s")
-    return 0 if total_s < ORCAMENTO_S else 1
+    veredito = "PASSA" if m["passa"] else "FALHA"
+    print(
+        f"  item 9:  {veredito} — {m['total_s']:.3f}s contra o orcamento de "
+        f"{m['orcamento_s']:.0f} s"
+    )
+    return 0 if m["passa"] else 1
 
 
 if __name__ == "__main__":

@@ -129,7 +129,12 @@ FORA: dict[str, str] = {
     "medida_do_exercicio_4h": "o parente declarado do bench, pela mesma razao: "
     "exige Postgres, TRUNCA e escreve o event store de medicao, e o DoD 9 da "
     "Fase 7 pede o numero com maquina, data e stack — geradas por codigo. O "
-    "auditor confere a medicao transcrita no registro da fase, por leitura",
+    "auditor confere a PROVA GRAVADA (check_prova_do_exercicio_4h), nao a "
+    "transcricao — a forma que o H2 da 2ª auditoria exigiu",
+    "prova_do_exercicio_4h": "o gravador do par do exercicio de 4 h, pelo "
+    "criterio do prova_seed_completo: exige Postgres e trunca o event store "
+    "de medicao. O que o auditor executa e o verificador do par, que le o "
+    "JSON e compara arvore e hashes do pack",
     "check_audit_base": "exige argumentos (`--phase`, `--default`), e a forma da "
     "allowlist termina em `.py$` de proposito: admitir argumento abriria "
     "superficie de argumento. SO OS PROBES entram, e provam os oito eixos",
