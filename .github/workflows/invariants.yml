@@ -296,6 +296,19 @@ jobs:
       - name: teste negativo da prova do seed
         run: python scripts/check_prova_do_seed_probes.py
 
+      # H1 da 3ª auditoria da Fase 7. SO OS PROBES, pelo motivo das duas irmas
+      # acima: `check_prova_do_exercicio_4h.py` pergunta "a medicao e DESTA
+      # ARVORE e DESTE PACK?", e o runner nao tem nem o artefato nem o pack —
+      # `scenarios/` esta fora do Git. Aqui ele reprovaria sempre, por ausencia.
+      #
+      # O que o CI garante e que o predicado continua sabendo RECUSAR nas sete
+      # direcoes — inclusive a (g), o hash de arquivo do pack divergente, que e
+      # a perna que este objeto tem a mais — e sabendo APROVAR os dois controles
+      # positivos, inclusive o modo declarado "pack ausente do checkout", que e
+      # exatamente o modo em que o auditor o executa.
+      - name: teste negativo da prova do exercicio de 4 h
+        run: python scripts/check_prova_do_exercicio_4h_probes.py
+
       # P5-3, e o gatilho dela nao tem fase que o cobre: `07` nao declara fase de
       # deploy. Ele viaja na entrada da §6 do registro de secoes — que e CODE, e
       # que a peca 5 tem de tocar para promover a secao. Prazo que ninguem ve na

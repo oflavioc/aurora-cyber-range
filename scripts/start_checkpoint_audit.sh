@@ -582,6 +582,24 @@ if [ -f "$ROOT/$PROVA_SEED" ]; then
   SEED_ORIGEM="transportada"
 fi
 
+# A PROVA DO EXERCICIO DE 4 H (H2 da 2ª auditoria da Fase 7) e SO TRANSPORTE,
+# e a assimetria com o seed e de insumo, nao de rigor: medir aqui exigiria o
+# pack, e `scenarios/` esta fora do Git por decisao da Fase 5 — o worktree
+# nasce sem ele. O verificador do par foi desenhado para exatamente este
+# cenario: a prova carrega a arvore do codigo E os SHA-256 dos sete arquivos
+# do pack; sem o pack no checkout, vale o modo declarado ("valem os hashes
+# declarados na prova"), e divergencia de arvore reprova como sempre.
+#
+# O B1 da 3ª rodada e a razao desta existencia: o verificador entrou na
+# allowlist "no commit que o cria" e o PRODUTOR nao entrou aqui — a mesma
+# assimetria do Dockerfile da rodada anterior, cometida na correcao dela.
+PROVA_4H=".aurora-prova-do-exercicio-4h.json"
+ORIGEM_4H="ausente"
+if [ -f "$ROOT/$PROVA_4H" ]; then
+  cp "$ROOT/$PROVA_4H" "$WT/$PROVA_4H"
+  ORIGEM_4H="transportada"
+fi
+
 # ---------------------------------------------------------------------------
 # A MEDICAO DO SEED COMPLETO, FEITA AQUI — Forma B, decidida pelo operador.
 #
@@ -747,6 +765,16 @@ case "$SEED_ORIGEM" in
     ;;
 esac
 
+case "$ORIGEM_4H" in
+  transportada)
+    PROVA_4H_MSG="COPIADA da arvore principal (o lancador nao a mede: o pack vive fora do Git e este worktree nasce sem ele). Rode 'python scripts/check_prova_do_exercicio_4h.py' — ele confere a arvore gravada contra a deste checkout e declara os SHA-256 dos sete arquivos do pack medido; sem o pack aqui, vale o modo declarado do verificador."
+    ;;
+  *)
+    echo "       Os itens 6 e 9 da DoD da Fase 7 ficam NAO VERIFICADO." >&2
+    PROVA_4H_MSG="AUSENTE — nao havia prova na arvore principal para copiar. 'python scripts/check_prova_do_exercicio_4h.py' recusa por ausencia, e os itens 6 e 9 da DoD sao NAO VERIFICADO — nunca PASS por silencio. Grave-a na arvore principal com scripts/prova_do_exercicio_4h.py."
+    ;;
+esac
+
 RAW=""
 if [ "$MODE" = headless ]; then
   RAW=$(mktemp)
@@ -789,6 +817,7 @@ echo "Base de comparacao: $BASE_SHA ($BASE_REF)"
 echo "Servicos: $SERVICOS"
 echo "Provas de container: $PROVAS"
 echo "Prova do seed completo: $SEED_PROVA"
+echo "Prova do exercicio de 4 h: $PROVA_4H_MSG"
 echo "Worktree de auditoria: $WT"
 if [ "$MODE" = headless ]; then
   echo "Modo: HEADLESS (-p). NENHUMA sessao interativa vai abrir; isto e esperado."
@@ -830,7 +859,10 @@ O lancador as rodou na maquina do operador, porque exigem Docker e a allowlist n
 PROVA DO SEED COMPLETO (M2 da Fase 5): $SEED_PROVA
 Mesma forma e mesmo limite das provas de container. O lancador roda a medicao AQUI, contra este worktree — o script exige Postgres, escreve 3,5 milhoes de linhas duas vezes e leva minutos, e a allowlist nao tem nada disso. Voce NAO viu medir; o que amarra a medicao a este objeto e o hash da arvore gravado, conferido contra o deste checkout, e ausencia tambem reprova.
 
-O QUE A ARVORE AFIRMA, E O QUE ELA NAO AFIRMA (P7-2). Os dois artefatos declaram \`git rev-parse HEAD^{tree}\`, e nao o SHA do commit. Isso e deliberado: o rito de fechamento e rebase, rebase reescreve SHA, e uma prova amarrada ao commit morria em TODO fechamento de fase. Duas consequencias para a sua leitura. (1) A prova NAO afirma qual commit a produziu — dois commits com a mesma arvore sao o mesmo objeto para uma prova de desempenho e de comportamento, e isso e o comportamento certo. (2) A arvore cobre so o conteudo RASTREADO: \`scenarios/\` esta no \`.gitignore\` desde a Fase 5, e o pack materializado NAO entra no hash. O SHA do commit tinha a mesma cegueira; a P7-2 nao a criou, so a tornou nomeavel, e ela esta aberta como P7-3. Se o verificador reprovar por divergencia, a leitura e univoca: um arquivo rastreado mudou.
+PROVA DO EXERCICIO DE 4 H (H2 da 2ª auditoria da Fase 7): $PROVA_4H_MSG
+A amarracao dela e DUPLA: a arvore do codigo que mediu E os SHA-256 dos sete arquivos do pack medido — o pack vive fora do Git (P7-9 pendente de decisao), entao a segunda perna e o que faz o numero ter objeto. Itens 6 e 9 da DoD da Fase 7 se decidem por ela, nunca pela transcricao do registro.
+
+O QUE A ARVORE AFIRMA, E O QUE ELA NAO AFIRMA (P7-2). Os tres artefatos declaram \`git rev-parse HEAD^{tree}\`, e nao o SHA do commit. Isso e deliberado: o rito de fechamento e rebase, rebase reescreve SHA, e uma prova amarrada ao commit morria em TODO fechamento de fase. Duas consequencias para a sua leitura. (1) A prova NAO afirma qual commit a produziu — dois commits com a mesma arvore sao o mesmo objeto para uma prova de desempenho e de comportamento, e isso e o comportamento certo. (2) A arvore cobre so o conteudo RASTREADO: \`scenarios/\` esta no \`.gitignore\` desde a Fase 5, e o pack materializado NAO entra no hash. O SHA do commit tinha a mesma cegueira; a P7-2 nao a criou, so a tornou nomeavel — e a prova do exercicio de 4 h fecha exatamente essa fresta para o SEU objeto, gravando os hashes dos sete arquivos (a re-disposicao da P7-3). Se um verificador reprovar por divergencia de arvore, a leitura e univoca: um arquivo rastreado mudou.
 
 VEREDITO DA GUARDA DE BASE, verbatim do lancador. Porta ou laudo esta DITO aqui, e nao deve ser deduzido do que o prompt deixa de conter:
 $GUARDA_SAIDA
