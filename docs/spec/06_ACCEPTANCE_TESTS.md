@@ -132,7 +132,7 @@ Priorizados pelo que quebra durante exercício ao vivo. Cobertura ampla de unida
 
 ## T12 — Schema e branching (Fase 7)
 
-- Pack em `schema_version` N-1 carrega com migração e aviso; anterior a N-1 é recusado com instrução.
+- A política de `04` §4: enquanto não existir N-1 real, versão não suportada é recusada com instrução; quando houver, pack em N-1 carrega com migração e aviso.
 - `branch_policy` do manifesto é aplicada: excesso de pontos ou de caminhos é recusado.
 - Branch sem `reconverge_at` é recusado.
 - **`event_type` inexistente em condição de branch é recusado pelo linter**, com a posição no arquivo.

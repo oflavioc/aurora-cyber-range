@@ -210,7 +210,7 @@ estado restaurado; evento de rollback registrado
 - [ ] `branch_policy` do manifesto é aplicada
 - [ ] Branch sem `reconverge_at` é recusado
 - [ ] `dryrun` percorre todos os caminhos
-- [ ] Pack em schema v1 migra automaticamente; v0 é recusado com instrução
+- [ ] A política de versionamento de `04` §4 é aplicada: enquanto não existir N-1 real, versão não suportada é recusada com instrução (provado para v1 e v0); a partir da primeira antecessora real, pack em N-1 migra automaticamente
 - [ ] Fato citado no `GM_NOTES.md` e ausente do `ground_truth.yaml` é recusado
 - [ ] Reconstrução completa da projeção para o exercício de 4 h do `ransomware-universidade` roda em **< 3 s**
 
