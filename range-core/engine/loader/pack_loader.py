@@ -105,21 +105,24 @@ from range_core.state.simulation_state import (
     Declarations,
 )
 
-#: `04` §4 manda o engine declarar as duas. `SUPPORTED_SCHEMA_VERSIONS` deveria
-#: ser `[N, N-1]`, e aqui e so `[N]` — e a assimetria e DECIDIDA, nao pendente.
+#: `04` §4, na forma RATIFICADA pelo spec-change P7-18 (#67): "`[N, N-1]` a
+#: partir da primeira versao que tiver antecessora real; enquanto N-1 nao
+#: existir, `[N]`, com recusa instruida". `(2,)` e a aplicacao literal dessa
+#: norma — e nao mais uma divergencia decidida em docstring.
 #:
 #: **Nenhum contrato anterior ao v2 jamais existiu neste repositorio.** Medido
 #: com `git log --all --diff-filter=A --name-only -- 'contracts/scenario.schema*'`,
 #: que devolve um arquivo so: `scenario.schema.v2.yaml`, em `31ddcfa`. Entao
-#: `[N, N-1]` aqui seria `[2, 1]`, e a v1 nao tem contrato, nao tem migrador e
-#: nunca teve pack. Declarar suporte a ela seria a afirmacao falsa que este
-#: modulo recusa fazer desde a Fase 2.
+#: nao ha antecessora real, e a norma manda `[N]` com recusa instruida — que e
+#: o que `_verify_schema_version` faz. A migracao de N-1 nasce com o contrato
+#: v3: e o gatilho de `04` §4, nao uma pendencia desta fase.
 #:
-#: O comentario anterior dizia que a migracao de N-1 *"e item de DoD da Fase
-#: 7"*, como se a fase fosse resolver a assimetria. A Fase 7 **e esta**, e a
-#: peca 2 mediu que nao ha delta a migrar: a P5-4 excede o que cabe num schema e
-#: saiu da fase, e o aperto de `since` foi alinhamento com norma que ja existia,
-#: nao transformacao. O porque inteiro esta em `engine/migrations/__init__.py`.
+#: A divergencia que isto RESOLVE viveu tres rodadas da auditoria da Fase 7
+#: como achado (H1 da 2ª, escalado a BLOCKER na 4ª) porque a norma antiga
+#: exigia `[N, N-1]` incondicional e o codigo declarava `(2,)` por decisao
+#: propria. O caminho ate aqui — docstring → pendencia P7-18 com dono →
+#: spec-change aprovado pelo proprietario → norma — e o rito do `CLAUDE.md`,
+#: e agora codigo e spec dizem a mesma coisa.
 #:
 #: `(3, 2)` no dia em que houver `v2_to_v3.py` com corpo e teste. Nao antes.
 ENGINE_VERSION = "1.0"
@@ -745,9 +748,9 @@ def _instrucao_de_versao(raiz: Path, versao: object) -> str:
     linhas.append(
         f"    SE {versao!r} FOR UMA VERSAO FUTURA, o conserto e o inverso — este "
         "engine e velho demais para o pack, e atualiza-lo e o caminho. "
-        "`04` §4 fixa `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]`; aqui ele e "
-        f"{suportadas} porque N-1 nunca existiu, e declarar suporte a uma versao "
-        "sem contrato seria pior que declarar o suporte real."
+        "`04` §4 pede `[N, N-1]` a partir da primeira versao com antecessora "
+        f"real; aqui `SUPPORTED_SCHEMA_VERSIONS` e {suportadas} porque N-1 nunca "
+        "existiu, e a norma manda `[N]` com recusa instruida enquanto for assim."
     )
     return "\n".join(linhas)
 

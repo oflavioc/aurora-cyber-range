@@ -2,13 +2,15 @@
 
 AUTORIDADE
 ----------
-`04_SCENARIO_SCHEMA.md` §4, a politica de versionamento inteira:
+`04_SCENARIO_SCHEMA.md` §4, a politica de versionamento inteira, na forma
+RATIFICADA pelo spec-change P7-18 (#67):
 
-    - Engine declara `ENGINE_VERSION` e `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]`
-    - Pack em N-1 carrega com migracao em memoria e aviso no boot
-    - Pack anterior a N-1 e recusado com instrucao de migracao
-    - Migracoes em `range-core/engine/migrations/v<n>_to_v<n+1>.py`, cada uma
-      com teste
+    - `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]` a PARTIR da primeira versao que
+      tiver antecessora real; enquanto N-1 nao existir, `[N]`, com recusa
+      instruida
+    - Quando houver N-1 real: pack em N-1 carrega com migracao em memoria;
+      migracoes em `range-core/engine/migrations/v<n>_to_v<n+1>.py`, com teste
+    - Pack em versao nao suportada e recusado com instrucao de migracao
     - Nunca alterar semantica de campo dentro da mesma `schema_version`
 
 O ESTADO DESTE MODULO, DITO ANTES DE QUALQUER COISA
@@ -67,10 +69,11 @@ No commit em que existir um delta que mude a forma de um pack que ja era valido
 `v2_to_v3.py` tera corpo, tera teste, e `SUPPORTED_SCHEMA_VERSIONS` passara a
 `(3, 2)`.
 
-Ate la `SUPPORTED_SCHEMA_VERSIONS` fica em `(2,)`, e a assimetria com a norma —
-que pede `[N, N-1]` — e DELIBERADA e nao descuido: declarar suporte a uma versao
-cujo contrato nunca existiu seria a afirmacao falsa que o `pack_loader` ja
-recusava fazer desde a Fase 2.
+Ate la `SUPPORTED_SCHEMA_VERSIONS` fica em `(2,)`, e isso e a APLICACAO LITERAL
+da norma ratificada, nao mais uma assimetria: `04` §4 manda `[N]` com recusa
+instruida enquanto nao houver antecessora real. A divergencia que existia
+enquanto a norma pedia `[N, N-1]` incondicional foi fechada pelo P7-18 — codigo
+e spec dizem a mesma coisa desde o #67.
 
 O QUE ESTE MODULO ENTREGA, ENTAO
 =================================
