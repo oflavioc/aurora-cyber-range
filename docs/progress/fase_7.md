@@ -42,7 +42,7 @@ quatro blocos de entrega.
 | 1 | verificador de transcrição de pauta entre registros de fase | quinta ocorrência da classe da §7.1, medida no rebase que abriu esta fase — **FECHADA** |
 | 2 | pack: esqueleto de migração e recusa por versão, o produtor `range-cli scenario materialize`, o linter de citação de fato | DONE 7 e 8 — **FECHADA** |
 | 3 *(era 4)* | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 — **FECHADA**, e ela também fechou a P7-7 |
-| 4 *(era 5)* | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 |
+| 4 *(era 5)* | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 — **FECHADA**, e ela também fechou a metade "indicado" do `option` |
 | 5 *(era 7)* | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
 
 **A peça 1 vem primeiro porque é degrau 1** na taxonomia da §7.1 — a exigência
@@ -1127,6 +1127,45 @@ em vez de arqueológica:
    registrado em `x-aurora-linter-rules` desde a peça 3, e vira módulo:
    `range-core/engine/loader/branching.py`, um dono, dois consumidores (o
    passo do lint/boot e o verbo do CLI).
+
+### 5.3 Fechamento — FECHADA
+
+**O que fechou, e onde a prova mora:**
+
+| Entrega | Mecanismo | Prova |
+|---|---|---|
+| DONE 4 — `branch_policy` aplicada | `branching.confere_branch_policy`, passo de `_passos` (carga E lint, com posição) | `tests/test_branching.py::BranchPolicyAplicada` — 5 testes, incluindo o discriminante "sem política, nada é contado" |
+| DONE 5 — branch sem `reconverge_at` | já recusava (camada 1); intacto pela trilogia | medição da §5.1 |
+| DONE 6 — `dryrun` percorre todos os caminhos | `branching.percorre` + verbo `range-cli scenario dryrun` (lint primeiro, travessia depois) | `tests/test_branching.py::ATravessia` + `tests/test_range_cli_dryrun.py` — sequências exatas, 3 recusas de travessia, 4 saídas do verbo |
+| metade "indicado" do `option` (registro, parcial desde a peça 3) | `branching.confere_option_no_decision_point` — o par em conjunção `all` | o discriminante inteiro: `suspend` existe no pack e NÃO existe em DP-DOIS, e o achado é um só |
+| o botão morto morre | `reconvergence_required` fora do `$def` e da fixture; `additionalProperties` recusa | `check_contract_examples` verde nos 95 negativos |
+
+Suíte: 835 → **856** (+16 `test_branching`, +5 `test_range_cli_dryrun`), 143
+pulando sem stack, como antes. As duas entradas de `x-aurora-linter-rules`
+trocaram `destinatario` por `mecanismo`+`sitio` — gatilho que venceu sai
+(P5-2); `check_regras_do_linter`: 8 mecanizadas, probes 8/8.
+
+**A varredura de fechamento (norma da §7.1) pagou, e é a razão de ela ser
+norma.** Três classes:
+
+1. **Vermelho real, desta peça, mascarado por pipe**: a fixture de exemplo do
+   manifesto dentro do próprio contrato ainda declarava
+   `reconvergence_required` — `check_contract_examples` estava vermelho desde
+   o commit 2/n, e DUAS conferências o deram como verde porque `| tail`
+   engoliu o exit code e o `&&` seguinte leu o exit do tail. **Variante nova
+   da classe da §7.1: o verde declarado sem exit code é o vermelho não lido
+   com uma etapa a menos.** A varredura, que mede exit codes sem pipe, pegou.
+2. **Vermelho real, envelhecido**: `IGNORADOS` de `check_api_surface` conhecia
+   o local ANTIGO de worktrees; os de sessão moram em `.claude/worktrees/` e
+   o verificador vivia vermelho em qualquer máquina com sessão aberta — gate
+   morto local. `.claude` entrou na lista.
+3. **Contagem**: README acompanhou 835 → 856.
+
+**O que segue vermelho local, e por quê, declarado**: `check_prova_do_seed`
+acusa artefato local em formato pré-P7-2 (a instrução do próprio verificador:
+remedir neste checkout — exige stack, e é insumo do fechamento da FASE, não
+desta peça); `check_provas_de_container` é predicado de lançador (R13 — só as
+probes rodam em CI). Nenhum dos dois é defeito de árvore.
 
 ## 6. Pendências
 
