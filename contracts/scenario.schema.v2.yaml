@@ -922,7 +922,6 @@ examples:
     branch_policy:
       max_branch_points_per_line: 1
       max_paths_per_branch: 2
-      reconvergence_required: true
     calibration:
       threshold: 0.15
 
