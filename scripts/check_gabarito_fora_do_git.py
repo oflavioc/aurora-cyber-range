@@ -105,6 +105,23 @@ PROIBIDOS = ("ground_truth.yaml", "GM_NOTES.md")
 ENTRADA = "scenarios/"
 MOTIVO_MINIMO = 400
 
+#: A UNICA isencao do eixo (a), decidida pelo operador na P7-9 (13/09/2026):
+#: o pack de EXEMPLO SANITIZADO que `CLAUDE.md` §"Ground truth" sempre
+#: permitiu — "sem gabarito e sem notas de GM... e o que torna a fronteira
+#: publica demonstravel em vez de apenas declarada". O `ground_truth.yaml`
+#: DESTE diretorio e fixture sintetica de meia duzia de linhas, sem caso real:
+#: e o objeto que da ao `range-cli scenario lint` um pack COMPLETO na arvore
+#: (a metade da P7-9 que `pack_minimo`, deliberadamente incompleto, nao cobre).
+#:
+#: A decisao de NAO versionar o pack REAL foi revista e mantida com medicao:
+#: `injects.yaml` do ransomware-universidade carrega 27 GT-ids concretos,
+#: `linha:` e `noise:` — roteiro de facilitacao, nao descricao. Ver a P7-9 no
+#: registro da fase.
+#:
+#: A isencao e DE CAMINHO EXATO, e o probe planta o gabarito FORA dela para
+#: provar que o eixo continua mordendo em todo o resto da arvore.
+EXEMPLO_SANITIZADO = "tests/fixtures/pack_exemplo/"
+
 #: A FORMA DE UM IDENTIFICADOR DE GABARITO. Os que o gerador produz:
 #:
 #:   GC-0001      caso da Linha B          U-P-0000     conta docente
@@ -207,6 +224,8 @@ def verifica(
 
     # (a)
     for caminho in versionados:
+        if caminho.startswith(EXEMPLO_SANITIZADO):
+            continue  # a unica isencao, declarada na constante — P7-9
         if Path(caminho).name in PROIBIDOS:
             problemas.append(
                 f"{caminho} esta VERSIONADO. `05` secao 6 e `CLAUDE.md` poem "
@@ -347,9 +366,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"{RULE}: nenhum `ground_truth.yaml` nem `GM_NOTES.md` versionado; "
-        f"`{ENTRADA}` no `.gitignore` com motivo; o template sem identificador "
-        f"concreto e com os {len(PLACEHOLDERS)} placeholders.\n"
+        f"{RULE}: nenhum `ground_truth.yaml` nem `GM_NOTES.md` versionado fora "
+        f"da isencao declarada (`{EXEMPLO_SANITIZADO}`, o exemplo sanitizado da "
+        f"P7-9); `{ENTRADA}` no `.gitignore` com motivo; o template sem "
+        f"identificador concreto e com os {len(PLACEHOLDERS)} placeholders.\n"
         "  O que isto NAO prova: o artefato gerado com o seed de PRODUCAO nunca e "
         "visto por CI nenhum. A propriedade provada e do gerador, e independe do "
         "valor do seed — afirmar mais seria atestacao."

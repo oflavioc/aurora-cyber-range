@@ -1,0 +1,26 @@
+# PACK DE EXEMPLO SANITIZADO — a fronteira publica demonstravel (CLAUDE.md
+# secao "Ground truth") e o objeto do lint no CI (P7-9, decisao do operador
+# em 13/09/2026, com a medicao que reviu a alternativa no registro da fase).
+# ESPELHA a fixture limpa da suite de lint (tests/test_range_cli_lint.py):
+# se as duas divergirem, uma das duas esta errada — e o lint acusa a que
+# importa. Nenhum caso real: o ground_truth daqui e meia duzia de linhas
+# sinteticas, e e por isso que este diretorio e a UNICA isencao do eixo (a)
+# de check_gabarito_fora_do_git.py.
+facts:
+  - fact_id: GT-A-020
+    fact_class: exfiltration
+    actor: svc_academus
+    action: bulk_export
+    exercise_time: "T-9d 02:14"
+    records_affected: 1200
+    projections: [vpn]
+verification_predicates:
+  containment:
+    all:
+      - event: vpn_access_revoked
+      - absence_of:
+          fact_class: exfiltration
+          since: self
+  service_restoration:
+    all:
+      - flag_false: academus.enrollment_offline

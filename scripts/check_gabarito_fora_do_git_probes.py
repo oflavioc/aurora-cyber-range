@@ -76,6 +76,26 @@ PROBES = [
         None,  # `ground_truth.schema.yaml` esta na lista e tem de passar
     ),
     (
+        "o pack de EXEMPLO sanitizado e a UNICA isencao do eixo (a) — P7-9",
+        (
+            VERSIONADOS + ["tests/fixtures/pack_exemplo/ground_truth.yaml"],
+            IGNORE,
+            _fontes(),
+            DOCS_LIMPOS,
+        ),
+        None,  # dentro da isencao declarada, passa
+    ),
+    (
+        "a isencao NAO vaza para um vizinho com nome parecido",
+        (
+            VERSIONADOS + ["tests/fixtures/pack_exemplo_2/ground_truth.yaml"],
+            IGNORE,
+            _fontes(),
+            DOCS_LIMPOS,
+        ),
+        "esta VERSIONADO",
+    ),
+    (
         "a entrada de `scenarios/` sumiu do `.gitignore`",
         (VERSIONADOS, _ignore_sem_entrada(), _fontes()),
         "nao tem a entrada",

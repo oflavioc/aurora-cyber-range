@@ -1,0 +1,26 @@
+# PACK DE EXEMPLO SANITIZADO — a fronteira publica demonstravel (CLAUDE.md
+# secao "Ground truth") e o objeto do lint no CI (P7-9, decisao do operador
+# em 13/09/2026, com a medicao que reviu a alternativa no registro da fase).
+# ESPELHA a fixture limpa da suite de lint (tests/test_range_cli_lint.py):
+# se as duas divergirem, uma das duas esta errada — e o lint acusa a que
+# importa. Nenhum caso real: o ground_truth daqui e meia duzia de linhas
+# sinteticas, e e por isso que este diretorio e a UNICA isencao do eixo (a)
+# de check_gabarito_fora_do_git.py.
+injects:
+  - id: A01
+    linha: A
+    t_relative: "00:10"
+    titulo_operacional: "Comunicado 01"
+    objectives: [OBJ-01]
+    effects:
+      academus.enrollment_offline: true
+  - id: A02
+    linha: A
+    t_relative: "00:20"
+    titulo_operacional: "Comunicado 02"
+    objectives: [OBJ-01]
+  - id: A03
+    linha: A
+    t_relative: "00:30"
+    titulo_operacional: "Comunicado 03"
+    objectives: [OBJ-01]

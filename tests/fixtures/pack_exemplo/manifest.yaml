@@ -1,0 +1,17 @@
+# PACK DE EXEMPLO SANITIZADO — a fronteira publica demonstravel (CLAUDE.md
+# secao "Ground truth") e o objeto do lint no CI (P7-9, decisao do operador
+# em 13/09/2026, com a medicao que reviu a alternativa no registro da fase).
+# ESPELHA a fixture limpa da suite de lint (tests/test_range_cli_lint.py):
+# se as duas divergirem, uma das duas esta errada — e o lint acusa a que
+# importa. Nenhum caso real: o ground_truth daqui e meia duzia de linhas
+# sinteticas, e e por isso que este diretorio e a UNICA isencao do eixo (a)
+# de check_gabarito_fora_do_git.py.
+schema_version: 2
+pack_id: pack-da-suite-de-lint
+title: "Pack de fixture da suite de lint"
+domain: academus
+min_engine_version: "1.0"
+duration_minutes: 60
+personas: [ti]
+required_flags: [academus.enrollment_offline]
+required_rubrics: [incident_triage.v2]

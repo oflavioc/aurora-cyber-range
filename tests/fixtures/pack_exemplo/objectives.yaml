@@ -1,0 +1,21 @@
+# PACK DE EXEMPLO SANITIZADO — a fronteira publica demonstravel (CLAUDE.md
+# secao "Ground truth") e o objeto do lint no CI (P7-9, decisao do operador
+# em 13/09/2026, com a medicao que reviu a alternativa no registro da fase).
+# ESPELHA a fixture limpa da suite de lint (tests/test_range_cli_lint.py):
+# se as duas divergirem, uma das duas esta errada — e o lint acusa a que
+# importa. Nenhum caso real: o ground_truth daqui e meia duzia de linhas
+# sinteticas, e e por isso que este diretorio e a UNICA isencao do eixo (a)
+# de check_gabarito_fora_do_git.py.
+objectives:
+  OBJ-01:
+    title: "Reconhecer indisponibilidade como possível incidente"
+    competency: incident_triage
+    rubric: incident_triage.v2
+    expected_behavior:
+      - 'tratar a queda do portal como hipótese aberta'
+    evidence:
+      auto:
+        - incident_declared
+      observed:
+        - id: articulou_hipotese_de_seguranca
+          prompt_to_evaluator: "A equipe tratou a queda como hipótese de segurança?"
