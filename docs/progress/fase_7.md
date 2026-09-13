@@ -1,7 +1,13 @@
 # Fase 7 — Pack completo, branching e `range-cli`
 
-**Status: EM ANDAMENTO** — peça 1 aberta em `422a105`. A
-linha de status está aqui porque `check_readme_atual.py` decide *"a fase
+**Status: AUDITADA — PASS na 5ª rodada, contra `c9f61b2`, sem BLOCKER e sem
+HIGH.** 858 testes `OK` (143 pulam sem Postgres/Redis); DoD 9/9 pela letra;
+cinco peças fechadas; o pack de 4 h reconstrói em 0,037 s contra o orçamento de
+3 s. O relatório é `docs/progress/audit_20260913T220705Z.md`; a §9 traz as cinco
+rodadas e a §10 o fechamento, com as dez pendências herdadas pela Fase 8. O
+merge em `main` (PR #68, rebase) e esta selagem são do operador — a fase não se
+declarou fechada sozinha: quem declarou o PASS foi o auditor.
+A linha de status está aqui porque `check_readme_atual.py` decide *"a fase
 fechou?"* por ela, e registro de fase **sem** linha de status reprova o
 verificador em vez de degradar para "ok" — é a guarda `_status_da_proxima`, que
 existe para que uma terceira forma de rótulo não faça fonte e documento
