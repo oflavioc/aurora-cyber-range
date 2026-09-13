@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "purpose": "Rastreabilidade dos quatro originais de identidade visual Aurora Cyber Range",
+  "files": [
+    {
+      "file": "aurora-cyber-range-logo-landscape.png",
+      "original_filename": "ChatGPT Image Aug 13, 2026, 09_12_43 PM.png",
+      "description": "Logotipo completo em formato horizontal",
+      "bytes": 1185772,
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        254
+      ],
+      "sha256": "d2cc2c183540f310af8148c2cf0f13eb6e9830a3b71abab6accd3c9590c21fb2",
+      "git_blob_sha1": "5a53b6d24c4680d4d2772d9b713837085d4fe96b",
+      "source": "Arquivo fornecido pelo mantenedor nesta conversa; bytes preservados."
+    },
+    {
+      "file": "aurora-cyber-range-logo-square.png",
+      "original_filename": "ChatGPT Image Aug 13, 2026, 09_12_37 PM.png",
+      "description": "Logotipo completo em formato quadrado",
+      "bytes": 789124,
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "sha256": "24a4ebb268948ace10316727cebdb915b4173d1fa0cefd3cc9c14de7c2b65203",
+      "git_blob_sha1": "8c652668a71116532465120cd161eea3e2b83f4d",
+      "source": "Arquivo fornecido pelo mantenedor nesta conversa; bytes preservados."
+    },
+    {
+      "file": "aurora-cyber-range-symbol.png",
+      "original_filename": "ChatGPT Image Aug 13, 2026, 09_12_40 PM.png",
+      "description": "Símbolo isolado",
+      "bytes": 1338572,
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "sha256": "4f83777fc39f662d207bf38b60fcc34f7b9e6bbc6e1efac5838abb425e5a8959",
+      "git_blob_sha1": "0da869f398e39f1d26128a975ae3c38dd5f99189",
+      "source": "Arquivo fornecido pelo mantenedor nesta conversa; bytes preservados."
+    },
+    {
+      "file": "aurora-cyber-range-key-visual.png",
+      "original_filename": "ChatGPT Image Aug 13, 2026, 08_51_36 PM.png",
+      "description": "Arte de apresentação",
+      "bytes": 2998400,
+      "width": 1672,
+      "height": 941,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "sha256": "3dc00bf3df4254e12ea35b44b5c25b8f4587619547a72eb51817aa732cfe7003",
+      "git_blob_sha1": "a14a121e35dd67e2aaf5106609d7caf397fa64e1",
+      "source": "Arquivo fornecido pelo mantenedor nesta conversa; bytes preservados."
+    }
+  ]
+}
