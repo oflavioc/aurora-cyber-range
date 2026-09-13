@@ -3021,6 +3021,17 @@ lançador (R13, declarado).
 | **H1** — as probes do verificador novo não rodavam no CI, ao contrário das duas irmãs | **CORRIGIDO** — passo próprio no job `arquitetura`, ao lado das irmãs, com o mesmo desenho (probes-only, R13) e o comentário nomeando a perna (g) e o controle "pack ausente", que é o modo do auditor |
 | **H2** — o item 7 não passa pela letra | **SEM AÇÃO DE IMPLEMENTADOR, por escrito no próprio relatório** — a divergência está com dono (P7-18, spec-change proposto) e resolve no ⏸ do fechamento, pela mão do proprietário. É o item que impede PASS até a decisão |
 
+| Rodada | Relatório | Veredito |
+|---|---|---|
+| 4ª (13/09, headless) | `audit_20260913T194629Z.md` | **FAIL — e é o estado terminal antes do ⏸**: zero HIGH, zero LOW. O item 9 virou **PASS pela prova** (0,028 s, amarração dupla conferida: árvore `2345118e` + os 7 SHA-256 do pack); o produtor do lançador e as probes no CI foram medidos corrigidos; o console script executou pelo venv (rc=2 com o achado certo); nenhum órfão. O único BLOCKER é o item 7 — **escalado por consequência, não por mérito** ("não há ação de implementador pendente; o remédio é do operador… decidido isso, a reauditoria é formalidade") |
+
+**A disposição da 4ª rodada:**
+
+| Achado | Disposição |
+|---|---|
+| **B1** — item 7 pela letra, agora a única coisa entre a fase e o fechamento | **É O ⏸** — a decisão da **P7-18** (aprovar o spec-change proposto do `04` §4), do proprietário, na apresentação do fechamento. Nenhum código destrava |
+| **M1** — a guarda de IOC só alcançava o `ground_truth.yaml`; os outros cinco documentos do pack não passavam pelo predicado em camada nenhuma | **CORRIGIDO** — `confere_ausencia_de_ioc` generalizou (arquivo por parâmetro) e `_passos` a aplica a TODOS os documentos lidos do pack, um passo por arquivo (um achado por documento no linter). Testado com IOC plantado em `injects.yaml` (o documento com prosa de plateia — o caso que o achado nomeou) e em `information_distribution.yaml` (o documento sem contrato da P1-20); o pack real segue sem achados. `GM_NOTES.md` permanece fora por ser prosa — o limite declarado do predicado, sem mudança |
+
 **Dois avisos colhidos do launch, para a manutenção da estrutura (Fase 8):**
 as regras `deny Write(...)` de `.claude/settings.json` são redundantes — as
 `Edit(...)` cobrem todas as ferramentas de edição e a proteção está intacta,

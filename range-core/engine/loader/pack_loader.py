@@ -573,7 +573,17 @@ def _passos(
     # `05` §5.2 e a P7-7. ANTES das guardas de predicado: um pack com IOC real e
     # defeito de outra especie — as outras recusas desta lista custam retrabalho
     # de autoria, esta custa `05` §1 violado num artefato que roda na sala.
-    yield lambda: confere_ausencia_de_ioc(ground_truth)
+    #
+    # TODOS OS DOCUMENTOS, um passo por arquivo — M1 da 4ª auditoria: a forma
+    # anterior so passava o gabarito, e os outros cinco nao eram varridos por
+    # camada nenhuma. Um passo por documento e o que faz o linter colher um
+    # achado por arquivo em vez de parar no primeiro.
+    for arquivo_de_pack in sorted(documentos):
+        yield (
+            lambda arquivo_de_pack=arquivo_de_pack: confere_ausencia_de_ioc(
+                documentos[arquivo_de_pack], arquivo=arquivo_de_pack
+            )
+        )
 
     yield lambda: confere_folhas_temporais(ground_truth)
     # O QUALIFICADOR SAI DO CONTRATO, e `load_pack` ja recebe `contracts` — a
@@ -1195,8 +1205,20 @@ def _valores_com_caminho(no, caminho: str = "$"):
         yield caminho, no
 
 
-def confere_ausencia_de_ioc(ground_truth: Mapping | None) -> None:
-    """Nenhum IOC operacional no gabarito — `05` §5.2, e a **P7-7**.
+def confere_ausencia_de_ioc(
+    documento: Mapping | None, *, arquivo: str = "ground_truth.yaml"
+) -> None:
+    """Nenhum IOC operacional no pack — `05` §5.2, a **P7-7** e o M1 da 4ª auditoria.
+
+    O ESCOPO SAO TODOS OS DOCUMENTOS DO PACK, e nao so o gabarito — M1 da 4ª
+    auditoria da Fase 7. A forma original recebia so `ground_truth.yaml`, e os
+    outros cinco documentos nao passavam pelo predicado em camada nenhuma:
+    `check_synthetic_data.py` varre a arvore versionada e o pack esta fora
+    dela. `injects.yaml` e justamente o que carrega prosa voltada ao
+    participante (`texto_para_plateia`); um dominio registrado real ali
+    passava por todas as camadas. `_passos` agora aplica este predicado a cada
+    documento lido do pack, um achado por documento — `GM_NOTES.md` fica de
+    fora por ser prosa, o limite declarado abaixo.
 
     A PERGUNTA NAO E REIMPLEMENTADA AQUI. Ela e a mesma que
     `tools/check_synthetic_data.py` responde desde a Fase 0, e as duas passaram a
@@ -1250,17 +1272,17 @@ def confere_ausencia_de_ioc(ground_truth: Mapping | None) -> None:
     exigencias da §5.2 — e esta linha existe para que isso seja lacuna nomeada, e
     nao cobertura suposta.
     """
-    if ground_truth is None:
+    if documento is None:
         return
     achados: list[str] = []
-    for caminho, valor in _valores_com_caminho(ground_truth):
+    for caminho, valor in _valores_com_caminho(documento):
         for achado in achados_no_valor(valor):
             achados.append(f"{caminho}: {achado.detalhe}")
     if not achados:
         return
     raise PackError(
         PackSite.IOC_OPERACIONAL,
-        "`ground_truth.yaml` traz dado que nao e sintetico:\n"
+        f"`{arquivo}` traz dado que nao e sintetico:\n"
         + "\n".join(f"    {linha}" for linha in achados[:5])
         + (f"\n    ... e mais {len(achados) - 5}" if len(achados) > 5 else "")
         + "\n    `05_SECURITY_REQUIREMENTS.md` §5.2 admite ator de ameaca REAL e "
@@ -1270,7 +1292,7 @@ def confere_ausencia_de_ioc(ground_truth: Mapping | None) -> None:
         "    `threat_actor.sources` e ISENTO desta varredura, e e o unico: a "
         "§5.2 EXIGE fonte publica citavel ali, entao nomear um dominio real "
         "naquele campo e o proposito e nao o defeito.",
-        arquivo="ground_truth.yaml",
+        arquivo=arquivo,
         caminho=achados[0].split(":", 1)[0],
     )
 
