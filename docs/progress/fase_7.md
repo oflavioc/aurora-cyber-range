@@ -1243,7 +1243,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-15 | S14 da varredura: o extremo **inclusivo** — o próprio `verification_predicate_satisfied` listado como "evidência incompatível com a declaração" — contraria a redação-alvo de `03` §3.2, o teste o declara "deliberado", e a objeção da 9ª auditoria da Fase 6 nunca ganhou disposição | `ABERTA` | fechamento desta fase — apresentação ao proprietário junto de P7-9/P7-10; é potencial drift spec×mecanismo, e o `spec-guardian` pode medir antes. **Apresentada em 13/09 (⏸): o PR spec-change sai na abertura da Fase 8** |
 | P7-16 | E1 da varredura: `PHASE_0_CHECKLIST.md:169` afirma que branch protection, `spec_freeze` e verificadores foram "demonstrados funcionando nos itens 9 a 13" — foram fechados **por atestação** (P34). O lado do registro foi corrigido (`fase_0.md:1634`); o checklist, que é conjunto SPEC, não | `ABERTA` | apresentação ao proprietário no fechamento desta fase — a correção é PR `spec-change:` de uma linha. **Apresentada em 13/09 (⏸): o PR sai na abertura da Fase 8** |
 | P7-17 | E3 da varredura: o destino declarado da **P2-17** ("Fase 6, com o cálculo do desconto" — o start do `frozen_interval` vem da âncora, não do inject falho) passou sem menção nenhuma, e ninguém a reabriu | `ABERTA` | abertura da Fase 8 — remedir se o start ainda vem da âncora e dar destino real; gatilho que passa em silêncio é a classe que a P5-2 documenta |
-| P7-18 | H1 da 2ª auditoria: três documentos normativos (`04` §4, `07` DoD 7, `06` T12) afirmam `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]` e migração de v1, e o código declara `(2,)` por decisão própria em docstring — o argumento técnico é bom (v1 nunca existiu; migrador identidade é pior que nenhum), mas a saída para "a spec está errada" é PR `spec-change:`, não docstring. O item 7 da DoD está satisfeito **pela forma, não pela letra**, e a divergência agora tem dono | `DECIDIDA` | apresentação ao proprietário no fechamento desta fase, junto de P7-9/P7-10/P7-15/P7-16 — o spec-change proposto: `04` §4 passa a dizer "`[N, N-1]` a partir da primeira versão que tiver antecessora real; enquanto N-1 não existir, `[N]`, com recusa instruída". **DECIDIDA em 13/09 (⏸): texto APROVADO pelo proprietário; o PR `spec-change:` é o desbloqueador da rodada 5, e o estado muda a linha para** `DECIDIDA` |
+| P7-18 | ~~três documentos normativos afirmam `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]` e migração de v1, e o código declara `(2,)` por decisão própria em docstring~~ | `RESOLVIDA` | **spec-change #67 mergeado** — `04` §4 passou a "`[N, N-1]` a partir da primeira versão com antecessora real; enquanto N-1 não existir, `[N]`, com recusa instruída"; `07` DoD 7 e `06` T12 acompanharam. O código já estava conforme; os docstrings de `pack_loader` e `migrations/__init__` deixaram de argumentar contra a norma e passaram a citá-la. O item 7 da DoD passa **pela letra**. Viveu três rodadas como achado até o rito fechá-lo — docstring → P7-18 → spec-change → norma |
 | P7-19 | H3 da 2ª auditoria, a metade de mecanismo: `check_progress_consistency` isenta `ENTREGA` de migrar (`NAO_MIGRA`), então pendência `ENTREGA` **não entregue** sai da fase sem destinatário e nada fica vermelho — aconteceu com três de uma vez | `ABERTA` | abertura da Fase 8 — o verificador passa a exigir, no fechamento, evidência de entrega na linha `ENTREGA` (ou reprova), a mesma forma da regra (b) da P7-6 |
 | P7-20 | L1 da 2ª auditoria: `04` §8 declara `scenario validate` e `scenario migrate` como verbos próprios (e diz que `validate` roda no CI), nenhum dos dois existe, e `04` §8 está mapeado a fases que acabaram — a ausência não tinha linha em §6 nenhuma | `ABERTA` | apresentação ao proprietário junto da P7-18: `validate` é decisão declarada (o `lint` roda a lista inteira de `_passos` — um `validate` separado seria um `lint` com menos checagens) e cabe spec-change de alinhamento; `migrate` acompanha o destino da P7-18, porque só existe quando houver N-1 real. **Apresentada em 13/09 (⏸): o PR de alinhamento do §8 sai na abertura da Fase 8** |
 
@@ -3003,11 +3003,13 @@ por caminho, Fase 8+, precedente da §7.3 da Fase 4).
 
 ## 9. Auditoria de checkpoint
 
-Candidato: `e0a89c3`, com a âncora do oitavo rebase e `check_audit_base`
+Candidato inicial: `e0a89c3`, com a âncora do oitavo rebase e `check_audit_base`
 respondendo PORTA. Estado ao entrar: DoD 9/9 — re-qualificado pela 2ª rodada
-para **8 pela letra e o item 7 pela forma, com a divergência agora com dono
-(P7-18)** —, peças 5/5, varredura de fechamento verde exceto o predicado de
-lançador (R13, declarado).
+para **8 pela letra e o item 7 pela forma, com a divergência com dono (P7-18)**,
+e re-qualificado **de volta a 9/9 pela letra** depois do #67 (spec-change da
+P7-18 mergeado no ⏸), peças 5/5, varredura de fechamento verde exceto o
+predicado de lançador (R13, declarado). O candidato da rodada 5 é o nono
+rebase, sobre a `main` que já contém o #67.
 
 | Rodada | Relatório | Veredito |
 |---|---|---|
