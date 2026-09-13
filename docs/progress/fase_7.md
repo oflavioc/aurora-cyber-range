@@ -1233,7 +1233,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — allowlist de chamadores por emissor, degrau 2. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
 | P7-7 | ~~`05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe~~ | `RESOLVIDA` | o gatilho declarado era a peça do lint, e ela chegou. Medi-la mostrou **três** exigências, não uma: a de IOC ganhou mecanismo, as duas outras ganharam `destinatario: revisão humana` com motivo; ver abaixo |
-| P7-8 | `range-core/` importa um pacote de topo e nenhuma guarda enxerga isso — é a P2-15 um nível acima. Esta fase criou **dois** pacotes de topo, `range_cli/` e `dados_sinteticos/` | `ABERTA` | fechamento desta fase — o próximo pacote de topo repete o problema; ver abaixo |
+| P7-8 | ~~`range-core/` importa um pacote de topo e nenhuma guarda enxerga isso — é a P2-15 um nível acima. Esta fase criou **dois** pacotes de topo, `range_cli/` e `dados_sinteticos/`~~ | `RESOLVIDA` | o gatilho era o fechamento desta fase, e ele chegou. A guarda generalizou na forma que a pendência prescreveu; ver abaixo |
 | P7-9 | `04` §8 diz que `lint` roda no CI, e não há pack lintável versionado: `scenarios/` está fora do Git e `pack_minimo` é deliberadamente incompleto | `ABERTA` | o dia em que houver pack lintável na árvore; ver abaixo |
 | P7-10 | o gerador de gabarito só produz Linha B: o `ground_truth.yaml` materializado do `ransomware-universidade` não tem fato de `initial_access`/`exfiltration`, `containment` é `absence_of grade_change_retroactive` e `service_restoration` é `not_applicable` — enquanto `03` §3.1 e `04` §3 descrevem o gabarito deste pack com a Linha A inteira. Consequências medidas na autoria (§8.3): nenhum inject de Linha A pode citar `materializes_facts`, `TTRV` é incomputável e o par de contenção mede outra coisa | `ABERTA` | fechamento desta fase — apresentação ao proprietário: ampliar o gerador (mecanismo) ou realinhar a leitura da spec (spec-change); ver §8.3 |
 | P7-11 | condição temporal de branch (`before`/`after`) carrega e **nunca ramifica**: `04` §6.1 permite e o exemplo normativo usa, mas a gramática temporal não existe (P6-3) e `confere_folhas_temporais` só varre `verification_predicates` — é a "falha mais cara possível" da §6.2 entrando por porta que a P6-3 não declara cobrir | `ABERTA` | o gatilho da P6-3 (a gramática temporal nascer) passa a incluir as condições de branch; até lá o pack de 4 h evita condição temporal, com a omissão declarada no cabeçalho do `branches.yaml` |
@@ -2363,6 +2363,21 @@ guarda custa, e a P2-15 foi resolvida antes disso, pelo mesmo argumento.
 As peças 4 e 5 ainda podem produzir o terceiro. Se produzirem, o fechamento
 encontra a lista já com três entradas — e é aí que ela deixa de ser uma linha e
 passa a ser lista de verdade.
+
+**RESOLVIDA no fechamento da fase, na forma prescrita acima.**
+`check_core_contract_imports.py` passou a opinar sobre *"o que o core importa
+de fora de `range_core`"*, com as raízes de topo **descobertas na árvore** em
+vez de listadas — PEP 420 dispensa `__init__.py` (e `contracts/` é exatamente
+esse caso), então o próximo pacote de topo já nasce no alcance, sem ninguém
+lembrar de nada. `domains/` ficou fora com dono declarado
+(`check_core_boundary`, invariante 1): duas guardas com opinião sobre a mesma
+pergunta é o que a §1.4 fechou. A whitelist ganhou a entrada que motivou tudo
+(`pack_loader` → `dados_sinteticos`, com o motivo desta pendência), e a prova
+negativa ganhou o eixo novo: plantar `import range_cli` num arquivo do core
+reprova — a propriedade que "ninguém declarou e nada guarda" passou a ser
+guardada. Sete eixos verdes. As peças 4 e 5 **não** produziram o terceiro
+pacote de topo; a lista fecha a fase com duas raízes importadas e dezoito
+arquivos declarados.
 
 #### P7-9 — `lint` não roda no CI, e a árvore não tem pack para lintar
 
