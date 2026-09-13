@@ -43,7 +43,7 @@ quatro blocos de entrega.
 | 2 | pack: esqueleto de migração e recusa por versão, o produtor `range-cli scenario materialize`, o linter de citação de fato | DONE 7 e 8 — **FECHADA** |
 | 3 *(era 4)* | `range-cli scenario lint`: inject sem objetivo e sem `noise: true`, `event_type` inexistente em condição com posição no arquivo, condição por juízo do facilitador | DONE 1, 2 e 3 — **FECHADA**, e ela também fechou a P7-7 |
 | 4 *(era 5)* | branching: `branch_policy` do manifesto aplicada, branch sem `reconverge_at` recusado, `dryrun` percorre todos os caminhos | DONE 4, 5 e 6 — **FECHADA**, e ela também fechou a metade "indicado" do `option` |
-| 5 *(era 7)* | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 |
+| 5 *(era 7)* | volume: reconstrução completa da projeção do `ransomware-universidade` de 4 h em < 3 s | DONE 9 — **FECHADA**: 0,025 s, e o pack de 4 h passou a existir (§8.3) |
 
 **A peça 1 vem primeiro porque é degrau 1** na taxonomia da §7.1 — a exigência
 deixa de ser afirmada em cada registro de fase e passa a ser derivada deles. É o
@@ -1235,6 +1235,8 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-7 | ~~`05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe~~ | `RESOLVIDA` | o gatilho declarado era a peça do lint, e ela chegou. Medi-la mostrou **três** exigências, não uma: a de IOC ganhou mecanismo, as duas outras ganharam `destinatario: revisão humana` com motivo; ver abaixo |
 | P7-8 | `range-core/` importa um pacote de topo e nenhuma guarda enxerga isso — é a P2-15 um nível acima. Esta fase criou **dois** pacotes de topo, `range_cli/` e `dados_sinteticos/` | `ABERTA` | fechamento desta fase — o próximo pacote de topo repete o problema; ver abaixo |
 | P7-9 | `04` §8 diz que `lint` roda no CI, e não há pack lintável versionado: `scenarios/` está fora do Git e `pack_minimo` é deliberadamente incompleto | `ABERTA` | o dia em que houver pack lintável na árvore; ver abaixo |
+| P7-10 | o gerador de gabarito só produz Linha B: o `ground_truth.yaml` materializado do `ransomware-universidade` não tem fato de `initial_access`/`exfiltration`, `containment` é `absence_of grade_change_retroactive` e `service_restoration` é `not_applicable` — enquanto `03` §3.1 e `04` §3 descrevem o gabarito deste pack com a Linha A inteira. Consequências medidas na autoria (§8.3): nenhum inject de Linha A pode citar `materializes_facts`, `TTRV` é incomputável e o par de contenção mede outra coisa | `ABERTA` | fechamento desta fase — apresentação ao proprietário: ampliar o gerador (mecanismo) ou realinhar a leitura da spec (spec-change); ver §8.3 |
+| P7-11 | condição temporal de branch (`before`/`after`) carrega e **nunca ramifica**: `04` §6.1 permite e o exemplo normativo usa, mas a gramática temporal não existe (P6-3) e `confere_folhas_temporais` só varre `verification_predicates` — é a "falha mais cara possível" da §6.2 entrando por porta que a P6-3 não declara cobrir | `ABERTA` | o gatilho da P6-3 (a gramática temporal nascer) passa a incluir as condições de branch; até lá o pack de 4 h evita condição temporal, com a omissão declarada no cabeçalho do `branches.yaml` |
 
 #### P1-7 — o id do inject pode vazar a linha, e quem decide é quem escreve o pack
 
@@ -2682,3 +2684,85 @@ de 4 h do ransomware-universidade"; a nota de T13/Fase 9 divide as ordens de
 grandeza — o desta peça é **o volume que o pack produz** (injects às dezenas,
 ações de participante às centenas); telemetria às centenas de milhares é da
 Fase 9, medida de novo lá por desenho.
+
+### 8.2 A composição do volume, declarada antes do número
+
+O harness é `scripts/medida_do_exercicio_4h.py` — parente declarado do bench
+da P2-10 (mesmas duas metades, mesma carga em lote, mesmo contexto por
+código), com o fluxo derivado do **pack real** via `load_pack`, todas as
+guardas da carga inclusas. A composição, cada linha com sua fonte:
+
+1. `exercise_started` com o pino real do pack (`LoadedPack.pin_payload`);
+2. um `inject_fired` por inject, na ordem do engine `(t_relative_seconds,
+   id)`, com os `effects` reais no payload;
+3. um `decision_made` por `decision_point`, primeira opção — escolha
+   determinística declarada; forma exigida pelo fold (`option_id` no payload,
+   inject em `correlation`, effects das `Declarations`). O
+   `capability_gap_declared` fica FORA, com a exclusão declarada no cabeçalho
+   do script: unidades, dentro do que o item 4 já superestima;
+4. **600 ações de participante** (`audit_query_performed`, camada
+   `participant_action`, `actor_id` e `persona` como o contrato exige) — o
+   topo de "centenas" (T13), 2,5/min × 240 min. Número declarado e revisável,
+   nunca inferido; superestimar volume só endurece o critério;
+5. **4 `rollback_performed`** de âncora curta — a forma realista do bench; a
+   patológica é da curva, não do exercício.
+
+A projeção é reconstruída com as `Declarations` reais do pack. O banco de
+medição é separado (`aurora_medicao`, migrado ao head) — o aviso do próprio
+script: nunca o banco semeado.
+
+### 8.3 Fechamento — FECHADA
+
+**O pack de 4 h existe e passa no gauntlet da própria fase.** Autoria pelo
+`scenario-designer` (o agente do projeto, confinado a `scenarios/`), em volta
+do `ground_truth.yaml` materializado do banco semeado (seed provado de novo em
+13/09/2026: 148,4 s < 5 min, byte-idêntico, 3.543.783 linhas; a prova regravou
+o artefato no formato pós-P7-2, fechando o vermelho local declarado na §5.3).
+40 injects (22 na Linha A, 11 na B, 7 de ruído com `noise: true`), 5
+`decision_point`s com trade-off de duas mãos, 2 `capability_gap`s, 4
+`media_event`s, ids neutros `IN*` (P1-7). **`range-cli scenario lint`: sem
+achados. `range-cli scenario dryrun`: 2 pontos, 4 caminhos, todos
+percorridos** — a peça 4 provando-se no pack que a peça 5 exigiu.
+
+**A medição do DoD 9, transcrita do harness:**
+
+```text
+data:    2026-09-12
+maquina: Windows-11-10.0.26200-SP0 | python 3.12.10
+stack:   PostgreSQL 16.4 (x86_64-pc-linux-musl) | psycopg 3.2.12 | migration 0004_trilha_de_auditoria
+pack:    ransomware-universidade | content_hash a6a2ac92cbd3f9279810d8bf…
+fluxo:   650 eventos = 1 started + 40 inject_fired + 5 decision_made
+         + 600 acoes de participante + 4 rollbacks
+medida:  read_all 0.024s (cadeia 0.004s, consulta 0.020s) + project 0.000s = 0.025s
+item 9:  PASSA — 0.025s contra o orcamento de 3 s
+```
+
+Margem de ~120×, coerente com a curva da Fase 2 (o ponto de quebra dela está
+ordens de grandeza acima de 650 eventos). O número pequeno é o desenho
+falando: o volume que o PACK produz é dezenas+centenas; quem estressa o
+orçamento é a telemetria — e ela é a segunda metade do critério, na Fase 9,
+por decisão do `spec-change` `item-8-volume-de-4h`.
+
+**As tensões reportadas pela autoria — nenhuma resolvida por inferência:**
+
+- **P7-10** (nova): o gabarito materializado só tem Linha B; `03` §3.1
+  descreve este pack com a Linha A inteira. Ver a tabela da §6.
+- **P7-11** (nova): condição temporal de branch carrega e nunca ramifica —
+  a P6-3 entrando por porta que ela não declara cobrir. Ver a §6.
+- `reveals` não expressa `confidence: none`/`source` de `03` §4 — limitação
+  declarada no próprio `injects.yaml` (IN33 sem `confidence`, com motivo).
+- "um ponto de ramificação por linha" (`04` §9) lido como **teto de
+  política**, não cota: a linha de ruído não ramifica, e a escolha está no
+  cabeçalho do `branches.yaml`. Revisável pelo proprietário.
+- `information_distribution.yaml` parseado e não validado é a P1-20 (Fase
+  10), já registrada — disciplina auto-imposta declarada no arquivo.
+
+**Onde o pack vive**: `scenarios/` segue fora do Git (decisão da Fase 5) — os
+sete arquivos existem no worktree da fase e em cópia de segurança no checkout
+principal. **Decidir o destino dos arquivos NÃO-gabarito é exatamente a P7-9**
+("descrição não é gabarito"), com gatilho no fechamento desta fase.
+
+**E o ponteiro envelhecido pego nesta peça**: a docstring do `inject_engine`
+dizia "Branching (`branch_selected`) é Fase 7" — anterior à redução do plano.
+Corrigido com destino declarado (o evento nasce com o consumidor que dispara
+por caminho, Fase 8+, precedente da §7.3 da Fase 4).
