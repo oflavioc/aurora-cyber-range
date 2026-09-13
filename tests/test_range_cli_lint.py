@@ -640,6 +640,40 @@ class SemIOCOperacional(_BaseDeLint):
         )
         self.assertEqual(achado.erro.caminho, "$.threat_actor.aliases[0]")
 
+    def test_ioc_em_QUALQUER_documento_do_pack_recusa(self):
+        """M1 da 4ª auditoria: o escopo são TODOS os documentos, não só o gabarito.
+
+        A forma anterior só passava `ground_truth.yaml` pelo predicado, e os
+        outros cinco não eram varridos por camada nenhuma — `injects.yaml` é
+        justamente o que carrega prosa voltada ao participante. As duas pernas
+        aqui: o IP roteável num campo de inject recusa COM o arquivo certo, e o
+        mesmo pack limpo continua limpo (a generalização não inventou achado).
+        """
+        fonte = INJECTS_LIMPO.replace(
+            'titulo_operacional: "Comunicado 02"',
+            'titulo_operacional: "Comunicado 02"\n    descricao_facilitador: 45.83.220.11',
+        )
+        achado = self.um_achado(
+            escreve_pack(**{"injects.yaml": fonte}), PackSite.IOC_OPERACIONAL
+        )
+        self.assertEqual(achado.erro.arquivo, "injects.yaml")
+        self.assertIn("45.83.220.11", achado.erro.mensagem)
+        self.assertPosicaoNaAncora(achado, fonte, "descricao_facilitador:")
+
+    def test_ioc_em_information_distribution_recusa(self):
+        """O documento sem contrato (P1-20) também não escapa da varredura."""
+        distribuicao = (
+            "distribution:\n"
+            "  - persona: ti\n"
+            '    at: "T+00:10"\n'
+            "    note: 45.83.220.11\n"
+        )
+        achado = self.um_achado(
+            escreve_pack(**{"information_distribution.yaml": distribuicao}),
+            PackSite.IOC_OPERACIONAL,
+        )
+        self.assertEqual(achado.erro.arquivo, "information_distribution.yaml")
+
     def test_cpf_que_passa_no_digito_verificador_recusa(self):
         """`05` §3 — CPF sintético tem de FALHAR o dígito verificador."""
         # NO `actor`, e nao num campo inventado: `additionalProperties: false`
