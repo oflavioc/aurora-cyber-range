@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "b4a6571505463da6e2e5f300d875336c70b15ca8",
+    "gerado_de_head": "90607397ec7ab2918adf9db640df512f76d6c475",
     "gerado_em": "2026-09-12",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -162,7 +162,7 @@
     "range-core/engine/branching/__init__.py": "068be050c73530e239ead52a3a5a2453162f397712fc404c68a3be75d987e83d",
     "range-core/engine/citacoes.py": "6692ba06d3e3d1184f319065c26e3155a524411287d7b57623fe866cd6614074",
     "range-core/engine/destino.py": "ca509f53b2f629dd76fa51bd4db46d0cea64c0d34883e4d400d4c9849bd881d9",
-    "range-core/engine/inject_engine.py": "133f224fcec480bde4c7378ec14529c894c9daabe1caf20f7402f6c88aef4888",
+    "range-core/engine/inject_engine.py": "c1dd0a42ceb4cfe9a28148cf55e22c3645b6e9bf969d30e90e1638807c58a394",
     "range-core/engine/loader/__init__.py": "7602cccd9fd74d6907e5141e6e8385ed81074659b5dd6360e57d85608656c242",
     "range-core/engine/loader/branching.py": "b221955d10d0994d785cfba29975fe4d74710b88f104fc99f724b20ddfbaf41d",
     "range-core/engine/loader/canonical.py": "e3ba4ad43b9c3bf566c7abd378d96c6b16c42d2fb9d09c1c89c92264d481bf81",
@@ -236,7 +236,7 @@
     "range_cli/lint.py": "ab4f124ad84066b9f7ddd19b7aefd6082efa08170b7e56de9203185f1baf28fb",
     "scripts/audit_report.py": "16488b091458d641e91b86b2bb9b18955c8d2574fdcdbd0d4e0f2aa35af05db9",
     "scripts/bench_reconstruction.py": "515fd985ba20e8a6e3474ed5ec527d5e82d09ceca04a065f969490ee45bbe9a7",
-    "scripts/check_allowlist_do_auditor.py": "e5ea5e6293dc4788e16aa98712161787b21cde421c7516d710dfa3dafd211cbf",
+    "scripts/check_allowlist_do_auditor.py": "3be866c4d720098daedb3a5bba6c40e32ecdb366b278910ffd891d65d8f89f4b",
     "scripts/check_allowlist_do_auditor_probes.py": "d5822ca51a4084209166322b2f7740593ed2e2cdc77b36afcce12fd6c9fdd65c",
     "scripts/check_api_surface.py": "8356950062f650b67dd180b390035d32a4bcf7f8c9b94d24ce8826ec9054cee3",
     "scripts/check_api_surface_probes.py": "8f013e73dd5238ac543bdf7de830af09704933e2d9a0a9d9d1a97196868d2b07",
@@ -293,6 +293,7 @@
     "scripts/demo_fase4.py": "1548384929fd1c6cdfb49f0c73e200c670c20365f2b3f8670f9592f8bdb1829a",
     "scripts/grava_provas_de_container.py": "3a62a6bcbac9272ff319b25dd591438e628ada7c850f922cac8db7eea7f7010e",
     "scripts/mede_cache_frio.py": "e704a8c1c6faf4da0edb050d191c1afb7df4f334168341623d13a85586bbee34",
+    "scripts/medida_do_exercicio_4h.py": "f649436a48c116d0bff18496dff4bd92167f6f827d0442bdbdd6b62fab5cce61",
     "scripts/phase0_negative_tests.py": "ccf7dd34fcd0a40d2c1068f1e216346fba7335fc7b70173b274d418dc296056a",
     "scripts/prova_reinicio_de_container.py": "cafb31e8583e41efb99712674df16dc0b5fce0c8675a00f2bbc5899b002402fc",
     "scripts/prova_seed_completo.py": "d20995b39025e683e1b8b4f3748f0ef79eca727b19ce8422436db430cef66a86",
