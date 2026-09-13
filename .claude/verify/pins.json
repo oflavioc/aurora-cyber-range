@@ -1,8 +1,8 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "90607397ec7ab2918adf9db640df512f76d6c475",
-    "gerado_em": "2026-09-12",
+    "gerado_de_head": "c0dfee178eb55c1121fa5105f43cc64896b445ce",
+    "gerado_em": "2026-09-13",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
       "docs/process/phase_anchors.tsv** (muda a cada fase por desenho)",
@@ -102,7 +102,7 @@
     "docs/adr/0001-adocao-estrutura-agentica.md": "022a00c802aa6c60af76e0c3491957df81992548a35d9b320c4f122abd15a8a0",
     "docs/process/BOOTSTRAP.md": "7c6aedcd6ce1fcfb53a464fdca431d5af9a0de3756e93a0fe65eac2bf7c7fccb",
     "docs/process/PHASE_0_CHECKLIST.md": "74a45bd01e8b9476c76e3748fb1308a4cfca4cfba80bdcc7c9c29ecf1a1ef440",
-    "docs/process/WORKFLOW.md": "23e3b56013754a9e853009e2d60dff0b0cff6aa43822ba88ccab1f673dfb2b32",
+    "docs/process/WORKFLOW.md": "2cdaf6c2fb3ec1cdad0a608a09cdaca17be29fe37b880944780c2d9f011aee67",
     "domains/__init__.py": "0fe93976216a3df8db69c4b499ecec6fe16565aaad2ea843b388e8c53d808462",
     "domains/academus/__init__.py": "ebd16b98eb38b1cb1dc9eef957817c130df488a57fbeb9713162e50e1162d50b",
     "domains/academus/api/__init__.py": "90fc44189c9f0b589b6b88eae87a993060e5ff92061ce226b9db221b2c46bbeb",
@@ -232,7 +232,7 @@
     "range-core/web/wallboard-shell/index.html": "05215448a1c7bfa080ccec6df7532d1eeac726f16d7c57611872697ce1014da9",
     "range-core/web/wallboard-shell/main.tsx": "232b7acc6edc4bb4d9a5557ecd9be03b760396db53144d4030145c2601c5835f",
     "range_cli/__init__.py": "0c3f490e0fef9b5995832a13c82b9d4d84ab6bb0c30e0fed09f409396fb0d1e8",
-    "range_cli/cli.py": "02418af07b91f3d3d235099b4d3e3d8191a31d22111d329fe48c4464eab075f1",
+    "range_cli/cli.py": "6f2a55115c2a69195bd2b077de8b3b7a6af04bb554df6499f22a113b3331519c",
     "range_cli/lint.py": "ab4f124ad84066b9f7ddd19b7aefd6082efa08170b7e56de9203185f1baf28fb",
     "scripts/audit_report.py": "16488b091458d641e91b86b2bb9b18955c8d2574fdcdbd0d4e0f2aa35af05db9",
     "scripts/bench_reconstruction.py": "515fd985ba20e8a6e3474ed5ec527d5e82d09ceca04a065f969490ee45bbe9a7",
@@ -246,8 +246,8 @@
     "scripts/check_banner_de_simulacao_probes.py": "40fd24ebd96f32173cf336366d4376cfcb45d561a2c4b964a31dd0cd231dfd4f",
     "scripts/check_contract_examples.py": "86018a31cf28def972b352352f8d5d2c38bdf523458df5d3f460bbc2f563696e",
     "scripts/check_contract_examples_probes.py": "ef953b67b1a49dee64ffc6e3eb93ad068f4a02dee2cf04e8faa19f932c0aed0b",
-    "scripts/check_core_contract_imports.py": "88063f1fd11b411df21e7f24d19946f624803261faec4bc0277b294566846a66",
-    "scripts/check_core_contract_imports_probes.py": "40e56a43c28befcc92726a818202eed32a01c1b65160369445533082c42f721e",
+    "scripts/check_core_contract_imports.py": "8ad74b7575c146925045ffa91ae8c4bb942073796feb79a01f6c96148e8b76b0",
+    "scripts/check_core_contract_imports_probes.py": "2126cbb11a71d6475297eab2bfbd5a346a9623001bdce70452d28d9ce6347a68",
     "scripts/check_fabrica_liga_emissor.py": "3398effa3a5665fedd5405ee26e4bbcede1c767998e722489fecf6bdd5a706dc",
     "scripts/check_fabrica_liga_emissor_probes.py": "9092831da29b7595bf8cbecd1e9be658e76acb36b2224d5fbbbad3a99d0e9519",
     "scripts/check_fold_authority.py": "3c18ab689197cd90c77fb230bfc67e363003b26c91f67319bafe4813e5cb91f8",
@@ -376,7 +376,7 @@
     "tools/check_security_constraints.py": "ee9befa7843488b66aea5a19765cd754db3e56189c2aecc1a9439892d81a2afd",
     "tools/check_synthetic_data.py": "cdb147f90410e34cb51d14f8ec79cf2876ad40d03267d3354a079e8811a8fe17",
     "tools/codegen.py": "74cf259aae5c5a6135dc020e0af7165de764638e58fe48a55f4857603a66fb6e",
-    "user-scope/agents/checkpoint-auditor.md": "d76a1113308e9b752f9d63ca18907e7da254c2da514b05719ad0c24447e55045",
+    "user-scope/agents/checkpoint-auditor.md": "fe2ae22bc8f6cd415c9bdd5c4edc478221ed65117f6f0c9f9d0ca329f64446b5",
     "user-scope/hooks/pre-commit": "c451191df0ba2bcf2154882963ace3defe93d42d344d2f53b48d205efeeee91b",
     "user-scope/hooks/readonly_bash.py": "f133ef761542389160d4ffa167dd44d418fb8213295f944b8610c7a4780b75a7",
     "user-scope/hooks/sentinela_de_branch.py": "f03fad36a85bfea2c9b7f7908270c465ee23a4e9a386827f0720d28ba7a8c91f"
