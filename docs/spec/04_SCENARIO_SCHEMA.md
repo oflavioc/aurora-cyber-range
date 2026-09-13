@@ -88,11 +88,12 @@ Sem `verification_predicates`, o pack não carrega — TTCV e TTRV seriam incomp
 
 ## 4. Política de versionamento
 
-- Engine declara `ENGINE_VERSION` e `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]`
-- Pack em N-1 carrega com migração em memória e aviso no boot
-- Pack anterior a N-1 é recusado com instrução de migração
-- Migrações em `range-core/engine/migrations/v<n>_to_v<n+1>.py`, cada uma com teste
+- Engine declara `ENGINE_VERSION` e `SUPPORTED_SCHEMA_VERSIONS` — **`[N, N-1]` a partir da primeira versão que tiver antecessora real; enquanto N-1 não existir, `[N]`, com recusa instruída**
+- Quando houver N-1 real: pack em N-1 carrega com migração em memória e aviso no boot; migrações em `range-core/engine/migrations/v<n>_to_v<n+1>.py`, cada uma com teste
+- Pack em versão não suportada é recusado com instrução de migração
 - **Nunca alterar semântica de campo dentro da mesma `schema_version`**
+
+> **A condicional "antecessora real" entrou neste `spec-change`** (P7-18, decisão do proprietário em 13/09/2026, do ⏸ do fechamento da Fase 7). A redação anterior exigia `[N, N-1]` incondicionalmente e migração de v1 — e **nenhum contrato anterior ao v2 jamais existiu neste repositório** (medido por `git log --diff-filter=A`): `[2, 1]` declararia suporte a uma versão sem contrato, sem migrador e sem pack, e um migrador-identidade seria afirmação falsa com sintaxe de mecanismo — a leitura que a 4ª auditoria da fase subscreveu ("pior que nenhum"). A divergência viveu três rodadas de auditoria como achado até virar esta norma; o caminho — código decidindo em docstring → pendência com dono → spec-change — é o rito do `CLAUDE.md` funcionando, na ordem certa.
 
 ### 4.1 Forma declarada uma vez, e constante derivada de contrato entra no núcleo como dado
 
