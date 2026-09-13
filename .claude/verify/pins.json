@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "496870e3b3128d1589d9396fa319a877f4a5154b",
+    "gerado_de_head": "0bbf7c92cc259b378c6218a879c384ba185c32f8",
     "gerado_em": "2026-09-13",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -68,7 +68,7 @@
     ".dockerignore": "0bfb3a5c28421e5311e3420675f287d83e79509eda3743b7ded3f835cea45d77",
     ".env.example": "01c201eb3f1572e13c289c469b88cee15b4a32ff55209e75d3495362120e21bd",
     ".gitattributes": "6b5bb01ed3887943581321eb76cbb03b7eac0c2f903a5382b311a30227a34ebb",
-    ".github/workflows/invariants.yml": "79bf0dd9880c44132368aaedcce49c3689d76ced5660bc1e5a9f02de43fc79b6",
+    ".github/workflows/invariants.yml": "c1ecb89c243ad2a640b5ebe807bbfd7d6570ceba882720b21e901220a6b51d4d",
     ".gitignore": "711d4a5ba7f631ec6c9a60ace0a3be466f3ba5bd33f076b777c6ccdc0bd6b640",
     "CHANGELOG_V3.md": "1fb48eea18c4596d618b1858c853380825f9a72a98c9533c3aba03e775c78c0b",
     "CLAUDE.md": "2cc3088deb3ce3d60e8e80e89926bee80cc847b92e9aea8a86af82af10b354cb",
@@ -303,7 +303,7 @@
     "scripts/reancorar_sessao.py": "e984d30c2a409428209dc05edb9177dce129aadeb7651dd0ce4788feee29df5f",
     "scripts/sincroniza_escopo_de_usuario.py": "042a3ee275f58803c260fb2c307c053ddcba026feb8c5e2f44cda09fd57c46bf",
     "scripts/sobe_sala.py": "daa1308cb2b57e95a55e0c2b13aeed5a79bd8b4cb0166182ffc0f98408d725c2",
-    "scripts/start_checkpoint_audit.sh": "61f6005b9d8e3e768edfb1c3cb144084ef2687dd763231db74ac7158dd4506ee",
+    "scripts/start_checkpoint_audit.sh": "a545a86c9af879ca8eb91db2570f216912134b1496231aa411805694edb6c7a7",
     "tests/_academus_app.py": "5c4a1e14d11ff84a6ba762ab10f3695166f010cf0eaf01e0c76b655190cd7f9e",
     "tests/_academus_banco.py": "ecb88c052f5e5f4527b033b6a94340c5c00f2aeeb910a0c1dcbaa11e21c3bfbc",
     "tests/_le_business_state_em_outro_processo.py": "bd3cb26d993f721a684d0f41a55817921d9b249ce3b1e307728a2a9c01a1bacc",
