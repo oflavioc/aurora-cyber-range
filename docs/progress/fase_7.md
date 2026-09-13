@@ -3003,11 +3003,23 @@ lançador (R13, declarado).
 |---|---|
 | **B1** — a imagem não constrói: `pyproject` declara `range_cli/` e `dados_sinteticos/` e o `Dockerfile` não os copia | **CORRIGIDO** — os dois `COPY` entram com a lição no comentário; provado por `docker build` completo verde (`BUILD_EXIT=0`). A fase criou os pacotes e não tocou a imagem; os 856 verdes vinham do venv editável resolvendo pela árvore, exatamente a assimetria que o `pyproject` documenta quatro vezes |
 | **H1** — item 7 "cumprido" por docstring, contra a letra de `04` §4 | **PROMOVIDO** — **P7-18**, com o texto do spec-change proposto e apresentação ao proprietário. O registro re-qualifica o fechamento: 8 itens pela letra, o 7 pela forma |
-| **H2** — itens 6 e 9 chegavam como atestação; P7-3 fechada com premissa contradita | **CORRIGIDO** — nasce o par `prova_do_exercicio_4h`/`check_prova_do_exercicio_4h` (classe P4-10): a prova amarra a árvore E os sete arquivos do pack por SHA-256, grava lint/travessia/medida, é escrita mesmo em falha, e tem 7 direções de prova negativa (9 venenos + 2 controles). A P7-3 foi re-disposta na tabela; o verificador entra na allowlist do auditor por nome, o gravador fica FORA com motivo (o critério do par do seed) |
+| **H2** — itens 6 e 9 chegavam como atestação; P7-3 fechada com premissa contradita | **CORRIGIDO PELA METADE, e a 3ª rodada mediu a metade que faltava** — nasceu o par `prova_do_exercicio_4h`/`check_prova_do_exercicio_4h` (classe P4-10: árvore + sete arquivos por SHA-256, 7 direções de prova negativa) e o verificador entrou na allowlist "no commit que o cria"… e o PRODUTOR não entrou no lançador nem as probes no CI — a mesma assimetria do B1 anterior, cometida na correção dele. O B1 e o H1 da 3ª rodada são exatamente isso; a disposição deles está abaixo |
 | **H3** — três `ENTREGA` não entregues saindo sem destinatário | **CORRIGIDO no dado, PROMOVIDO no mecanismo** — P1-7, P5-4 e P6-5 mudam para `ABERTA` com gatilho real; a cegueira do `NAO_MIGRA` vira **P7-19** (endurecimento na abertura da Fase 8) |
 | **M1** — `range_cli/` e `dados_sinteticos/` invisíveis aos dois scanners de `tools/` | **CORRIGIDO** — os dois entram nos `SCANNED_DIRS` de `check_contract_literals` e `check_security_constraints`, com a lição no comentário; as três direções da classe (spec_freeze, guarda de imports, scanners) agora fechadas |
 | **M2** — a allowlist admitia a FORMA `range-cli …` e o executável era inalcançável | **CORRIGIDO** — `PREFIXO_DO_VENV` nas duas entradas de `range-cli`, com a terceira ocorrência da classe documentada no ponto; cópia instalada sincronizada e harness central verde |
 | **L1** — `validate`/`migrate` declarados em `04` §8, inexistentes, sem linha em §6 | **PROMOVIDO** — **P7-20**, apresentação junto da P7-18 |
+
+| Rodada | Relatório | Veredito |
+|---|---|---|
+| 3ª (13/09, headless) | `audit_20260913T184853Z.md` | **FAIL** — 1 BLOCKER, 2 HIGH, **zero** MEDIUM/LOW. A rodada confirmou por execução as correções da 2ª (B1 anterior: build verde E as provas de container voltaram a rc=0, itens 1 e 4 da DoD da Fase 4 de volta a PASS; M1/M2 medidos; regra de achado órfão conferida sem sobras). O que restou é a metade que a correção do H2 não entregou |
+
+**A disposição da 3ª rodada:**
+
+| Achado | Disposição |
+|---|---|
+| **B1** — a prova do exercício de 4 h não existia no worktree da auditoria: o verificador entrou na allowlist e o PRODUTOR não entrou no lançador | **CORRIGIDO** — `start_checkpoint_audit.sh` ganha o bloco de transporte da prova (COPIADA/AUSENTE, o par exato do seed na metade que lhe cabe: o lançador não a mede porque o pack vive fora do Git e o worktree nasce sem ele — quem julga é o verificador, pelas duas pernas). A mensagem ao auditor ganha a seção própria, e o parágrafo da P7-2 passa de "dois artefatos" a "três", nomeando a fresta que a segunda perna fecha |
+| **H1** — as probes do verificador novo não rodavam no CI, ao contrário das duas irmãs | **CORRIGIDO** — passo próprio no job `arquitetura`, ao lado das irmãs, com o mesmo desenho (probes-only, R13) e o comentário nomeando a perna (g) e o controle "pack ausente", que é o modo do auditor |
+| **H2** — o item 7 não passa pela letra | **SEM AÇÃO DE IMPLEMENTADOR, por escrito no próprio relatório** — a divergência está com dono (P7-18, spec-change proposto) e resolve no ⏸ do fechamento, pela mão do proprietário. É o item que impede PASS até a decisão |
 
 **Dois avisos colhidos do launch, para a manutenção da estrutura (Fase 8):**
 as regras `deny Write(...)` de `.claude/settings.json` são redundantes — as
