@@ -57,7 +57,15 @@ A janela evita evento duplicado na timeline, que e outra coisa.
 
 O QUE ESTA PECA NAO FAZ
 ------------------------
-Branching (`branch_selected`) e Fase 7. `exercise_reset` e Fase 4.
+Branching de RUNTIME (`branch_selected`) ficou FORA da Fase 7, e a exclusao e
+decisao e nao esquecimento: o plano reduzido da fase (registro §1, criterio "o
+que quebra em exercicio ao vivo") entregou a camada ESTATICA — politica
+aplicada, travessia do `dryrun`, recusas de percurso — e nenhum item da DoD
+cobra o engine avaliando `when` em exercicio. Quem precisar do evento e o fluxo
+que dispara inject por caminho escolhido (gm-console, Fase 8+), e e com esse
+consumidor que ele nasce — a §7.3 do registro da Fase 4 e o precedente. A forma
+anterior desta linha ("Branching e Fase 7") envelheceu quando o plano foi
+reduzido, e foi pega na abertura da peca 5. `exercise_reset` e Fase 4.
 
 `rollback` com `reason: technical_failure` **recusava**, porque o campo de
 payload que carrega os extremos do intervalo congelado nao existia. Ele existe
