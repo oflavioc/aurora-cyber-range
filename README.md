@@ -4,7 +4,7 @@ Motor reutilizável de exercícios de crise cibernética, com domínios de negó
 
 [![invariantes](https://github.com/oflavioc/aurora-cyber-range/actions/workflows/invariants.yml/badge.svg)](https://github.com/oflavioc/aurora-cyber-range/actions/workflows/invariants.yml)
 
-[Identidade visual do Aurora Cyber Range](assets/branding/aurora-cyber-range/README.md) — logotipos, símbolo e arte de apresentação originais.
+[Identidades visuais](assets/branding/README.md) — originais do Aurora Cyber Range e proposta institucional da UniAurora.
 
 ---
 
@@ -280,4 +280,3 @@ Projeto pessoal de Flavio Costa.
 Agnóstico de fornecedor por desenho: a especificação proíbe explicitamente conteúdo de portfólio dentro do cenário. Lacunas de capacidade identificadas durante um exercício são registradas por **função de controle**, nunca por produto.
 
 **Decisão pendente: escolher licença do projeto.**
-

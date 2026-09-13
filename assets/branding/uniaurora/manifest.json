@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "identity": "UniAurora — Universidade Aurora",
+  "status": "Proposta v0.1 criada a pedido do mantenedor",
+  "source": "Geração assistida por IA usando os originais do Aurora Cyber Range como referências visuais; versões com fundos incorporados.",
+  "files": [
+    {
+      "file": "uniaurora-logo-light-v0.1.png",
+      "description": "Versão para fundo claro; fundo incorporado",
+      "bytes": 1104899,
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGB",
+      "has_alpha": false,
+      "sha256": "5cd7aaa6147e0049bcaf7b1cf78d389bd2105704b2c65d2f643f1ff07a770ede",
+      "git_blob_sha1": "c3d0e2baffdc8062b54a1982bb5fa0c80500543e"
+    },
+    {
+      "file": "uniaurora-logo-dark-v0.1.png",
+      "description": "Versão para fundo escuro; fundo incorporado",
+      "bytes": 1252423,
+      "width": 1536,
+      "height": 1024,
+      "mode": "RGB",
+      "has_alpha": false,
+      "sha256": "4d27c7a4e918d299cfc77b8570eb03d266293f02d742ebf9393f6047fb8c5196",
+      "git_blob_sha1": "c7bc2e5911392f0d38c79e22f15e0716bd096c0a"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ Os dois logotipos são variantes distintas; preservar ambos. O [manifesto](manif
 - Reutilizar os arquivos fornecidos ao aplicar a marca Aurora Cyber Range. Preservar proporções e manter eventuais derivados separados dos originais.
 - Os elementos visuais observáveis incluem azul, ciano, violeta/magenta e lettering claro. Este conjunto não inclui especificação de cores em HEX, arquivos de fontes, guia tipográfico, vetores ou modelos 3D; não atribuir valores ou famílias tipográficas oficiais por suposição.
 - Os arquivos identificam a plataforma **Aurora Cyber Range**. Eles não estabelecem, por si, uma marca institucional separada da universidade fictícia **UniAurora**. A aplicação dentro de placas e ambientes da faculdade precisa respeitar essa distinção.
+- A proposta institucional da universidade, criada posteriormente a pedido do mantenedor, está em [UniAurora v0.1](../uniaurora/README.md), separada destes originais.
 - A arte de apresentação é referência gráfica. Os números, horários, estados e ocorrências nela desenhados não constituem evidências, telemetria real, fatos canônicos do cenário ou funcionalidades implementadas.
 - Este conjunto não substitui a especificação do projeto nem contém uma cena 3D executável.
 
