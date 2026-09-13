@@ -2946,3 +2946,20 @@ principal. **Decidir o destino dos arquivos NÃO-gabarito é exatamente a P7-9**
 dizia "Branching (`branch_selected`) é Fase 7" — anterior à redução do plano.
 Corrigido com destino declarado (o evento nasce com o consumidor que dispara
 por caminho, Fase 8+, precedente da §7.3 da Fase 4).
+
+## 9. Auditoria de checkpoint
+
+Candidato: `e0a89c3`, com a âncora do oitavo rebase e `check_audit_base`
+respondendo PORTA. Estado ao entrar: DoD 9/9, peças 5/5, varredura de
+fechamento verde exceto o predicado de lançador (R13, declarado).
+
+| Rodada | Relatório | Veredito |
+|---|---|---|
+| 1ª (13/09, headless) | `audit_20260913T062514Z.md` | **ABORTADA no launch** — a sessão do auditor não autenticou ("OAuth session expired and could not be refreshed"). Nada foi auditado; o lançador preparou worktree, venv, stack efêmera e mediu a prova do seed no worktree antes da falha, e desmontou a stack ao sair. Relançar exige `claude login` do operador — credencial não é coisa que agente toque. O precedente de versionar launch abortado é o da Fase 1 |
+
+**Dois avisos colhidos do launch, para a manutenção da estrutura (Fase 8):**
+as regras `deny Write(...)` de `.claude/settings.json` são redundantes — as
+`Edit(...)` cobrem todas as ferramentas de edição e a proteção está intacta,
+mas cada sessão nova imprime o aviso; e o `compliance-audit.sh` do kit as
+confere como par Edit+Write, então a limpeza dos `Write(...)` precisa andar
+junto com o ajuste daquela conferência.
