@@ -1231,12 +1231,18 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-3 | ~~a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5~~ | `RESOLVIDA` | deixou de ser buraco e virou invariante na peça 2: o pack é determinista com prova negativa, e a escrita recusa destino versionado perguntando ao `git`; ver abaixo |
 | P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ABERTA` | **Fase 12** — allowlist por tipo, degrau 1.5. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — allowlist de chamadores por emissor, degrau 2. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
-| P7-6 | 44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário: achado de auditoria não promovido a pendência não está em `fase_N.md`, e nenhum predicado o alcança | `ABERTA` | fechamento desta fase; ver abaixo |
+| P7-6 | ~~44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário~~ | `RESOLVIDA` | o gatilho era o fechamento desta fase, e ele chegou. As DUAS formas foram aplicadas: a varredura (a) mediu 204 achados únicos — 16 sem rastro, todos M/L, promovidos às P7-12…P7-17 — e a regra (b) entrou no rito (`WORKFLOW.md` §auditoria + a conferência no auditor); ver abaixo |
 | P7-7 | ~~`05` §5.2 exige ator de ameaça com fonte pública citável declarada em `ground_truth.yaml`, e o verificador do ator declarado não existe~~ | `RESOLVIDA` | o gatilho declarado era a peça do lint, e ela chegou. Medi-la mostrou **três** exigências, não uma: a de IOC ganhou mecanismo, as duas outras ganharam `destinatario: revisão humana` com motivo; ver abaixo |
 | P7-8 | ~~`range-core/` importa um pacote de topo e nenhuma guarda enxerga isso — é a P2-15 um nível acima. Esta fase criou **dois** pacotes de topo, `range_cli/` e `dados_sinteticos/`~~ | `RESOLVIDA` | o gatilho era o fechamento desta fase, e ele chegou. A guarda generalizou na forma que a pendência prescreveu; ver abaixo |
 | P7-9 | `04` §8 diz que `lint` roda no CI, e não há pack lintável versionado: `scenarios/` está fora do Git e `pack_minimo` é deliberadamente incompleto | `ABERTA` | o dia em que houver pack lintável na árvore; ver abaixo |
 | P7-10 | o gerador de gabarito só produz Linha B: o `ground_truth.yaml` materializado do `ransomware-universidade` não tem fato de `initial_access`/`exfiltration`, `containment` é `absence_of grade_change_retroactive` e `service_restoration` é `not_applicable` — enquanto `03` §3.1 e `04` §3 descrevem o gabarito deste pack com a Linha A inteira. Consequências medidas na autoria (§8.3): nenhum inject de Linha A pode citar `materializes_facts`, `TTRV` é incomputável e o par de contenção mede outra coisa | `ABERTA` | fechamento desta fase — apresentação ao proprietário: ampliar o gerador (mecanismo) ou realinhar a leitura da spec (spec-change); ver §8.3 |
 | P7-11 | condição temporal de branch (`before`/`after`) carrega e **nunca ramifica**: `04` §6.1 permite e o exemplo normativo usa, mas a gramática temporal não existe (P6-3) e `confere_folhas_temporais` só varre `verification_predicates` — é a "falha mais cara possível" da §6.2 entrando por porta que a P6-3 não declara cobrir | `ABERTA` | o gatilho da P6-3 (a gramática temporal nascer) passa a incluir as condições de branch; até lá o pack de 4 h evita condição temporal, com a omissão declarada no cabeçalho do `branches.yaml` |
+| P7-12 | a superfície do hook do auditor acumulou **cinco** achados M/L sem rastro (varredura da P7-6, S1/S7/S8/S9/S10): fail-open no parse do stdin, curinga `tools/*.py` na allowlist, `npm test/lint/typecheck` como trampolim não declarado, falso bloqueio de `git -C`, e a revisão de env que só enxerga a convenção literal | `ABERTA` | a próxima edição da allowlist do auditor, ou a abertura da Fase 8 — o que vier primeiro |
+| P7-13 | o harness não planta violação onde a correção entrou (S6: `SCANNED_DIRS` estendido a `.claude/`/`user-scope/` sem probe; S3: nenhum verificador cobre `.sh`; S4: probe de dados sintéticos usa `8.8.8.8`/`google.com` e pode deixar resíduo em `scenarios/`). Anexo sem recorrência: S5, o worktree destruído durante a 10ª rodada da Fase 0, nunca apurado | `ABERTA` | **Onda 3 da Estrutura Agêntica** (TDD endurecido) — é literalmente a dor que ela declara fechar |
+| P7-14 | seis afirmações de registro/teste sem disposição (S2, S11, S12, S13, S15, S16 da varredura P7-6): contagem inconsistente reescrita sem id, evidência auto-referente de CI, lista literal em teste, `ResourceWarning` em massa, cruzamento emissão×consumo da contrassinatura sem teste, e a metade de `admite()` nunca declarada | `ABERTA` | a varredura de fechamento da Fase 8 — agora obrigatória por rodada (forma (b) da P7-6): cada item ganha disposição lá ou vira pendência própria |
+| P7-15 | S14 da varredura: o extremo **inclusivo** — o próprio `verification_predicate_satisfied` listado como "evidência incompatível com a declaração" — contraria a redação-alvo de `03` §3.2, o teste o declara "deliberado", e a objeção da 9ª auditoria da Fase 6 nunca ganhou disposição | `ABERTA` | fechamento desta fase — apresentação ao proprietário junto de P7-9/P7-10; é potencial drift spec×mecanismo, e o `spec-guardian` pode medir antes |
+| P7-16 | E1 da varredura: `PHASE_0_CHECKLIST.md:169` afirma que branch protection, `spec_freeze` e verificadores foram "demonstrados funcionando nos itens 9 a 13" — foram fechados **por atestação** (P34). O lado do registro foi corrigido (`fase_0.md:1634`); o checklist, que é conjunto SPEC, não | `ABERTA` | apresentação ao proprietário no fechamento desta fase — a correção é PR `spec-change:` de uma linha |
+| P7-17 | E3 da varredura: o destino declarado da **P2-17** ("Fase 6, com o cálculo do desconto" — o start do `frozen_interval` vem da âncora, não do inject falho) passou sem menção nenhuma, e ninguém a reabriu | `ABERTA` | abertura da Fase 8 — remedir se o start ainda vem da âncora e dar destino real; gatilho que passa em silêncio é a classe que a P5-2 documenta |
 
 #### P1-7 — o id do inject pode vazar a linha, e quem decide é quem escreve o pack
 
@@ -2218,6 +2224,70 @@ direção que a §7.1 chama de degrau 1.
 **Vence em:** o fechamento desta fase. É deliberado que caia ali e não depois: a
 Fase 8 abre o paralelismo, e multiplicar quem escreve registro antes de saber o que
 os 44 guardam é aumentar a dívida sem tê-la medido.
+
+**RESOLVIDA no fechamento da fase, pelas DUAS formas.**
+
+**A forma (a) — a varredura, executada em 13/09/2026.** Os 44 lidos por inteiro,
+em ordem cronológica; achado repetido entre rodadas contado uma vez, na última
+que o cita; quando havia id de pendência E correção, prevaleceu PROMOVIDO (o id
+é o rastro mais forte). O resultado:
+
+| Medida | Valor |
+|---|---|
+| entradas brutas de achado nas 43 rodadas | 253 (a 8ª da Fase 0 foi capturada em dois arquivos e contada uma vez; um arquivo é launch abortado, sem achados) |
+| achados únicos após dedupe | **204** (49 repetições entre rodadas) |
+| CORRIGIDO (correção documentada ou verificável na árvore) | **127** (62%) |
+| PROMOVIDO (virou pendência com id — P8–P40, P1-x…P6-x) | **50** (25%) |
+| ACEITO COM RESSALVA (motivo declarado) | **11** (5%) |
+| **SEM RASTRO** | **16** (8%) — **0 BLOCKER, 0 HIGH, 5 MEDIUM, 11 LOW** |
+
+**Todos os 47 BLOCKERs e todos os HIGHs têm destino rastreável.** A dívida
+invisível que esta pendência temia está concentrada na cauda M/L — e mais da
+metade dela é sobre o próprio **aparato de auditoria** (hook, harness,
+launcher), não sobre o produto. O padrão dominante, transversal: achado menor
+de rodada FAIL cujo BLOCKER monopolizou a correção — o menor não foi corrigido
+no mesmo commit, não ganhou id, e a rodada seguinte já olhava outro eixo.
+Exatamente a forma que o enunciado desta pendência previu.
+
+**Os 16 sem rastro, promovidos em seis pendências agrupadas por natureza**
+(a lista item a item, com arquivo/id/severidade/citação de cada um, está na
+tabela das novas entradas e nos próprios relatórios; o agrupamento é por quem
+conserta):
+
+| Grupo | Itens da varredura | Pendência |
+|---|---|---|
+| superfície do hook do auditor | S1 (fail-open no parse), S7 (curinga `tools/`), S8 (`npm` trampolim), S9 (falso bloqueio `git -C`), S10 (revisão por convenção literal) | **P7-12** |
+| harness sem probe onde a correção entrou | S6 (`SCANNED_DIRS` sem probe), S3 (`.sh` fora de alcance), S4 (IOC roteável no probe), S5 (incidente do worktree, anexo) | **P7-13** |
+| afirmações de registro/teste sem disposição | S2, S11, S12, S13, S15, S16 | **P7-14** |
+| potencial drift spec×mecanismo | S14 (extremo inclusivo × `03` §3.2) | **P7-15** |
+
+**As seis ressalvas envelhecidas, cada uma com disposição:**
+
+1. `PHASE_0_CHECKLIST.md:169` afirma demonstração que foi atestação → **P7-16**
+   (a correção é spec-change de uma linha; o lado do registro já fora corrigido).
+2. §P32 do `fase_0.md` ("corrigidos juntos, em commit próprio" — o commit nunca
+   veio, e o hook segue fail-open) → é o S1, dentro da **P7-12**.
+3. O destino declarado da P2-17 passou sem menção → **P7-17**.
+4. P5-4 ("mal formulada na origem") → **rastro existe**: a disposição está
+   neste próprio registro (§ da peça 2); nada a fazer aqui.
+5. O deny de secrets aceito "porque `.env.production` não existe *nesta fase*"
+   (15ª da Fase 0) → **re-aceito com motivo sem prazo**: o deny segue a
+   enumeração de `CLAUDE.md` §Secrets, que é a fonte da regra; a condição
+   temporal saiu da aceitação — se a enumeração um dia crescer, quem a muda é
+   quem muda o CLAUDE.md, e o deny acompanha por espelhamento.
+6. O DEMO meio-impossível da Fase 1 ("vai por spec-change depois do merge") →
+   **FECHADA, o rastro existe**: o spec-change aconteceu e está transcrito como
+   bloco normativo no próprio `07_IMPLEMENTATION_PHASES.md` §Fase 1 ("um DEMO
+   inexecutável não é DEMO — é descrição de fase futura no lugar do roteiro").
+   A varredura não o encontrou porque procurou em `fase_1.md`; a lição fica.
+
+**A forma (b) — a regra no produtor, aplicada junto.** `WORKFLOW.md` §auditoria
+passou a exigir: todo achado não corrigido no ciclo da rodada nasce com linha
+na §6 do registro corrente, escrita por quem implementa, no commit de correção
+— e o `checkpoint-auditor` ganhou a conferência: achado M/L da rodada anterior
+sem correção e sem linha é finding NOVO (MEDIUM) da rodada seguinte. Mecanismo
+no produtor em vez de varredura no consumidor — o degrau 1 da §7.1, como esta
+pendência pediu. A 45ª rodada já nasce sob a regra.
 
 #### P7-7 — RESOLVIDA: eram TRÊS exigências, e só uma tinha mecanismo possível
 
