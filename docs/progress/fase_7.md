@@ -2648,3 +2648,37 @@ allowlist declarada com motivo, na linha de `check_core_contract_imports.py`. O
 esqueleto é o mesmo; o que muda é o objeto governado — event_type por
 selecionador aqui, chamador por emissor lá. Duas sintaxes de allowlist para a
 mesma forma seria a D4 que os dois mecanismos existem para pegar.
+
+## 8. A peça 5 — volume: o exercício de 4 h em < 3 s
+
+> Numerada §8 porque §6 e §7 já existiam quando ela abriu, e a §7.1 é citada
+> por dezenas de registros — renumerar quebraria as referências. A ordem das
+> seções aqui é a do arquivo, não a das peças; a tabela da §1 é a pauta.
+
+### 8.1 Abertura — o que existe, o que falta, e a ordem que as citações impõem
+
+**O que existe, medido na abertura:**
+
+| Insumo | Estado |
+|---|---|
+| Harness de medição | `scripts/bench_reconstruction.py` (P2-10) — a curva volume→tempo, formas realista e patológica, com máquina/data/stack declaradas por código. O próprio cabeçalho dele fixa o limite: a curva NÃO prova o critério de 4 h; o veredito é esta peça |
+| Semeador provado | `scripts/prova_seed_completo.py` — gera + carrega ESCALA_COMPLETA duas vezes, prova < 5 min e byte-idêntico, e grava `.aurora-prova-do-seed.json` no formato pós-P7-2 (o artefato local estava no formato ANTERIOR, acusado na varredura da peça 4 — esta rodada o regrava) |
+| Produtor do gabarito | `range-cli scenario materialize` (peça 2) — escreve o par `ground_truth.yaml` + `GM_NOTES.md` lendo a trilha semeada |
+| O pack de 4 h | **NÃO existe** — `scenarios/` fica fora do Git por decisão da Fase 5, e nenhum comando produz os arquivos não-gabarito (`manifest`, `injects`, `branches`, `objectives`, `information_distribution`). É a outra face da P7-9 ("não há pack lintável versionado"). A autoria é da competência do `scenario-designer`, sobre `04` §9: 4 h, executiva, Linhas A + B + ruído, um ponto de ramificação por linha |
+
+**A ordem é imposta pelas citações de fato**: os injects citam `fact_id` em
+`materializes_facts`, e o linter recusa fato ausente do `ground_truth.yaml` —
+então o gabarito nasce ANTES dos injects. Seed → materialize → autoria em volta
+do ground truth real → lint + dryrun limpos → medição.
+
+**Ambiente, declarado**: a stack é do operador (compose no checkout principal,
+`.env` real fora do alcance do agente por deny — as variáveis entram por
+sourcing cego em subshell, sem passar pelo contexto). Postgres/Redis saudáveis
+e migrations aplicadas em 12/09/2026.
+
+**O que a medição vai ter de fixar antes de medir** (e registrar aqui): a
+composição do volume de 4 h. `06` T12 cobra a reconstrução "para o exercício
+de 4 h do ransomware-universidade"; a nota de T13/Fase 9 divide as ordens de
+grandeza — o desta peça é **o volume que o pack produz** (injects às dezenas,
+ações de participante às centenas); telemetria às centenas de milhares é da
+Fase 9, medida de novo lá por desenho.
