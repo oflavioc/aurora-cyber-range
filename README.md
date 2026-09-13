@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **835 testes** | `python -m unittest discover -s tests`. A medição **com a stack no ar** é de 24/08/2026 e cobriu 735 deles, sem nenhum pulo; os 11 da P6-11 e os 2 da P5-6 são unitários e foram medidos sem ela. Os **33** acrescentados depois — o `range-cli scenario lint` da peça 3 da Fase 7 — também são unitários, medidos em 25/08/2026 **sem** a stack. Sem Postgres e Redis, 143 pulam |
+| **856 testes** | `python -m unittest discover -s tests`. A medição **com a stack no ar** é de 24/08/2026 e cobriu 735 deles, sem nenhum pulo; os 11 da P6-11 e os 2 da P5-6 são unitários e foram medidos sem ela. Os **33** do `range-cli scenario lint` (peça 3 da Fase 7, 25/08/2026) e os **21** de branching e `dryrun` (peça 4, 26/08/2026) também são unitários, medidos **sem** a stack. Sem Postgres e Redis, 143 pulam |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -249,7 +249,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 143 dos 835 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 143 dos 856 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 

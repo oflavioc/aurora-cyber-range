@@ -350,7 +350,21 @@ SUPERFICIES = {
 }
 
 #: Diretorios que a varredura de superficies ignora — nao sao a arvore.
-IGNORADOS = (".git", ".aurora-worktrees", "node_modules", ".venv", "__pycache__")
+#:
+#: `.claude` entrou na varredura de fechamento da peca 4 da Fase 7: os
+#: worktrees de sessao moram em `.claude/worktrees/` (o `.aurora-worktrees`
+#: desta lista e o local ANTERIOR, e fica para o que ainda existir la), cada
+#: um com uma copia inteira da arvore — e este verificador vivia vermelho em
+#: qualquer maquina com sessao aberta, que e o gate morto da §7.1. Nada em
+#: `.claude/` e superficie de produto: e governanca.
+IGNORADOS = (
+    ".git",
+    ".claude",
+    ".aurora-worktrees",
+    "node_modules",
+    ".venv",
+    "__pycache__",
+)
 
 #: PALAVRAS QUE A MENSAGEM AO PARTICIPANTE NAO PODE CONTER.
 #:
