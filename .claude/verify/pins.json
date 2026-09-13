@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "606de68709fd725463f76f34918dcd0731e43b50",
+    "gerado_de_head": "3d12228ba796d65ad5af625418feddfcdef4c16c",
     "gerado_em": "2026-09-13",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -168,9 +168,9 @@
     "range-core/engine/loader/canonical.py": "e3ba4ad43b9c3bf566c7abd378d96c6b16c42d2fb9d09c1c89c92264d481bf81",
     "range-core/engine/loader/contract_rules.py": "2bdd41cb968f752b6782ac2d2b4d16f9ac75109999774c7c5bc199b73f392cc6",
     "range-core/engine/loader/contract_source.py": "52c94f2d56cab0d8988d701f16ad1aad06c0a38bdcf1bab0ce8d0c5a8866df9a",
-    "range-core/engine/loader/pack_loader.py": "2a8c27dcd4f36c67ea094cc60892742438212d7017dd56d87eeb2c10ad290f10",
+    "range-core/engine/loader/pack_loader.py": "01513990811a78f3d4704a93f055115f8e01dc31cc6135e85ac9cfc5e0ad4ee6",
     "range-core/engine/loader/posicao.py": "33dbe46a13400053972833837f4fb5c62e51284b128246d6e8727a6855f20ef2",
-    "range-core/engine/migrations/__init__.py": "1402d89c3d97a8918676398d3a27750f00676edbfbbb69e958213210ece5800c",
+    "range-core/engine/migrations/__init__.py": "17f6287ed644600627402d0c100c6ad22a264f1d06712549a29f7fa2df5a20f4",
     "range-core/engine/verificacao.py": "224b2cce37b7d5ce93b956080c4f0ffb2ee0d0ebdd5d7bad1423e0f3277498af",
     "range-core/events/__init__.py": "aeca24492d27179facd3feca57fe0a6d29fdba1eb7f9b8c255a11b9a89827685",
     "range-core/events/envelope.py": "dd71d50b327b25b5f1e84ac5dae89718bcacae8dc77607b948085ef54a9bcd00",
