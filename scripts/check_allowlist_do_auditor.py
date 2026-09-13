@@ -126,6 +126,10 @@ FORA: dict[str, str] = {
     "bench_reconstruction": "exige Postgres, ESCREVE centenas de milhares de "
     "linhas e demora minutos. O item 8 da Fase 2 pede a curva com maquina, data "
     "e stack — geradas por codigo, e isso se confere por leitura",
+    "medida_do_exercicio_4h": "o parente declarado do bench, pela mesma razao: "
+    "exige Postgres, TRUNCA e escreve o event store de medicao, e o DoD 9 da "
+    "Fase 7 pede o numero com maquina, data e stack — geradas por codigo. O "
+    "auditor confere a medicao transcrita no registro da fase, por leitura",
     "check_audit_base": "exige argumentos (`--phase`, `--default`), e a forma da "
     "allowlist termina em `.py$` de proposito: admitir argumento abriria "
     "superficie de argumento. SO OS PROBES entram, e provam os oito eixos",
