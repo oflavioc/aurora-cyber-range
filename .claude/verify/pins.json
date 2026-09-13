@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "cedbf17c22aeefed812c2309e25228bad7a654ee",
+    "gerado_de_head": "2bb74a781235c3e607c91206d3e5f8186de3dece",
     "gerado_em": "2026-09-13",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -98,7 +98,7 @@
     "docker-compose.audit.yml": "dd2d316e52cc04b6f4d5b1f8f4ce11a3a1678cf5eae1214e64ed931ba184a67a",
     "docker-compose.yml": "dd45c2905160be338747fa30759ffbc684240c0d9f7d53f3e0f065d74d696bb6",
     "docs/ADOCAO_ESTRUTURA_AGENTICA.md": "cae4e6f3de2e018c7256db57cb887027d5fbeee498e94109449c04c02ccceea2",
-    "docs/BRIEFING.md": "37e871c7f79c11feaaaa0ec30d72f1db26ba4991c049e971a21bdd50e6ddfc79",
+    "docs/BRIEFING.md": "e0252ef566d4ba2a905d3459bde8e4a16e82bff557c9da7e81b6927942c421b8",
     "docs/adr/0001-adocao-estrutura-agentica.md": "022a00c802aa6c60af76e0c3491957df81992548a35d9b320c4f122abd15a8a0",
     "docs/process/BOOTSTRAP.md": "7c6aedcd6ce1fcfb53a464fdca431d5af9a0de3756e93a0fe65eac2bf7c7fccb",
     "docs/process/PHASE_0_CHECKLIST.md": "74a45bd01e8b9476c76e3748fb1308a4cfca4cfba80bdcc7c9c29ecf1a1ef440",
@@ -271,7 +271,7 @@
     "scripts/check_provas_de_container.py": "f8767a51f5c834e5cf1966d539840553c1b263faf723618f06d1184c2350a61c",
     "scripts/check_provas_de_container_probes.py": "eadc81ba9fd7ecfc6182e3a2bfaf06ef4e2b40158f0a406daff88046df58b52b",
     "scripts/check_readme_atual.py": "fcac67290e3e23afd5c092844022c6626de112421c262f1e4f1a162d8e8f8982",
-    "scripts/check_readme_atual_probes.py": "6a3b2345b58999f295f0f87f2d0192cd04d3e8e67e5f3bf5230d90e603f0f997",
+    "scripts/check_readme_atual_probes.py": "16c2dd5ebc1b8bc45ff845784602dab08dbc24a072c724865ea52be6b476b7a9",
     "scripts/check_regras_do_linter.py": "8af6bf33678250921743fe70f53856cec0349fbb7a71e27df804308f23f5b7df",
     "scripts/check_regras_do_linter_probes.py": "02d96cd41cf36a7c00835a0a90fa1f80c9bf30644a5c5815212961af3f563300",
     "scripts/check_secoes_de_seguranca.py": "83be9d9a743bfc0077a957b3d89919631c20be5fd0ee608a663a509dd8d126e3",
