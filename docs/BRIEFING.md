@@ -1,7 +1,7 @@
 # Aurora Cyber Range — Briefing
 
 **Autor:** Flavio Costa · Projeto pessoal
-**Estado:** Fases 0 a 6 concluídas — especificação congelada, aparato de verificação operante, vertical slice rodando ponta a ponta, dados em escala, trilha de auditoria com hash encadeado, e objetivos, rubricas e métricas pareadas. Próximo checkpoint: Fase 7
+**Estado:** Fases 0 a 7 concluídas — especificação congelada, aparato de verificação operante, vertical slice rodando ponta a ponta, dados em escala, trilha de auditoria com hash encadeado, objetivos, rubricas e métricas pareadas, e o pack completo de 4 h com branching e `range-cli`. Próximo checkpoint: Fase 8
 **Repositório:** github.com/oflavioc/aurora-cyber-range
 
 ---
@@ -86,7 +86,7 @@ A especificação está congelada em `spec-v1.0`. Alterações exigem processo f
 
 ## Estado e próximos passos
 
-São 12 fases planejadas, 6 concluídas. Próximo checkpoint: **Fase 7 — pack completo, branching e `range-cli`**.
+São 12 fases planejadas, 7 concluídas. Próximo checkpoint: **Fase 8 — academus-web completo, dashboards por persona e continuidade**.
 
 A Fase 5 fechou com PASS na quinta rodada de auditoria: seed determinístico de 3,5 milhões de linhas, trilha `INSERT`-only por role e por trigger com hash encadeado, e os seis conjuntos da Linha B provados como **partição** da trilha. As três reprovações do meio estão versionadas junto com o registro — a mais cara delas foi o gabarito do exercício sendo legível na própria coluna que o participante investiga.
 
@@ -94,7 +94,7 @@ A Fase 4, o vertical slice, está concluída e é o primeiro marco demonstrável
 
 **O que ainda não existe** é a maior parte do que este briefing descreve como proposta: rubricas, métricas pareadas, calibração, assimetria de informação e o relatório de debriefing são das Fases 6 a 10. Nenhum pacote de cenário foi escrito, e nenhum exercício real foi conduzido.
 
-O primeiro pacote de cenário completo será o de ransomware universitário, desenhado para audiência executiva, na Fase 7.
+O primeiro pacote de cenário completo é o de ransomware universitário, desenhado para audiência executiva, entregue na Fase 7: 4 h, Linhas A + B + ruído, com branching e o `range-cli` que o valida. Ele vive fora do Git (o gabarito é seed + código); um exemplo sanitizado versionado dá objeto ao lint no CI.
 
 ---
 

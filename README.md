@@ -100,7 +100,7 @@ Um segundo adapter hospitalar — **Hospital Regional Aurora**, sistema **PRONTU
 
 ## Estado atual
 
-**Fases 0 a 6 concluídas.** Próximo checkpoint: **Fase 7 — Pack completo, branching e `range-cli`**. O roadmap tem **12 fases**.
+**Fases 0 a 7 concluídas.** Próximo checkpoint: **Fase 8 — academus-web completo, dashboards por persona e continuidade**. O roadmap tem **12 fases**.
 
 A Fase 4 é o *vertical slice*: o caminho ponta a ponta mínimo, exigido cedo de propósito, para que a arquitetura falhe antes de haver o que reescrever. O que ele prova, contra dois containers, Postgres e Redis reais:
 
@@ -124,7 +124,7 @@ Números, com a forma que os mediu:
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
-Nenhum exercício real foi conduzido com o sistema. Nenhum pacote de cenário existe ainda — `scenarios/` está vazio, e o primeiro pack é da Fase 7.
+Nenhum exercício real foi conduzido com o sistema. O primeiro pacote completo — `ransomware-universidade`, 4 h — existe desde a Fase 7, materializado por comando e mantido fora do Git (o gabarito é seed + código); um **pack de exemplo sanitizado** em `tests/fixtures/pack_exemplo/` dá objeto ao `range-cli scenario lint`/`dryrun` no CI.
 
 ## O que já existe
 
@@ -142,11 +142,11 @@ Derivado da árvore de código, não da especificação. Diretório que existe v
 | business state em PostgreSQL | `domains/academus/models/`, `alembic/` | parcial — quatro tabelas e migration, sem seed em escala |
 | adapter hospitalar PRONTUS | `domains/prontus/` | stub declarado — duas flags e um documento |
 | trilha de auditoria com hash encadeado | `domains/academus/audit/` | implementado na Fase 5 — `INSERT`-only por role e por trigger, com `GET /audit/verify-chain` |
-| objetivos e binding evento→objetivo | `range-core/objectives/` | planejado, Fase 6 |
-| rubricas BARS versionadas | `range-core/rubrics/` | planejado, Fase 6 |
-| métricas pareadas e calibração | `range-core/metrics/` | planejado, Fase 6 |
-| branching de cenário e `range-cli` | `range-core/engine/branching/` | planejado, Fase 7 |
-| pacote de cenário | `scenarios/` | vazio, Fase 7 |
+| objetivos e binding evento→objetivo | `range-core/objectives/` | implementado na Fase 6 |
+| rubricas BARS versionadas | `range-core/rubrics/` | implementado na Fase 6 |
+| métricas pareadas e calibração | `range-core/metrics/` | implementado na Fase 6 |
+| branching de cenário e `range-cli` | `range-core/engine/loader/branching.py`, `range_cli/` | implementado na Fase 7 — `lint`, `dryrun`, `materialize`, política aplicada |
+| pacote de cenário | `scenarios/` (fora do Git) + `tests/fixtures/pack_exemplo/` | `ransomware-universidade` de 4 h na Fase 7; exemplo sanitizado versionado |
 | dashboards por persona, feed social, ações de continuidade | — | planejado, Fase 8 |
 | evidence-simulator | `range-core/evidence/` | planejado, Fase 9 |
 | telemetry-forwarder | `range-core/telemetry/` | planejado, Fase 9 |
@@ -195,7 +195,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 contracts/      schemas de flags, eventos, cenário, ground truth, objetivos, evidência
 range-core/     o motor: clock, events, state, engine, api, web
 domains/        adapters de domínio: academus (implementado), prontus (stub)
-scenarios/      pacotes de cenário — vazio até a Fase 7
+scenarios/      pacotes de cenário — fora do Git (o gabarito é seed + código)
 scripts/        verificadores de CI, DEMOs executáveis, lançador de auditoria
 tools/          os seis verificadores de invariante
 tests/          a suíte
