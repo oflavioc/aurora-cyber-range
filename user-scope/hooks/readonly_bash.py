@@ -99,8 +99,14 @@ ALLOWED = [
     rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+-m\s+unittest\s+discover\s+-s\s+tests\s*$",
     rf"^{SAFE_ENV_PREFIX}npm\s+(test|run\s+test|run\s+lint|run\s+typecheck)\b",
     rf"^{SAFE_ENV_PREFIX}(ruff|mypy|black\s+--check|eslint|tsc\s+--noEmit)\b",
-    rf"^{SAFE_ENV_PREFIX}range-cli\s+scenario\s+(validate|lint|dryrun)\b",
-    rf"^{SAFE_ENV_PREFIX}range-cli\s+evidence\s+verify\b",
+    # `PREFIXO_DO_VENV` nas duas entradas de `range-cli` — M2 da 2ª auditoria
+    # da Fase 7, e e a TERCEIRA ocorrencia da classe documentada no cabecalho:
+    # a FORMA estava admitida e o INTERPRETADOR nao era alcancavel. O console
+    # script vive no venv da auditoria (`.aurora-audit/venv/Scripts/range-cli`),
+    # e a grafia sem prefixo dava rc=127 enquanto a alcancavel era bloqueada —
+    # cometida na fase que CRIOU o comando.
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}range-cli\s+scenario\s+(validate|lint|dryrun)\b",
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}range-cli\s+evidence\s+verify\b",
     rf"^{SAFE_ENV_PREFIX}docker\s+compose\s+(ps|logs|config)\b",
     rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}python\s+tools/(?:check_[A-Za-z0-9_.-]+\.py|codegen\.py\s+--check)\b",
     # O harness negativo e a prova central da Fase 0: um verificador que nunca
@@ -330,6 +336,13 @@ ALLOWED = [
     # e imprime. O `prova_seed_completo.py` continua FORA, pelo motivo declarado
     # logo abaixo.
     rf"|check_prova_do_seed|check_prova_do_seed_probes"
+    # O par do exercicio de 4 h — H2 da 2ª auditoria da Fase 7, mesma natureza
+    # do par do seed: o verificador le um JSON, compara `HEAD^{tree}` e os
+    # SHA-256 do pack, e imprime; nao executa lint, travessia nem medicao.
+    # O gravador `prova_do_exercicio_4h.py` fica FORA, pelo criterio do
+    # `prova_seed_completo` logo abaixo: exige Postgres e trunca o event store
+    # de medicao.
+    rf"|check_prova_do_exercicio_4h|check_prova_do_exercicio_4h_probes"
     # `prova_seed_completo` FICA DE FORA, e a exclusao e decisao pelo MESMO
     # criterio de `bench_reconstruction`, com um agravante proprio:
     #

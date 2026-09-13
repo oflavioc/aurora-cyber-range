@@ -38,7 +38,19 @@ from _common import (  # noqa: E402
 # nao olhava para o arquivo que decide o que o auditor pode rodar. Era P9,
 # ampliada como P24, aberta desde a quarta auditoria e reconfirmada tres vezes.
 # Medido antes de incluir: a arvore atual sai rc=0, entao o custo e zero.
-SCANNED_DIRS = ("range-core", "domains", "tools", "scripts", ".claude", "user-scope")
+# `range_cli` e `dados_sinteticos` — M1 da 2ª auditoria da Fase 7, mesma
+# razao do scanner de literais: codigo instalado nao pode ficar fora do
+# alcance do verificador de 05 §1.
+SCANNED_DIRS = (
+    "range-core",
+    "domains",
+    "tools",
+    "scripts",
+    ".claude",
+    "user-scope",
+    "range_cli",
+    "dados_sinteticos",
+)
 PYTHON_SUFFIXES = (".py",)
 
 #: Chamadas a builtin proibidas: executam codigo montado em tempo de execucao.

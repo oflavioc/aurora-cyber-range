@@ -1211,14 +1211,14 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 
 | Id | O que é | Estado | Vence em |
 |---|---|---|---|
-| P1-7 | o id do inject pode vazar a linha, e o contrato só desacoplou o prefixo — herdada da Fase 1, §"P1-7"; caiu da cadeia no par 1→2 | `ENTREGA` | **NÃO fechou na peça 2** — o produtor escreve `ground_truth.yaml` e `GM_NOTES.md`, e nenhum dos dois nomeia inject. Medido; ver abaixo |
+| P1-7 | o id do inject pode vazar a linha, e o contrato só desacoplou o prefixo — herdada da Fase 1, §"P1-7"; caiu da cadeia no par 1→2 | `ABERTA` | **estado corrigido no H3 da 2ª auditoria** — estava `ENTREGA` sem entrega, a forma que sai da fase sem destinatário. O pack de 4 h DECIDIU por ids neutros `IN*` em todas as linhas (§8.3), que é o que a pendência pedia de quem escreve pack; o que segue aberto é o MECANISMO que impeça o próximo pack de decidir pelo vazamento. Vence na Fase 8, junto do destino do pack (P7-9) |
 | P4-8 | o caminho de leitura é síncrono dentro do laço de eventos: serializa hoje, e bloqueia em volume — herdada da Fase 4, §"P4-8" | `ABERTA` | a segunda perna do gatilho é a medição da peça 7 desta fase; ver abaixo |
 | P5-2 | a trilha do Academus declara a categoria "declarações do exercício" e ela não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio; ver abaixo |
-| P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` — herdada da Fase 5, §"P5-4" | `ENTREGA` | peça 2 desta fase — é o delta do schema v3; ver abaixo |
+| P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` — herdada da Fase 5, §"P5-4" | `ABERTA` | **estado corrigido no H3 da 2ª auditoria** — estava `ENTREGA` e a peça 2 mediu que ela está MAL FORMULADA na origem e saiu da fase (ver a seção da peça 2). Vence na reformulação, na abertura da Fase 8; o schema v3 é o veículo quando houver delta real |
 | P5-6 | ~~o gabarito é produzido e julgado em memória, e nada o escreve em `scenarios/`~~ — herdada da Fase 5, §"P5-6" | `RESOLVIDA` | o gatilho declarado ocorreu: `range-cli scenario materialize`, na peça 2. A outra metade fechou no PR #57; ver abaixo |
 | P6-2 | `observable_impact` não existe em contrato nenhum, e é o *start* de `TTA` — herdada da Fase 6, §"P6-2" | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; ver abaixo |
 | P6-3 | `before`, `after` e a comparação de `since` dependem de uma gramática de `exercise_time` que não existe — herdada da Fase 6, §"P6-3" | `ABERTA` | os TRÊS gatilhos herdados da Fase 6, intactos: o primeiro pack que precise, a implementação do suporte temporal, e o primeiro produtor de `fact_materialized`. Medidos um a um no fechamento da peça 2 — nenhum disparou; ver abaixo |
-| P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ENTREGA` | mudança de contrato agendada para esta fase; ver abaixo |
+| P6-5 | `review_scope` passa a carregar a lista de `case_id` que o escopo alcança, resolvida no fechamento do escore | `ABERTA` | **estado corrigido no H3 da 2ª auditoria** — estava `ENTREGA` e a mudança de contrato NÃO aconteceu (`assessment.schema.yaml` segue com `period`/`population`/`criterion` e `additionalProperties: false`). É decisão do operador da Fase 6 sem veículo; vence na Fase 8, onde `03` §5.3 a consome para separar erro de julgamento de lacuna de cobertura |
 | P6-6 | o sentinela de branch intercepta `Write`/`Edit` e **não** `Bash` — herdada da Fase 6, §"P6-6" | `LATENTE` | a primeira sessão que trabalhe em duas branches, ou a Fase 8, o que vier primeiro — o literal ocorreu no trabalho da P7-2 sem que o defeito aparecesse; ver abaixo |
 | P6-7 | rota que declara `emite` e não chama emissor nenhum — a metade do fluxo continua aberta; herdada da Fase 6, §"P6-7" | `ABERTA` | a próxima rota que declare `emite` em serviço cuja fábrica já constrói o produtor, ou a Fase 8, o que vier primeiro; ver abaixo |
 | P6-8 | justificativa ausente devolve `409`, e `409` é reservado a recusa de estado — herdada da Fase 6, §"P6-8" | `DECIDIDA` | a medição dos consumidores, ou a Fase 10, o que vier primeiro; ver abaixo |
@@ -1228,7 +1228,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P6-13 | dezesseis violações plantadas declaradas na §3.5 da Fase 6 são atestação do autor, e não prova reexecutável | `ABERTA` | o artefato que torne a afirmação reexecutável, ou a primeira vez que alguém precise da cobertura que a tabela declara; ver abaixo |
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | `ABERTA` | decisão do proprietário sobre qual das três linhas esta fase entrega; ver abaixo |
 | P7-2 | todo fechamento de fase por rebase-merge invalida as provas amarradas ao SHA — é estrutural do rito | `RESOLVIDA` | implementada no PR #56, pela saída (b): a prova nomeia a árvore; ver abaixo |
-| P7-3 | ~~a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5~~ | `RESOLVIDA` | deixou de ser buraco e virou invariante na peça 2: o pack é determinista com prova negativa, e a escrita recusa destino versionado perguntando ao `git`; ver abaixo |
+| P7-3 | ~~a prova amarrada à árvore não cobre o pack materializado, que está no `.gitignore` desde a Fase 5~~ | `RESOLVIDA` | **re-disposta na 2ª auditoria (H2)**: a resolução da peça 2 valia para o GABARITO, que é função do seed — e os CINCO arquivos autorados do pack de 4 h ficavam fora dela, o que fazia os itens 6 e 9 chegarem ao auditor como atestação. Fechou de verdade com o par `prova_do_exercicio_4h`/`check_prova_do_exercicio_4h` (a classe P4-10): a prova amarra a árvore do código E os sete arquivos do pack por SHA-256, com 7 direções de prova negativa; ver §9 |
 | P7-4 | todo consumo de `event_type` por selecionador sem allowlist declarada — a mesma pergunta com duas respostas | `ABERTA` | **Fase 12** — allowlist por tipo, degrau 1.5. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-5 | os chamadores de cada emissor não são varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — allowlist de chamadores por emissor, degrau 2. O gatilho é a fase, e NÃO a próxima ocorrência; ver abaixo |
 | P7-6 | ~~44 `audit_*.md` de 14 a 23/ago/2026 nunca foram varridos por destinatário~~ | `RESOLVIDA` | o gatilho era o fechamento desta fase, e ele chegou. As DUAS formas foram aplicadas: a varredura (a) mediu 204 achados únicos — 16 sem rastro, todos M/L, promovidos às P7-12…P7-17 — e a regra (b) entrou no rito (`WORKFLOW.md` §auditoria + a conferência no auditor); ver abaixo |
@@ -1243,6 +1243,9 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-15 | S14 da varredura: o extremo **inclusivo** — o próprio `verification_predicate_satisfied` listado como "evidência incompatível com a declaração" — contraria a redação-alvo de `03` §3.2, o teste o declara "deliberado", e a objeção da 9ª auditoria da Fase 6 nunca ganhou disposição | `ABERTA` | fechamento desta fase — apresentação ao proprietário junto de P7-9/P7-10; é potencial drift spec×mecanismo, e o `spec-guardian` pode medir antes |
 | P7-16 | E1 da varredura: `PHASE_0_CHECKLIST.md:169` afirma que branch protection, `spec_freeze` e verificadores foram "demonstrados funcionando nos itens 9 a 13" — foram fechados **por atestação** (P34). O lado do registro foi corrigido (`fase_0.md:1634`); o checklist, que é conjunto SPEC, não | `ABERTA` | apresentação ao proprietário no fechamento desta fase — a correção é PR `spec-change:` de uma linha |
 | P7-17 | E3 da varredura: o destino declarado da **P2-17** ("Fase 6, com o cálculo do desconto" — o start do `frozen_interval` vem da âncora, não do inject falho) passou sem menção nenhuma, e ninguém a reabriu | `ABERTA` | abertura da Fase 8 — remedir se o start ainda vem da âncora e dar destino real; gatilho que passa em silêncio é a classe que a P5-2 documenta |
+| P7-18 | H1 da 2ª auditoria: três documentos normativos (`04` §4, `07` DoD 7, `06` T12) afirmam `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]` e migração de v1, e o código declara `(2,)` por decisão própria em docstring — o argumento técnico é bom (v1 nunca existiu; migrador identidade é pior que nenhum), mas a saída para "a spec está errada" é PR `spec-change:`, não docstring. O item 7 da DoD está satisfeito **pela forma, não pela letra**, e a divergência agora tem dono | `ABERTA` | apresentação ao proprietário no fechamento desta fase, junto de P7-9/P7-10/P7-15/P7-16 — o spec-change proposto: `04` §4 passa a dizer "`[N, N-1]` a partir da primeira versão que tiver antecessora real; enquanto N-1 não existir, `[N]`, com recusa instruída" |
+| P7-19 | H3 da 2ª auditoria, a metade de mecanismo: `check_progress_consistency` isenta `ENTREGA` de migrar (`NAO_MIGRA`), então pendência `ENTREGA` **não entregue** sai da fase sem destinatário e nada fica vermelho — aconteceu com três de uma vez | `ABERTA` | abertura da Fase 8 — o verificador passa a exigir, no fechamento, evidência de entrega na linha `ENTREGA` (ou reprova), a mesma forma da regra (b) da P7-6 |
+| P7-20 | L1 da 2ª auditoria: `04` §8 declara `scenario validate` e `scenario migrate` como verbos próprios (e diz que `validate` roda no CI), nenhum dos dois existe, e `04` §8 está mapeado a fases que acabaram — a ausência não tinha linha em §6 nenhuma | `ABERTA` | apresentação ao proprietário junto da P7-18: `validate` é decisão declarada (o `lint` roda a lista inteira de `_passos` — um `validate` separado seria um `lint` com menos checagens) e cabe spec-change de alinhamento; `migrate` acompanha o destino da P7-18, porque só existe quando houver N-1 real |
 
 #### P1-7 — o id do inject pode vazar a linha, e quem decide é quem escreve o pack
 
@@ -2591,6 +2594,40 @@ Gatilho que dispara e não vence é a classe que a P5-2 documenta — e é a mes
 forma que fez a regra (b) da P7-6 existir. **Vence em:** a abertura da Fase 8
 — remedir se o start ainda vem da âncora e dar destino real.
 
+#### P7-18 — a divergência do `SUPPORTED_SCHEMA_VERSIONS` precisa de spec-change, não de docstring
+
+**Nasceu como H1 da 2ª auditoria desta fase.** O código declara `(2,)` e chama
+a assimetria com `04` §4 de deliberada — o argumento técnico é bom e este
+registro o subscreve: **nenhum contrato anterior ao v2 jamais existiu** (medido
+por `git log --diff-filter=A`), então `[N, N-1]` seria `[2, 1]` com uma v1 sem
+contrato, sem migrador e sem pack, e um migrador identidade é afirmação falsa
+com sintaxe de mecanismo. O defeito é de RITO: três documentos normativos
+afirmam o que o código recusa, e a saída para "a spec está errada" é PR
+`spec-change:` com aprovação humana (`CLAUDE.md`), não decisão em docstring. O
+item 7 da DoD fica **satisfeito pela forma, não pela letra**, e esta linha é o
+dono que faltava. **Vence em:** apresentação ao proprietário no fechamento —
+com o texto do spec-change já proposto na tabela.
+
+#### P7-19 — `ENTREGA` não entregue sai da fase sem destinatário, por construção
+
+**Nasceu como H3 da 2ª auditoria.** `check_progress_consistency` isenta
+`ENTREGA` de migrar para a fase seguinte — correto para entrega FEITA, cuja
+cobrança é a DoD; cego para entrega NÃO feita, que não está em DoD nenhuma e
+não migra. Três pendências saíram por essa porta de uma vez (P1-7, P5-4,
+P6-5 — estados corrigidos na tabela desta fase). **Vence em:** abertura da
+Fase 8 — o verificador passa a exigir evidência de entrega na linha `ENTREGA`
+no fechamento, a mesma direção-de-produtor da regra (b) da P7-6.
+
+#### P7-20 — `04` §8 declara verbos que não existem, e a última fase mapeada passou
+
+**Nasceu como L1 da 2ª auditoria.** `scenario validate` e `scenario migrate`
+têm nome, lista de checagem e menção a CI na `04` §8; nenhum existe. A decisão
+sobre `validate` está declarada (o `lint` roda a lista inteira de `_passos` —
+um `validate` separado seria um `lint` com menos checagens, e nenhum critério
+de DoD o cobra); o que falta é a spec acompanhar a decisão, e `04` §8 é SPEC.
+`migrate` acompanha o destino da P7-18 — só existe quando houver N-1 real.
+**Vence em:** apresentação ao proprietário, junto da P7-18.
+
 #### P6-9 — RESOLVIDA: o lançador sincroniza, e a comparação passa a ter dois chamadores
 
 **A terceira ocorrência aconteceu no PR #56.** Editar os comentários de
@@ -2950,12 +2987,27 @@ por caminho, Fase 8+, precedente da §7.3 da Fase 4).
 ## 9. Auditoria de checkpoint
 
 Candidato: `e0a89c3`, com a âncora do oitavo rebase e `check_audit_base`
-respondendo PORTA. Estado ao entrar: DoD 9/9, peças 5/5, varredura de
-fechamento verde exceto o predicado de lançador (R13, declarado).
+respondendo PORTA. Estado ao entrar: DoD 9/9 — re-qualificado pela 2ª rodada
+para **8 pela letra e o item 7 pela forma, com a divergência agora com dono
+(P7-18)** —, peças 5/5, varredura de fechamento verde exceto o predicado de
+lançador (R13, declarado).
 
 | Rodada | Relatório | Veredito |
 |---|---|---|
 | 1ª (13/09, headless) | `audit_20260913T062514Z.md` | **ABORTADA no launch** — a sessão do auditor não autenticou ("OAuth session expired and could not be refreshed"). Nada foi auditado; o lançador preparou worktree, venv, stack efêmera e mediu a prova do seed no worktree antes da falha, e desmontou a stack ao sair. Relançar exige `claude login` do operador — credencial não é coisa que agente toque. O precedente de versionar launch abortado é o da Fase 1 |
+| 2ª (13/09, headless, pós-login) | `audit_20260913T065544Z.md` | **FAIL** — 1 BLOCKER, 3 HIGH, 2 MEDIUM, 1 LOW, e nenhum achado é falso. Disposição integral abaixo |
+
+**A disposição da 2ª rodada, achado a achado:**
+
+| Achado | Disposição |
+|---|---|
+| **B1** — a imagem não constrói: `pyproject` declara `range_cli/` e `dados_sinteticos/` e o `Dockerfile` não os copia | **CORRIGIDO** — os dois `COPY` entram com a lição no comentário; provado por `docker build` completo verde (`BUILD_EXIT=0`). A fase criou os pacotes e não tocou a imagem; os 856 verdes vinham do venv editável resolvendo pela árvore, exatamente a assimetria que o `pyproject` documenta quatro vezes |
+| **H1** — item 7 "cumprido" por docstring, contra a letra de `04` §4 | **PROMOVIDO** — **P7-18**, com o texto do spec-change proposto e apresentação ao proprietário. O registro re-qualifica o fechamento: 8 itens pela letra, o 7 pela forma |
+| **H2** — itens 6 e 9 chegavam como atestação; P7-3 fechada com premissa contradita | **CORRIGIDO** — nasce o par `prova_do_exercicio_4h`/`check_prova_do_exercicio_4h` (classe P4-10): a prova amarra a árvore E os sete arquivos do pack por SHA-256, grava lint/travessia/medida, é escrita mesmo em falha, e tem 7 direções de prova negativa (9 venenos + 2 controles). A P7-3 foi re-disposta na tabela; o verificador entra na allowlist do auditor por nome, o gravador fica FORA com motivo (o critério do par do seed) |
+| **H3** — três `ENTREGA` não entregues saindo sem destinatário | **CORRIGIDO no dado, PROMOVIDO no mecanismo** — P1-7, P5-4 e P6-5 mudam para `ABERTA` com gatilho real; a cegueira do `NAO_MIGRA` vira **P7-19** (endurecimento na abertura da Fase 8) |
+| **M1** — `range_cli/` e `dados_sinteticos/` invisíveis aos dois scanners de `tools/` | **CORRIGIDO** — os dois entram nos `SCANNED_DIRS` de `check_contract_literals` e `check_security_constraints`, com a lição no comentário; as três direções da classe (spec_freeze, guarda de imports, scanners) agora fechadas |
+| **M2** — a allowlist admitia a FORMA `range-cli …` e o executável era inalcançável | **CORRIGIDO** — `PREFIXO_DO_VENV` nas duas entradas de `range-cli`, com a terceira ocorrência da classe documentada no ponto; cópia instalada sincronizada e harness central verde |
+| **L1** — `validate`/`migrate` declarados em `04` §8, inexistentes, sem linha em §6 | **PROMOVIDO** — **P7-20**, apresentação junto da P7-18 |
 
 **Dois avisos colhidos do launch, para a manutenção da estrutura (Fase 8):**
 as regras `deny Write(...)` de `.claude/settings.json` são redundantes — as

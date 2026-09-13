@@ -79,7 +79,11 @@ DOMAINS_ROOT = "domains"
 #: `*_probes.py` plantam literal de flag DE PROPOSITO — a violacao plantada e o
 #: que prova que o verificador reprova. Varre-los seria reprovar a propria prova
 #: negativa. O dia em que `scripts/` tiver codigo de producao, esta linha muda.
-SCANNED_DIRS = ("range-core", "domains", "tests")
+# `range_cli` e `dados_sinteticos` entraram no M1 da 2ª auditoria da Fase 7:
+# sao codigo instalado (pyproject) e nasceram invisiveis a este scanner — a
+# mesma classe que check_gate_coverage fechou para o spec_freeze ("diretorio
+# novo no topo nasce invisivel ao gate, e nada avisa"), na direcao que faltava.
+SCANNED_DIRS = ("range-core", "domains", "tests", "range_cli", "dados_sinteticos")
 PYTHON_SUFFIXES = (".py",)
 
 RULE_DECLARED = "INVARIANTE 2 - literal de contrato no codigo"
