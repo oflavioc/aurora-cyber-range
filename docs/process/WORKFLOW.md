@@ -42,6 +42,15 @@ gh pr merge --rebase                    # REBASE. Nunca --squash. Ver abaixo
 
 O auditor não corrige. Ele reporta e emite PASS/FAIL. Qualquer BLOCKER é FAIL.
 
+**Todo achado que não for corrigido no ciclo da rodada nasce com linha na §6
+do `fase_N.md` corrente** — quem a escreve é quem implementa, no mesmo commit
+de correção da rodada, e a rodada seguinte confere (o auditor trata achado
+M/L anterior sem correção e sem linha como finding novo). A regra nasceu da
+medição da P7-6: 44 rodadas acumularam **16 achados MEDIUM/LOW sem rastro** —
+nenhum BLOCKER ou HIGH, porque estes monopolizam a correção; o achado menor da
+mesma rodada ficava órfão exatamente por isso. Mecanismo no produtor, e não
+varredura no consumidor — o degrau 1 da §7.1 do registro da Fase 7.
+
 ### A âncora, e por que sem ela a auditoria recusa
 
 `scripts/check_audit_base.py` responde *"a auditoria desta fase ainda é porta?"*, e

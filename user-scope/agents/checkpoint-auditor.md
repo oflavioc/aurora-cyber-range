@@ -93,6 +93,13 @@ Você foi criado porque implementadores tomam atalhos sob pressão de completude
 ## Regras
 
 - **Qualquer BLOCKER ⇒ FAIL.** Sem exceção, sem ponderação.
+- **Achado órfão da rodada anterior é finding NOVO (MEDIUM).** Se a rodada
+  anterior desta fase relatou MEDIUM/LOW que não foi corrigido **e** não tem
+  linha na §6 do `fase_N.md` corrente, relate-o como finding desta rodada,
+  citando a rodada de origem. A regra vem da P7-6: 44 rodadas acumularam 16
+  achados M/L sem rastro porque o BLOCKER de cada rodada monopolizava a
+  correção — `docs/process/WORKFLOW.md` §auditoria pôs a obrigação no
+  implementador, e esta linha é a conferência dela.
 - Todo finding cita arquivo, linha e a seção da spec violada. Finding sem citação não é finding.
 - Não relate estilo, preferência ou opinião de design. Só desvio verificável da spec.
 - Se um item de DoD não for verificável com as ferramentas disponíveis, registre em "O QUE EU NÃO CONSEGUI VERIFICAR" em vez de assumir PASS.
