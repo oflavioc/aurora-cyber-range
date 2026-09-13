@@ -1,0 +1,13 @@
+{
+  "identity": "UniAurora",
+  "version": "0.1",
+  "status": "proposed",
+  "provenance": "Paleta de trabalho proposta a partir da família visual do Aurora Cyber Range; não é uma extração de códigos oficiais nem uma garantia sobre todos os pixels dos PNGs.",
+  "colors": {
+    "institutional_navy": "#07172E",
+    "aurora_cyan": "#00CFF5",
+    "aurora_blue": "#2475FF",
+    "aurora_violet": "#7B41F5",
+    "cool_white": "#F5FAFF"
+  }
+}

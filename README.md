@@ -4,7 +4,7 @@ Motor reutilizável de exercícios de crise cibernética, com domínios de negó
 
 [![invariantes](https://github.com/oflavioc/aurora-cyber-range/actions/workflows/invariants.yml/badge.svg)](https://github.com/oflavioc/aurora-cyber-range/actions/workflows/invariants.yml)
 
-<!-- identidade visual: sem asset versionado. Ponto marcado para inclusão futura. -->
+[Identidades visuais](assets/branding/README.md) — originais do Aurora Cyber Range e proposta institucional da UniAurora.
 
 ---
 
