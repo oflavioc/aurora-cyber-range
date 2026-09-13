@@ -168,6 +168,14 @@ def materialize(
             sort_keys=True,
             allow_unicode=True,
             default_flow_style=False,
+            # SEM quebra de linha por largura: o safe_dump quebraria string
+            # longa em flow scalar de duas linhas, e o parser estrito de
+            # `tools/` — que `check_synthetic_data.py` (INV-1) aplica sobre
+            # `scenarios/` — recusa escalar multilinha por construcao. O
+            # produtor nao pode escrever o que o verificador do invariante
+            # nao le. Achado da varredura de fechamento da Fase 7, invisivel
+            # ate existir um pack em disco (P7-9).
+            width=1_000_000,
         ),
         encoding="utf-8",
         newline="\n",

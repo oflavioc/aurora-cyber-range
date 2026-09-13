@@ -2496,6 +2496,101 @@ Aquela segunda saída é a mais próxima, e vale dita: `vazamento-lgpd` e
 `pesquisa-comprometida` são entregáveis normativos, não têm gabarito, e um deles
 versionado dá ao CI um pack que o linter julga de verdade.
 
+#### P7-10 — o gerador de gabarito só produz Linha B
+
+**Nasceu na autoria do pack de 4 h (peça 5, §8.3).** O `ground_truth.yaml`
+materializado não tem fato de `initial_access`/`exfiltration`; `containment` é
+`absence_of grade_change_retroactive since self` e `service_restoration` é
+`not_applicable` — enquanto `03` §3.1 e `04` §3 escrevem o gabarito DESTE pack
+com a Linha A inteira (fato em `T-17d`, contenção por `vpn_access_revoked` +
+`identity_scope_disabled`, restauração por duas `flag_false`). As três
+consequências, medidas: nenhum inject de Linha A cita `materializes_facts`;
+`TTRV` é incomputável neste pack (e `03` §9 manda `TTIV − TTRV` em destaque no
+AAR); o par de contenção mede integridade, não o ransomware que a Linha A
+encena. **A decisão é do proprietário**: ampliar o gerador (mecanismo, fase
+futura) ou realinhar a leitura da spec (spec-change). **Vence em:** o
+fechamento desta fase — apresentação, não implementação.
+
+#### P7-11 — condição temporal de branch carrega e nunca ramifica
+
+**Nasceu na autoria do pack (peça 5, §8.3).** `04` §6.1 permite `before`/
+`after` e o exemplo normativo de §6 usa `before: "01:30"` — mas a gramática
+temporal não existe (P6-3), e `confere_folhas_temporais` só varre
+`verification_predicates` do ground truth. Uma branch com condição temporal
+**carrega limpa e nunca ramifica**: é a "falha mais cara possível" da §6.2
+entrando por porta que a P6-3 não declara cobrir. O pack de 4 h evita condição
+temporal, com a omissão declarada no cabeçalho do `branches.yaml`. **Vence
+em:** o gatilho da P6-3 (a gramática nascer) passa a incluir condição de
+branch.
+
+#### P7-12 — a superfície do hook do auditor acumulou cinco achados sem rastro
+
+**Nasceu da varredura da P7-6** (itens S1, S7, S8, S9, S10 — arquivo, id e
+citação de cada um estão na classificação daquela varredura): fail-open no
+parse do stdin (`except: return 0` — e a §P32 do `fase_0.md` prometia commit
+próprio que nunca veio); curinga `tools/check_*.py` na allowlist, quando
+`.claude/hooks/` fechou por nome explícito e `tools/` é escrito pela fase sob
+auditoria; `npm test/lint/typecheck` como trampolim de execução arbitrária não
+declarado; falso bloqueio de `git -C`; e a revisão de env que só enxerga
+entradas na convenção literal. Cinco achados M/L, todos sobre o mesmo arquivo
+(`user-scope/hooks/readonly_bash.py`). **Vence em:** a próxima edição da
+allowlist do auditor, ou a abertura da Fase 8 — o que vier primeiro.
+
+#### P7-13 — o harness não planta violação onde a correção entrou
+
+**Nasceu da varredura da P7-6** (S6, S3, S4; S5 como anexo): a extensão de
+`SCANNED_DIRS` a `.claude/`/`user-scope/` (correção da P9/P24) segue sem probe
+que plante violação lá; nenhum verificador cobre `.sh` (`bootstrap.sh`,
+`finalize_phase0.sh`, lançadores com `rm -rf`); o probe de dados sintéticos
+planta `8.8.8.8`/`google.com` — IOC roteável de verdade — e pode deixar
+resíduo em `scenarios/` se interrompido. Anexo sem recorrência: o worktree de
+auditoria destruído durante a 10ª rodada da Fase 0, nunca apurado. **Vence
+em:** a Onda 3 da Estrutura Agêntica (TDD endurecido) — endurecer o aparato é
+literalmente a dor que ela declara fechar.
+
+#### P7-14 — seis afirmações de registro/teste sem disposição
+
+**Nasceu da varredura da P7-6** (S2, S11, S12, S13, S15, S16): contagem de
+probes inconsistente reescrita sem id; evidência auto-referente de CI num
+commit que só altera o registro; `test_as_dezenove_tabelas` aferindo contra
+lista escrita no próprio teste; centenas de `ResourceWarning` de conexão
+soterrando o sumário da suíte; nenhum teste cruzando emissão e consumo da
+contrassinatura pela rota real; e a metade de `admite()` nunca declarada no
+registro (grep "excellent" segue vazio). **Vence em:** a varredura de
+fechamento da Fase 8 — agora obrigatória por rodada (forma (b) da P7-6) —,
+onde cada item ganha disposição ou vira pendência própria.
+
+#### P7-15 — o extremo inclusivo contra a redação-alvo de `03` §3.2
+
+**Nasceu como M1 da 9ª auditoria da Fase 6 e ficou sem disposição** (S14 da
+varredura): o próprio `verification_predicate_satisfied` é listado como
+"evidência incompatível com a declaração" — extremo inclusivo —, o teste
+declara o comportamento "deliberado", e a objeção do auditor (rotulagem contra
+a spec) nunca foi corrigida, aceita com motivo, nem promovida. É potencial
+drift spec×mecanismo, e o `spec-guardian` pode medir antes da decisão.
+**Vence em:** o fechamento desta fase — apresentação ao proprietário junto de
+P7-9 e P7-10.
+
+#### P7-16 — o checklist da Fase 0 afirma demonstração que foi atestação
+
+**Nasceu como resíduo do H2 da 16ª rodada da Fase 0** (E1 da varredura):
+`PHASE_0_CHECKLIST.md:169` ainda diz que branch protection, `spec_freeze` e
+verificadores foram "todos demonstrados funcionando nos itens 9 a 13" — foram
+fechados **por atestação** (P34). O lado do registro foi corrigido
+(`fase_0.md:1634`, "seguem pendentes"); o checklist não — e ele é conjunto
+SPEC do `spec_freeze`, então a correção é PR `spec-change:` de uma linha.
+**Vence em:** apresentação ao proprietário no fechamento desta fase.
+
+#### P7-17 — o destino declarado da P2-17 passou em silêncio
+
+**Nasceu da varredura da P7-6** (E3): a P2-17 — o start do `frozen_interval`
+vem da âncora do rollback, e não do inject falho — declarou destino "Fase 6,
+com o cálculo do desconto" (`fase_2.md:1251`). A Fase 6 entregou o desconto e
+fechou **sem menção nenhuma**; grep em `fase_6.md` e `fase_7.md` devolve zero.
+Gatilho que dispara e não vence é a classe que a P5-2 documenta — e é a mesma
+forma que fez a regra (b) da P7-6 existir. **Vence em:** a abertura da Fase 8
+— remedir se o start ainda vem da âncora e dar destino real.
+
 #### P6-9 — RESOLVIDA: o lançador sincroniza, e a comparação passa a ter dois chamadores
 
 **A terceira ocorrência aconteceu no PR #56.** Editar os comentários de
