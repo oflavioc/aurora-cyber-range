@@ -3015,6 +3015,47 @@ rebase, sobre a `main` que já contém o #67.
 |---|---|---|
 | 1ª (13/09, headless) | `audit_20260913T062514Z.md` | **ABORTADA no launch** — a sessão do auditor não autenticou ("OAuth session expired and could not be refreshed"). Nada foi auditado; o lançador preparou worktree, venv, stack efêmera e mediu a prova do seed no worktree antes da falha, e desmontou a stack ao sair. Relançar exige `claude login` do operador — credencial não é coisa que agente toque. O precedente de versionar launch abortado é o da Fase 1 |
 | 2ª (13/09, headless, pós-login) | `audit_20260913T065544Z.md` | **FAIL** — 1 BLOCKER, 3 HIGH, 2 MEDIUM, 1 LOW, e nenhum achado é falso. Disposição integral abaixo |
+| 3ª | `audit_20260913T184853Z.md` | **FAIL** — 1 BLOCKER, 2 HIGH, zero M/L. O B1 anterior confirmado corrigido; restou a metade que a correção do H2 não entregou (produtor da prova de 4 h no lançador + probes no CI) |
+| 4ª | `audit_20260913T194629Z.md` | **FAIL** — 1 BLOCKER, zero HIGH/LOW. Item 9 vira PASS pela prova; o único BLOCKER é o item 7, escalado por consequência (decisão do operador, não do implementador) |
+| 5ª | `audit_20260913T220705Z.md` | **PASS** — DoD 9/9 pela letra, zero achados. Regra de achado órfão conferida item a item; os 10 pontos de "não consegui verificar" são todos limites estruturais **declarados** (pack fora do Git amarrado por hash, provas que o auditor não executa por desenho, venv 3.14 do lançador), nenhum é achado |
+
+**A 5ª rodada e o que ela fecha.** O candidato foi `c9f61b2` (nono rebase,
+sobre a `main` com o #67). O item 7 — que sustentou o BLOCKER das rodadas 2 a
+4 — passou **pela letra**: `test_pack_loader.py` prova a recusa instruída de v1
+e v0 (as três perguntas da instrução), a instrução inversa para versão futura,
+e a recusa antes da validação de schema; `test_migrations.py` alcança o ramo de
+migração por registro injetado. Código e norma dizem a mesma coisa desde que o
+spec-change P7-18 ratificou "`[N]` com recusa instruída enquanto não houver
+antecessora real". As duas observações-sem-finding do auditor (a travessia não
+faz produto cartesiano entre linhas; o ramo "há migração" é inalcançável e
+declarado) são leituras que o registro já fixara **antes** do código.
+
+## 10. Fechamento da fase
+
+**A Fase 7 está PRONTA PARA SELAGEM.** As cinco peças fechadas, os nove itens
+de DoD verdes pela letra, cinco rodadas de auditoria até o PASS — o histórico
+inteiro versionado, inclusive o launch abortado e os três FAIL, porque
+reprovação que some é reprovação que não ensina.
+
+**O que fica para a Fase 8, com dono e gatilho** (nenhum bloqueia a selagem):
+
+| Pendência | Estado | Gatilho |
+|---|---|---|
+| P7-10 | `DECIDIDA` | gerador aprende a Linha A na abertura da Fase 8 |
+| P7-11 | `ABERTA` | a gramática temporal de branch nascer (P6-3) |
+| P7-12 | `ABERTA` | próxima edição da allowlist do auditor / abertura da Fase 8 |
+| P7-13 | `ABERTA` | Onda 3 da Estrutura Agêntica (TDD endurecido) |
+| P7-14 | `ABERTA` | varredura de fechamento da Fase 8 (regra (b) da P7-6) |
+| P7-15 | `ABERTA` | PR spec-change na abertura da Fase 8; `spec-guardian` mede antes |
+| P7-16 | `ABERTA` | PR spec-change de uma linha na abertura da Fase 8 |
+| P7-17 | `ABERTA` | abertura da Fase 8 — remedir o start do `frozen_interval` |
+| P7-19 | `ABERTA` | abertura da Fase 8 — `ENTREGA` não entregue exige evidência |
+| P7-20 | `ABERTA` | PR de alinhamento do `04` §8 na abertura da Fase 8 |
+| P1-7, P5-4, P6-5 | `ABERTA` | reclassificadas de `ENTREGA`; vencem na Fase 8 |
+
+**A selagem é do operador** (`CLAUDE.md` §"Fluxo por fase": release
+`develop → main` e aprovação de fase são do usuário, no chat). O PR da fase
+está aberto; o merge `--rebase` é a rota.
 
 **A disposição da 2ª rodada, achado a achado:**
 
