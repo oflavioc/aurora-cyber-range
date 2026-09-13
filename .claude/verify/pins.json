@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "0bbf7c92cc259b378c6218a879c384ba185c32f8",
+    "gerado_de_head": "667ce5ddd446c24bf96d1fe9c36c3b0f3da6ce31",
     "gerado_em": "2026-09-13",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -168,7 +168,7 @@
     "range-core/engine/loader/canonical.py": "e3ba4ad43b9c3bf566c7abd378d96c6b16c42d2fb9d09c1c89c92264d481bf81",
     "range-core/engine/loader/contract_rules.py": "2bdd41cb968f752b6782ac2d2b4d16f9ac75109999774c7c5bc199b73f392cc6",
     "range-core/engine/loader/contract_source.py": "52c94f2d56cab0d8988d701f16ad1aad06c0a38bdcf1bab0ce8d0c5a8866df9a",
-    "range-core/engine/loader/pack_loader.py": "df0c109204d7c75a378c34ee7700e1b106060ef02cf854c533bd793a94d1f057",
+    "range-core/engine/loader/pack_loader.py": "2a8c27dcd4f36c67ea094cc60892742438212d7017dd56d87eeb2c10ad290f10",
     "range-core/engine/loader/posicao.py": "33dbe46a13400053972833837f4fb5c62e51284b128246d6e8727a6855f20ef2",
     "range-core/engine/migrations/__init__.py": "1402d89c3d97a8918676398d3a27750f00676edbfbbb69e958213210ece5800c",
     "range-core/engine/verificacao.py": "224b2cce37b7d5ce93b956080c4f0ffb2ee0d0ebdd5d7bad1423e0f3277498af",
@@ -360,7 +360,7 @@
     "tests/test_queda_de_sessao_probes.py": "b69e36c90edc93c34a68f986d3ca7f38f4c8e2c8bf56a43f05553383a521bbc2",
     "tests/test_range_api.py": "9e7068944bca9153a02a6e960236905f65f36090922f14fe25818ab8ec427057",
     "tests/test_range_cli_dryrun.py": "9a1ab25d5ce9fe38ca4ad0c7a3a9b3c8e4172d735894b4948baae8f462acff55",
-    "tests/test_range_cli_lint.py": "bfa43e39ea1226062857cc12f70634db841479dd5d4b942b6b6c515cbbbe7d40",
+    "tests/test_range_cli_lint.py": "e047815d7becf62ebe859e4e4281bd207bd6ac6d6caeb36ff1b0e38880b5b814",
     "tests/test_range_cli_materialize.py": "f03a4c42569900547ffb5b496cf06cba2c313dfb286a12d6fa6203c1491ade1d",
     "tests/test_restauracao.py": "3bc98d3845b570bd727eacfd2b8f9db0b673b57d8a0605c37dfdae14f22ee081",
     "tests/test_rubrics_library.py": "f44567c0244001ba776e945ff4cb9839ebbdea65f182d0b52b15b5e4aaed9270",
