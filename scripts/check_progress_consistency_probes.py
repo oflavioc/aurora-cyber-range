@@ -216,9 +216,21 @@ def eixo_g() -> bool:
 # razao do (f): ver a omissao SER PEGA nao prova nada se o caso verde tambem
 # reprovar, e ver o verde passar nao prova nada se a omissao passar junto.
 # --------------------------------------------------------------------------
-def _registro(itens: list[tuple[str, str]], *, com_estado: bool = True) -> list[str]:
-    """Um registro de fase sintetico, com tabela-resumo declarada e secoes."""
-    cabeca = ["# Fase sintética", "", "## 6. Pendências", "", MARCA, ""]
+def _registro(
+    itens: list[tuple[str, str]],
+    *,
+    com_estado: bool = True,
+    concluida: bool = False,
+) -> list[str]:
+    """Um registro de fase sintetico, com tabela-resumo declarada e secoes.
+
+    `concluida` planta a LINHA DE STATUS de fechamento que `esta_concluida` le —
+    e o que o eixo_l precisa para distinguir uma fase que fechou de uma aberta.
+    """
+    cabeca = ["# Fase sintética", ""]
+    if concluida:
+        cabeca += ["**Status: AUDITADA — PASS (2ª rodada).**", ""]
+    cabeca += ["## 6. Pendências", "", MARCA, ""]
     if com_estado:
         cabeca += ["| Id | O que é | Estado | Vence em |", "|---|---|---|---|"]
         cabeca += [f"| {i} | o defeito | `{e}` | um gatilho |" for i, e in itens]
@@ -324,8 +336,67 @@ def eixo_k() -> bool:
     return True
 
 
+# --------------------------------------------------------------------------
+# P7-19 — `ENTREGA` numa fase CONCLUIDA reprova.
+#
+# `ENTREGA` e trabalho da propria fase: nao migra, e a Definition of Done a
+# cobra. Mas a DoD e humana, nao um gate — entao uma fase que FECHA com uma
+# linha ainda `ENTREGA` a faz sumir: nao foi entregue, nao migra, nao esta em
+# nenhuma checagem. Foi o H3 da 2a auditoria da Fase 7: P1-7, P5-4 e P6-5
+# escaparam assim. Como o (f) e o (h), o eixo tem as metades — a condicao tem
+# de ser vista fazendo estrago (fase fechada COM `ENTREGA` reprova) antes de ser
+# vista contida (a mesma fechada, com a linha ja `RESOLVIDA`, passa) — e uma
+# terceira perna que prende a guarda no Status, e nao no estado: fase ABERTA com
+# `ENTREGA` e legitima e nao pode reprovar.
+# --------------------------------------------------------------------------
+def eixo_l() -> bool:
+    """`ENTREGA` numa fase CONCLUIDA reprova; contida e aberta, nao."""
+    def cobrada_por_conclusao(falhas: list[str], item: str) -> bool:
+        return any(f"`{item}`" in f and "CONCLUIDA" in f for f in falhas)
+
+    # (l1) A CONDICAO FAZENDO ESTRAGO: fase fechada com a linha ainda `ENTREGA`.
+    fechada_com_entrega = {
+        6: _registro([("P8-1", "ENTREGA"), ("P8-2", "RESOLVIDA")], concluida=True),
+    }
+    falhas, _ = confere_pauta(fechada_com_entrega)
+    if not cobrada_por_conclusao(falhas, "P8-1"):
+        print(f"FALHOU: [l1] `ENTREGA` numa fase CONCLUIDA nao foi pega: {falhas}")
+        return False
+    if cobrada_por_conclusao(falhas, "P8-2"):
+        print("FALHOU: [l1] cobrou `P8-2`, que ja esta RESOLVIDA e fechou certo.")
+        return False
+
+    # (l2) A CONDICAO CONTIDA: a mesma fase fechada, a linha virou `RESOLVIDA`.
+    # Sem esta metade, uma guarda que reprovasse toda fase concluida passaria em
+    # (l1) sem provar que foi o `ENTREGA` que pesou.
+    fechada_curada = {
+        6: _registro([("P8-1", "RESOLVIDA"), ("P8-2", "RESOLVIDA")], concluida=True),
+    }
+    falhas_ok, _ = confere_pauta(fechada_curada)
+    if falhas_ok:
+        print(f"FALHOU: [l2] a fase fechada e curada foi reprovada: {falhas_ok}")
+        return False
+
+    # (l3) A GUARDA CASA O STATUS, NAO O ESTADO: fase ABERTA com `ENTREGA` e o
+    # caso legitimo — trabalho em andamento da propria fase — e nao pode reprovar.
+    aberta_com_entrega = {
+        6: _registro([("P8-1", "ENTREGA")]),
+        7: _registro([("P8-9", "ABERTA")]),
+    }
+    falhas_aberta, _ = confere_pauta(aberta_com_entrega)
+    if any("CONCLUIDA" in f for f in falhas_aberta):
+        print(f"FALHOU: [l3] `ENTREGA` numa fase ABERTA foi cobrada: {falhas_aberta}")
+        return False
+
+    print(
+        "OK: [l - entrega no fechamento] `ENTREGA` numa fase CONCLUIDA reprova, "
+        "curada nao, e numa fase aberta continua legitima."
+    )
+    return True
+
+
 EIXOS = (eixo_a, eixo_b, eixo_c, eixo_d, eixo_e, eixo_f, eixo_g,
-         eixo_h, eixo_i, eixo_j, eixo_k)
+         eixo_h, eixo_i, eixo_j, eixo_k, eixo_l)
 
 
 def main() -> int:
@@ -334,13 +405,16 @@ def main() -> int:
             fluxo.reconfigure(errors="replace")
 
     print(
-        "check_progress_consistency.py — onze eixos, em duas perguntas.\n"
+        "check_progress_consistency.py — doze eixos, em tres perguntas.\n"
         "\n"
         "  (a)-(g)  a tabela-resumo e achada e cruzada contra as secoes. O (f)\n"
         "           decide: planta uma tabela intercalada com id e exige ver o\n"
         "           SEQUESTRO sem o marcador antes da leitura certa com ele.\n"
         "  (h)-(k)  a pauta herdada migra. O (h) decide, e tem as duas metades:\n"
         "           a omissao e pega, E o par completo passa.\n"
+        "  (l)      `ENTREGA` numa fase CONCLUIDA reprova — o H3 da 2a auditoria\n"
+        "           da Fase 7 (P7-19). Tres pernas: estrago, contida, e a guarda\n"
+        "           presa no Status e nao no estado.\n"
     )
     resultados = [eixo() for eixo in EIXOS]
     print()
@@ -349,8 +423,9 @@ def main() -> int:
             f"Os {len(resultados)} eixos provam que a tabela-resumo e achada pelo "
             "MARCADOR quando ele\nexiste, que a heuristica de posicao continua "
             "valendo sem ele, que o cruzamento\ncontra as secoes nao foi "
-            "afrouxado, e que pendencia nao-fechada que nao migra\npara a fase "
-            "seguinte e PEGA — sem que o par completo seja reprovado junto."
+            "afrouxado, que pendencia nao-fechada que nao migra\npara a fase "
+            "seguinte e PEGA — sem que o par completo seja reprovado junto —, e "
+            "que\n`ENTREGA` numa fase CONCLUIDA reprova sem cobrar a fase aberta."
         )
         return 0
     print(f"{resultados.count(False)} de {len(resultados)} eixos nao provaram nada.")

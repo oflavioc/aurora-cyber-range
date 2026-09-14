@@ -159,6 +159,17 @@ NAO_MIGRA = ("ENTREGA",)
 
 ESTADOS = frozenset(NAO_FECHADOS + FECHADOS + NAO_MIGRA)
 
+#: A LINHA DE STATUS do registro, na forma que `check_readme_atual.py` tambem le:
+#: `**Status: CONCLUIDA ...` ou `**Status: AUDITADA — PASS ...`. Fase com esta
+#: linha esta FECHADA, e o P7-19 se apoia nela.
+STATUS_CONCLUIDO = re.compile(
+    r"^\*\*Status:\s*(?:CONCLU[IÍ]DA|AUDITADA\s*[—\-]\s*PASS)", re.M
+)
+
+
+def esta_concluida(linhas: list[str]) -> bool:
+    return STATUS_CONCLUIDO.search("\n".join(linhas)) is not None
+
 
 def _linhas_da_tabela(
     linhas: list[str], inicio: int, *, ancorada: bool
@@ -273,6 +284,26 @@ def confere_pauta(
                 "que era para migrar."
             )
             continue
+
+        # P7-19 — `ENTREGA` nao entregue nao pode sair pela porta do fechamento.
+        # `ENTREGA` e trabalho da PROPRIA fase e por isso nao migra; mas se a
+        # fase FECHA (status AUDITADA/CONCLUIDA) com uma linha ainda `ENTREGA`,
+        # ela nao foi entregue E nao migra E nao esta em DoD nenhuma — some sem
+        # que nada fique vermelho. Aconteceu com P1-7, P5-4 e P6-5 na Fase 7
+        # (H3 da 2a auditoria). A regra: fase concluida nao tem `ENTREGA` — cada
+        # uma virou `RESOLVIDA` (entregue, nao migra) ou um estado que migra.
+        if esta_concluida(registros[fase]):
+            nao_entregues = sorted(i for i, e in estados.items() if e in NAO_MIGRA)
+            for item in nao_entregues:
+                falhas.append(
+                    f"fase {fase}: `{item}` esta `ENTREGA` numa fase CONCLUIDA.\n"
+                    f"    `ENTREGA` e trabalho da propria fase e nao migra — entao "
+                    f"fechar com ela assim a faz sumir: nao foi entregue, nao "
+                    f"migra, nao esta em DoD.\n"
+                    f"    Se foi entregue, marque `RESOLVIDA`; se nao, reclassifique "
+                    f"para um estado que migra (`ABERTA`/`DECIDIDA`/...). Foi o H3 "
+                    f"da 2a auditoria da Fase 7, e esta guarda e a P7-19."
+                )
 
         desconhecidos = sorted(
             {e for e in estados.values() if e not in ESTADOS}
