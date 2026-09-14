@@ -93,7 +93,7 @@ a relevância para ESTA fase.
 | P7-15 | o extremo inclusivo contra a redação-alvo de `03` §3.2 | `ABERTA` | PR spec-change na abertura; o `spec-guardian` mede antes; detalhe em `fase_7.md` §"P7-15" |
 | P7-16 | `PHASE_0_CHECKLIST.md` afirma demonstração que foi atestação | `ABERTA` | PR spec-change de uma linha na abertura; detalhe em `fase_7.md` §"P7-16" |
 | P7-17 | o destino da P2-17 (start do `frozen_interval`) passou em silêncio | `ABERTA` | abertura — remedir se o start ainda vem da âncora; detalhe em `fase_7.md` §"P7-17" |
-| P7-19 | `check_progress_consistency` isenta `ENTREGA` de migrar, mesmo não entregue | `ABERTA` | abertura — o verificador passa a exigir evidência de entrega na linha `ENTREGA`; detalhe em `fase_7.md` §"P7-19" |
+| P7-19 | ~~`check_progress_consistency` isenta `ENTREGA` de migrar, mesmo não entregue~~ | `RESOLVIDA` | `esta_concluida` lê a linha de Status de fechamento e `confere_pauta` reprova `ENTREGA` numa fase concluída; eixo_l prova nas três pernas; ver abaixo |
 | P7-20 | `04` §8 declara `validate`/`migrate` que não existem | `ABERTA` | PR de alinhamento do `04` §8 na abertura; detalhe em `fase_7.md` §"P7-20" |
 
 #### P8-1 — Onda 2: os oito papéis e a reconciliação fase↔demanda
@@ -260,11 +260,27 @@ na abertura.
 Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-17". Remedir na abertura se o
 start do `frozen_interval` ainda vem da âncora.
 
-#### P7-19 — `ENTREGA` não entregue sai sem destinatário
+#### P7-19 — `ENTREGA` não entregue sai sem destinatário — RESOLVIDA
 
-Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-19". O verificador de
-consistência passa a exigir evidência de entrega na linha `ENTREGA` — a mesma
-forma da regra (b) da P7-6.
+Herdada da Fase 7. Detalhe da origem em `fase_7.md` §"P7-19". Foi o H3 da 2ª
+auditoria da Fase 7: P1-7, P5-4 e P6-5 escaparam da migração porque `ENTREGA`
+não migra e a Definition of Done que a cobra é humana, não um gate. Uma fase
+que **fecha** com uma linha ainda `ENTREGA` a faz sumir — não foi entregue,
+não migra, não está em checagem nenhuma.
+
+**RESOLVIDA na abertura da Fase 8.** Em `check_progress_consistency.py`,
+`esta_concluida` lê a linha de Status de fechamento (`CONCLUÍDA` /
+`AUDITADA — PASS`), e `confere_pauta` reprova qualquer linha `ENTREGA` numa
+fase assim, mandando marcar `RESOLVIDA` (entregue, não migra) ou reclassificar
+para um estado que migra. A guarda casa o **Status**, não o estado: fase aberta
+com `ENTREGA` continua legítima — é trabalho em andamento da própria fase.
+
+A prova negativa é o `eixo_l` de `check_progress_consistency_probes.py`, nas
+três pernas da disciplina do (f)/(h): a condição vista fazendo estrago (fase
+fechada com `ENTREGA` reprova), contida (a mesma curada passa), e a guarda
+presa no Status e não no estado (fase aberta com `ENTREGA` não reprova). Esse
+verificador era o único dos de `scripts/` sem prova negativa de fechamento; o
+eixo fecha essa lacuna.
 
 #### P7-20 — `validate`/`migrate` declarados e inexistentes
 
