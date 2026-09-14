@@ -24,6 +24,29 @@ Tomadas em sessão, no chat, após apresentação das colisões:
    também o roadmap) entra **na abertura da Fase 8** — o desenho da
    reconciliação fase↔demanda é a primeira tarefa dessa abertura. A Onda 3
    segue aguardando a dor (primeira regressão que red-first teria evitado).
+5. **Reconciliação fase↔demanda — decidida na abertura da Fase 8
+   (13/09/2026): "marco por fora, SDD por dentro".** As duas contagens de
+   "fase" não competem, encaixam:
+   - **O roadmap governa o marco.** Fase = branch = âncora + auditoria de
+     checkpoint pelo `checkpoint-auditor`, exatamente como as Fases 0–7
+     rodaram. A máquina SDD **não** substitui isso — o fluxo por marco auditou
+     oito fases com sucesso e é a autoridade do checkpoint.
+   - **A SDD de 7 fases governa a DEMANDA.** Comportamento novo dentro de um
+     marco, e toda demanda fora do roadmap, percorre refinamento → spec →
+     plano → tarefas → red → implementação → validação (skill `new-demand`),
+     com os 8 papéis. Correção de achado registrado segue por `fix-finding`,
+     sem spec.
+   - **Os 8 papéis instanciados sobre os existentes**, sem duplicar autoridade:
+     o `checkpoint-auditor` continua sendo quem declara PASS/FAIL de marco (a
+     Fase 6 da SDD, "validação", é dele no marco); o `qa-engineer` escreve
+     gate/red/mutante de demanda; o `scenario-designer` e o `spec-guardian`
+     permanecem com seus domínios. Nenhum papel tem opinião sobre a mesma
+     pergunta que outro já responde (§1.4 do checkpoint da Fase 2).
+   - **Paralelismo**: habilitado a partir da Fase 8 (`WORKFLOW.md`), mas a
+     Fase 8 corre **sequencial** por decisão do operador — os 4 itens de DoD
+     compartilham a camada `reported` e o event store, e conduzir em série
+     reduz o risco de conflito de contrato. Paralelizar entra quando houver
+     frentes de fato independentes.
 
 ## 1. Adotado limpo (instalado nesta branch — Ondas 0/1 do BOOTSTRAP)
 
@@ -49,7 +72,7 @@ Tomadas em sessão, no chat, após apresentação das colisões:
 | Auditoria de configuração (`compliance-audit.sh`) | `check_gate_coverage.py`, `check_allowlist_do_auditor.py` etc. | Complementares: o do aurora audita o CI e o auditor; o do kit audita hooks/deny/invariantes/waivers — instalados ambos |
 | Auditoria de fase (Fase 6 da SDD: QA+PO) | `checkpoint-auditor` externo com worktree | Para fases do roadmap, o do aurora prevalece; a validação da SDD vale só para demandas |
 | `expected_suites.json` com contagens | README com contador de testes + `check_readme_atual.py` | O do aurora já confere prosa×árvore no CI. `expected_suites.json` instalado VAZIO; preencher é decisão do operador (§3) |
-| 8 agentes do kit | `scenario-designer`, `spec-guardian`, `checkpoint-auditor` | Onda 2 NÃO instalada — os agentes existentes permanecem; os 8 papéis entram na abertura da Fase 8 (decisão §0.4) |
+| 8 agentes do kit | `scenario-designer`, `spec-guardian`, `checkpoint-auditor` | **Onda 2 INSTALADA na abertura da Fase 8** (§0.5): os 8 papéis vivem em `.claude/agents/`, com os slots preenchidos pelo domínio do Aurora; os três agentes que já existiam permanecem, e o `checkpoint-auditor` segue como única autoridade de PASS/FAIL de marco. Modelo: marco por fora, SDD por dentro |
 
 ## 3. Conflitos e decisões que só o proprietário pode tomar
 
