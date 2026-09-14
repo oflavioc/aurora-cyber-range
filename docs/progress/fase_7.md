@@ -1246,7 +1246,7 @@ forma 3 daquela pendência, e o único dado empírico que ela tem.
 | P7-12 | a superfície do hook do auditor acumulou **cinco** achados M/L sem rastro (varredura da P7-6, S1/S7/S8/S9/S10): fail-open no parse do stdin, curinga `tools/*.py` na allowlist, `npm test/lint/typecheck` como trampolim não declarado, falso bloqueio de `git -C`, e a revisão de env que só enxerga a convenção literal | `ABERTA` | a próxima edição da allowlist do auditor, ou a abertura da Fase 8 — o que vier primeiro |
 | P7-13 | o harness não planta violação onde a correção entrou (S6: `SCANNED_DIRS` estendido a `.claude/`/`user-scope/` sem probe; S3: nenhum verificador cobre `.sh`; S4: probe de dados sintéticos usa `8.8.8.8`/`google.com` e pode deixar resíduo em `scenarios/`). Anexo sem recorrência: S5, o worktree destruído durante a 10ª rodada da Fase 0, nunca apurado | `ABERTA` | **Onda 3 da Estrutura Agêntica** (TDD endurecido) — é literalmente a dor que ela declara fechar |
 | P7-14 | seis afirmações de registro/teste sem disposição (S2, S11, S12, S13, S15, S16 da varredura P7-6): contagem inconsistente reescrita sem id, evidência auto-referente de CI, lista literal em teste, `ResourceWarning` em massa, cruzamento emissão×consumo da contrassinatura sem teste, e a metade de `admite()` nunca declarada | `ABERTA` | a varredura de fechamento da Fase 8 — agora obrigatória por rodada (forma (b) da P7-6): cada item ganha disposição lá ou vira pendência própria |
-| P7-15 | S14 da varredura: o extremo **inclusivo** — o próprio `verification_predicate_satisfied` listado como "evidência incompatível com a declaração" — contraria a redação-alvo de `03` §3.2, o teste o declara "deliberado", e a objeção da 9ª auditoria da Fase 6 nunca ganhou disposição | `ABERTA` | fechamento desta fase — apresentação ao proprietário junto de P7-9/P7-10; é potencial drift spec×mecanismo, e o `spec-guardian` pode medir antes. **Apresentada em 13/09 (⏸): o PR spec-change sai na abertura da Fase 8** |
+| P7-15 | ~~o extremo inclusivo lista o próprio `verification_predicate_satisfied` como "evidência incompatível"~~ | `RESOLVIDA` | o `spec-guardian` mediu na abertura da Fase 8: **não era drift de spec, era defeito de código** (a redação-alvo de `03` §3.2 está certa). Corrigido por `fix-finding` em `aar/timeline.py` — o veredito sai da lista de incompatíveis, os extremos seguem inclusivos para fatos genuínos; teste invertido; ver abaixo |
 | P7-16 | E1 da varredura: `PHASE_0_CHECKLIST.md:169` afirma que branch protection, `spec_freeze` e verificadores foram "demonstrados funcionando nos itens 9 a 13" — foram fechados **por atestação** (P34). O lado do registro foi corrigido (`fase_0.md:1634`); o checklist, que é conjunto SPEC, não | `ABERTA` | apresentação ao proprietário no fechamento desta fase — a correção é PR `spec-change:` de uma linha. **Apresentada em 13/09 (⏸): o PR sai na abertura da Fase 8** |
 | P7-17 | E3 da varredura: o destino declarado da **P2-17** ("Fase 6, com o cálculo do desconto" — o start do `frozen_interval` vem da âncora, não do inject falho) passou sem menção nenhuma, e ninguém a reabriu | `ABERTA` | abertura da Fase 8 — remedir se o start ainda vem da âncora e dar destino real; gatilho que passa em silêncio é a classe que a P5-2 documenta |
 | P7-18 | ~~três documentos normativos afirmam `SUPPORTED_SCHEMA_VERSIONS = [N, N-1]` e migração de v1, e o código declara `(2,)` por decisão própria em docstring~~ | `RESOLVIDA` | **spec-change #67 mergeado** — `04` §4 passou a "`[N, N-1]` a partir da primeira versão com antecessora real; enquanto N-1 não existir, `[N]`, com recusa instruída"; `07` DoD 7 e `06` T12 acompanharam. O código já estava conforme; os docstrings de `pack_loader` e `migrations/__init__` deixaram de argumentar contra a norma e passaram a citá-la. O item 7 da DoD passa **pela letra**. Viveu três rodadas como achado até o rito fechá-lo — docstring → P7-18 → spec-change → norma |
@@ -2596,6 +2596,19 @@ a spec) nunca foi corrigida, aceita com motivo, nem promovida. É potencial
 drift spec×mecanismo, e o `spec-guardian` pode medir antes da decisão.
 **Vence em:** o fechamento desta fase — apresentação ao proprietário junto de
 P7-9 e P7-10.
+
+**RESOLVIDA na abertura da Fase 8, e não era spec-change.** O `spec-guardian`
+mediu (13/09): a redação-alvo de `03` §3.2 é normativa e trata "evento
+incompatível" e "contenção verificável" como duas afirmações em instantes
+distintos; o `verification_predicate_satisfied` que **fecha** o par é a prova
+de que a contenção passou a ser verdadeira — o oposto de incompatível. O filtro
+de `_incompativeis` (`aar/timeline.py`) era por `truth_layer`, grosso demais:
+`00` §3.2 separa `state_effect` (fato do mundo) de `machine` (evento de
+mecanismo, como o veredito). Corrigido por `fix-finding`: o veredito sai da
+lista, os extremos seguem `<=` inclusivos para fatos genuínos (a proteção do
+"buraco de um segundo" fica de pé), o teste que declarava o defeito
+"deliberado" foi invertido, e a docstring reescrita. Não tocou spec nem
+contrato — era código contra uma spec que já estava certa.
 
 #### P7-16 — o checklist da Fase 0 afirma demonstração que foi atestação
 
