@@ -92,7 +92,7 @@ TEMPLATE = SEED / "GM_NOTES.template.md"
 #: razao foi medida: `linha_b.py` nasceu com `CONTA_DOS_INDEVIDOS = "U-P-0000"`,
 #: e essa linha entregava metade do gabarito a quem lesse o repositorio publico.
 #: O template nao era o unico lugar por onde o concreto vazava.
-MODULOS = ("linha_b.py", "dataset.py", "gabarito.py", "carga.py")
+MODULOS = ("linha_a.py", "linha_b.py", "dataset.py", "gabarito.py", "carga.py")
 
 RULE = "05 secao 6 - gabarito fora do repositorio"
 

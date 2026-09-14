@@ -85,7 +85,7 @@ a relevância para ESTA fase.
 | P7-1 | a rota de submissão não valida o payload contra o contrato antes de gravar | `ABERTA` | decisão do proprietário sobre qual linha esta fase entrega; detalhe em `fase_7.md` §"P7-1" |
 | P7-4 | consumo de `event_type` por selecionador sem allowlist declarada | `ABERTA` | **Fase 12** — degrau 1.5; detalhe em `fase_7.md` §"P7-4" |
 | P7-5 | chamadores de cada emissor não varridos quando o contrato do emissor muda | `ABERTA` | **Fase 12** — degrau 2; detalhe em `fase_7.md` §"P7-5" |
-| P7-10 | o gerador de gabarito só produz Linha B — a Linha A do `ransomware-universidade` não é materializada | `DECIDIDA` | esta fase — o gerador aprende a Linha A (insumo do web e das métricas por persona); detalhe em `fase_7.md` §"P7-10" |
+| P7-10 | ~~o gerador de gabarito só produz Linha B — a Linha A não é materializada~~ | `RESOLVIDA` | nasce `domains/academus/seed/linha_a.py`: sintetiza o incidente (initial_access, privilege_escalation, exfiltration) do seed, e os `verification_predicates` do pack passam a ser os do incidente (VPN revogada + escopo desabilitado + ausência de exfiltração), não mais a contenção da Linha B; ver abaixo |
 | P7-11 | condição temporal de branch (`before`/`after`) carrega e nunca ramifica | `ABERTA` | o gatilho da P6-3 (a gramática temporal nascer); detalhe em `fase_7.md` §"P7-11" |
 | P7-12 | a superfície do hook do auditor acumulou cinco achados M/L sem rastro | `ABERTA` | a próxima edição da allowlist do auditor, ou esta fase; detalhe em `fase_7.md` §"P7-12" |
 | P7-13 | o harness não planta violação onde a correção entrou | `ABERTA` | **Onda 3 da Estrutura Agêntica** (TDD endurecido); detalhe em `fase_7.md` §"P7-13" |
@@ -188,12 +188,44 @@ Herdada da Fase 7, gatilho **Fase 12**. Detalhe em `fase_7.md` §"P7-4".
 
 Herdada da Fase 7, gatilho **Fase 12**. Detalhe em `fase_7.md` §"P7-5".
 
-#### P7-10 — o gerador só produz Linha B
+#### P7-10 — o gerador só produz Linha B — RESOLVIDA
 
-Herdada da Fase 7, `DECIDIDA`. Detalhe em `fase_7.md` §"P7-10". Esta fase
-ensina a Linha A ao gerador — é insumo do web completo e das métricas por
-persona, e a decisão do proprietário (13/09) foi ampliar o mecanismo, não a
-spec.
+Herdada da Fase 7. Detalhe da origem em `fase_7.md` §"P7-10". A decisão do
+proprietário (13/09) foi ampliar o mecanismo, não a spec.
+
+**RESOLVIDA na abertura da Fase 8.** Nasce `domains/academus/seed/linha_a.py`,
+o dono do gabarito do incidente. As decisões de desenho, na altitude do
+registro da Fase 7 §5.2 (a spec fixa a forma; o conteúdo determinístico é
+escolha do gerador, documentada e reversível):
+
+- **Sintetizar do seed, não semear tabela de incidente.** A Linha B é lida do
+  banco porque é dado acadêmico real; a Linha A (acesso por credencial de
+  serviço, escalação, exfiltração) é o incidente sobreposto, não business
+  state. Semear VPN/exfiltração no Postgres anteciparia o evidence-simulator
+  (Fase 9) e furaria a fronteira de `01` §2. O incidente nasce do seed,
+  determinístico, com prova negativa (dois seeds diferem).
+- **A forma é a de `04` §3 e do exemplo de `ground_truth.schema.yaml`** —
+  `initial_access`, `privilege_escalation`, `exfiltration`, com `source_ip` de
+  faixa de documentação (RFC 5737), `credential_state`, `mfa`, `projections`,
+  `discoverability`.
+- **O ator é conta de serviço (`svc_academus`), não a `conta_alvo` da Linha B**:
+  são dois vetores — a Linha B é adulteração de nota por conta docente, a
+  Linha A é ransomware por credencial de serviço. Conflati-los faria as
+  métricas medirem o mesmo ator.
+
+**A correção de fundo**: `gabarito.predicados_de_verificacao` devolvia a
+contenção da Linha B (`absence_of grade_change_retroactive`) e
+`service_restoration: not_applicable` — o que a Fase 7 mediu como o defeito
+(TTCV/TTRV incomputáveis, contenção medindo integridade). Agora os
+`verification_predicates` do pack são os do incidente (VPN revogada + escopo
+desabilitado + ausência de exfiltração; restauração pelas duas flags). Os casos
+`GC-` da Linha B seguem sendo a linha de integridade (TTIV), outra pergunta.
+
+Provado: `test_linha_a.py` (10 testes — determinismo nas duas direções, forma
+de `04` §3, IP de documentação, predicados do incidente); pack rematerializado
+contra o banco semeado, `lint` sem achados, `dryrun` percorre, `check_synthetic_data`
+verde, parser estrito verde, invariantes 2 e 3 verdes (constantes geradas de
+flag e event_type). Suíte 858 → 868.
 
 #### P7-11 — condição temporal de branch nunca ramifica
 
