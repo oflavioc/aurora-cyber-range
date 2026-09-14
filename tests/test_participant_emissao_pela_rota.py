@@ -57,10 +57,40 @@ CREDENCIAL = "credencial-de-teste-por-persona"
 
 SUPERFICIE = parse_yaml(REPO_ROOT / "range-core" / "participant" / "api_surface.yaml")
 
-#: As nove — DERIVADAS da superfície. Rota que declare `emite` entra sozinha, e
-#: é por isso que a lista não é escrita aqui.
+#: A folha de predicado — `09` §4.0 — DERIVADA do catálogo, não escrita aqui.
+#: Um `event_type` é referenciável por folha de predicado sse, e só se,
+#: `effect_class: state_effect` **e** `metric_side: verification` (a CONJUNÇÃO;
+#: nenhuma perna basta sozinha — `range-core/engine/loader/contract_rules.py`,
+#: que expõe o mesmo conjunto como `event_catalog_predicate_leaf`). É a espécie
+#: "ato que muda o mundo simulado", e `verificacao.py` mede a propriedade que
+#: escopa este arquivo: *"nenhuma das nove satisfaz a conjunção"*.
+_REGISTRO = parse_yaml(REPO_ROOT / "contracts" / "events.schema.yaml")["x-aurora-registry"]
+_EFFECT_CLASS = _REGISTRO["effect_class"]
+_METRIC_SIDE = _REGISTRO["metric_side"]
+FOLHA_DE_PREDICADO = frozenset(
+    tipo
+    for tipo, classe in _EFFECT_CLASS.items()
+    if classe == "state_effect" and _METRIC_SIDE.get(tipo) == "verification"
+)
+
+#: As nove declarações de `03` §3.4 — DERIVADAS da superfície. Rota que declare
+#: `emite` entra sozinha; é por isso que a lista não é escrita aqui.
+#:
+#: O ESCOPO É POR CLASSE DE EVENTO, E POR ISSO É DURÁVEL. `emite` + `papeis`
+#: também casa emissores de AÇÃO — `/participant/continuity`
+#: (`continuity_action_taken`), item 4 da Fase 8. Uma ação não é declaração de
+#: §3.4: ela é folha de predicado por `09` §4.0, e nenhuma das nove o é.
+#: Escopar por `FOLHA_DE_PREDICADO` (e não por `status: planejada`) mantém a
+#: exclusão quando a continuidade for implementada na Wave 4 e a rota deixar de
+#: ser `planejada` — a cobertura do emissor de continuidade é o gate próprio
+#: dela (T808), não este. Filtrar por `effect_class: declaration` sozinho
+#: DERRUBARIA `communication_submitted` e `regulatory_notice_submitted`, que são
+#: `state_effect` por classe e estão entre as nove — daí a conjunção, não a
+#: perna única.
 DECLARACOES = [
-    r for r in SUPERFICIE["rotas"] if r.get("emite") and r.get("papeis")
+    r
+    for r in SUPERFICIE["rotas"]
+    if r.get("emite") and r.get("papeis") and r["emite"] not in FOLHA_DE_PREDICADO
 ]
 
 
@@ -106,7 +136,9 @@ class AsNoveRotasEmitem(_ComSuperficie):
     """Uma prova por rota, derivada da superfície — nenhuma lista intermediária."""
 
     def test_ha_nove_rotas_de_declaracao(self):
-        """A conta de `03` §3.4. Se virar dez, este teste cobra o motivo."""
+        """As nove de classe DECLARAÇÃO em `03` §3.4 — emissor que não é folha de
+        predicado (`09` §4.0). Emissor de ação novo não infla esta conta; rota de
+        declaração nova que falte, sim — e aí este teste cobra o motivo."""
         self.assertEqual(len(DECLARACOES), 9)
 
     def test_cada_rota_emite_o_event_type_QUE_DECLARA(self):
