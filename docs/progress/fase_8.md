@@ -92,7 +92,7 @@ a relevância para ESTA fase.
 | P7-14 | seis afirmações de registro/teste sem disposição (varredura P7-6) | `ABERTA` | a varredura de fechamento desta fase (regra (b) da P7-6); detalhe em `fase_7.md` §"P7-14" |
 | P7-15 | o extremo inclusivo contra a redação-alvo de `03` §3.2 | `ABERTA` | PR spec-change na abertura; o `spec-guardian` mede antes; detalhe em `fase_7.md` §"P7-15" |
 | P7-16 | `PHASE_0_CHECKLIST.md` afirma demonstração que foi atestação | `ABERTA` | PR spec-change de uma linha na abertura; detalhe em `fase_7.md` §"P7-16" |
-| P7-17 | o destino da P2-17 (start do `frozen_interval`) passou em silêncio | `ABERTA` | abertura — remedir se o start ainda vem da âncora; detalhe em `fase_7.md` §"P7-17" |
+| P7-17 | ~~o destino da P2-17 (start do `frozen_interval`) passou em silêncio~~ | `RESOLVIDA` | medido: o start vem da âncora (`inject_engine.py:579`, fixado por teste) e chega intacto ao desconto; decisão (a) aceitar a âncora — é conformidade com a fixture normativa do contrato, e o sinal é o que `09` §3.1 quer; (b) spec-change fica como destino se um cenário fizer a largura importar; ver abaixo |
 | P7-19 | ~~`check_progress_consistency` isenta `ENTREGA` de migrar, mesmo não entregue~~ | `RESOLVIDA` | `esta_concluida` lê a linha de Status de fechamento e `confere_pauta` reprova `ENTREGA` numa fase concluída; eixo_l prova nas três pernas; ver abaixo |
 | P7-20 | `04` §8 declara `validate`/`migrate` que não existem | `ABERTA` | PR de alinhamento do `04` §8 na abertura; detalhe em `fase_7.md` §"P7-20" |
 
@@ -255,10 +255,49 @@ o `spec-guardian` mede o drift antes.
 Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-16". PR spec-change de uma linha
 na abertura.
 
-#### P7-17 — o destino da P2-17 passou em silêncio
+#### P7-17 — o destino da P2-17 passou em silêncio — RESOLVIDA
 
-Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-17". Remedir na abertura se o
-start do `frozen_interval` ainda vem da âncora.
+Herdada da Fase 7. Detalhe da origem em `fase_7.md` §"P7-17" e na P2-17
+(`fase_2.md`). O gatilho que a P2-17 declarou — "a Fase 6 decide se a largura a
+mais importa" — passou sem menção, e a P7-17 existe para tirá-lo do silêncio.
+
+**Medição (o que faltava).** O `start` do `frozen_interval` **ainda vem da
+âncora**: `range-core/engine/inject_engine.py` `_frozen_interval` devolve
+`start = ancora.exercise_timestamp` (linha 579), fixado pelo teste
+`test_inject_engine.…test_technical_failure_registra_os_extremos_do_intervalo`
+(`start == self.a01.exercise_timestamp`). Daí ele flui **sem transformação**
+para o desconto da Fase 6: `metrics/epoch.py` `_intervalo` lê `start`/`end` do
+payload, `congelamentos` os une, e `decorrido` os subtrai da janela da métrica.
+A âncora chega intacta ao número.
+
+**Decisão: aceitar a âncora como start — é conformidade com a spec, não
+aproximação a corrigir.** A fixture normativa do próprio contrato
+(`contracts/events.schema.yaml`, "ROLLBACK COM CONGELAMENTO") equaciona
+`start = exercise_timestamp da âncora` com o que `06` T3 chama de *"do inject
+falho até a retomada"*. As duas rotas de remediação que a P2-17 pôs:
+
+- **(a) aceitar a âncora** — nenhum código muda; o invariante já é gate. **Escolhida.**
+- **(b) exigir que o `rollback_performed` nomeie o inject falho** — campo novo de
+  payload, e portanto `spec-change` mais contrato, com aprovação humana
+  (`CLAUDE.md`). O contrato mostra por que (b) é caro e não trivial:
+  `to_event_id`/`to_inject_id` nomeiam a **âncora**, não a falha; localizar a
+  falha exigiria varrer `inject_fired`, "dependência de uma projeção de estado
+  num evento de facilitação que nada na spec autoriza"
+  (`events.schema.yaml:559-562`).
+
+**Por que (a) é segura e não só barata.** A única divergência entre âncora e
+inject falho aparece quando o facilitador rebobina para **antes** da falha — e
+aí o intervalo gravado é mais largo, descontando tempo que correu normal. Mas o
+sinal é o que `09` §3.1 **quer**: desconta a mais, nunca a menos — *"a equipe
+não é penalizada por bug do ambiente"*. Superestimar o congelamento credita a
+equipe; nunca a pune. E a spec não oferece campo para distinguir o caso, então
+(a) é o teto do que se lê do envelope sem `spec-change`.
+
+**Destino de (b), registrado para não voltar em silêncio:** é a saída *se e
+quando* um cenário fizer a largura a mais importar — um `technical_failure`
+cuja âncora fique muito antes da falha, com tempo de exercício legítimo no meio
+que o crédito a mais distorça um TTCV a ponto de mudar a leitura do AAR. Até
+lá, não se justifica. Apresentado ao proprietário no fechamento desta fase.
 
 #### P7-19 — `ENTREGA` não entregue sai sem destinatário — RESOLVIDA
 
