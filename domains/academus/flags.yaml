@@ -189,8 +189,13 @@ flags:
   # CONTINUIDADE — as acoes de `02_DOMAIN_ACADEMUS.md` secao 9 que aplicam
   # efeito por flag propria. Nao sao degradacoes de ataque, sao MITIGACOES: o
   # operador as liga para restaurar/sustentar um servico enquanto o incidente
-  # dura. Por isso `severity_weight` baixo — ligar continuidade nao deve
-  # penalizar o indice de saude institucional como uma degradacao penaliza.
+  # dura. Por isso `severity_weight: 0` — e nao apenas "baixo". O indice de saude
+  # (`range-core/api/projecoes.py::indice_de_saude`) e `100 - 100*(peso_ativo /
+  # peso_total)` somando TODAS as flags: peso positivo numa mitigacao faria ligar
+  # continuidade DERRUBAR o indice (a instituicao pareceria mais doente por
+  # responder) e ainda entraria no denominador, deslocando o peso das demais.
+  # Peso 0 mantem a flag fora da conta de dano; a visibilidade vem do painel
+  # "Continuidade" (o `blocos` inclui por `effect_ui`, nao por peso).
   #
   # Duas das sete acoes reusam flag existente (congelamento de notas ->
   # academus.grades_readonly; documentos -> academus.transcript_issuance_blocked)
@@ -205,7 +210,7 @@ flags:
     default: false
     category: availability
     domain_area: academic
-    severity_weight: 1
+    severity_weight: 0
     wallboard_group: "Continuidade"
     consumers: [academus-api, academus-web, wallboard]
     effect_ui: "Avaliação em modo offline — prova aplicada fora do AVA, restaura a avaliação enquanto o AVA está degradado"
@@ -216,7 +221,7 @@ flags:
     default: false
     category: availability
     domain_area: academic
-    severity_weight: 1
+    severity_weight: 0
     wallboard_group: "Continuidade"
     consumers: [academus-api, academus-web, wallboard]
     effect_ui: "Matrícula manual ativa — período de matrícula mantido por atendimento presencial enquanto a matrícula online está fora"
@@ -227,7 +232,7 @@ flags:
     default: false
     category: availability
     domain_area: academic
-    severity_weight: 1
+    severity_weight: 0
     wallboard_group: "Continuidade"
     consumers: [academus-api, academus-web, wallboard]
     effect_ui: "Prazo de matrícula estendido — alivia a pressão sobre o período de matrícula"
@@ -238,7 +243,7 @@ flags:
     default: false
     category: integrity
     domain_area: academic
-    severity_weight: 1
+    severity_weight: 0
     wallboard_group: "Continuidade"
     consumers: [academus-api, academus-web, wallboard]
     effect_ui: "Prova adiada — avaliação remarcada para preservar a integridade"
@@ -249,7 +254,7 @@ flags:
     default: false
     category: availability
     domain_area: academic
-    severity_weight: 1
+    severity_weight: 0
     wallboard_group: "Continuidade"
     consumers: [academus-api, academus-web, wallboard]
     effect_ui: "Recuperação acadêmica ativa — remedia perda de avaliação, com custo docente"
