@@ -226,9 +226,10 @@ media_event:
 ## 8. CLI
 
 ```
-range-cli scenario validate <path>   # schema, flags, personas, rubricas (com versão),
-                                     # objetivos, verification_predicates
-range-cli scenario migrate <path>
+# validate  — NÃO é verbo próprio: o `lint` cobre estas checagens (ver nota abaixo)
+#             schema, flags, personas, rubricas (com versão),
+#             objetivos, verification_predicates
+# migrate   — só existe quando houver antecessora real a migrar (§4, P7-18)
 range-cli scenario lint <path>       # inject sem objetivo e sem noise, DP sem consequência,
                                      # t_relative fora de ordem, mídia sem deadline,
                                      # branch_policy, event_type inexistente,
@@ -241,7 +242,20 @@ range-cli evidence build <path>      # gera projeções a partir do ground truth
 range-cli evidence verify <path>     # consistência fato → projeções
 ```
 
-`validate`, `lint` e `evidence verify` rodam no CI. `dryrun` é pré-requisito de ensaio.
+`lint`, `dryrun` e `evidence verify` rodam no CI (`lint`/`dryrun` sobre o pack de
+exemplo sanitizado — ver P7-9). `dryrun` é pré-requisito de ensaio.
+
+> **`validate` e `migrate` não são verbos próprios, e isto entrou no `spec-change`
+> da P7-20.** A lista acima os exibia como subcomandos com checagem própria; na
+> Fase 7 mediu-se que:
+> - **`validate`** seria um `lint` com menos checagens — o `lint` já roda a lista
+>   inteira de passos do boot (`_passos`), inclusive as que `validate` faria.
+>   Nenhum critério de DoD pede os dois separados, e um verbo a mais seria
+>   superfície de recusa nascendo fora do lugar. O `lint` **é** o `validate`.
+> - **`migrate`** só existe quando houver uma antecessora real a migrar. A
+>   política de versionamento de §4 (na forma do `spec-change` P7-18) é `[N]` com
+>   recusa instruída enquanto N-1 não existir; o verbo nasce com o primeiro
+>   `v<n>_to_v<n+1>.py`, não antes.
 
 ### 8.1 `materialize` escreve, e as três propriedades que decorrem disso
 

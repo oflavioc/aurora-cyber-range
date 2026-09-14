@@ -166,7 +166,12 @@ Use `bash finalize_phase0.sh` para executar essa ordem. Ele **para antes da tag*
   refutável, uma via por rodada, o que nove auditorias comprovaram. A proteção da
   integridade do repositório repousa em branch protection com `enforce_admins`, no
   job `spec_freeze` do CI e nos seis verificadores — nenhum deles alcançável pelo
-  hook do auditor, e todos demonstrados funcionando nos itens 9 a 13.
+  hook do auditor. Os itens 9 a 13 foram fechados **por atestação** (P34), e não
+  por demonstração; o registro da Fase 0 (`fase_0.md`) diz que eles "seguem
+  pendentes" de demonstração. A frase anterior aqui dizia "todos demonstrados
+  funcionando nos itens 9 a 13", e era a mesma afirmação falsa que o E1 da
+  varredura da P7-6 achou: corrigida no lado do registro e deixada aqui, no
+  checklist, que é conjunto SPEC.
 
   O propósito do hook é impedir que o auditor corrija por acidente em vez de
   reportar, preservando a separação de papéis. Não é conter adversário.
