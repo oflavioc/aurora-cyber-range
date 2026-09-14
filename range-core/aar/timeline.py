@@ -68,6 +68,7 @@ from datetime import datetime
 from contracts.generated.events import (
     BARS_SCORE_SUBMITTED,
     INTEGRITY_VALIDATION_DECLARED,
+    VERIFICATION_PREDICATE_SATISFIED,
 )
 
 from range_core.declarations.contrassinatura import completa
@@ -230,9 +231,21 @@ def _incompativeis(
     achado — a §3.2 da a essa janela outra leitura, *"manteve degradacao
     desnecessaria"*, e ela e sobre custo e nao sobre contradicao.
 
-    Os extremos entram: `inicio` e o instante da declaracao e `fim` o do veredito,
-    e evento gravado no mesmo segundo da declaracao ja e posterior a ela na ordem
-    do fluxo. Recorta-los abriria buraco de um segundo em cada ponta.
+    Os extremos entram para FATOS genuinos: `inicio` e o instante da declaracao e
+    `fim` o do veredito, e um fato gravado no mesmo segundo ja e posterior a ela
+    na ordem do fluxo. Recorta-los abriria buraco de um segundo em cada ponta.
+
+    O PROPRIO VEREDITO NAO ENTRA — P7-15. `verification_predicate_satisfied` cai
+    em `fim` por construcao (e o evento que FECHA o par), e ele nao e "evidencia
+    incompativel com a declaracao": e a prova de que a contencao passou a ser
+    verdadeira, o oposto de incompativel. A redacao-alvo de `03` §3.2 trata
+    "evento incompativel" e "contencao verificavel" como duas afirmacoes em
+    instantes distintos (T+38 e T+52 no exemplo) — lista-lo aqui produziria a
+    contradicao "incompativel em T+52 / verificavel em T+52". O filtro por
+    `truth_layer` era grosso demais: `00` §3.2 separa `state_effect` (fato do
+    mundo) de `machine` (evento de mecanismo, como o veredito), ambos em
+    `ground_truth`, e a §3.2 quer so o primeiro. Achado como M1 da 9ª auditoria
+    da Fase 6, medido pelo spec-guardian na abertura da Fase 8.
     """
     if tipo != ASSEGURACAO_PREMATURA:
         return ()
@@ -240,6 +253,7 @@ def _incompativeis(
         evento
         for evento in fluxo
         if evento.truth_layer == CAMADA_DE_GROUND_TRUTH
+        and evento.event_type != VERIFICATION_PREDICATE_SATISFIED
         and inicio <= instante(evento) <= fim
     )
 

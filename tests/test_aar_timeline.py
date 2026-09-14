@@ -209,13 +209,17 @@ class OsEventosIncompativeis(_ComExercicio):
 
         self.assertNotIn(acao.event_id, [e.event_id for e in janela.incompativeis])
 
-    def test_o_proprio_veredito_fecha_a_janela_e_e_de_ground_truth(self):
-        """O extremo entra, e e deliberado: recorta-lo abriria buraco na ponta."""
+    def test_o_proprio_veredito_NAO_e_evidencia_incompativel(self):
+        """P7-15: o `verification_predicate_satisfied` fecha o par e cai em `fim`,
+        mas nao e evidencia incompativel — e a prova de que a contencao passou a
+        ser verdadeira. Lista-lo produziria "incompativel em T / verificavel em T"
+        na redacao-alvo de `03` §3.2. Os extremos seguem inclusivos para FATOS
+        genuinos; so o veredito sai."""
         self.declara_contencao()
         veredito = self.verifica_contencao()
         [janela] = self.janelas(ASSEGURACAO_PREMATURA)
 
-        self.assertIn(veredito.event_id, [e.event_id for e in janela.incompativeis])
+        self.assertNotIn(veredito.event_id, [e.event_id for e in janela.incompativeis])
 
 
 class ALacunaDeConscienciaSituacional(_ComExercicio):
