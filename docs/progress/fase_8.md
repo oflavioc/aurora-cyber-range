@@ -69,7 +69,7 @@ a relevância para ESTA fase.
 
 | Pendência | Assunto | Estado | Vence em |
 |---|---|---|---|
-| P8-1 | Onda 2 da Estrutura Agêntica: instanciar os oito papéis e desenhar a reconciliação fase↔demanda — a decisão de abertura que a adoção agendou para cá | `DECIDIDA` | apresentação ao proprietário na abertura; ver abaixo |
+| P8-1 | ~~Onda 2 da Estrutura Agêntica: instanciar os oito papéis e desenhar a reconciliação fase↔demanda — a decisão de abertura que a adoção agendou para cá~~ | `RESOLVIDA` | aceite de abertura do proprietário no chat em 2026-09-14; os oito papéis estão instalados e em uso (tech-lead produziu o desenho da Fase 8); reconciliação "marco por fora, SDD por dentro" registrada na adoção; ver abaixo |
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | esta fase, junto do destino do pack (P7-9); detalhe em `fase_7.md` §"P1-7" |
 | P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `ABERTA` | medição de volume; detalhe em `fase_4.md`/`fase_7.md` §"P4-8" |
 | P5-2 | a categoria "declarações do exercício" da trilha não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio — **material desta fase** (item 4, continuidade); detalhe em `fase_5.md` §"P5-2" |
@@ -96,18 +96,43 @@ a relevância para ESTA fase.
 | P7-19 | ~~`check_progress_consistency` isenta `ENTREGA` de migrar, mesmo não entregue~~ | `RESOLVIDA` | `esta_concluida` lê a linha de Status de fechamento e `confere_pauta` reprova `ENTREGA` numa fase concluída; eixo_l prova nas três pernas; ver abaixo |
 | P7-20 | `04` §8 declara `validate`/`migrate` que não existem | `ABERTA` | PR de alinhamento do `04` §8 na abertura; detalhe em `fase_7.md` §"P7-20" |
 
-#### P8-1 — Onda 2: os oito papéis e a reconciliação fase↔demanda
+#### P8-1 — Onda 2: os oito papéis e a reconciliação fase↔demanda — RESOLVIDA
 
 **Nasce com a fase**, e é a decisão de abertura que a adoção da Estrutura
 Agêntica agendou para cá (`docs/ADOCAO_ESTRUTURA_AGENTICA.md` §0.4). A Onda 2
 traz os oito papéis de agente (PO, TL, UI, core, build, data, QA, doc) e a
 máquina SDD de sete fases governando também o roadmap — e a primeira tarefa é
 **reconciliar** duas contagens de "fase": a fase-marco do roadmap do Aurora
-(âncora + auditoria de checkpoint) e a fase-demanda da máquina SDD do kit. É
-`DECIDIDA` porque o gatilho chegou (a abertura); a forma da reconciliação é do
-proprietário. Vence quando ele decidir o modelo e os oito papéis forem
-instanciados sobre os agentes existentes (`scenario-designer`, `spec-guardian`,
-`checkpoint-auditor`).
+(âncora + auditoria de checkpoint) e a fase-demanda da máquina SDD do kit.
+
+**RESOLVIDA no aceite de abertura (2026-09-14).** O proprietário aceitou a
+abertura no chat ("vai com as recomendações"). Os oito papéis estão instalados
+em `.claude/agents/` e já em uso — o `tech-lead` produziu o desenho técnico
+desta fase (`fase_8_plan.md`, `fase_8_tasks.md`). A reconciliação é **"marco
+por fora, SDD por dentro"**: o roadmap governa os marcos (âncora +
+`checkpoint-auditor`); a máquina SDD de sete fases governa as demandas fora do
+roadmap. Os agentes pré-existentes (`scenario-designer`, `spec-guardian`,
+`checkpoint-auditor`) permanecem e não foram substituídos.
+
+**Decisões de abertura da Fase 8 ratificadas no mesmo aceite** (detalhe em
+`fase_8_plan.md`; a forma concreta de D2/D3 na sua §"Decisões da abertura"):
+
+- **D1 — leitura do item 3 é autenticada e vinculada ao token da persona**
+  (`GET /participant/view` devolve a camada `reported` da própria persona;
+  isolação real, A não pede a visão de B). A superfície de participante passa a
+  modelar rotas de **leitura**, não só emissores.
+- **D2 — payload fechado de `continuity_action_taken`**: `action_id` (enum das
+  7), `effects:[{flag,value}]`, `cost` (o tradeoff de `02` §9). Evolução de
+  contrato derivada de `02` §9 — **não** `spec-change`.
+- **D3 — cinco flags novas de continuidade** em `domains/academus/flags.yaml`
+  (`offline_exam_mode`, `manual_enrollment_active`, `enrollment_deadline_extended`,
+  `exam_postponed`, `academic_recovery_active`); as outras duas ações reusam
+  `grades_readonly` e `transcript_issuance_blocked`. `check_spec_flags.py` não
+  exige que flag declarada seja citada na spec (só reprova citada-e-não-declarada),
+  então não há spec-change.
+- **Fronteira do item 3**: a Fase 8 entrega só a **isolação** de leitura; o
+  conteúdo divergente de `information_distribution.yaml` (`03` §4) é assimetria
+  da **Fase 10**.
 
 #### P1-7 — id de inject pode vazar a linha
 
