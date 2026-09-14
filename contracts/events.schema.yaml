@@ -315,6 +315,29 @@ allOf:
         payload:
           $ref: '#/$defs/bars_score_payload'
 
+  # QUINTO PAYLOAD POR event_type, e a regra continua: nasce quando o consumidor
+  # nasce. O consumidor e a acao de continuidade da Fase 8 — 02 secao 9 lista as
+  # sete acoes com efeito mecanico e custo, e a Fase 8 as entrega. Sem contrato,
+  # o `payload` de `continuity_action_taken` chegaria ao fold e ao AAR em
+  # qualquer forma: o fold aplica o `state_effect` genericamente lendo
+  # `effects[].flag` / `effects[].value`, e sem os campos fixados ele nao teria o
+  # que ler; o custo — o tradeoff de 02 secao 9 — viaja para o AAR e sem `cost`
+  # se perderia.
+  #
+  # O binding OBJ-10 e por `event_type`, nao por payload: `range-core/objectives/
+  # projecao.py` le apenas `event.event_type` (o marcador `auto`), e fechar o
+  # payload nao toca essa leitura.
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: continuity_action_taken
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: '#/$defs/continuity_action_taken_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
@@ -626,6 +649,63 @@ $defs:
         type: string
         minLength: 1
       end:
+        type: string
+        minLength: 1
+
+  # -------------------------------------------------------------------------
+  # PAYLOAD DE `continuity_action_taken` — 02 secao 9. Fecha o payload aberto
+  # deste tipo pela Fase 8, item 4.
+  #
+  # FECHADO POR `additionalProperties: false`, como os demais payloads por
+  # event_type: a lista de chaves e conhecida, e chave nova sem contrato vira
+  # campo que ninguem le — a mesma classe do event_type inexistente de 09 secao
+  # 4. Isto tambem recusa `objective_ids` dentro do payload, ao lado da proibicao
+  # de topo de 09 secao 1.2: o binding evento -> objetivo e da projecao.
+  #
+  # `action_id` E ENUM FECHADO das SETE acoes de 02 secao 9. Valor fora do
+  # conjunto e acao que ninguem implementou — o fold nao teria efeito a aplicar,
+  # e o AAR nao teria custo a exibir.
+  #
+  # `effects` E O QUE MUTA O ESTADO, e nao o evento: a acao carrega
+  # `[{flag, value}]`, e o fold aplica o `state_effect` genericamente lendo estes
+  # dois campos e escrevendo no registry de flags. Os NOMES sao `string` e chegam
+  # como DADO — o contrato do envelope nao pode referenciar flag de dominio sem
+  # o core passar a conhecer `academus.*`, que e o invariante 4 lido ao contrario.
+  # `value` e `boolean` ou `number` porque as flags do adapter sao de um dos dois
+  # tipos. `minItems: 1`: acao sem efeito e acao que nao muda o mundo.
+  #
+  # `cost` E O TRADEOFF TEXTUAL da coluna "Custo" de 02 secao 9, e viaja para o
+  # AAR — e a metade que torna a decisao de continuidade uma escolha, e nao um
+  # botao gratis.
+  # -------------------------------------------------------------------------
+  continuity_action_taken_payload:
+    type: object
+    required: [action_id, effects, cost]
+    additionalProperties: false
+    properties:
+      action_id:
+        enum:
+          - offline_exam
+          - freeze_grade_posting
+          - manual_enrollment
+          - enrollment_deadline_extension
+          - exam_postponement
+          - emergency_document_issuance
+          - academic_recovery
+      effects:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [flag, value]
+          additionalProperties: false
+          properties:
+            flag:
+              type: string
+              minLength: 1
+            value:
+              type: [boolean, number]
+      cost:
         type: string
         minLength: 1
 
