@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "043755fe004f9d444caf222b807307c3a32e85ed",
+    "gerado_de_head": "21ceba99260b81d96a1526d37bd15bba7b4b44b0",
     "gerado_em": "2026-09-14",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -366,7 +366,7 @@
     "tests/test_pack_loader_probes.py": "2817476353b087402715bc652371eaa05bde11ac4d8a5b224860868710ec5699",
     "tests/test_package_data.py": "2bcdf987c8484965b927c028ab055e7f60ebd5aec758042c4d066c6b699e2112",
     "tests/test_participant_contrassinatura.py": "4fdbaf519bb978cb61007aa8b88b97002dcbd8e8baded043cfbed5b259aba471",
-    "tests/test_participant_emissao_pela_rota.py": "613a840762c759a9929d15226e219ba332c7bd988e55041594e18a30738ebc67",
+    "tests/test_participant_emissao_pela_rota.py": "534b0e6f628aac1bd03aa72931c0176ef47f8b1d47555797c851e1de195b8396",
     "tests/test_procedencia_dos_pacotes.py": "ed478b6f3ffcabaf2944bbdff273f6e15fc482fc0ec789857ba2c8c52e03a6a0",
     "tests/test_procedencia_probes.py": "db1e6760748b8e39a8753bd8354dd1c4de8e9131d9e6d367cfbad89b6db2549f",
     "tests/test_projecoes.py": "b6acff16d49901b6df5faa69d48f7d8ef541cd141f8e2c0f5c10e1acd0cde326",
