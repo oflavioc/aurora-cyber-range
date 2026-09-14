@@ -190,3 +190,50 @@ rotas:
     efeito: reversivel
     emite: assessment_submitted
     status: implementada
+
+  # -------------------------------------------------------------------------
+  # LEITURA POR PERSONA — Fase 8, item 3, decisao D1.
+  #
+  # A PRIMEIRA ROTA DE LEITURA desta superficie: ate aqui ela so modelava
+  # EMISSORES (as nove declaracoes). Nenhum campo novo foi preciso — `efeito:
+  # nenhum` sem `emite` ja e expressavel (a rota `/participant/session` acima o
+  # usa), e o perfil de participante ja admite rota que nao grava evento.
+  #
+  # Devolve o frame TOTAL da camada `reported` DA PERSONA DO TOKEN — vinculada
+  # ao `sub`/`persona` do proprio token, nunca a de outra persona (isolamento de
+  # `06` T14, `03` §6 "cada persona ve apenas sua camada `reported`"). As SETE
+  # personas leem, inclusive `juridico` e `pesquisa`, que tem painel e nao tem
+  # declaracao — leem a propria camada como as demais. INV-7: o servidor deriva
+  # (projecao `reported.py`, T813), o cliente pinta.
+  #
+  # `efeito: nenhum` — le e projeta; nao escreve, nao emite.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /participant/view
+    papeis: [reitoria, pro_reitoria, ti, dpo, juridico, pesquisa, comunicacao]
+    efeito: nenhum
+    status: planejada
+
+  # -------------------------------------------------------------------------
+  # ACAO DE CONTINUIDADE — Fase 8, item 4. Emite `continuity_action_taken`
+  # (participant_action / state_effect), cujo payload a T801 fechou. O cliente
+  # envia so `action_id`; o servidor deriva `effects`+`cost` da tabela de dominio
+  # injetada em `montar()` (INV-4: o nucleo nao importa `domains/`).
+  #
+  # `pro_reitoria`: as sete acoes de `02` §9 sao continuidade ACADEMICA
+  # (prova, matricula, notas, prazo, documentos, recuperacao), e `03` §6 poe
+  # exatamente esse dominio no painel da Pro-Reitoria Academica — "calendario,
+  # diplomas, colacao, matricula". `02` §9 chama-as "acoes reais disponiveis nos
+  # dashboards", e este e o dashboard delas. (`continuity_action_taken` fica FORA
+  # da tabela de `03` §3.4 — ver a familia "ato que muda o mundo simulado" —,
+  # entao a persona vem de §6, nao de §3.4.)
+  #
+  # `efeito: reversivel` como as demais declaracoes: o que a acao move e estado
+  # de simulacao (flag), que o rollback reconstroi.
+  # -------------------------------------------------------------------------
+  - method: POST
+    path: /participant/continuity
+    papeis: [pro_reitoria]
+    efeito: reversivel
+    emite: continuity_action_taken
+    status: planejada
