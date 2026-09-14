@@ -296,6 +296,32 @@ rotas:
     efeito: nenhum
 
   # -------------------------------------------------------------------------
+  # MODO "PROVA EM ANDAMENTO" — Fase 8, item 1. Devolve o frame TOTAL das
+  # sessoes da prova (cada sessao `alive`/`dropped` no minuto corrente), que a
+  # tela `exam-mode` pinta — INV-7: o servidor deriva, o cliente pinta.
+  #
+  # `flags: []`, E NAO `[academus.lms_session_drop_rate]` como o plano escreve.
+  # A razao e o esquema desta superficie, nao uma escolha: `flags` aqui e
+  # conferido como CONJUNTO IGUAL a `degradacao` — e `flags` significa, por este
+  # arquivo (cabecalho), "flags que a rota consulta para DEGRADAR". Esta rota nao
+  # degrada: ela sempre responde 200 com o frame inteiro, e consome
+  # `lms_session_drop_rate` como INSUMO DA DERIVACAO do frame, nao como gatilho de
+  # 503/latencia. Declara-la em `flags` sem uma entrada de `degradacao` reprova; e
+  # com uma entrada de `degradacao` declararia uma recusa que a rota nao faz.
+  # O consumo do valor da flag mora no handler/derivacao (T810), do mesmo modo
+  # que os filtros da rota de auditoria moram no handler (T812) e nao aqui.
+  #
+  # `efeito: nenhum` — le e deriva; nao escreve evento, nao muda flag.
+  # -------------------------------------------------------------------------
+  - method: GET
+    path: /exam/session-status
+    papeis: [professor, secretaria]
+    flags: []
+    degradacao: []
+    status: planejada
+    efeito: nenhum
+
+  # -------------------------------------------------------------------------
   # AS TRES ENTIDADES de `07` Fase 3 precisam de leitura, e o RBAC precisa de
   # rota que NEGUE — o item 3 da DoD e "RBAC nega acesso cruzado entre perfis",
   # e negacao sem rota que a exerca nao e verificavel.
