@@ -297,7 +297,9 @@ equipe; nunca a pune. E a spec não oferece campo para distinguir o caso, então
 quando* um cenário fizer a largura a mais importar — um `technical_failure`
 cuja âncora fique muito antes da falha, com tempo de exercício legítimo no meio
 que o crédito a mais distorça um TTCV a ponto de mudar a leitura do AAR. Até
-lá, não se justifica. Apresentado ao proprietário no fechamento desta fase.
+lá, não se justifica. **Ratificada pelo proprietário no chat em 2026-09-14**
+("Ratifico a decisão (a) da P7-17"): a rota (a) é a decisão de fechamento, e
+(b) fica registrada como destino condicionado ao cenário que a exija.
 
 #### P7-19 — `ENTREGA` não entregue sai sem destinatário — RESOLVIDA
 
