@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "0836944a4ef55c71728b7f2eea545bf92522a5ae",
+    "gerado_de_head": "192da849ab7710754ad4ebdab758ac4140468397",
     "gerado_em": "2026-09-14",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -271,8 +271,8 @@
     "scripts/check_insumo_de_metrica_probes.py": "cddd14d795085dc1f7a9c02d57a02cd5d5450adaa0e30abc7dc569369f90ccb5",
     "scripts/check_pinned_images.py": "b8febad4e141312fa5084f1ed5441f6d40898371b3408294e965107d8298989b",
     "scripts/check_pinned_images_probes.py": "e5b5dc2e88983d7dd5fb160b5f979f4d9ad08ee05b959b4a01cc89ea4e4b790d",
-    "scripts/check_progress_consistency.py": "d9ae66df6af533d0ecf8a27de509650ca558761a13cfbf54d3cb4a123226fdb2",
-    "scripts/check_progress_consistency_probes.py": "107cb3f767094c12547604b18a3263250f1110fe1e2689dd705f35cde49879b9",
+    "scripts/check_progress_consistency.py": "ce69d657b67804afa0ab6d0a208dcd02e3bae181b3cc7ca6a75e6e11a5bff75a",
+    "scripts/check_progress_consistency_probes.py": "e966a931905e838d8fa70981f5ffe60de935f8065bad93210bbfa2ad76430b47",
     "scripts/check_prova_do_exercicio_4h.py": "eb3ae738fe8fb086e0507f44a2cefef92a11d858770e6369ba8f1a9a323a72bf",
     "scripts/check_prova_do_exercicio_4h_probes.py": "1ccf2fb7a9e13994790e07d1208897139c7b94dc391c2aae1c697bf83d48c952",
     "scripts/check_prova_do_seed.py": "be21d5c1f70cc42f89728f7565b5cf9954bf00b7c327a7f32935d8afda10185a",
