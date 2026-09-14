@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "a93d702a5feb6573dc2ce0a19003bec07a633d1e",
+    "gerado_de_head": "0836944a4ef55c71728b7f2eea545bf92522a5ae",
     "gerado_em": "2026-09-14",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -139,7 +139,8 @@
     "domains/academus/seed/dataset.py": "ac5497fc9c8aafe86094e6932764490233d8fe698d5c71a8eb92270052acc934",
     "domains/academus/seed/demonstracao.py": "0c5dfa82341d99feb4cc0e142d2210a8044f95687a3ea559c8bff67db7193e79",
     "domains/academus/seed/discriminantes.py": "5dfd1a9c9f2fa9eee2d9bb77c9532c1a09d0fcaa034612c7b499caefd7388f8f",
-    "domains/academus/seed/gabarito.py": "afcd08c0e8c5bfc67d795b0d963404a4237a8e5fee45598dc4e1534b7c559557",
+    "domains/academus/seed/gabarito.py": "c69a6661a0fd08d88d68bdca35a47cb062114d2c81782f1544d19ad58c6d7b64",
+    "domains/academus/seed/linha_a.py": "821bd09bd997e3f97e83c8872f13d8389afbe2b18fb270faa4e608a93e150229",
     "domains/academus/seed/linha_b.py": "c39601e598176f479a940d98c68ba2fe406f52df824a5d03151e071f1e0209d3",
     "domains/flags_pendentes.yaml": "71d311c53043a2326c8b182f6f70c9f0a9fda219563cf04ede62e9fc079f4ffd",
     "domains/prontus/STUB.md": "fcbbb04f531b47aa1e2280d43f385512c1068bd38d5564b74555f9b7d0eff484",
@@ -260,7 +261,7 @@
     "scripts/check_fabrica_liga_emissor_probes.py": "9092831da29b7595bf8cbecd1e9be658e76acb36b2224d5fbbbad3a99d0e9519",
     "scripts/check_fold_authority.py": "3c18ab689197cd90c77fb230bfc67e363003b26c91f67319bafe4813e5cb91f8",
     "scripts/check_fold_authority_probes.py": "7b9138e6645f89727413221c001f36adf75dcc616f423034f3e02f17e6c18afd",
-    "scripts/check_gabarito_fora_do_git.py": "fba793aea303bbfd3a489fea57e5dbb43d3cdaefda6cfe9ba706d5edb5738033",
+    "scripts/check_gabarito_fora_do_git.py": "b25189a09883dd06a12acb77a2d3cc7a2267b1eb6a7ec5b2d82cb309e7dcc034",
     "scripts/check_gabarito_fora_do_git_probes.py": "f62230581bb4bae0666804b7b1207df6d033da1f6df35ca610e678bb8260dbc2",
     "scripts/check_gate_coverage.py": "591f2b6fb66546900770f6ff5c366b0e5e525f5418dffe9bdaccc3d7525846cf",
     "scripts/check_gate_coverage_probes.py": "dba9466a80609bfe0295b2cd9816cc27d45ceccb5b7598c068a1e751f0d31755",
@@ -351,6 +352,7 @@
     "tests/test_inject_engine.py": "b737691bb190b6bef0638ca1b3a791aed78c297a5682426172833251fb9f64a4",
     "tests/test_inject_engine_probes.py": "2e3ab0343fc79830b335e73e2631e51fa996781c08b0ce3ad6222eb511873c1f",
     "tests/test_laco_de_verificacao.py": "424abce8a76d27e105cde8a6bb4848fd7be41b8dce0ebccfbf1f9e2bd373065e",
+    "tests/test_linha_a.py": "7aa5dd5161223636338f71cac378467e8cfe87bc854d38707d0382b3d969af7f",
     "tests/test_metrics_calibracao.py": "0f7acb584a792fc5625859c026fc5d4be4c6fa8861511916fd10dd8d0f5fa005",
     "tests/test_metrics_declaracao.py": "94c7b4982f47a2eb76efe329f4a02889f18841bdc8d7d6e1a0e6a0f5ebfbbf05",
     "tests/test_metrics_epoch.py": "6a6aba20d68e6a05faf98a36ba229c12686560fdcbc2f92d61e2ce71a65cc0ef",
