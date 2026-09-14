@@ -51,7 +51,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domains.academus.seed import dataset, linha_b
+from domains.academus.seed import dataset, linha_a, linha_b
 from range_core.events.integrity import canonical_json
 
 #: `contracts/ground_truth.schema.yaml`: `^GC-[0-9]+$`.
@@ -82,50 +82,24 @@ class Gabarito:
 
 
 def predicados_de_verificacao() -> dict:
-    """`verification_predicates` do gabarito da Linha B — `03` §3.1.
+    """`verification_predicates` do pack — os do INCIDENTE (Linha A), `04` §3.
 
-    E FUNCAO DE MODULO, e nao literal enterrado em `gerar`. A arvore nao depende
-    do seed nem do banco: ela e a mesma em toda execucao. Enquanto morava dentro
-    de `gerar`, a unica forma de exercita-la era subir Postgres e semear — entao
-    a guarda de carga que a julga (`pack_loader.confere_qualificador_since`)
-    nunca era exercida contra ELA, so contra arvores montadas a mao no teste.
+    P7-10 MOVEU A AUTORIDADE DAQUI. Esta funcao devolvia a contencao da Linha B
+    (`absence_of grade_change_retroactive`) e `service_restoration:
+    not_applicable` — e isso estava errado. `04` §3, `03` §3.1 e o exemplo
+    positivo de `ground_truth.schema.yaml` definem a contencao do PACK como a do
+    ransomware: VPN revogada, escopo desabilitado, ausencia de exfiltracao. A
+    autoria do pack de 4 h (Fase 7) mediu a consequencia — `TTCV`/`TTRV`
+    incomputaveis, o par de contencao medindo integridade. Agora ela delega a
+    `linha_a`, que e o dono do gabarito do incidente. Os casos `GC-` da Linha B
+    seguem sendo a linha de INTEGRIDADE (TTIV), outra pergunta.
 
-    E o mesmo argumento que `tests/fixtures/pack_completo.py` escreve sobre a
-    propria fixture: a forma que a spec escreve tem de atravessar o loader, ou a
-    guarda fica provada contra o duplo em vez de contra o artefato.
-
-    Devolve estrutura NOVA a cada chamada: constante de modulo seria mapeamento
-    mutavel compartilhado entre gabaritos, e o `ground_truth` que `gerar`
-    devolve e dicionario comum que qualquer chamador pode alterar.
+    Continua funcao de modulo, sem seed nem banco: a arvore de predicados e a
+    mesma em toda execucao, e a guarda de carga que a julga
+    (`pack_loader.confere_qualificador_since`) e exercida contra ELA, e nao so
+    contra arvores de teste. Devolve estrutura NOVA a cada chamada.
     """
-    return {
-        # CONTIDO = a conta comprometida parou. Predicado sobre o mundo, e
-        # nao sobre declaracao — `09` §4.0.
-        "containment": {
-            "absence_of": {
-                "fact_class": "grade_change_retroactive",
-                # `SINCE_SELF` do loader, escrito como literal e nao importado:
-                # `domains/` nao importa de `range_core.engine.loader` em lugar
-                # nenhum, e criar a primeira dependencia para reusar uma string
-                # de quatro letras trocaria um acoplamento barato por um caro.
-                #
-                # ESTE CAMPO E QUALIFICADOR DE INSTANTE, e nao referencia a
-                # evento. Ele dizia `containment_declared`, e a confusao era de
-                # ESPECIE: `03` §3.1 define `self` como *"a partir do instante
-                # em que este predicado passou a ser avaliado na linhagem
-                # corrente"*, e `containment_declared` e `event_type` de camada
-                # `declaration` (`09` §4.0) — o que a equipe AFIRMA, que `00`
-                # §3 proibe de tocar ground truth. O contrato deixa o campo como
-                # string livre, entao nada acusava; quem recusa e a guarda de
-                # carga, e ela recusava o pack inteiro.
-                "since": "self",
-            }
-        },
-        "service_restoration": {
-            "not_applicable": "a Linha B nao derruba servico: o incidente e "
-            "de integridade, e restauracao nao e a pergunta"
-        },
-    }
+    return linha_a.predicados_de_verificacao()
 
 
 def _consulta(motor, sql: str, conta_alvo: str) -> list:
@@ -191,8 +165,12 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
     for nome in ("ruido_de_manutencao", "credenciais_compartilhadas", "legitimos_normais"):
         contagens[nome] = len(_consulta(motor, linha_b.CONJUNTOS[nome], conta_alvo))
 
+    # A LINHA A vem ANTES da B na lista de fatos, e a ordem e a do incidente: o
+    # acesso inicial e o primeiro fato do mundo. Ela e SINTETIZADA do seed (nao
+    # lida do banco) porque o incidente e overlay, nao dado academico — ver
+    # `linha_a`. Os `verification_predicates` do pack sao os dela.
     ground_truth = {
-        "facts": fatos,
+        "facts": linha_a.facts(seed) + fatos,
         "line_b_cases": casos,
         "verification_predicates": predicados_de_verificacao(),
     }
