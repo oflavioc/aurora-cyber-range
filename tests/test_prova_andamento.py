@@ -209,14 +209,39 @@ class PropriedadesDaCadencia(unittest.TestCase):
     def test_o_conjunto_CRESCE_de_fato_com_o_minuto(self):
         """Par da monotonia: "derruba tudo sempre" tambem seria monotono.
 
-        Para taxa intermediaria, o minuto tardio derruba ESTRITAMENTE mais que o
-        cedo, e nem tudo cai no minuto 1 nem sobra tudo no fim.
+        Para taxa intermediaria, um minuto tardio derruba ESTRITAMENTE mais que
+        um cedo, e ainda ha sobreviventes — nem tudo cai no minuto 1 nem sobra
+        tudo no minuto tardio.
+
+        A JANELA E ANCORADA NO PROPRIO CONJUNTO, nao numa constante magica: o
+        corte tardio precisa ficar abaixo do maior `fracao_do_sujeito` do
+        conjunto (com folga) para que EXISTAM sobreviventes neste seed. A versao
+        anterior fixava minuto 30 (corte 0,9988), acima do maior fracao deste
+        seed pinado — e ~29% dos seeds (`corte**1000`) a fariam vermelha por
+        SATURACAO, nao por defeito: era a assercao que nao era robusta, nao a
+        cadencia. Minuto 1 vs 10 em taxa 0,2 da corte tardio 0,893, folgado
+        abaixo do maior fracao, e a probabilidade de saturacao espuria cai para
+        ~0,893**1000.
         """
-        cedo = self._derr(0.2, 1)
-        tarde = self._derr(0.2, 30)
-        self.assertTrue(cedo < tarde, "o conjunto nao cresceu com o minuto")
+        taxa, m_cedo, m_tarde = 0.2, 1, 10
+        cedo = self._derr(taxa, m_cedo)
+        tarde = self._derr(taxa, m_tarde)
+
+        # A janela deixa sobreviventes POR CONSTRUCAO: o corte tardio fica
+        # abaixo do maior fracao do conjunto. Este oraculo-lado (independente de
+        # `derrubadas`) e o que torna a assercao robusta ao seed — se algum seed
+        # futuro violar isto, o defeito e da janela, e a mensagem o diz.
+        maior_fracao = max(fracao_do_sujeito(SEED, ROTA, FLAG, s) for s in MUITOS)
+        self.assertLess(
+            _corte_cumulativo(taxa, m_tarde), maior_fracao,
+            "janela mal escolhida: o corte tardio satura o conjunto neste seed",
+        )
+
+        self.assertTrue(cedo < tarde, "o conjunto nao cresceu estritamente com o minuto")
         self.assertTrue(0 < len(cedo), "ninguem caiu no minuto 1 com taxa 0,2")
-        self.assertTrue(len(tarde) < len(MUITOS), "tudo caiu cedo demais")
+        self.assertTrue(
+            len(tarde) < len(MUITOS), "tudo caiu — nenhum sobrevivente na janela"
+        )
 
     def test_MONOTONA_na_taxa_no_mesmo_minuto(self):
         """Taxa maior derruba ao menos tantas quanto a menor, no mesmo minuto."""
