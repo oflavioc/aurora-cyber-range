@@ -180,6 +180,30 @@ class Repositorio:
             ).all()
             return [como_json(nota) for nota in notas]
 
+    def sessoes_de_prova(self, class_id: str, escopo: Escopo) -> list[str] | None:
+        """Os alunos matriculados na turma — as sessoes da prova em andamento.
+
+        **Passa pela turma**, e o escopo vem de la, como o `diario`: quem nao ve
+        a turma nao ve as sessoes dela, e uma segunda regra aqui seria a mesma
+        regra escrita duas vezes (D4). Nao ha entidade de "sessao de prova" no
+        modelo — a matricula E a sessao: o participante que esta na turma e o que
+        pode estar com a prova aberta. Deriva de business state, e nao de estado
+        inventado.
+
+        ORDENADA pela chave de matricula, pelo mesmo motivo do `diario`: sem
+        `ORDER BY` o Postgres nao promete ordem, e o frame mudaria de forma entre
+        duas leituras identicas.
+        """
+        with Session(self._engine) as sessao:
+            if self._turma(sessao, class_id, escopo) is None:
+                return None
+            ids = sessao.scalars(
+                select(Enrollment.student_id)
+                .where(Enrollment.class_id == class_id)
+                .order_by(Enrollment.enrollment_id)
+            ).all()
+            return list(ids)
+
     def lancar_nota(
         self,
         class_id: str,

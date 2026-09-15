@@ -45,8 +45,10 @@ from fastapi import FastAPI
 from domains.academus.api.app import montar
 from domains.academus.api.auth import Autenticacao
 from domains.academus.api.degradacao import (
+    PROPORCIONAL,
     Degradador,
     LeituraDeEstado,
+    ProvaEmAndamento,
     cache_do_ambiente,
 )
 from domains.academus.api.emissor import Emissor
@@ -107,22 +109,49 @@ def criar() -> FastAPI:
     provisorio = PostgresEventStore(ExerciseClock(datetime(1970, 1, 1)), dsn)
     store = PostgresEventStore(clock_do_store(provisorio), dsn)
 
-    return montar(
-        autenticacao=Autenticacao(
-            superficie=carregar_superficie(), segredo=jwt_secret()
+    superficie = carregar_superficie()
+
+    # A LEITURA DE ESTADO E O SEED SAO UM SO, e por isso saem aqui em vez de
+    # inline: o `Degradador` e o `ProvaEmAndamento` leem o MESMO estado corrente e
+    # decidem sobre o MESMO seed. Duas leituras ou dois seeds fariam a queda de
+    # sessao da degradacao e a da prova em andamento divergirem — a mesma flag
+    # produzindo dois conjuntos, que o facilitador leria como uma das duas nao
+    # funcionando.
+    #
+    # A CONSTRUCAO DO CACHE VEM DE `degradacao`, e nao de `range_core.state`:
+    # `check_api_surface.py` reprova qualquer modulo de `api/` que importe estado,
+    # menos aquele. A primeira versao deste arquivo importava direto e o gate
+    # reprovou — ver a nota la.
+    leitura = LeituraDeEstado(
+        store=store,
+        declarations=pack.declarations,
+        cache=cache_do_ambiente(exige(VARIAVEL_DO_REDIS)),
+    )
+    seed = random_seed()
+
+    # O NOME DA FLAG DA PROVA VEM DA SUPERFICIE, COMO DADO — nunca por literal nem
+    # por import de constante gerada, que `check_contract_literals.py` e
+    # `check_api_surface.py` recusam em `api/`. A queda de sessao da prova em
+    # andamento e a MESMA flag que degrada o diario por `proporcional`: um so
+    # fenomeno, duas leituras. Se nenhuma rota a declarar, nao ha prova a montar.
+    flag_da_prova = next(
+        (
+            entrada.flag
+            for rota in superficie.rotas.values()
+            for entrada in rota.degradacao
+            if entrada.condicao == PROPORCIONAL
         ),
+        None,
+    )
+
+    return montar(
+        autenticacao=Autenticacao(superficie=superficie, segredo=jwt_secret()),
         repositorio=Repositorio(engine_do_ambiente(dsn)),
-        degradador=Degradador(
-            leitura=LeituraDeEstado(
-                store=store,
-                declarations=pack.declarations,
-                # A CONSTRUCAO VEM DE `degradacao`, e nao de `range_core.state`:
-                # `check_api_surface.py` reprova qualquer modulo de `api/` que
-                # importe estado, menos aquele. A primeira versao deste arquivo
-                # importava direto e o gate reprovou — ver a nota la.
-                cache=cache_do_ambiente(exige(VARIAVEL_DO_REDIS)),
-            ),
-            seed=random_seed(),
+        degradador=Degradador(leitura=leitura, seed=seed),
+        prova=(
+            None
+            if flag_da_prova is None
+            else ProvaEmAndamento(leitura=leitura, seed=seed, flag=flag_da_prova)
         ),
         # O EMISSOR, LIGADO — B2 da sexta auditoria. `api_surface.yaml` declara
         # `emite: audit_query_performed` para `GET /audit/grade-changes` desde a

@@ -75,10 +75,12 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from domains.academus.api.auth import Autenticacao, autoriza, escopo_do_pedido
 from domains.academus.api.degradacao import (
     Degradador,
+    ProvaEmAndamento,
     confere_flags_declaradas,
     degrada,
 )
 from domains.academus.api.emissor import Emissor
+from domains.academus.api.prova_andamento import ALIVE
 from domains.academus.api.repositorio import Contexto, Escopo, Repositorio
 
 app = FastAPI(
@@ -159,6 +161,46 @@ async def ler_diario(
     if notas is None:
         raise HTTPException(status_code=404, detail="turma nao encontrada")
     return {"class_id": class_id, "grades": notas}
+
+
+@app.get("/exam/session-status")
+async def status_das_sessoes(
+    request: Request,
+    class_id: str,
+    exercise_minute: int,
+    escopo: Escopo = Depends(escopo_do_pedido),
+    repositorio: Repositorio = Depends(repositorio_do_pedido),
+) -> dict:
+    """Modo "Prova em andamento" — o frame TOTAL das sessoes, Fase 8 item 1.
+
+    SEMPRE 200 COM O FRAME INTEIRO, e nao 503: esta rota nao degrada. Ela LE o
+    valor de `academus.lms_session_drop_rate` como insumo da derivacao e devolve
+    cada sessao `alive`/`dropped` no minuto corrente — INV-7: o servidor deriva,
+    o cliente pinta. `04` D9/`07` Fase 8.
+
+    O HANDLER NAO TEM FLAG AO ALCANCE. Quem le o estado e o `ProvaEmAndamento`,
+    montado no boot e residente em `degradacao.py` — o unico modulo de `api/`
+    autorizado a ler `range_core.state`. Aqui so chegam a turma (business state)
+    e o minuto de EXERCICIO (insumo declarado, nunca relogio de parede).
+
+    `exercise_minute` E OBRIGATORIO e nao tem default: o minuto do relogio de
+    exercicio e um insumo, e um default inventado responderia o frame de um
+    instante que ninguem pediu.
+
+    Sem `ProvaEmAndamento` ligado (uma API que so autentica), a taxa e ausente e
+    ninguem cai: o frame sai inteiro vivo — nao um erro, e nao um estado
+    inventado.
+    """
+    sessoes = repositorio.sessoes_de_prova(class_id, escopo)
+    if sessoes is None:
+        raise HTTPException(status_code=404, detail="turma nao encontrada")
+
+    prova: ProvaEmAndamento | None = getattr(request.app.state, "prova", None)
+    if prova is None:
+        frame = {sessao: ALIVE for sessao in sessoes}
+    else:
+        frame = prova.frame("/exam/session-status", sessoes, exercise_minute)
+    return {"class_id": class_id, "exercise_minute": exercise_minute, "sessions": frame}
 
 
 def contexto_do_pedido(request: Request) -> Contexto:
@@ -332,6 +374,7 @@ def montar(
     repositorio: Repositorio,
     degradador: Degradador | None = None,
     emissor: Emissor | None = None,
+    prova: ProvaEmAndamento | None = None,
 ) -> FastAPI:
     """Liga autenticacao, persistencia e degradacao. Chamado pelo processo e pela suite.
 
@@ -352,6 +395,7 @@ def montar(
     app.state.repositorio = repositorio
     app.state.degradador = degradador
     app.state.emissor = emissor
+    app.state.prova = prova
     confere_emissor_declarado(autenticacao.superficie, emissor)
     if degradador is not None:
         confere_flags_declaradas(

@@ -318,7 +318,7 @@ rotas:
     papeis: [professor, secretaria]
     flags: []
     degradacao: []
-    status: planejada
+    status: implementada
     efeito: nenhum
 
   # -------------------------------------------------------------------------
