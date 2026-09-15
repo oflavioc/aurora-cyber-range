@@ -204,6 +204,47 @@ def cai(seed: int, rota: str, flag: str, sujeito: str, taxa: float) -> bool:
     return fracao_do_sujeito(seed, rota, flag, sujeito) < taxa
 
 
+@dataclass(frozen=True, slots=True)
+class ProvaEmAndamento:
+    """Le o valor da flag de queda de sessao e monta o frame da prova. Fase 8.
+
+    **Mora AQUI de proposito, e nao no handler.** `check_api_surface.py` reprova
+    qualquer modulo de `api/` que leia `range_core.state`, menos `degradacao.py`:
+    estado ao alcance do handler e `if flag:` esperando para acontecer. O Modo
+    "Prova em andamento" NAO degrada — a rota sempre responde 200 com o frame
+    TOTAL (INV-7) —, mas ainda assim CONSOME o valor da flag como insumo da
+    derivacao, e por isso a leitura de estado vive no mesmo motor que a da
+    degradacao, e nao numa segunda porta.
+
+    O NOME DA FLAG CHEGA COMO DADO, nunca por literal nem por import de constante
+    gerada: quem monta o processo o extrai da propria superficie declarada (a
+    entrada `proporcional`) e o entrega aqui. E a mesma forma que faz o core
+    receber `flag_defaults` em vez de conhecer flag de dominio.
+
+    A DERIVACAO E PURA e vive em `prova_andamento` — importado TARDE, dentro do
+    metodo, porque `prova_andamento` importa `fracao_do_sujeito` deste modulo, e
+    o import no topo fecharia o ciclo. O motor le o estado; a cadencia e funcao
+    pura de (seed, rota, flag, sujeitos, taxa, minuto).
+    """
+
+    leitura: LeituraDeEstado
+    seed: int
+    flag: str
+
+    def frame(self, rota: str, sujeitos, minuto: int) -> dict[str, str]:
+        """O frame TOTAL das sessoes no `minuto` de EXERCICIO — cada uma alive/dropped.
+
+        `minuto` e o relogio de EXERCICIO (insumo declarado), nunca o de parede.
+        `taxa` sai do estado corrente: flag ausente ou nao numerica vira `0.0`,
+        e ai ninguem cai — a rota responde o frame inteiro vivo, e nao um erro.
+        """
+        from domains.academus.api import prova_andamento
+
+        estado = self.leitura.estado()
+        taxa = float(estado.flags.get(self.flag) or 0.0)
+        return prova_andamento.frame(self.seed, rota, self.flag, sujeitos, taxa, minuto)
+
+
 def confere_flags_declaradas(superficie: Superficie, declarations: Declarations) -> None:
     """A guarda de boot da P3-11. Chamada por `montar`, e nao por rota.
 
