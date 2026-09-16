@@ -212,7 +212,7 @@ rotas:
     path: /participant/view
     papeis: [reitoria, pro_reitoria, ti, dpo, juridico, pesquisa, comunicacao]
     efeito: nenhum
-    status: planejada
+    status: implementada
 
   # -------------------------------------------------------------------------
   # ACAO DE CONTINUIDADE — Fase 8, item 4. Emite `continuity_action_taken`
