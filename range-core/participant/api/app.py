@@ -51,8 +51,10 @@ from contracts.generated.events import (
     SEPARATE_INCIDENT_DECLARED,
     SERVICE_RESTORATION_DECLARED,
 )
+from range_core.events.envelope import Event
 from range_core.participant.api import tokens
 from range_core.participant.api.emissor import EmissaoRecusada, Emissor
+from range_core.participant.reported import project
 
 app = FastAPI(
     title="AURORA — participant-api",
@@ -107,13 +109,22 @@ async def abrir_sessao(corpo: dict, request: Request) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _persona_autorizada(request: Request, rota: str) -> tuple[str, str]:
+def _persona_autorizada(
+    request: Request, rota: str, metodo: str = "POST"
+) -> tuple[str, str]:
     """Devolve `(persona, actor_id)` do token, ou recusa.
 
     As personas admitidas vêm de `personas_por_rota`, montado da superfície —
     que é a mesma tabela que `check_api_surface.py` confere contra a coluna
     `Quem` de `03` §3.4. Escrever a lista aqui criaria duas fontes sobre a mesma
     fronteira, e a que diverge em silêncio é sempre a que ninguém olha.
+
+    A chave é `(METODO, rota)`, e não só a rota: a superfície indexa por método,
+    e a leitura por persona chegou como `GET /participant/view` ao lado das nove
+    `POST`. O `metodo` tem default `"POST"` porque as nove declarações o
+    invocam sem passá-lo — o comportamento delas fica intacto —, e a rota de
+    leitura o passa explícito. Sem isso, `GET /participant/view` resolveria
+    contra a chave `("POST", ...)`, que não existe, e toda persona receberia 403.
 
     **403, e não 404.** A pergunta *"esta persona pode usar esta rota?"* se
     decide sem consultar recurso nenhum — é a distinção que o repositório do
@@ -129,7 +140,7 @@ def _persona_autorizada(request: Request, rota: str) -> tuple[str, str]:
     except tokens.TokenInvalid:
         raise HTTPException(status_code=401, detail="token invalido")
 
-    admitidas = sessao.personas_por_rota.get(("POST", rota), frozenset())
+    admitidas = sessao.personas_por_rota.get((metodo, rota), frozenset())
     if claims.persona not in admitidas:
         raise HTTPException(status_code=403, detail="persona sem acesso a esta acao")
     return claims.persona, claims.sub
@@ -244,6 +255,49 @@ async def submeter_avaliacao(corpo: dict, request: Request) -> dict:
     return await _declara(
         request, corpo, "/participant/assessment", ASSESSMENT_SUBMITTED
     )
+
+
+# ---------------------------------------------------------------------------
+# LEITURA POR PERSONA — `GET /participant/view`, Fase 8 item 3, decisao D1
+# ---------------------------------------------------------------------------
+
+
+def _serializa(evento: Event) -> dict:
+    """A forma da view de um evento `reported`.
+
+    Os campos mínimos de `06` T14 — `event_id`, `truth_layer`, `persona`,
+    `payload` —, e nada acima disso: o modelo de conteúdo da view é provisório
+    (Fase 10), o durável é a isolação. Não devolve as camadas acima de
+    `reported` porque a projeção nunca as inclui no frame, e não o envelope
+    inteiro para não exportar campo que a Fase 10 ainda vai decidir.
+    """
+    return {
+        "event_id": evento.event_id,
+        "truth_layer": evento.truth_layer,
+        "persona": evento.persona,
+        "payload": dict(evento.payload),
+    }
+
+
+@app.get("/participant/view")
+async def ver(request: Request) -> dict:
+    """O frame `reported` TOTAL da persona DO TOKEN — nunca de outra (D1).
+
+    A persona vem do token, e não de parâmetro do cliente: é a mesma recusa de
+    `POST /participant/session`, quem apresenta a credencial de uma persona vê a
+    fatia **daquela** persona, e de nenhuma outra. Sem token → 401; persona não
+    admitida → 403; ambos por `_persona_autorizada`, que aqui recebe o método
+    `GET` porque a superfície indexa a leitura por `("GET", ...)`.
+
+    O servidor deriva (INV-7): lê o fluxo total do store por `read_all()`,
+    projeta por `reported.project` e devolve o frame; o cliente pinta o payload.
+    """
+    persona, _actor_id = _persona_autorizada(request, "/participant/view", "GET")
+    sessao = _sessao(request)
+    if sessao.emissor is None:
+        raise HTTPException(status_code=503, detail="emissor nao configurado")
+    frame = project(persona, sessao.emissor.store.read_all())
+    return {"persona": persona, "reported": [_serializa(e) for e in frame]}
 
 
 def montar(
