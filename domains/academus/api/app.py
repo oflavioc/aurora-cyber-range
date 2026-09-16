@@ -247,6 +247,10 @@ async def alteracoes_de_nota(
     period_start: str,
     period_end: str,
     group_by: str | None = None,
+    filter_user: str | None = None,
+    filter_ip: str | None = None,
+    filter_window: str | None = None,
+    filter_authorization: str | None = None,
     repositorio: Repositorio = Depends(repositorio_do_pedido),
 ) -> dict:
     """Item 1 da DoD da Fase 6 — consultar a trilha com filtro de periodo EMITE.
@@ -285,6 +289,10 @@ async def alteracoes_de_nota(
             period_end=period_end,
             group_by=group_by,
             result_count=len(linhas),
+            filter_user=filter_user,
+            filter_ip=filter_ip,
+            filter_window=filter_window,
+            filter_authorization=filter_authorization,
             escopo=escopo_do_pedido(request),
         )
     return {"linhas": linhas, "total": len(linhas)}
