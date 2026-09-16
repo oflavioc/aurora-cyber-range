@@ -1,8 +1,8 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "c08cd378f04514b64dd24257a823f4f3fa33ff4e",
-    "gerado_em": "2026-09-15",
+    "gerado_de_head": "5e08a8191bd09920dd3c44b8c9118396932d06f1",
+    "gerado_em": "2026-09-16",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
       "docs/process/phase_anchors.tsv** (muda a cada fase por desenho)",
@@ -203,11 +203,12 @@
     "range-core/objectives/projecao.py": "6161c956aca849e7b10c6cf3c0a50a0cf6b7f90ecb23bc40e778b09098bf33ed",
     "range-core/participant/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "range-core/participant/api/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "range-core/participant/api/app.py": "eb3ccd4868d53d3bb83b1929a4fda2183d1050f52a50f0c723930cda587904a5",
+    "range-core/participant/api/app.py": "0f61e752cd4b1304a506af33c53a1b07d1890ea8feb7a24c40a8ccf2bff7fe54",
     "range-core/participant/api/emissor.py": "c903b3e98a005c791bc284c7a8639bf9600c7ca6447e137d0fde33a8379850a2",
     "range-core/participant/api/tokens.py": "5b49115d85a5685a738a41d639d40d542e305d542191f455fe31eec7f3bc3db0",
-    "range-core/participant/api_surface.yaml": "eec0d7bb46f53501890caec81a718ea95f6874af4180a738931c2f176cc607e0",
+    "range-core/participant/api_surface.yaml": "abb55b2a84806920343556456ab64564e345ce947e63957ea3dfba43f949c60b",
     "range-core/participant/observability_hooks.yaml": "52963db0a9c2e183060e74db04bdc2c02fb25e7befd21c8e456b652cad19e051",
+    "range-core/participant/reported.py": "300b69dd2f393e5290fea117651044b8f1043a8c5d6c3dd89716c47841625514",
     "range-core/rubrics/__init__.py": "663e874bfda12aa4833a728c2f35b4a04a6dd9ea0447727c687c633f69e19dc1",
     "range-core/rubrics/analytical_rigor.v1.yaml": "21120382a7ffee4026357aaf51e36327321a1e219b1f94bf2fe867745ec99c6e",
     "range-core/rubrics/business_continuity.v1.yaml": "45919b74d23df1ac3c99e8af731cc8ad2a5b56f71ae76201ecfe27048a5641e4",
