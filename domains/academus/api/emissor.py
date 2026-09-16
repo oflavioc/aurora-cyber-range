@@ -81,14 +81,23 @@ class Emissor:
         period_end: str,
         group_by: str | None,
         result_count: int,
+        filter_user: str | None,
+        filter_ip: str | None,
+        filter_window: str | None,
+        filter_authorization: str | None,
         escopo: Escopo,
     ) -> None:
         """`audit_query_performed` — o hook declarado desde o esqueleto da Fase 1.
 
-        Os `payload_fields` são **exatamente** os quatro que
-        `observability_hooks.yaml` declara: `period_start`, `period_end`,
-        `group_by` e `result_count`. Acrescentar campo aqui sem declarar lá faria
-        o hook descrever um evento que não é o emitido.
+        Os `payload_fields` são **exatamente** os que `observability_hooks.yaml`
+        declara: `period_start`, `period_end`, `group_by`, `result_count` e os
+        quatro filtros do Console de investigação (T812) — `filter_user`,
+        `filter_ip`, `filter_window`, `filter_authorization`. Acrescentar campo
+        aqui sem declarar lá faria o hook descrever um evento que não é o emitido.
+
+        OS QUATRO FILTROS VIAJAM SEMPRE, `None` INCLUSIVE. Campo declarado não
+        some por ausência de parâmetro — a mesma regra de `group_by`: sumir faria
+        o hook descrever um envelope que o Console não emitiu.
         """
         if not escopo.persona:
             # RECUSA ALTA, e o lugar é este. `Escopo.persona` é opcional no tipo
@@ -121,6 +130,10 @@ class Emissor:
                     "period_end": period_end,
                     "group_by": group_by,
                     "result_count": result_count,
+                    "filter_user": filter_user,
+                    "filter_ip": filter_ip,
+                    "filter_window": filter_window,
+                    "filter_authorization": filter_authorization,
                 },
             )
         )

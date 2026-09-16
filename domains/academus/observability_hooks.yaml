@@ -18,9 +18,15 @@
 #
 # `audit_query_performed` deixou de ser hook sem produtor na peca 3A da Fase 6:
 # `GET /audit/grade-changes` existe, e `domains/academus/api/emissor.py` grava.
-# Os `payload_fields` daqui sao EXATAMENTE os quatro que aquele metodo escreve —
+# Os `payload_fields` daqui sao EXATAMENTE os que aquele metodo escreve —
 # acrescentar campo la sem declarar aqui faria o hook descrever um evento que
 # nao e o emitido.
+#
+# OS QUATRO FILTROS DO CONSOLE DE INVESTIGACAO chegaram na T812 (Fase 8 item 2):
+# `filter_user, filter_ip, filter_window, filter_authorization`, ao lado dos
+# campos originais de periodo/agrupamento. `02` secao 7:124 lista os cinco
+# filtros do console; periodo ja sao dois campos. A fidelidade assinatura x hook
+# e gate de `tests/test_api_emissao.py`.
 #
 # `vpn_access_revoked` SAIU DAQUI — B1 da quarta auditoria da Fase 6.
 #
@@ -45,4 +51,4 @@ hooks:
   - event_type: audit_query_performed
     trigger: "GET /audit/grade-changes com filtro de período e agrupamento por usuário"
     producer: academus-api
-    payload_fields: [period_start, period_end, group_by, result_count]
+    payload_fields: [period_start, period_end, group_by, result_count, filter_user, filter_ip, filter_window, filter_authorization]
