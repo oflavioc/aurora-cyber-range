@@ -36,7 +36,9 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
+import yaml
 from conformidade_de_envelope import ValidacaoDeEnvelope
 
 from contracts.generated.events import AUDIT_QUERY_PERFORMED
@@ -69,6 +71,31 @@ PERIODO = {
     "period_start": "2026-03-01T00:00:00",
     "period_end": "2026-03-31T00:00:00",
 }
+
+
+def campos_declarados_pelo_hook() -> set[str]:
+    """O conjunto de `payload_fields` que `observability_hooks.yaml` declara
+    para `audit_query_performed`.
+
+    Derivado do hook em vez de hardcodado: o hook é a FONTE ÚNICA do contrato do
+    payload, e ele evolui de forma legítima (a T812 levou o console de
+    investigação de 4 para 8 campos). Fixar a lista aqui obrigaria a reeditar o
+    gate a cada extensão do contrato — e um literal defasado falha pelo motivo
+    errado. Lendo do hook, a igualdade continua provando payload↔hook e passa a
+    acompanhar o contrato sem afrouxar a asserção (segue IGUALDADE, não subset).
+    """
+    raiz = Path(__file__).resolve().parent.parent
+    documento = yaml.safe_load(
+        (raiz / "domains" / "academus" / "observability_hooks.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    return {
+        campo
+        for hook in documento["hooks"]
+        if hook["event_type"] == AUDIT_QUERY_PERFORMED
+        for campo in hook["payload_fields"]
+    }
 
 
 @dataclass
@@ -204,15 +231,22 @@ class AConsultaEmiteOEvento(_ComRota):
         self.assertEqual(evento.persona, "pro_reitoria")
         self.assertEqual(evento.actor_id, "S-9")
 
-    def test_o_payload_carrega_os_quatro_campos_do_hook(self):
+    def test_o_payload_carrega_EXATAMENTE_os_campos_do_hook(self):
+        """O payload emitido tem os campos que o hook declara — nem mais, nem
+        menos. A asserção é IGUALDADE de conjunto (não subconjunto): campo a
+        mais no payload sem declaração no hook, ou campo declarado que some do
+        payload, quebram os dois igualmente.
+
+        O conjunto esperado é derivado de `observability_hooks.yaml` (fonte
+        única do contrato), e não hardcodado: a T812 estendeu o console de
+        investigação de 4 para 8 campos, e um literal fixo aqui defasaria e
+        falharia pelo motivo errado a cada extensão legítima.
+        """
         self.monta(linhas=[{"id": 1}, {"id": 2}, {"id": 3}])
         self.consulta(group_by="user")
         [evento] = self.emitidos()
 
-        self.assertEqual(
-            set(evento.payload),
-            {"period_start", "period_end", "group_by", "result_count"},
-        )
+        self.assertEqual(set(evento.payload), campos_declarados_pelo_hook())
 
     def test_o_result_count_e_o_TAMANHO_DO_QUE_A_CONSULTA_DEVOLVEU(self):
         """Não é constante, e não é o total do banco: é o que a equipe viu.
