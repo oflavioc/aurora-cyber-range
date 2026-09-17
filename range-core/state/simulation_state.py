@@ -76,6 +76,7 @@ from range_core.events.linhagem import (
     escritas_sobreviventes,
 )
 from contracts.generated.events import (
+    CONTINUITY_ACTION_TAKEN,
     DECISION_MADE,
     EXERCISE_STARTED,
     INJECT_FIRED,
@@ -472,6 +473,18 @@ def _writes_of(event: Event, declarations: Declarations) -> Mapping[str, FlagVal
                 f"{(inject_id, option_id)!r}, que o pack fixado nao declara"
             )
         return effects
+
+    if event.event_type == CONTINUITY_ACTION_TAKEN:
+        # O EFEITO VIAJA NO PAYLOAD, e nao no pack. Diferente de `inject_fired` e
+        # `decision_made` — cujos effects o pack resolve —, a acao de continuidade
+        # carrega `effects: [{flag, value}]` no proprio payload (o `$def` fechado
+        # da Wave 1). O fold o aplica GENERICAMENTE: le nome e valor do DADO e
+        # escreve cada `flag -> value`, sem conhecer nome de flag de dominio
+        # (INV-4: o core nao importa `domains/`). E escrita ABSOLUTA de estado
+        # final, como todo effect deste fold — a idempotencia segue do contrato,
+        # nao de guarda.
+        effects = event.payload.get("effects") or []
+        return {efeito["flag"]: efeito["value"] for efeito in effects}
 
     return {}
 

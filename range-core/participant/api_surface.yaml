@@ -236,4 +236,4 @@ rotas:
     papeis: [pro_reitoria]
     efeito: reversivel
     emite: continuity_action_taken
-    status: planejada
+    status: implementada
