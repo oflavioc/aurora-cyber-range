@@ -9,7 +9,7 @@ na Wave 1). Decisao ratificada da tabela: `docs/progress/fase_8_plan.md`.
 
 O QUE ESTE GATE PROVA — E POR QUE ELE E O AUTOR, NAO O DA CORRECAO (R3)
 -----------------------------------------------------------------------
-Escrito ANTES de T811 (`domains/academus/api/continuidade.py`, a tabela) e de
+Escrito ANTES de T811 (`domains/academus/continuidade.py`, a tabela) e de
 T814 (`POST /participant/continuity` + o ramo do fold). Roda RED agora: a tabela
 nao existe, `montar()` ainda nao aceita `acoes_de_continuidade`, e o fold ainda
 resolve `{}` para `continuity_action_taken`. Uma referencia minima o satisfaz.
@@ -69,7 +69,7 @@ REAIS entram so pela tabela INJETADA (`OFoldAplicaOEfeito`), como dado de T811.
 
 O CONTRATO DE INJECAO QUE ESTE GATE FIXA (para T811 e T814)
 ----------------------------------------------------------
-- `domains/academus/api/continuidade.py` exporta `CONTINUIDADE`, dado puro:
+- `domains/academus/continuidade.py` exporta `CONTINUIDADE`, dado puro:
   `Mapping[action_id, tuple[Sequence[tuple[flag, value]], cost]]`. `flag` sao as
   CONSTANTES de `domains/academus/generated/flags.py` (sem literais, INV-5);
   `value` e bool/number; `cost` e a coluna "Custo" de `02` §9. Sem import de
@@ -156,7 +156,7 @@ def _tabela_de_continuidade():
     codigo existente (itens 4 e 6) nunca rodariam. Aqui so as classes que
     consomem a tabela ficam vermelhas, cada uma pelo seu motivo.
     """
-    from domains.academus.api.continuidade import CONTINUIDADE
+    from domains.academus.continuidade import CONTINUIDADE
 
     return CONTINUIDADE
 
