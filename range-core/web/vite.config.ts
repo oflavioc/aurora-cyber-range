@@ -21,8 +21,17 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-/** As tres telas de `01_ARCHITECTURE.md` secao 2. O `mode` e o diretorio. */
-const TELAS = ["wallboard-shell", "participant-view", "gm-console"];
+/** As telas do range. As tres primeiras sao de `01_ARCHITECTURE.md` secao 2; as
+ *  duas ultimas sao as telas de `academus-web` da Fase 8 (`07` Fase 8, itens 1 e
+ *  2) — cada uma pinta o frame de uma rota da `academus-api`. O `mode` e o
+ *  diretorio. */
+const TELAS = [
+  "wallboard-shell",
+  "participant-view",
+  "gm-console",
+  "exam-mode",
+  "investigation-console",
+];
 
 export default defineConfig(({ mode }) => {
   if (!TELAS.includes(mode)) {
