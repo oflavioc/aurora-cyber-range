@@ -50,6 +50,23 @@ os spec-changes de alinhamento (P7-15, P7-16, P7-20), os mecanismos (P7-17,
 P7-19) e a ampliação do gerador para a Linha A (P7-10, `DECIDIDA`). Cada uma
 tem linha na §6.
 
+## 3. Itens de DoD — status e evidência
+
+A §7 de fechamento (resumo técnico, estrutura, endpoints, migrações, variáveis
+de ambiente, próxima fase) é redigida por quem implementou **após** o veredito
+do auditor. Esta seção é o insumo do auditor: cada item de DoD com status e a
+prova executável que o sustenta. Contagens medidas com Postgres/Redis no ar
+(a suíte completa passa a 936).
+
+| # | Item de DoD | Status | Evidência executável |
+|---|---|---|---|
+| 1 | Modo "Prova em andamento" perde sessões conforme `lms_session_drop_rate` | **VERDE** | `domains/academus/api/prova_andamento.py` (modelo de sobrevivência cumulativo, determinístico por `derive_seed`) provado por `tests/test_prova_andamento.py` (15, puro); a cláusula **conforme a flag** provada ponta-a-ponta por `tests/test_prova_andamento_integracao.py` (7, serviço): `GET /exam/session-status` derruba sessões conforme `academus.lms_session_drop_rate` LIDA do estado, e com a flag 0 ninguém cai |
+| 2 | Console de investigação emite os marcadores automáticos | **VERDE** | os cinco filtros (período/usuário/IP/janela/autorização) são **aplicados à consulta** (`repositorio.alteracoes_de_nota`, filtro→coluna) e o marcador `auto` (`audit_query_performed`) é emitido; `tests/test_console_investigacao.py` (16, serviço) prova que os filtros chegam à consulta e que `result_count` reflete a consulta filtrada |
+| 3 | Cada persona vê apenas sua camada `reported` | **VERDE** | `range-core/participant/reported.py::project` (conjunção camada-reportável **E** `persona==P`, whitelist) provado na projeção pura **e pela rota real** `GET /participant/view` sobre o payload da API — `tests/test_reported_isolation.py` (10): nunca vaza ground truth, persona não alcança a fatia de outra, 401 sem token |
+| 4 | As sete ações de continuidade aplicam efeito mecânico e custo | **VERDE** | `domains/academus/continuidade.py` (as 7 do enum fechado) + fold genérico lendo `payload["effects"]` (INV-4: tabela injetada em `montar()`); `tests/test_continuidade.py` (20): cada ação emite `continuity_action_taken`, o fold aplica a flag, o custo viaja, negativos (422/403/401) presentes |
+
+As quatro telas web (`exam-mode`, `investigation-console`, `persona-panel` + botões de continuidade) pintam o frame TOTAL do servidor (INV-7), com banner (INV-10, gate estendido às seis telas) e sem derivação no cliente. O serving por rota e a raiz de composição de produção estão desenhados em `fase_8_plan_serving.md` e **não** são exigidos pela DoD desta fase (o auditor confirmou itens 3/4 sem eles).
+
 ## 6. Pendências
 
 Prefixo `P8-` para as que nascerem aqui. A tabela abaixo começa com o que foi
