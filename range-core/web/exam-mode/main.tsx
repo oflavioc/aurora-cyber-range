@@ -4,8 +4,7 @@
 // --------------------------------------------
 // Ela pinta o frame TOTAL de `GET /exam/session-status`: cronometro (o minuto de
 // exercicio que o servidor ECOA), autosave e monitoramento das sessoes, cada uma
-// `alive` ou `dropped` no minuto corrente. A queda vem de
-// `academus.lms_session_drop_rate` e e derivada no servidor
+// `alive` ou `dropped` no minuto corrente. A queda e derivada no servidor
 // (`domains/academus/api/prova_andamento.py`) — INV-7: o cliente PINTA, nunca
 // recalcula. Nao ha contagem, nao ha corte e nao ha relogio de parede aqui.
 //
