@@ -279,10 +279,15 @@ class DoisSeedsDiferentes(unittest.TestCase):
         distinto seria exigir que o gerador numerasse por seed, o que nao torna
         nada mais seguro — e o que precisa diferir e o CONTEUDO.
         """
+        # `dest` e campo dos fatos da Linha B (mudanca de nota). Os fatos de
+        # incidente da Linha A (P7-10: initial_access/privilege_escalation/
+        # exfiltration) tem outra forma e nao o carregam; o determinismo-por-seed
+        # deles e provado em `test_linha_a`. Aqui a prova e sobre a Linha B, que
+        # continua variando por seed — filtrar por `dest` escopa sem afrouxar.
         atores_1 = {f["actor"] for f in self.primeiro.ground_truth["facts"]}
         atores_2 = {f["actor"] for f in self.segundo.ground_truth["facts"]}
-        alvos_1 = {f["dest"] for f in self.primeiro.ground_truth["facts"]}
-        alvos_2 = {f["dest"] for f in self.segundo.ground_truth["facts"]}
+        alvos_1 = {f["dest"] for f in self.primeiro.ground_truth["facts"] if "dest" in f}
+        alvos_2 = {f["dest"] for f in self.segundo.ground_truth["facts"] if "dest" in f}
         self.assertNotEqual(
             (atores_1, alvos_1),
             (atores_2, alvos_2),
@@ -351,7 +356,14 @@ class DoisSeedsDiferentes(unittest.TestCase):
         acusaria "mudou" so porque a posicao mudou.
         """
         def mapa(g) -> dict:
-            fatos = {f["fact_id"]: (f["actor"], f["dest"]) for f in g.ground_truth["facts"]}
+            # So os fatos da Linha B (com `dest`) — sao os que `line_b_cases`
+            # referencia por `supporting_evidence`. Os fatos da Linha A (P7-10)
+            # nao tem `dest` e nao sao apontados por caso da Linha B.
+            fatos = {
+                f["fact_id"]: (f["actor"], f["dest"])
+                for f in g.ground_truth["facts"]
+                if "dest" in f
+            }
             return {
                 c["case_id"]: fatos[c["supporting_evidence"][0]]
                 for c in g.ground_truth["line_b_cases"]
