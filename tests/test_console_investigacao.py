@@ -127,7 +127,7 @@ PERIODO = {
 FILTROS = {
     "filter_user": "U-142",
     "filter_ip": "10.0.0.7",
-    "filter_window": "business_hours",
+    "filter_window": True,
     "filter_authorization": "mfa",
 }
 

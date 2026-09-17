@@ -316,7 +316,7 @@ class Repositorio:
         *,
         filter_user: str | None = None,
         filter_ip: str | None = None,
-        filter_window: str | None = None,
+        filter_window: bool | None = None,
         filter_authorization: str | None = None,
     ) -> list[dict]:
         """`GET /audit/grade-changes` — a trilha filtrada por período E pelos
