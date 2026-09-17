@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "9f1ea0fe8b84614ddaaf71953a038c5f54ab6ab6",
+    "gerado_de_head": "4f3adcdb1d690e2ff29b95ec142739628213596f",
     "gerado_em": "2026-09-17",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -263,7 +263,7 @@
     "scripts/check_api_surface_probes.py": "8f013e73dd5238ac543bdf7de830af09704933e2d9a0a9d9d1a97196868d2b07",
     "scripts/check_audit_base.py": "a073c4f9f889e36a037212ef4eb4aa0b53e9a07adea91476cd407b514bfba625",
     "scripts/check_audit_base_probes.py": "30c4280c6e1aa7d9943304307a08866a44006d45e6577b6f0144bf1acf8f1ff6",
-    "scripts/check_banner_de_simulacao.py": "f17704b66c1118ef3c8476973855818c0b6de2774d07c998ccf025b54e86307a",
+    "scripts/check_banner_de_simulacao.py": "dcf41f552e47a34aaa171d8bb58067f9bb9bd4dcdf36d3097f7940e989277a2a",
     "scripts/check_banner_de_simulacao_probes.py": "40fd24ebd96f32173cf336366d4376cfcb45d561a2c4b964a31dd0cd231dfd4f",
     "scripts/check_contract_examples.py": "86018a31cf28def972b352352f8d5d2c38bdf523458df5d3f460bbc2f563696e",
     "scripts/check_contract_examples_probes.py": "ef953b67b1a49dee64ffc6e3eb93ad068f4a02dee2cf04e8faa19f932c0aed0b",
