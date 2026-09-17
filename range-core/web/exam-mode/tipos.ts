@@ -7,9 +7,9 @@
 // guarda.
 //
 // O FRAME E ESTADO TOTAL — INV-7. O servidor (`domains/academus/api/
-// prova_andamento.py`) deriva `alive`/`dropped` por MINUTO de exercicio a partir
-// de `academus.lms_session_drop_rate`; esta tela so pinta. Nao ha contagem, nao
-// ha corte, nao ha relogio de parede aqui: quem caiu ja veio decidido.
+// prova_andamento.py`) deriva `alive`/`dropped` por MINUTO de exercicio; esta
+// tela so pinta. Nao ha contagem, nao ha corte, nao ha relogio de parede aqui:
+// quem caiu ja veio decidido.
 
 /** O vocabulario FECHADO do frame — `prova_andamento.py`, `ALIVE`/`DROPPED`.
  *  Duas palavras e nada mais: valor fora delas seria estado que a tela nao sabe
