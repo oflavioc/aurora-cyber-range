@@ -79,7 +79,13 @@ ALLOWED = [
     # repositorio principal por -m, -M, -f e -c, alem de -d/-D — negar so a
     # delecao era enumerar quatro quintos de uma familia (B1c da 11a auditoria).
     rf"^{SAFE_ENV_PREFIX}git\s+(diff|log|show|status|rev-parse|ls-files|cat-file|merge-base|for-each-ref)\b",
-    rf"^{SAFE_ENV_PREFIX}(pytest|python\s+-m\s+pytest)\b",
+    # `PREFIXO_DO_VENV` aqui e a QUARTA ocorrencia da classe documentada no
+    # cabecalho (H2 da auditoria da Fase 8, P7-12): a FORMA `pytest`/`python -m
+    # pytest` estava admitida, mas sem o prefixo o interpretador do venv da
+    # auditoria (`.aurora-audit/venv/Scripts/python -m pytest`) era BLOQUEADO,
+    # enquanto o `python` de PATH nao tem o modulo. Mesma correcao que M2 deu a
+    # `range-cli` — e a linha que M2 nao varreu.
+    rf"^{SAFE_ENV_PREFIX}{PREFIXO_DO_VENV}(pytest|python\s+-m\s+pytest)\b",
     # A SUITE DA FASE 2 E `unittest`, E NAO `pytest`.
     #
     # A entrada acima existia desde a Fase 0, quando nao havia suite nenhuma. A
