@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "As tres telas do range: wallboard-shell, participant-view e gm-console. Build por container pinado — ver docker-compose.yml, servico web-build.",
+  "description": "As telas do range: wallboard-shell, participant-view, gm-console e as telas academus-web da Fase 8 (exam-mode, investigation-console). Build por container pinado — ver docker-compose.yml, servico web-build.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit && vite build --mode wallboard-shell && vite build --mode participant-view && vite build --mode gm-console"
+    "build": "tsc --noEmit && vite build --mode wallboard-shell && vite build --mode participant-view && vite build --mode gm-console && vite build --mode exam-mode && vite build --mode investigation-console"
   },
   "dependencies": {
     "react": "18.3.1",

@@ -20,6 +20,8 @@
     "wallboard-shell",
     "participant-view",
     "gm-console",
+    "exam-mode",
+    "investigation-console",
     "vite.config.ts"
   ]
 }
