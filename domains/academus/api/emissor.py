@@ -83,7 +83,7 @@ class Emissor:
         result_count: int,
         filter_user: str | None,
         filter_ip: str | None,
-        filter_window: str | None,
+        filter_window: bool | None,
         filter_authorization: str | None,
         escopo: Escopo,
     ) -> None:

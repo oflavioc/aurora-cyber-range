@@ -249,7 +249,7 @@ async def alteracoes_de_nota(
     group_by: str | None = None,
     filter_user: str | None = None,
     filter_ip: str | None = None,
-    filter_window: str | None = None,
+    filter_window: bool | None = None,
     filter_authorization: str | None = None,
     repositorio: Repositorio = Depends(repositorio_do_pedido),
 ) -> dict:
