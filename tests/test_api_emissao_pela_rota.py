@@ -110,7 +110,17 @@ class RepositorioFalso:
     linhas: list = field(default_factory=list)
     chamadas: list = field(default_factory=list)
 
-    def alteracoes_de_nota(self, inicio, fim, agrupar):
+    def alteracoes_de_nota(
+        self,
+        inicio,
+        fim,
+        agrupar,
+        *,
+        filter_user=None,
+        filter_ip=None,
+        filter_window=None,
+        filter_authorization=None,
+    ):
         self.chamadas.append((inicio, fim, agrupar))
         return list(self.linhas)
 

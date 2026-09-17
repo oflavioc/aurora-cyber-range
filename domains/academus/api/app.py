@@ -280,7 +280,15 @@ async def alteracoes_de_nota(
         raise HTTPException(status_code=422, detail="periodo vazio ou invertido")
 
     agrupar = group_by == "user"
-    linhas = repositorio.alteracoes_de_nota(inicio, fim, agrupar)
+    linhas = repositorio.alteracoes_de_nota(
+        inicio,
+        fim,
+        agrupar,
+        filter_user=filter_user,
+        filter_ip=filter_ip,
+        filter_window=filter_window,
+        filter_authorization=filter_authorization,
+    )
 
     emissor = getattr(request.app.state, "emissor", None)
     if emissor is not None:
