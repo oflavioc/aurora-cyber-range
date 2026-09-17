@@ -118,6 +118,34 @@ function Console() {
     </label>
   );
 
+  // Tri-estado para um filtro BOOLEANO: "" nao vira parametro (o servidor nao
+  // filtra), "true"/"false" seguem crus em `filter_window` — o backend recusa
+  // valor nao-booleano com 422, entao o controle so oferece o que ele aceita.
+  // O cliente MONTA a escolha; quem decide dentro/fora da janela e a trilha.
+  const escolha = (
+    rotulo: string,
+    valor: string,
+    ao: (valor: string) => void,
+    opcoes: ReadonlyArray<{ valor: string; texto: string }>,
+  ) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs uppercase tracking-wider text-slate-400">
+        {rotulo}
+      </span>
+      <select
+        value={valor}
+        onChange={(evento) => ao(evento.target.value)}
+        className="rounded border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100"
+      >
+        {opcoes.map((opcao) => (
+          <option key={opcao.valor} value={opcao.valor}>
+            {opcao.texto}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
   return (
     <div className="min-h-screen bg-slate-900">
       {/* `05` §4: em TODA tela, sem excecao. */}
@@ -139,7 +167,11 @@ function Console() {
             {campo("período — fim", filtros.periodEnd, define("periodEnd"), "datetime-local")}
             {campo("usuário", filtros.user, define("user"))}
             {campo("IP", filtros.ip, define("ip"))}
-            {campo("janela", filtros.window, define("window"))}
+            {escolha("janela", filtros.window, define("window"), [
+              { valor: "", texto: "todas" },
+              { valor: "true", texto: "dentro da janela" },
+              { valor: "false", texto: "fora da janela" },
+            ])}
             {campo("autorização", filtros.authorization, define("authorization"))}
           </div>
           <button
