@@ -34,10 +34,15 @@ evidencia. **Esta fase produz uma unica classe: telas.** As outras nao existem
 ainda, e o registro abaixo diz quem as traz — **declarado, e nao omitido**, para
 que a fase que as criar nao precise redescobrir a §4:
 
-    telas          COBERTA aqui — as tres de `01` §2, fonte e bundle
+    telas          COBERTA aqui — as tres de `01` §2 MAIS as tres da Fase 8
+                   (`exam-mode`, `investigation-console`, `persona-panel`),
+                   fonte e bundle. As telas academus-web JA EXISTEM e portanto
+                   deixaram de ser deferidas: sao tela, e §4 nao abre excecao.
     evidencia      Fase 8 — `08_EVIDENCE_SIMULATOR.md`; §4 exige comentario na
                    PRIMEIRA LINHA, no formato do proprio arquivo
-    exportacao     Fase 8 — `academus-web` completo, historico e diploma
+    exportacao     Fase 8/9 — os ARTEFATOS gerados por academus-web (historico,
+                   diploma, PDF) ainda nao existem; a §4 pede banner no RODAPE
+                   deles, o que e outra classe que a das telas que os produzem
     relatorio/AAR  Fase 9 — `range-core/aar/`
 
 **O registro e verificado nas duas direcoes:** classe COBERTA sem alvo no disco
@@ -79,8 +84,20 @@ WEB = REPO_ROOT / "range-core" / "web"
 BUNDLE = WEB / "dist"
 FONTE_DO_BANNER = WEB / "src" / "banner.tsx"
 
-#: As tres telas de `01` §2. Sao as MESMAS que `range_core.api.app` serve.
-TELAS = ("wallboard-shell", "participant-view", "gm-console")
+#: Toda tela do range. As tres primeiras sao de `01` §2 — as MESMAS que
+#: `range_core.api.app` serve. As tres seguintes sao as telas da Fase 8 (`07`
+#: Fase 8), listadas em `range-core/web/vite.config.ts`: `exam-mode` e
+#: `investigation-console` (`02` §7) e o `persona-panel` (dashboards por
+#: persona). Sao autenticadas/casca, nao projecao publica sem token — mas `05`
+#: §4 diz TODA tela, sem essa distincao: casca tambem e tela servida.
+TELAS = (
+    "wallboard-shell",
+    "participant-view",
+    "gm-console",
+    "exam-mode",
+    "investigation-console",
+    "persona-panel",
+)
 
 #: O componente que cada tela tem de renderizar. Varredura lexica, com o mesmo
 #: limite declarado que `01` §2 admite para TypeScript.
@@ -88,9 +105,9 @@ COMPONENTE = "BannerDeSimulacao"
 
 #: `classe -> (coberta_aqui, dono)`. Ver o cabecalho.
 CLASSES_DA_SECAO_4 = {
-    "telas": (True, "esta fase — `01` §2"),
+    "telas": (True, "`01` §2 + Fase 8 (`07`): exam-mode, investigation-console, persona-panel"),
     "evidencia": (False, "Fase 8 — `08_EVIDENCE_SIMULATOR.md`, comentario na primeira linha"),
-    "exportacao": (False, "Fase 8 — `academus-web`: historico, diploma, PDF"),
+    "exportacao": (False, "Fase 8/9 — artefatos gerados por `academus-web`: historico, diploma, PDF"),
     "relatorio": (False, "Fase 9 — `range-core/aar/`"),
 }
 
