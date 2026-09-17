@@ -69,6 +69,21 @@ MATRIZ GATE ↔ MUTANTE (R3 §5; campanha re-executada no green, Fase 6 / T819)
     M5  emissor estendido perde a recusa `SemPersona`
         -> morto por `test_sem_persona_o_emissor_recusa_e_nao_grava`.
 
+MATRIZ DE APLICAÇÃO — B2 DA SÉTIMA AUDITORIA (o que M1–M5 não cobrem)
+--------------------------------------------------------------------
+M1–M5 medem a GRAVAÇÃO do payload; nenhuma media a APLICAÇÃO do filtro à
+consulta. O gate anterior não podia: o `RepositorioFalso` tinha assinatura de
+três parâmetros, e por isso era estruturalmente impossível notar que os quatro
+filtros nunca chegavam ao SQL. Os mutantes de aplicação:
+
+    M6  consulta que aceita os filtros e os descarta (aplica só o período)
+        -> morto por `test_result_count_reflete_a_consulta_FILTRADA_e_nao_a_sem_filtro`
+        e demonstrado em `MatrizDeAplicacaoDeFiltro::test_M6_...`.
+    M7  handler que grava o filtro no payload mas chama a consulta com três
+        posicionais (== estado ATUAL) -> morto por
+        `test_os_quatro_filtros_chegam_ao_repositorio`. PROVADO AGORA: é o código
+        atual, e o red o mata.
+
 DADO SINTÉTICO (R11 §4)
 -----------------------
 Os valores de filtro são sintéticos e não roteáveis: `filter_ip` é RFC 1918
@@ -136,21 +151,82 @@ OBJETIVOS = objetivos_de(
 )
 
 
+#: O MAPA FILTRO→COLUNA que o repositório real aplica na consulta (`02` §7:124).
+#: O duplo o usa para FILTRAR de verdade; é aqui que o contrato da consulta fica
+#: legível para o data-engineer (T812): cada filtro do console recorta a trilha
+#: por uma coluna da linha de auditoria.
+#:
+#:     filter_user          -> actor_user_id
+#:     filter_ip            -> source_ip
+#:     filter_window        -> within_window
+#:     filter_authorization -> authorization_id
+CAMPO_DA_CONSULTA = {
+    "filter_user": "actor_user_id",
+    "filter_ip": "source_ip",
+    "filter_window": "within_window",
+    "filter_authorization": "authorization_id",
+}
+
+
 @dataclass
 class RepositorioFalso:
-    """Um método, o que a rota chama. Sem banco — a instrumentação é o que está
-    sob teste, não a consulta SQL (ver `test_api_emissao_pela_rota` §cabeçalho).
+    """A CONSULTA sob teste — não só a instrumentação. B2 da sétima auditoria.
 
-    `linhas` é dado do caso: decide `result_count`. Fixa faria o teste medir a
-    constante do duplo.
+    A versão anterior tinha assinatura de TRÊS parâmetros (`inicio, fim, agrupar`),
+    e por isso era estruturalmente impossível notar que os quatro filtros do
+    console NÃO chegavam à consulta: o handler os gravava no payload do evento e
+    os deixava cair antes do SQL (`app.py` chamava `alteracoes_de_nota(inicio,
+    fim, agrupar)`), e o `result_count` do evento descrevia a consulta SEM filtro
+    — trilha afirmando um mundo que a consulta não produziu.
+
+    Este duplo passa a ter a ASSINATURA COMPLETA que o repositório real deve
+    expor, CAPTURA o que recebeu (`chamadas`) e APLICA os filtros às `linhas`.
+    Ele DEFINE o contrato da T812:
+
+        alteracoes_de_nota(inicio, fim, agrupar_por_usuario, *,
+                           filter_user=None, filter_ip=None,
+                           filter_window=None, filter_authorization=None)
+
+    Os quatro filtros são keyword-only com default `None` de propósito: o handler
+    atual, que chama com três posicionais, não quebra — ele apenas deixa os
+    filtros em `None`, e é ISSO que os testes de aplicação flagram (o filtro
+    pedido não chegou à consulta), em vez de um `TypeError` que confundiria "não
+    encaminhou" com "assinatura errada".
+
+    `linhas` é dado do caso: cada linha é um `dict` no formato da trilha, e o
+    duplo a recorta pelos filtros recebidos, exatamente como o SQL fará.
     """
 
     linhas: list = field(default_factory=list)
     chamadas: list = field(default_factory=list)
 
-    def alteracoes_de_nota(self, inicio, fim, agrupar):
-        self.chamadas.append((inicio, fim, agrupar))
-        return list(self.linhas)
+    def alteracoes_de_nota(
+        self,
+        inicio,
+        fim,
+        agrupar_por_usuario,
+        *,
+        filter_user=None,
+        filter_ip=None,
+        filter_window=None,
+        filter_authorization=None,
+    ):
+        pedidos = {
+            "filter_user": filter_user,
+            "filter_ip": filter_ip,
+            "filter_window": filter_window,
+            "filter_authorization": filter_authorization,
+        }
+        self.chamadas.append(
+            {"inicio": inicio, "fim": fim, "agrupar_por_usuario": agrupar_por_usuario, **pedidos}
+        )
+        selecionadas = list(self.linhas)
+        for filtro, valor in pedidos.items():
+            if valor is None:
+                continue
+            coluna = CAMPO_DA_CONSULTA[filtro]
+            selecionadas = [linha for linha in selecionadas if linha.get(coluna) == valor]
+        return selecionadas
 
 
 class _ComConsole(unittest.TestCase):
@@ -348,6 +424,154 @@ class OEventoQueNaoPodeAparecer(_ComConsole):
                 **FILTROS,
             )
         self.assertEqual(self.emitidos(), [])
+
+
+class OsFiltrosSaoAplicadosAConsulta(_ComConsole):
+    """B2 — o eixo que o gate anterior não media: o filtro chega ao SQL, e o
+    `result_count` do evento reflete a consulta FILTRADA, não a sem-filtro.
+
+    Prova a APLICAÇÃO (o repositório recebe o filtro e recorta as linhas), e não
+    só a GRAVAÇÃO (o payload carrega o filtro). O defeito atual — handler que
+    encaminha os filtros só ao emissor — mata os dois testes desta classe.
+
+    Mata M6 (repo/handler que ignora o filtro e aplica só o período).
+    """
+
+    def test_os_quatro_filtros_chegam_ao_repositorio(self):
+        """A CONSULTA recebeu os quatro valores pedidos — não apenas o payload.
+
+        Hoje o handler grava os filtros no evento e chama a consulta só com
+        `(inicio, fim, agrupar)`: o duplo os captura como `None`, e esta asserção
+        fica vermelha. Essa é a prova de red do B2 (R3 §4).
+        """
+        self.monta()
+        self.consulta_filtrada()
+        [chamada] = self.repositorio.chamadas
+
+        for campo, valor in FILTROS.items():
+            self.assertEqual(
+                chamada[campo],
+                valor,
+                f"o filtro {campo!r} não chegou à consulta (chegou {chamada[campo]!r}): "
+                "o handler o gravou no evento e o deixou cair antes do SQL",
+            )
+
+    def test_result_count_reflete_a_consulta_FILTRADA_e_nao_a_sem_filtro(self):
+        """O `result_count` do evento é o tamanho da consulta COM filtro.
+
+        Cinco linhas na trilha, três do usuário pedido. Uma consulta por
+        `filter_user` deve devolver TRÊS, e é esse o número que a trilha registra.
+        Hoje o filtro não chega ao SQL: a consulta devolve as cinco, e o evento
+        carrega `filter_user` ao lado de um `result_count=5` — `effect_class:
+        observation` afirmando o que não ocorreu. Vermelho até a T812.
+        """
+        self.monta(
+            linhas=[
+                {"actor_user_id": "U-142"},
+                {"actor_user_id": "U-142"},
+                {"actor_user_id": "U-142"},
+                {"actor_user_id": "U-999"},
+                {"actor_user_id": "U-999"},
+            ]
+        )
+        # Só `filter_user` viaja — os outros três ficam ausentes, e o duplo não os
+        # aplica: assim o número esperado depende de UM eixo, e o teste não mede a
+        # interseção de quatro recortes.
+        self.consulta_simples(filter_user="U-142")
+        [evento] = self.emitidos()
+
+        self.assertEqual(
+            evento.payload["result_count"],
+            3,
+            "result_count veio da consulta SEM filtro: o evento afirma um tamanho "
+            "que a consulta filtrada não produziu",
+        )
+        [chamada] = self.repositorio.chamadas
+        self.assertEqual(chamada["filter_user"], "U-142")
+
+    def test_a_consulta_filtrada_ainda_emite_e_marca_o_auto(self):
+        """A aplicação não pode custar a emissão: com filtros aplicados, o evento
+        continua sendo emitido e o `auto` de OBJ-03 continua sendo marcado."""
+        self.monta(linhas=[{"actor_user_id": "U-142"}])
+        self.consulta_filtrada()
+
+        self.assertEqual(len(self.emitidos()), 1)
+        self.assertIn(AUDIT_QUERY_PERFORMED, self.cobertura().auto_satisfeita)
+
+
+class MatrizDeAplicacaoDeFiltro(unittest.TestCase):
+    """M6/M7 — a APLICAÇÃO do filtro à consulta, o que M1–M5 (payload) não cobrem.
+
+    Auto-contida: demonstra, sem depender do handler (que hoje nem encaminha os
+    filtros), que a asserção central do gate — `result_count` == tamanho da
+    consulta filtrada — MATA um repositório que ignora o filtro e aplica só o
+    período. R3 §5 / R10 §Nascimento.
+    """
+
+    INICIO = datetime.fromisoformat(PERIODO["period_start"])
+    FIM = datetime.fromisoformat(PERIODO["period_end"])
+    LINHAS = [{"actor_user_id": "U-142"}] * 3 + [{"actor_user_id": "U-999"}] * 2
+
+    def test_M6_repo_que_IGNORA_o_filtro_de_usuario_e_morto(self):
+        """Mutante: consulta que devolve tudo do período, ignorando `filter_user`."""
+
+        class RepoQueSoAplicaPeriodo:
+            def __init__(self, linhas):
+                self.linhas = linhas
+
+            def alteracoes_de_nota(
+                self,
+                inicio,
+                fim,
+                agrupar_por_usuario,
+                *,
+                filter_user=None,
+                filter_ip=None,
+                filter_window=None,
+                filter_authorization=None,
+            ):
+                # ERRO: aceita os filtros e os descarta — só o período conta.
+                return list(self.linhas)
+
+        oraculo = RepositorioFalso(linhas=list(self.LINHAS))
+        mutante = RepoQueSoAplicaPeriodo(list(self.LINHAS))
+
+        n_oraculo = len(
+            oraculo.alteracoes_de_nota(self.INICIO, self.FIM, False, filter_user="U-142")
+        )
+        n_mutante = len(
+            mutante.alteracoes_de_nota(self.INICIO, self.FIM, False, filter_user="U-142")
+        )
+
+        self.assertEqual(n_oraculo, 3, "o repositório-oráculo recorta pelo filtro")
+        self.assertEqual(n_mutante, 5, "o mutante ignora o filtro e devolve tudo")
+        # É esta desigualdade que `test_result_count_reflete_a_consulta_FILTRADA`
+        # transforma em veredito: o número que a trilha registra separa os dois.
+        self.assertNotEqual(
+            n_oraculo,
+            n_mutante,
+            "sem a asserção de result_count-filtrado, o mutante passaria",
+        )
+
+    def test_M7_handler_que_nao_encaminha_o_filtro_e_morto(self):
+        """Mutante: o handler grava o filtro no payload mas chama a consulta com
+        três posicionais — o defeito ATUAL. O duplo o captura como `None`.
+
+        Reproduz a chamada do handler de hoje e prova que o filtro não chega."""
+        oraculo = RepositorioFalso(linhas=list(self.LINHAS))
+        # A chamada exata do handler atual (app.py) — três posicionais, sem filtros.
+        oraculo.alteracoes_de_nota(self.INICIO, self.FIM, False)
+        [chamada] = oraculo.chamadas
+
+        self.assertIsNone(
+            chamada["filter_user"],
+            "a chamada de três posicionais deixa o filtro em None — é assim que o "
+            "gate detecta que o handler não encaminhou",
+        )
+        # O par: encaminhando, o mesmo duplo registra o valor pedido.
+        oraculo.chamadas.clear()
+        oraculo.alteracoes_de_nota(self.INICIO, self.FIM, False, filter_user="U-142")
+        self.assertEqual(oraculo.chamadas[0]["filter_user"], "U-142")
 
 
 if __name__ == "__main__":  # pragma: no cover
