@@ -22,15 +22,17 @@ import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
 /** As telas do range. As tres primeiras sao de `01_ARCHITECTURE.md` secao 2; as
- *  duas ultimas sao as telas de `academus-web` da Fase 8 (`07` Fase 8, itens 1 e
- *  2) — cada uma pinta o frame de uma rota da `academus-api`. O `mode` e o
- *  diretorio. */
+ *  seguintes sao as telas da Fase 8 (`07` Fase 8): `exam-mode` e
+ *  `investigation-console` pintam frames da `academus-api` (itens 1 e 2), e
+ *  `persona-panel` pinta a camada `reported` da `participant-api` e dispara as
+ *  acoes de continuidade (itens 3 e 4). O `mode` e o diretorio. */
 const TELAS = [
   "wallboard-shell",
   "participant-view",
   "gm-console",
   "exam-mode",
   "investigation-console",
+  "persona-panel",
 ];
 
 export default defineConfig(({ mode }) => {
