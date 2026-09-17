@@ -40,7 +40,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from contracts.generated.events import INTEGRITY_VALIDATION_DECLARED
+from contracts.generated.events import (
+    CONTINUITY_ACTION_TAKEN,
+    INTEGRITY_VALIDATION_DECLARED,
+)
 from range_core.declarations.contrassinatura import (
     ABERTURA_INVALIDA,
     CADEIA_DE_TRES,
@@ -152,6 +155,48 @@ class Emissor:
                 actor_id=actor_id,
                 persona=persona,
                 payload=corpo,
+            )
+        )
+
+    def emitir_continuidade(
+        self,
+        *,
+        action_id: str,
+        effects: Sequence[tuple[str, object]],
+        cost: str,
+        persona: str,
+        actor_id: str,
+    ) -> Event:
+        """Grava `continuity_action_taken` com payload FECHADO — SEM justificativa.
+
+        Esta acao NAO e uma das nove declaracoes de `03` §3.4, e por isso NAO
+        passa por `declarar`: o `$def continuity_action_taken_payload` fechou o
+        payload por `additionalProperties: false` (Wave 1, T801) e proibe
+        `justificativa`. Reusar `declarar` — que injeta a justificativa
+        obrigatoria das declaracoes — produziria um payload que o contrato
+        recusa. Aqui o corpo e montado a partir da tabela de dominio injetada em
+        `montar()`: `action_id`, `effects` como `[{flag, value}]`, e `cost`. Os
+        NOMES de flag chegam como DADO da tabela; o nucleo nunca os conhece por
+        import (INV-4).
+
+        Como as declaracoes, este modulo NAO toca estado de simulacao: grava o
+        evento, e o efeito de flag e do fold de `simulation_state`, que le
+        `effects` do payload.
+        """
+        payload = {
+            "action_id": action_id,
+            "effects": [{"flag": flag, "value": value} for flag, value in effects],
+            "cost": cost,
+        }
+        return self.store.append(
+            EventDraft(
+                event_type=CONTINUITY_ACTION_TAKEN,
+                truth_layer=CAMADA,
+                producer=PRODUTOR,
+                correlation=Correlation(),
+                actor_id=actor_id,
+                persona=persona,
+                payload=payload,
             )
         )
 

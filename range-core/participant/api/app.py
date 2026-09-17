@@ -40,6 +40,8 @@ from dataclasses import dataclass, field
 
 from fastapi import FastAPI, HTTPException, Request
 
+from collections.abc import Sequence
+
 from contracts.generated.events import (
     ASSESSMENT_SUBMITTED,
     CLASSIFICATION_DECLARED,
@@ -76,6 +78,13 @@ class Sessao:
         default_factory=dict
     )
     emissor: Emissor | None = None
+    #: `action_id -> (effects, cost)`. Tabela de DOMINIO injetada em `montar()`,
+    #: fora de `range-core/` (INV-4: o nucleo nao importa `domains/`). A rota
+    #: `/participant/continuity` valida o `action_id` contra ela e deriva o
+    #: payload; os nomes de flag chegam como dado, nunca por import.
+    acoes_de_continuidade: dict[str, tuple[Sequence[tuple[str, object]], str]] = field(
+        default_factory=dict
+    )
 
 
 def _sessao(request: Request) -> Sessao:
@@ -300,11 +309,59 @@ async def ver(request: Request) -> dict:
     return {"persona": persona, "reported": [_serializa(e) for e in frame]}
 
 
+# ---------------------------------------------------------------------------
+# ACAO DE CONTINUIDADE — `POST /participant/continuity`, Fase 8 item 4
+# ---------------------------------------------------------------------------
+
+
+@app.post("/participant/continuity", status_code=201)
+async def acao_de_continuidade(corpo: dict, request: Request) -> dict:
+    """Uma das sete acoes de `02` §9 — de `pro_reitoria` (`03` §6).
+
+    O cliente envia so `action_id`; o servidor deriva `effects`+`cost` da tabela
+    de DOMINIO injetada em `montar()` (INV-4: o nucleo nao importa `domains/`).
+    A validacao do `action_id` e contra essa tabela, cujo conjunto de chaves e o
+    enum fechado do `$def continuity_action_taken_payload` — `action_id` fora
+    dela e acao que ninguem implementou, e recusa **422 sem emitir**.
+
+    A ordem das recusas: `_persona_autorizada` primeiro (401 sem token, 403
+    persona errada), depois a validacao do `action_id`. Auth antes de tocar a
+    tabela, para nao vazar a forma do dominio a quem nao pode agir.
+
+    NAO reusa `_declara`: aquele corpo injeta a justificativa obrigatoria das
+    nove declaracoes, e o `$def` desta acao a proibe (`additionalProperties:
+    false`). A emissao com payload FECHADO vive em `emissor.emitir_continuidade`.
+    """
+    persona, actor_id = _persona_autorizada(request, "/participant/continuity")
+    sessao = _sessao(request)
+    if sessao.emissor is None:
+        raise HTTPException(status_code=503, detail="emissor nao configurado")
+
+    action_id = str(corpo.get("action_id", ""))
+    if action_id not in sessao.acoes_de_continuidade:
+        raise HTTPException(
+            status_code=422,
+            detail=f"action_id {action_id!r} fora do enum de acoes de continuidade",
+        )
+
+    effects, cost = sessao.acoes_de_continuidade[action_id]
+    evento = sessao.emissor.emitir_continuidade(
+        action_id=action_id,
+        effects=effects,
+        cost=cost,
+        persona=persona,
+        actor_id=actor_id,
+    )
+    return {"event_id": evento.event_id}
+
+
 def montar(
     superficie: dict,
     *,
     segredo: str,
     emissor: Emissor | None = None,
+    acoes_de_continuidade: dict[str, tuple[Sequence[tuple[str, object]], str]]
+    | None = None,
 ) -> FastAPI:
     """Liga as credenciais de ambiente. Chamado pelo processo e pela suíte.
 
@@ -323,6 +380,10 @@ def montar(
         if r.get("papeis")
     }
     app.state.sessao = Sessao(
-        tokens.credenciais_do_ambiente(personas), segredo, por_rota, emissor
+        tokens.credenciais_do_ambiente(personas),
+        segredo,
+        por_rota,
+        emissor,
+        dict(acoes_de_continuidade or {}),
     )
     return app
