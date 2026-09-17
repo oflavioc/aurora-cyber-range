@@ -87,6 +87,7 @@ a relevância para ESTA fase.
 | Pendência | Assunto | Estado | Vence em |
 |---|---|---|---|
 | P8-1 | ~~Onda 2 da Estrutura Agêntica: instanciar os oito papéis e desenhar a reconciliação fase↔demanda — a decisão de abertura que a adoção agendou para cá~~ | `RESOLVIDA` | aceite de abertura do proprietário no chat em 2026-09-14; os oito papéis estão instalados e em uso (tech-lead produziu o desenho da Fase 8); reconciliação "marco por fora, SDD por dentro" registrada na adoção; ver abaixo |
+| P8-2 | o banner (`05` §4) na classe `exportacao` — histórico, diploma, PDF gerados pelo academus-web — não tem fase de destino: os artefatos ainda não existem, e o gate `check_banner_de_simulacao.py` os defere | `ABERTA` | a fase que construir os artefatos de exportação do academus-web (não previstos na DoD da Fase 8 nem em item da Fase 9); ver abaixo |
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | esta fase, junto do destino do pack (P7-9); detalhe em `fase_7.md` §"P1-7" |
 | P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `ABERTA` | medição de volume; detalhe em `fase_4.md`/`fase_7.md` §"P4-8" |
 | P5-2 | a categoria "declarações do exercício" da trilha não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio — **material desta fase** (item 4, continuidade); detalhe em `fase_5.md` §"P5-2" |
@@ -150,6 +151,24 @@ roadmap. Os agentes pré-existentes (`scenario-designer`, `spec-guardian`,
 - **Fronteira do item 3**: a Fase 8 entrega só a **isolação** de leitura; o
   conteúdo divergente de `information_distribution.yaml` (`03` §4) é assimetria
   da **Fase 10**.
+
+#### P8-2 — o banner na classe `exportacao` sem fase de destino
+
+**Nasceu na 2ª auditoria da Fase 8 (M1).** Ao estender `check_banner_de_simulacao.py`
+para cobrir as três telas academus-web (item de INV-10), a classe `exportacao`
+de `05` §4 — o banner no **rodapé de artefato gerado** (histórico, diploma, PDF,
+exportação) — ficou deferida com dono "Fase 8/9", que não a cobre: `07` §Fase 9
+não tem item para esses artefatos, e eles ainda não existem no disco. O banner
+em TELA está gateado (as seis telas); o banner em ARTEFATO GERADO é classe
+distinta (`05` §4: *"no rodapé de todo artefato gerado"*), e só pode ser gateado
+quando o artefato existir.
+
+**Vence em:** a fase que construir os artefatos de exportação do academus-web
+(histórico/diploma/PDF servidos ao participante) — não previstos na DoD da Fase 8
+nem em item da Fase 9. Até lá, o registro bidirecional de `check_banner_de_simulacao.py`
+mantém a classe deferida e reprova se um alvo aparecer no disco sem o banner. A
+pendência existe para que o requisito não morra em silêncio (a forma que `05` §4
+e a própria auditoria nomeiam).
 
 #### P1-7 — id de inject pode vazar a linha
 

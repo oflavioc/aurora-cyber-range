@@ -11,6 +11,8 @@
     "test_linha_a": {"cmd": "python -m unittest discover -s tests -p \"test_linha_a.py\"", "pass": 10, "fail": 0},
     "test_prova_andamento_integracao": {"cmd": "python -m unittest discover -s tests -p \"test_prova_andamento_integracao.py\"", "pass": [0, 7], "fail": 0}
   },
-  "heavy": {},
+  "heavy": {
+    "test_console_consulta_servico": {"cmd": "python -m unittest discover -s tests -p \"test_console_consulta_servico.py\"", "pass": [0, 13], "fail": 0}
+  },
   "visual": {}
 }
