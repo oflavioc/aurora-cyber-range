@@ -294,16 +294,48 @@ class Repositorio:
         with Session(self._engine) as sessao:
             return trilha.verificar(sessao)
 
+    #: MAPA FILTRO→COLUNA do console de investigação (`02` §7:124). Os cinco
+    #: filtros são período (dois campos, já aplicados) mais estes quatro, e cada
+    #: um recorta a trilha por UMA coluna da linha de auditoria. As chaves são o
+    #: nome do campo de payload; os valores, a coluna real de `audit_trail`
+    #: (0004). Nomes de coluna são desta constante — NUNCA de entrada — então o
+    #: fragmento `WHERE` é montado com identificadores fixos e o valor entra por
+    #: binding (R9 §9: sem concatenação de string de dado).
+    _FILTRO_PARA_COLUNA = {
+        "filter_user": "actor_user_id",
+        "filter_ip": "source_ip",
+        "filter_window": "within_window",
+        "filter_authorization": "authorization_id",
+    }
+
     def alteracoes_de_nota(
-        self, inicio: datetime, fim: datetime, agrupar_por_usuario: bool
+        self,
+        inicio: datetime,
+        fim: datetime,
+        agrupar_por_usuario: bool,
+        *,
+        filter_user: str | None = None,
+        filter_ip: str | None = None,
+        filter_window: str | None = None,
+        filter_authorization: str | None = None,
     ) -> list[dict]:
-        """`GET /audit/grade-changes` — a trilha filtrada por período.
+        """`GET /audit/grade-changes` — a trilha filtrada por período E pelos
+        quatro filtros do console de investigação.
 
         É a consulta que a Linha B exige: `02` §6 põe as alterações indevidas
         dentro de uma massa de alterações legítimas, e distinguir umas das outras
         é o trabalho analítico que OBJ-03 e OBJ-04 medem. Esta rota é a
         ferramenta, e não a resposta — ela devolve o que está na trilha, sem
         marcar nada como suspeito.
+
+        OS QUATRO FILTROS DO CONSOLE (`02` §7:124) — usuário, IP, janela e
+        autorização — são keyword-only com default `None`, e **filtro nulo não
+        filtra**, exatamente como `agrupar_por_usuario` já faz. Cada filtro
+        não-nulo vira um predicado `WHERE coluna = :valor`, com a coluna vinda de
+        `_FILTRO_PARA_COLUNA` (identificador fixo) e o valor por binding. Antes
+        desta peça os filtros eram gravados no evento e caíam antes do SQL — a
+        trilha afirmava um `result_count` que a consulta não produziu (B2 da
+        sétima auditoria).
 
         **Leitura, e nada além.** Sessão própria, somente leitura, pelo mesmo
         argumento de `verificar_trilha`: se a consulta escrevesse, consultar a
@@ -313,8 +345,27 @@ class Repositorio:
         dois modos existem porque o hook de `observability_hooks.yaml` declara
         `group_by` no payload: a consulta agrupada é a que evidencia OBJ-03 —
         *"reconhecer incidentes concorrentes"* começa por ver que um usuário
-        concentra alterações fora de janela.
+        concentra alterações fora de janela. Os filtros valem nos dois modos.
         """
+        parametros = {
+            "categoria": trilha.ALTERACAO_DE_NOTA,
+            "inicio": inicio,
+            "fim": fim,
+        }
+        fragmentos = []
+        for campo, valor in (
+            ("filter_user", filter_user),
+            ("filter_ip", filter_ip),
+            ("filter_window", filter_window),
+            ("filter_authorization", filter_authorization),
+        ):
+            if valor is None:
+                continue
+            coluna = self._FILTRO_PARA_COLUNA[campo]
+            fragmentos.append(f" AND {coluna} = :{campo}")
+            parametros[campo] = valor
+        extra = "".join(fragmentos)
+
         with Session(self._engine) as sessao:
             if agrupar_por_usuario:
                 linhas = sessao.execute(
@@ -323,13 +374,10 @@ class Repositorio:
                         "FROM audit_trail "
                         "WHERE category = :categoria "
                         "  AND occurred_at >= :inicio AND occurred_at < :fim "
-                        "GROUP BY actor_user_id ORDER BY total DESC, actor_user_id"
+                        + extra
+                        + " GROUP BY actor_user_id ORDER BY total DESC, actor_user_id"
                     ),
-                    {
-                        "categoria": trilha.ALTERACAO_DE_NOTA,
-                        "inicio": inicio,
-                        "fim": fim,
-                    },
+                    parametros,
                 ).all()
                 return [
                     {"actor_user_id": linha[0], "total": int(linha[1])}
@@ -343,9 +391,10 @@ class Repositorio:
                     "FROM audit_trail "
                     "WHERE category = :categoria "
                     "  AND occurred_at >= :inicio AND occurred_at < :fim "
-                    "ORDER BY sequence"
+                    + extra
+                    + " ORDER BY sequence"
                 ),
-                {"categoria": trilha.ALTERACAO_DE_NOTA, "inicio": inicio, "fim": fim},
+                parametros,
             ).all()
             return [
                 {
