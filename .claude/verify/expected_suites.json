@@ -8,11 +8,11 @@
     "test_console_investigacao": {"cmd": "python -m unittest discover -s tests -p \"test_console_investigacao.py\"", "pass": 16, "fail": 0},
     "test_reported_isolation": {"cmd": "python -m unittest discover -s tests -p \"test_reported_isolation.py\"", "pass": 10, "fail": 0},
     "test_continuidade": {"cmd": "python -m unittest discover -s tests -p \"test_continuidade.py\"", "pass": 20, "fail": 0},
-    "test_linha_a": {"cmd": "python -m unittest discover -s tests -p \"test_linha_a.py\"", "pass": 10, "fail": 0},
-    "test_prova_andamento_integracao": {"cmd": "python -m unittest discover -s tests -p \"test_prova_andamento_integracao.py\"", "pass": [0, 7], "fail": 0}
+    "test_linha_a": {"cmd": "python -m unittest discover -s tests -p \"test_linha_a.py\"", "pass": 10, "fail": 0}
   },
-  "heavy": {
-    "test_console_consulta_servico": {"cmd": "python -m unittest discover -s tests -p \"test_console_consulta_servico.py\"", "pass": [0, 13], "fail": 0}
-  },
-  "visual": {}
+  "heavy": {},
+  "visual": {
+    "test_prova_andamento_integracao": {"cmd": "python -m unittest discover -s tests -p \"test_prova_andamento_integracao.py\"", "pass": 7, "fail": 0},
+    "test_console_consulta_servico": {"cmd": "python -m unittest discover -s tests -p \"test_console_consulta_servico.py\"", "pass": 13, "fail": 0}
+  }
 }

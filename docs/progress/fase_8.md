@@ -56,12 +56,12 @@ A §7 de fechamento (resumo técnico, estrutura, endpoints, migrações, variáv
 de ambiente, próxima fase) é redigida por quem implementou **após** o veredito
 do auditor. Esta seção é o insumo do auditor: cada item de DoD com status e a
 prova executável que o sustenta. Contagens medidas com Postgres/Redis no ar
-(a suíte completa passa a 936).
+(a suíte completa passa a 949).
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
 | 1 | Modo "Prova em andamento" perde sessões conforme `lms_session_drop_rate` | **VERDE** | `domains/academus/api/prova_andamento.py` (modelo de sobrevivência cumulativo, determinístico por `derive_seed`) provado por `tests/test_prova_andamento.py` (15, puro); a cláusula **conforme a flag** provada ponta-a-ponta por `tests/test_prova_andamento_integracao.py` (7, serviço): `GET /exam/session-status` derruba sessões conforme `academus.lms_session_drop_rate` LIDA do estado, e com a flag 0 ninguém cai |
-| 2 | Console de investigação emite os marcadores automáticos | **VERDE** | os cinco filtros (período/usuário/IP/janela/autorização) são **aplicados à consulta** (`repositorio.alteracoes_de_nota`, filtro→coluna) e o marcador `auto` (`audit_query_performed`) é emitido; `tests/test_console_investigacao.py` (16, serviço) prova que os filtros chegam à consulta e que `result_count` reflete a consulta filtrada |
+| 2 | Console de investigação emite os marcadores automáticos | **VERDE** | os cinco filtros (período/usuário/IP/janela/autorização, `filter_window` booleano) são **aplicados à consulta SQL** (`repositorio.alteracoes_de_nota`, filtro→coluna por `_FILTRO_PARA_COLUNA`) e o marcador `auto` (`audit_query_performed`) é emitido. O oráculo do SQL real é `tests/test_console_consulta_servico.py` (13, `@exige_banco`): semeia o próprio conjunto na `audit_trail` real e afere que cada filtro recorta o subconjunto certo e que `result_count` é a contagem **filtrada** — não uma cópia do mapa de produção. `tests/test_console_investigacao.py` (16, sem serviço) prova o marcador `auto` pela projeção e o encaminhamento do handler |
 | 3 | Cada persona vê apenas sua camada `reported` | **VERDE** | `range-core/participant/reported.py::project` (conjunção camada-reportável **E** `persona==P`, whitelist) provado na projeção pura **e pela rota real** `GET /participant/view` sobre o payload da API — `tests/test_reported_isolation.py` (10): nunca vaza ground truth, persona não alcança a fatia de outra, 401 sem token |
 | 4 | As sete ações de continuidade aplicam efeito mecânico e custo | **VERDE** | `domains/academus/continuidade.py` (as 7 do enum fechado) + fold genérico lendo `payload["effects"]` (INV-4: tabela injetada em `montar()`); `tests/test_continuidade.py` (20): cada ação emite `continuity_action_taken`, o fold aplica a flag, o custo viaja, negativos (422/403/401) presentes |
 
@@ -88,6 +88,8 @@ a relevância para ESTA fase.
 |---|---|---|---|
 | P8-1 | ~~Onda 2 da Estrutura Agêntica: instanciar os oito papéis e desenhar a reconciliação fase↔demanda — a decisão de abertura que a adoção agendou para cá~~ | `RESOLVIDA` | aceite de abertura do proprietário no chat em 2026-09-14; os oito papéis estão instalados e em uso (tech-lead produziu o desenho da Fase 8); reconciliação "marco por fora, SDD por dentro" registrada na adoção; ver abaixo |
 | P8-2 | o banner (`05` §4) na classe `exportacao` — histórico, diploma, PDF gerados pelo academus-web — não tem fase de destino: os artefatos ainda não existem, e o gate `check_banner_de_simulacao.py` os defere | `ABERTA` | a fase que construir os artefatos de exportação do academus-web (não previstos na DoD da Fase 8 nem em item da Fase 9); ver abaixo |
+| P8-3 | a entrada `pytest` na allowlist do auditor (`readonly_bash.py`) tem o prefixo do venv (H2) mas `pytest` não é dependência do projeto — a regra admite um comando que não existe em interpretador nenhum | `ABERTA` | a fase que adotar `pytest` (se alguma) ou a decisão de remover a entrada; a suíte do projeto é `unittest`; ver abaixo |
+| P8-4 | cinco das sete superfícies do academus-web (`02` §7: Portal do Aluno, do Professor, Secretaria, Financeiro, AVA) não têm fase de destino — a Fase 8 entregou só Prova em andamento e Console de investigação | `ABERTA` | a fase que construir o restante do academus-web (não previstas na DoD da Fase 8: `07` §Fase 8 tem quatro itens e nenhum as cobra); ver abaixo |
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | esta fase, junto do destino do pack (P7-9); detalhe em `fase_7.md` §"P1-7" |
 | P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `ABERTA` | medição de volume; detalhe em `fase_4.md`/`fase_7.md` §"P4-8" |
 | P5-2 | a categoria "declarações do exercício" da trilha não tem produtor | `ABERTA` | a primeira ação de participante que altere estado de domínio — **material desta fase** (item 4, continuidade); detalhe em `fase_5.md` §"P5-2" |
@@ -169,6 +171,39 @@ nem em item da Fase 9. Até lá, o registro bidirecional de `check_banner_de_sim
 mantém a classe deferida e reprova se um alvo aparecer no disco sem o banner. A
 pendência existe para que o requisito não morra em silêncio (a forma que `05` §4
 e a própria auditoria nomeiam).
+
+#### P8-4 — cinco superfícies do academus-web sem fase de destino
+
+**Nasceu na 3ª auditoria da Fase 8 (M4, órfão da 2ª).** `02` §7 enumera sete
+superfícies do academus-web: Portal do Aluno, Portal do Professor, Secretaria,
+Financeiro, AVA simplificado, Modo "Prova em andamento" e Console de
+investigação. A Fase 8 entrega as duas últimas (mais o `persona-panel`). **Não é
+falha de DoD** — `07` §Fase 8 tem quatro itens e nenhum cobra as outras cinco —,
+mas a fase intitulada "Web completo" fecha sem que nenhuma pendência diga quem
+constrói Portal do Aluno, Portal do Professor, Secretaria, Financeiro e AVA.
+
+**Vence em:** a fase que construir o restante do academus-web (candidata: a fase
+de conteúdo/experiência de participante, a decidir pelo proprietário no
+planejamento pós-Fase-8). A pendência existe para que as cinco não sumam do
+radar por não estarem em item de DoD.
+
+#### P8-3 — a entrada `pytest` da allowlist do auditor admite comando inexistente
+
+**Nasceu na 3ª auditoria da Fase 8 (M2, órfão da 2ª).** O H2 da 1ª auditoria
+pediu o `{PREFIXO_DO_VENV}` na entrada `pytest` de `user-scope/hooks/readonly_bash.py`
+(4ª ocorrência da classe "forma admitida, interpretador inalcançável"), e ele foi
+acrescentado. Mas `pytest` **não é dependência do projeto** — a suíte é `unittest`
+(decisão registrada no próprio `readonly_bash.py`), e o venv do lançador não tem o
+módulo. A regra agora admite `pytest`/`python -m pytest` com o prefixo certo, mas
+nenhum interpretador deste worktree o executa: a correção do H2 destravou um
+comando que não existe.
+
+**Por que fica ABERTA e não é revertida agora:** a entrada é inócua (allowlist
+que não casa comando algum não faz mal) e coerente com as irmãs; removê-la
+reabriria a inconsistência que o H2 nomeou. **Vence em:** a fase que adotar
+`pytest` como dependência (aí a entrada passa a valer), **ou** a decisão do
+proprietário de removê-la por ser vestigial. Registrada para não ser "correção
+que destrava o impossível" sem rastro.
 
 #### P1-7 — id de inject pode vazar a linha
 
