@@ -41,7 +41,8 @@ O que o experimento de red mostrou, e é o que fixa o contrato:
 O contrato que este gate define e que o data-engineer implementa: `filter_window`
 é BOOLEANO (`bool | None`). Como booleano, um valor não-booleano é recusado com
 **422 ANTES de consultar** (a mesma disciplina de `test_periodo_invertido...`),
-nunca um 500 vazado do driver. É esse `422 != 500` o RED do H1.
+nunca um 500 vazado do driver. O `422 != 500` foi o RED do H1; hoje é verde
+(`filter_window: bool | None` na rota, `ea8bf90`).
 
 MATRIZ GATE ↔ MUTANTE (R3 §5) — sobre o SQL real, não sobre `dict`
 ------------------------------------------------------------------
@@ -305,8 +306,10 @@ class OConsoleSobreOBancoReal(unittest.TestCase):
         é erro de REQUISIÇÃO: 422, recusado ANTES de consultar, e nada vai ao
         store — a mesma disciplina de período invertido.
 
-        VERMELHO HOJE: a rota devolve 500 (o driver vazou), e a asserção de 422
-        falha. Verde quando o data-engineer tipar o parâmetro como `bool | None`.
+        Foi o RED do H1 (commit `b8e3b56`): antes de o parâmetro ser tipado, a
+        rota devolvia 500 (o driver vazava `invalid input syntax for type
+        boolean`) e a asserção de 422 falhava. Ficou VERDE quando `filter_window`
+        virou `bool | None` na rota (`ea8bf90`).
         """
         resposta = self._consulta(filter_window="business_hours")
         self.assertEqual(

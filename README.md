@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **936 testes** | `python -m unittest discover -s tests`. A medição **com a stack no ar** é de 24/08/2026 e cobriu 735 deles, sem nenhum pulo; os 11 da P6-11 e os 2 da P5-6 são unitários e foram medidos sem ela. Os **33** do `range-cli scenario lint` (peça 3 da Fase 7, 25/08/2026), os **21** de branching e `dryrun` (peça 4, 26/08/2026) e os **2** do alcance total da guarda de IOC (M1 da 4ª auditoria, 13/09/2026) e os **10** do gabarito da Linha A (P7-10, abertura da Fase 8, 14/09/2026) também são unitários, medidos **sem** a stack. Os **68** da Fase 8 (prova em andamento, console de investigação, isolação da camada `reported`, continuidade) somam-se aqui — 61 unitários e 7 de integração que exigem a stack. Sem Postgres e Redis, 143 pulam |
+| **949 testes** | `python -m unittest discover -s tests`. A medição **com a stack no ar** é de 24/08/2026 e cobriu 735 deles, sem nenhum pulo; os 11 da P6-11 e os 2 da P5-6 são unitários e foram medidos sem ela. Os **33** do `range-cli scenario lint` (peça 3 da Fase 7, 25/08/2026), os **21** de branching e `dryrun` (peça 4, 26/08/2026) e os **2** do alcance total da guarda de IOC (M1 da 4ª auditoria, 13/09/2026) e os **10** do gabarito da Linha A (P7-10, abertura da Fase 8, 14/09/2026) também são unitários, medidos **sem** a stack. Os **81** da Fase 8 (prova em andamento, console de investigação, isolação da camada `reported`, continuidade) somam-se aqui — 61 unitários e 20 de integração que exigem a stack. Sem Postgres e Redis, 163 pulam |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -187,7 +187,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 
 **Cada checkpoint de fase é auditado por um agente adversarial**, em contexto isolado, num worktree fixado no commit candidato, sem ferramentas de escrita, emitindo PASS ou FAIL contra a especificação. Ele vive fora deste repositório de propósito: um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 
-**As reprovações não são apagadas.** São **49 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 7, e a maioria é de rodadas que falharam — inclusive um launch que abortou antes de auditar, e ficou. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
+**As reprovações não são apagadas.** São **52 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 8, e a maioria é de rodadas que falharam — inclusive um launch que abortou antes de auditar, e ficou. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
 
 ## Estrutura do repositório
 
@@ -249,7 +249,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 143 dos 936 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 163 dos 949 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 
