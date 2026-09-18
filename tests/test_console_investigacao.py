@@ -431,8 +431,9 @@ class OsFiltrosSaoAplicadosAConsulta(_ComConsole):
     `result_count` do evento reflete a consulta FILTRADA, não a sem-filtro.
 
     Prova a APLICAÇÃO (o repositório recebe o filtro e recorta as linhas), e não
-    só a GRAVAÇÃO (o payload carrega o filtro). O defeito atual — handler que
-    encaminha os filtros só ao emissor — mata os dois testes desta classe.
+    só a GRAVAÇÃO (o payload carrega o filtro). O defeito que a T812 fechou —
+    handler que encaminhava os filtros só ao emissor — matava os dois testes
+    desta classe (foi o RED do B2); hoje passam.
 
     Mata M6 (repo/handler que ignora o filtro e aplica só o período).
     """
@@ -440,9 +441,9 @@ class OsFiltrosSaoAplicadosAConsulta(_ComConsole):
     def test_os_quatro_filtros_chegam_ao_repositorio(self):
         """A CONSULTA recebeu os quatro valores pedidos — não apenas o payload.
 
-        Hoje o handler grava os filtros no evento e chama a consulta só com
-        `(inicio, fim, agrupar)`: o duplo os captura como `None`, e esta asserção
-        fica vermelha. Essa é a prova de red do B2 (R3 §4).
+        Antes da T812 o handler gravava os filtros no evento e chamava a consulta
+        só com `(inicio, fim, agrupar)`: o duplo os capturava como `None`, e esta
+        asserção ficava vermelha — foi o RED do B2 (R3 §4). Hoje é verde.
         """
         self.monta()
         self.consulta_filtrada()
@@ -461,9 +462,10 @@ class OsFiltrosSaoAplicadosAConsulta(_ComConsole):
 
         Cinco linhas na trilha, três do usuário pedido. Uma consulta por
         `filter_user` deve devolver TRÊS, e é esse o número que a trilha registra.
-        Hoje o filtro não chega ao SQL: a consulta devolve as cinco, e o evento
-        carrega `filter_user` ao lado de um `result_count=5` — `effect_class:
-        observation` afirmando o que não ocorreu. Vermelho até a T812.
+        Antes da T812 o filtro não chegava ao SQL: a consulta devolvia as cinco, e
+        o evento carregava `filter_user` ao lado de um `result_count=5` —
+        `effect_class: observation` afirmando o que não ocorreu. Foi o RED; a T812
+        fechou, e hoje é verde.
         """
         self.monta(
             linhas=[
@@ -502,10 +504,10 @@ class OsFiltrosSaoAplicadosAConsulta(_ComConsole):
 class MatrizDeAplicacaoDeFiltro(unittest.TestCase):
     """M6/M7 — a APLICAÇÃO do filtro à consulta, o que M1–M5 (payload) não cobrem.
 
-    Auto-contida: demonstra, sem depender do handler (que hoje nem encaminha os
-    filtros), que a asserção central do gate — `result_count` == tamanho da
-    consulta filtrada — MATA um repositório que ignora o filtro e aplica só o
-    período. R3 §5 / R10 §Nascimento.
+    Auto-contida: demonstra, sem depender do handler, que a asserção central do
+    gate — `result_count` == tamanho da consulta filtrada — MATA um repositório
+    que ignora o filtro e aplica só o período. R3 §5 / R10 §Nascimento. (A
+    aplicação sobre o SQL real é provada por `test_console_consulta_servico`.)
     """
 
     INICIO = datetime.fromisoformat(PERIODO["period_start"])
@@ -554,12 +556,13 @@ class MatrizDeAplicacaoDeFiltro(unittest.TestCase):
         )
 
     def test_M7_handler_que_nao_encaminha_o_filtro_e_morto(self):
-        """Mutante: o handler grava o filtro no payload mas chama a consulta com
-        três posicionais — o defeito ATUAL. O duplo o captura como `None`.
+        """Mutante: um handler que gravasse o filtro no payload mas chamasse a
+        consulta com três posicionais — o defeito que a T812 fechou. O duplo o
+        captura como `None`.
 
-        Reproduz a chamada do handler de hoje e prova que o filtro não chega."""
+        Reproduz aquela chamada e prova que o filtro não chegaria."""
         oraculo = RepositorioFalso(linhas=list(self.LINHAS))
-        # A chamada exata do handler atual (app.py) — três posicionais, sem filtros.
+        # A chamada do handler defeituoso — três posicionais, sem filtros.
         oraculo.alteracoes_de_nota(self.INICIO, self.FIM, False)
         [chamada] = oraculo.chamadas
 
