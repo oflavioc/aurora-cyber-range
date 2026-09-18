@@ -38,7 +38,7 @@ que a fase que as criar nao precise redescobrir a §4:
                    (`exam-mode`, `investigation-console`, `persona-panel`),
                    fonte e bundle. As telas academus-web JA EXISTEM e portanto
                    deixaram de ser deferidas: sao tela, e §4 nao abre excecao.
-    evidencia      Fase 8 — `08_EVIDENCE_SIMULATOR.md`; §4 exige comentario na
+    evidencia      Fase 9 — `08_EVIDENCE_SIMULATOR.md`; §4 exige comentario na
                    PRIMEIRA LINHA, no formato do proprio arquivo
     exportacao     Fase 8/9 — os ARTEFATOS gerados por academus-web (historico,
                    diploma, PDF) ainda nao existem; a §4 pede banner no RODAPE
@@ -106,7 +106,7 @@ COMPONENTE = "BannerDeSimulacao"
 #: `classe -> (coberta_aqui, dono)`. Ver o cabecalho.
 CLASSES_DA_SECAO_4 = {
     "telas": (True, "`01` §2 + Fase 8 (`07`): exam-mode, investigation-console, persona-panel"),
-    "evidencia": (False, "Fase 8 — `08_EVIDENCE_SIMULATOR.md`, comentario na primeira linha"),
+    "evidencia": (False, "Fase 9 — `08_EVIDENCE_SIMULATOR.md`, comentario na primeira linha"),
     "exportacao": (False, "Fase 8/9 — artefatos gerados por `academus-web`: historico, diploma, PDF"),
     "relatorio": (False, "Fase 9 — `range-core/aar/`"),
 }

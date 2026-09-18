@@ -97,9 +97,14 @@ MINIMO_PARA_SUBSTRING = 6
 #: Abaixo disto, nem entre aspas — e a contagem sai impressa.
 MINIMO_ABSOLUTO = 2
 
-#: As tres telas. Um bundle que perdesse uma tela passaria por nao ter o que
-#: varrer, e e por isso que `--exige-bundle` conta.
-TELAS = ("wallboard-shell", "participant-view", "gm-console")
+#: As seis telas. Um bundle que perdesse uma tela passaria por nao ter o que
+#: varrer, e e por isso que `--exige-bundle` conta. As tres da Fase 4
+#: (wallboard/plateia/console) mais as tres da Fase 8 (academus-web e o painel
+#: por persona) — o gate irmao `check_banner_de_simulacao` cobre as mesmas seis.
+TELAS = (
+    "wallboard-shell", "participant-view", "gm-console",
+    "exam-mode", "investigation-console", "persona-panel",
+)
 
 
 def nomes_de_flag(raiz: Path) -> set[str]:
