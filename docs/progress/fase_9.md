@@ -154,7 +154,7 @@ estado, e a relevância para ESTA fase.
 | P8-2 | o banner (`05` §4) na classe `exportacao` não tem fase de destino | `ABERTA` | a fase que construir os artefatos de exportação do academus-web; detalhe em `fase_8.md` §"P8-2" |
 | P8-3 | a entrada `pytest` na allowlist do auditor admite comando que nenhum interpretador executa | `ABERTA` | a fase que adotar `pytest`, ou a decisão do proprietário de removê-la; detalhe em `fase_8.md` §"P8-3" |
 | P8-4 | cinco das sete superfícies do academus-web (`02` §7) não têm fase de destino | `ABERTA` | a fase que construir o restante do academus-web; detalhe em `fase_8.md` §"P8-4" |
-| P8-5 | as três telas da Fase 8 não têm rota que as sirva, e a `participant-api` não tem raiz de composição de produção | `ABERTA` | a fase de serving/deploy do web — candidata a esta, **decisão do proprietário na abertura**; detalhe em `fase_8.md` §"P8-5" |
+| P8-5 | as três telas da Fase 8 não têm rota que as sirva, e a `participant-api` não tem raiz de composição de produção | `ABERTA` | **redatada na abertura da Fase 9**: o proprietário decidiu no chat (2026-09-18) que ela NÃO entra nesta fase. Novo vencimento: a fase de serving/deploy do web; ver abaixo |
 | P8-6 | as sete `action_id` do enum fechado estão copiadas à mão em `persona-panel/tipos.ts` sem gate | `ABERTA` | a Onda 3, ou a geração de constantes TS a partir do contrato; detalhe em `fase_8.md` §"P8-6" |
 | P8-7 | o cronômetro do Modo Prova em andamento recebe `exercise_minute` do chamador e não acompanha o relógio de exercício | `ABERTA` | a fase que ligar `ProvaEmAndamento` ao relógio autoritativo — **o item 6 desta DoD (replay respeita o clock) é candidato direto**; detalhe em `fase_8.md` §"P8-7" |
 
@@ -305,12 +305,18 @@ Herdada da Fase 8. Detalhe em `fase_8.md` §"P8-4".
 
 #### P8-5 — as telas sem rota, e a `participant-api` sem processo
 
-Herdada da Fase 8, e a única herdada cujo destino **é decisão de abertura desta
+Herdada da Fase 8, e a única herdada cujo destino **era decisão de abertura desta
 fase**: o registro da Fase 8 a marca como *"candidata à Fase 9 ou a uma fase de
 deploy"*. `07` §Fase 9 não tem item de serving — os sete itens são evidência,
-telemetria e desempenho —, então trazê-la para cá é ampliar o escopo da fase por
-decisão do proprietário, e não cumprir a DoD. Desenho pronto em
-`fase_8_plan_serving.md` (T822–T831). Detalhe em `fase_8.md` §"P8-5".
+telemetria e desempenho —, então trazê-la para cá seria ampliar o escopo da fase
+por decisão do proprietário, e não cumprir a DoD.
+
+**DECIDIDA pelo proprietário na abertura (2026-09-18): NÃO entra na Fase 9.**
+Fica para a fase de serving/deploy do web. O desenho continua pronto e válido em
+`fase_8_plan_serving.md` (T822–T831: co-locar cada casca com sua data-API;
+factory em `domains/academus/api/participante_processo.py`; serviço no compose),
+e a pendência segue `ABERTA` com esse destino. Detalhe de origem em `fase_8.md`
+§"P8-5".
 
 #### P8-6 — o enum das sete ações copiado à mão no cliente
 
