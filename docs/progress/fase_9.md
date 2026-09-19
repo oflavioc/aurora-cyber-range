@@ -96,6 +96,52 @@ situação e **não constavam da tabela-resumo da §6 da Fase 8**:
 As três entram na tabela abaixo com o prefixo de origem preservado. O **defeito
 do mecanismo** que as deixou passar é a **P9-1**.
 
+### 2.3 A Linha B não declara `projections`, e `08` §3 diz que ela projeta
+
+Medido na peça 1, lendo o gerador de gabarito. `domains/academus/seed/gabarito.py`
+produz os fatos da Linha B (`grade_change_retroactive`, um por linha da trilha
+semeada) com `fact_id`, `actor`, `source_ip`, `dest` e `records_affected` — e
+**sem `projections`**. Só os três fatos da Linha A (`linha_a.py`) as declaram.
+
+Pela regra de `08` §2, fato sem `projections` é **invisível ao time azul**. Mas
+`08` §3 enumera as fontes v1 e diz, do `database_audit.jsonl`, que ele carrega
+*"leitura em massa (Linha A) e alterações de nota com IP e sessão (Linha B)"*.
+As duas leituras não cabem juntas: ou a Linha B projeta em `database_audit`, ou
+a tabela de `08` §3 descreve um arquivo que não vai existir.
+
+**Não é spec-change** — a spec está coerente, e é o gerador que está incompleto:
+`08` §3 é autoridade sobre o que cada fonte carrega, e quem declara `projections`
+é o gabarito, que é mecanismo. A correção é do gerador, e cai na peça que
+constrói o `database_audit`.
+
+Fica registrado aqui porque é exatamente a classe de defeito que `08` §1 existe
+para impedir: a evidência que o time azul recebe deixaria de ter a linha de
+integridade, e nada ficaria vermelho — a cobertura de projeção passaria, porque
+fato sem `projections` **legitimamente** não projeta.
+
+### 2.4 Prova negativa só vale conferida na suíte COMPLETA
+
+Medido na peça 1, e vale para todo gate novo desta fase. Os quatro mutantes do
+item 1 eram mortos quando a prova rodava **sozinha** e **sobreviviam** quando ela
+rodava junto da árvore inteira — 949 verdes e quatro vermelhos, todos do próprio
+probe.
+
+A causa não era o gate nem a mutação: era o **import da suíte alvo**. O harness
+planta a mutação substituindo a entrada de `sys.modules`; a suíte fazia
+`from range_core.evidence import elenco as mod`, que liga ao **atributo do
+pacote** — e o atributo o harness não toca. Sozinha, a suíte funcionava por
+acaso: o atributo ainda não existia, e o `from` caía no `sys.modules` mutado.
+Junto da árvore, `test_evidence_elenco` já tinha sido importado, o atributo já
+apontava para o original, e a suíte recarregada o repegava de lá.
+
+**Falha de instrumento lida como ausência de detecção** — o espelho exato do que
+o cabeçalho de `test_queda_de_sessao_probes.py` já registra para o sentido
+oposto (falha de instrumento lida como detecção). Corrigido com
+`importlib.import_module`, que consulta `sys.modules` primeiro.
+
+A regra que fica: **prova negativa se confere na suíte completa**. Isolada, ela
+pode estar medindo o acaso da ordem de import.
+
 ## 3. Itens de DoD — status e evidência
 
 A §7 de fechamento é redigida por quem implementou **após** o veredito do
@@ -104,7 +150,7 @@ executável que o sustenta.
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
-| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | *não iniciado* | — |
+| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **EM CURSO** — a fundação está posta (peça 1); fecha quando houver arquivo projetado sobre o qual o oráculo rode | `range-core/evidence/elenco.py` responde as três perguntas puras do item — `elenco_de` (entidades que a projeção pode usar), `cobertura_de` (fonte → `fact_id`, com fato sem `projections` fora) e `enderecos_no` (a rede sólida do "não inventa"). `tests/test_evidence_elenco.py` (18, puro, **dirigido por fato e não por seed** como `06` T13 exige) + `tests/test_evidence_elenco_probes.py` (2): quatro mutantes mortos com conjunto vermelho exato — elenco que aceita tudo, rótulo no lugar do destino, cobertura inventando fonte, regex sem fronteira. **Conferidos na suíte completa, e não só isolados** — ver §2.4 |
 | 2 | `range-cli evidence verify` dirigido por fato | *não iniciado* | — |
 | 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | *não iniciado* | — |
 | 4 | Telemetria CEF é projeção, não emissão independente | *não iniciado* | — |
