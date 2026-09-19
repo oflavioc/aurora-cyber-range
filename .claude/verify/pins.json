@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "9860744b77a9ce3a1ac4c976be70f69424b09427",
+    "gerado_de_head": "90503c13ac61b45dacdcd55f3a54c34323441593",
     "gerado_em": "2026-09-18",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -67,7 +67,7 @@
     ".claude/verify/check_tdd.py": "5567a464ec20e22229c70480a9ac6b78d6ba5dc1991cc3e573db4d30d56cc1c0",
     ".claude/verify/compliance-audit.sh": "eb5aeeae55ad73eb0271d03eb52fed85599ac636327e52a9e95dd0a36826b7de",
     ".claude/verify/env_doctor.py": "f72114cf2edfd34407a0a0d558d67975dc863de30a11da0b0ecee4d769e5dc46",
-    ".claude/verify/expected_suites.json": "77bf3a37cac3f8ef2900aa275e6ac658fcf131b8db0a4911a900d8a3131a30dd",
+    ".claude/verify/expected_suites.json": "0a8edfc51f89dcd7d91637ae532124ce71ce75aadc6b2c69ccb40a1697ca4b04",
     ".claude/verify/gen_pins.py": "0b49c0c07f5dbd832de92e5267b56644d4f6b46e9f7ed088e30ed1b8d250207e",
     ".claude/verify/invariants.json": "e39d3c88fc7510ce7dc500cf43884d5c4b07253589c5fd3b7393a5ed02aec30f",
     ".claude/verify/pipeline.yaml": "6eea756933aec1c1ab71c8b7bcda50ccb39d05d0fe6686f5e08529c65b5e2092",
@@ -193,6 +193,7 @@
     "range-core/events/store.py": "b7eb33952c7775fe4dc36b6d4da4a9653d2fb6e445ae0327d242d86554f2f1fc",
     "range-core/events/veredito.py": "e344340a5ecb5863f7918faaabdd981baa3a034e88d9a18641881dfd43e8fd90",
     "range-core/evidence/__init__.py": "5f220013794c1508d80d15c88e1829796fa0f2dcb4507278a7b62b21075f4f45",
+    "range-core/evidence/elenco.py": "fb125405cf948b068f574b9569490a0a9b7c0c656e63472ff6d791dbf65080f3",
     "range-core/metrics/__init__.py": "e58f6b7986b2f49424beb2f9c4a9e4190360bfdc9e8c463bdc64f8d4c380c254",
     "range-core/metrics/calibracao.py": "cdc57a2f02fd659dedda65a742a35c7ddcc8901ce607a3c8778d9c357f88a95e",
     "range-core/metrics/declaracao.py": "8bccfe6281a5a9618d6418b631cca0f3f69c98590e6bb26e7f9e2d0f265eeb73",
@@ -363,6 +364,8 @@
     "tests/test_determinism.py": "32e503693e658dd423edf12ccfa50cb266f2fd0e0b8deacff6995f3713f8f162",
     "tests/test_event_store.py": "46a321b43fcb9064748f87d1e4649e8d8e129291504c391a26b40ed6e2732adb",
     "tests/test_event_store_postgres.py": "dedb61b98263bab61e1355d6966ef05e0ed0c7f48e1e32d4ea2ac070d18c8ea2",
+    "tests/test_evidence_elenco.py": "425069436310b912e6bd65425fa65c5a4bcf37efb1beda804a8023d6ba02b3a9",
+    "tests/test_evidence_elenco_probes.py": "c7c913f3e72c7e319d9bd5b178299f2b480db27dc65f31fdc7c1f65d75cd3813",
     "tests/test_exercise_clock.py": "c6db93b0f08e34b5b644e7830f876825965a2499f1acda417d2e87d12712ec35",
     "tests/test_gabarito.py": "afe299cb211a3f48b82d3f1892f5a66e4d4a3dd8d59b3b3fd69cc1b1acfc1fb6",
     "tests/test_inject_engine.py": "b737691bb190b6bef0638ca1b3a791aed78c297a5682426172833251fb9f64a4",
