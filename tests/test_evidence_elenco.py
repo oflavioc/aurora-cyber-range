@@ -52,9 +52,23 @@ tem de ser por CONTEUDO, e o elenco e ela.
 
 from __future__ import annotations
 
+import importlib
 import unittest
 
-from range_core.evidence import elenco as mod
+#: RESOLVIDO POR `sys.modules`, E ISSO NAO E ESTILO — e o que faz a prova
+#: negativa funcionar na suite COMPLETA.
+#:
+#: `from range_core.evidence import elenco as mod` liga `mod` ao ATRIBUTO do
+#: pacote, e o harness de mutacao substitui a entrada em `sys.modules`, nunca o
+#: atributo. Medido: isolada, esta suite matava os quatro mutantes; junto da
+#: arvore inteira, os quatro "sobreviviam" — porque `test_evidence_elenco` ja
+#: tinha sido importado, o atributo do pacote ja apontava para o original, e a
+#: suite recarregada pelo harness o repegava de la.
+#:
+#: Falha de INSTRUMENTO lida como ausencia de deteccao, que e o espelho do que o
+#: cabecalho de `test_queda_de_sessao_probes.py` descreve. `import_module`
+#: consulta `sys.modules` primeiro, entao a suite recarregada ve o modulo mutado.
+mod = importlib.import_module("range_core.evidence.elenco")
 
 # ---------------------------------------------------------------------------
 # Ground truths de fixture. Dirigidos por fato: cada um existe para um caso, e
@@ -207,9 +221,30 @@ class OsEnderecosNoTexto(unittest.TestCase):
         self.assertEqual(mod.enderecos_no(texto), {"192.0.2.7", "198.51.100.42"})
 
     def test_NAO_confunde_versao_nem_sequencia_de_numeros_com_endereco(self):
-        """Adversarial: o defeito classico da regex ingenua de IP. `1.2.3.4.5` e
-        `999.1.1.1` nao sao endereco, e `versao 1.2.3` tambem nao."""
-        for isca in ("versao 1.2.3 do agente", "999.1.1.1", "1.2.3.4.5", "2026.09.18"):
+        """Adversarial: os defeitos classicos da regex ingenua de IP.
+
+        Cada isca e um vizinho proximo que aparece de verdade em arquivo de log,
+        e por isso esta aqui e nao num comentario:
+
+            versao 1.2.3        tres componentes, nao quatro
+            999.1.1.1           casa a FORMA e nao e endereco — quem decide e
+                                `ipaddress`, e nao a regex
+            1.2.3.4.5           sem a fronteira da direita, doaria `1.2.3.4`
+            2026.09.18          data com ponto
+            00:1A:2B:3C:4D:5E   MAC — seis grupos hex, que e o vizinho do IPv6
+            2026-09-18T02:14:07 timestamp ISO, com `:` colado em `\\w`
+            Aug 13 02:14:07     timestamp de syslog, com `:` apos espaco — o
+                                caso que a fronteira do IPv6 tem de segurar
+        """
+        for isca in (
+            "versao 1.2.3 do agente",
+            "999.1.1.1",
+            "1.2.3.4.5",
+            "2026.09.18",
+            "mac 00:1A:2B:3C:4D:5E",
+            "ts 2026-09-18T02:14:07Z",
+            "Aug 13 02:14:07 vpn-gw-01",
+        ):
             self.assertEqual(mod.enderecos_no(isca), set(), isca)
 
     def test_texto_sem_endereco_devolve_conjunto_vazio(self):
