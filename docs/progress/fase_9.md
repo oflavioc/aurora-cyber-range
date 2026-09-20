@@ -150,11 +150,11 @@ executável que o sustenta.
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
-| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **EM CURSO** — a fundação está posta (peça 1); fecha quando houver arquivo projetado sobre o qual o oráculo rode | `range-core/evidence/elenco.py` responde as três perguntas puras do item — `elenco_de` (entidades que a projeção pode usar), `cobertura_de` (fonte → `fact_id`, com fato sem `projections` fora) e `enderecos_no` (a rede sólida do "não inventa"). `tests/test_evidence_elenco.py` (18, puro, **dirigido por fato e não por seed** como `06` T13 exige) + `tests/test_evidence_elenco_probes.py` (2): quatro mutantes mortos com conjunto vermelho exato — elenco que aceita tudo, rótulo no lugar do destino, cobertura inventando fonte, regex sem fronteira. **Conferidos na suíte completa, e não só isolados** — ver §2.4 |
+| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **EM CURSO** — o oráculo (peça 1) virou **porta** no motor (peça 2): `projetar()` recusa o gerador que inventa. Fecha quando os geradores reais existirem e o `evidence build` escrever em disco | `range-core/evidence/elenco.py` responde as três perguntas puras do item — `elenco_de` (entidades que a projeção pode usar), `cobertura_de` (fonte → `fact_id`, com fato sem `projections` fora) e `enderecos_no` (a rede sólida do "não inventa"). `tests/test_evidence_elenco.py` (18, puro, **dirigido por fato e não por seed** como `06` T13 exige) + `tests/test_evidence_elenco_probes.py` (2): quatro mutantes mortos com conjunto vermelho exato — elenco que aceita tudo, rótulo no lugar do destino, cobertura inventando fonte, regex sem fronteira. **Conferidos na suíte completa, e não só isolados** — ver §2.4 |
 | 2 | `range-cli evidence verify` dirigido por fato | *não iniciado* | — |
 | 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | *não iniciado* | — |
 | 4 | Telemetria CEF é projeção, não emissão independente | *não iniciado* | — |
-| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | *não iniciado* | — |
+| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **EM CURSO** — a metade do banner está posta (`06` T13 o cobra como critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado (falha fechada). Falta a guarda de anexo/IOC sobre os arquivos reais | `tests/test_evidence_projecao.py` (29), classe `OBannerVemDoContrato`: 8 casos, incluindo o negativo de posição (banner no rodapé não conta) e o de formato desconhecido |
 | 6 | Replay respeita o clock de exercício | *não iniciado* | — |
 | 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | *não iniciado* | — |
 
@@ -177,7 +177,7 @@ estado, e a relevância para ESTA fase.
 | Pendência | Assunto | Estado | Vence em |
 |---|---|---|---|
 | P9-1 | a migração de pendência só é conferida entre fases com coluna de estado — o gatilho escrito numa tabela de três colunas (fases 0–5) não chega a destino nenhum por máquina | `ABERTA` | esta fase, junto do fechamento — foi ela que expôs o defeito ao resgatar P1-3, P1-13 e P2-11; ver abaixo |
-| P1-3 | `evidence.schema.yaml` valida um artefato que ainda não é produzido | `ABERTA` | **esta fase** — `range-cli evidence build` produz o `MANIFEST.json` que o contrato valida; detalhe em `fase_1.md` §"P1-3" |
+| P1-3 | ~~`evidence.schema.yaml` valida um artefato que ainda não é produzido~~ | `RESOLVIDA` | **venceu na peça 2**: `range-core/evidence/manifesto.py` produz o `MANIFEST.json` e `erros_de_schema` o valida contra o contrato real, com os `$ref` cruzados resolvidos pelo `Registry` do loader. Oito fases depois, o contrato tem consumidor; ver abaixo |
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | a fase que decidir o destino do pack (P7-9) ou o primeiro pack novo; detalhe em `fase_7.md` §"P1-7" |
 | P1-13 | duas cópias das faixas sintéticas — o contrato declara as faixas e `check_synthetic_data.py` declara as suas; divergiram duas vezes em silêncio | `ABERTA` | **esta fase** — é ela que constrói o gerador, e é aqui que o gerador seguiria o contrato enquanto o CI julga pela constante; detalhe em `fase_1.md` §"P1-13" |
 | P2-11 | `append` abre uma conexão por chamada | `ABERTA` | **esta fase** — telemetria não grava a ritmo de facilitador; leitura e escrita reabrem juntas, pela mesma causa (volume); detalhe em `fase_2.md` §"P2-11" |
@@ -225,13 +225,28 @@ tabelas antigas sem exigir que elas ganhem coluna de estado retroativa. A forma
 exata é decisão do fechamento, e a pendência existe para que a varredura não
 dependa de alguém lembrar.
 
-#### P1-3 — o contrato do manifesto valida artefato ainda não produzido
+#### P1-3 — o contrato do manifesto valida artefato ainda não produzido — RESOLVIDA
 
 Herdada da Fase 1, resgatada nesta abertura (ver §2.2). `evidence.schema.yaml`
-valida o `MANIFEST.json` de `08` §7, e é esta fase que o produz pela primeira
-vez, com `range-cli evidence build`. O contrato existe desde a Fase 1 porque a
-DoD daquela fase o exigia; a validação real só é exercitada aqui. Detalhe em
-`fase_1.md` §"P1-3".
+valida o `MANIFEST.json` de `08` §7, e o contrato existia desde a Fase 1 porque
+a DoD daquela fase o exigia — sem nunca validar nada. O próprio arquivo o diz:
+*"quem consome, hoje: o evidence-simulator da Fase 9, que ainda não existe"*.
+
+**RESOLVIDA na peça 2.** `range-core/evidence/manifesto.py::montar` produz o
+documento e `erros_de_schema` o valida contra aquele schema, com os `$ref`
+resolvidos pelo mesmo `Registry` que o loader de pack usa. A validação é real e
+está provada nas duas direções: o manifesto correto passa, e um com quatro
+defeitos (formato fora do enum v1, hash curto, `sha256` inválido, `fact_id` fora
+da forma) é recusado **com o caminho** de cada um. O par negativo não é adorno —
+um validador que nunca recusa também devolve lista vazia.
+
+Um caso é dedicado ao **`$ref` cruzado** (`projects_facts.items` →
+`ground_truth.schema.json#/$defs/fact_id_pattern`), porque resolver aquilo exige
+o `Registry` montado com os dois contratos: sem ele, um validador mal montado
+ignoraria a cláusula em silêncio e os outros três defeitos manteriam o teste
+verde.
+
+Detalhe de origem em `fase_1.md` §"P1-3".
 
 #### P1-7 — id de inject pode vazar a linha
 
