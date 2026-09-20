@@ -231,11 +231,23 @@ class OMotorProjeta(unittest.TestCase):
             self._projetar(gerador_que_inventa)
         self.assertIn("203.0.113.200", str(ctx.exception))
 
-    def test_a_recusa_NOMEIA_a_fonte_e_o_que_foi_inventado(self):
-        """Mensagem que so diz "invalido" manda o autor do gerador procurar."""
+    def test_a_recusa_NOMEIA_a_fonte_CERTA(self):
+        """Mensagem que so diz "invalido" manda o autor do gerador procurar.
+
+        **So uma fonte inventa**, e a outra e fiel — de proposito. Com as duas
+        inventando, a asserção passaria nomeando qualquer uma das duas, e o que
+        se quer provar e que a mensagem aponta a fonte em que o defeito esta.
+        """
         with self.assertRaises(projecao.EntidadeInventada) as ctx:
-            self._projetar(gerador_que_inventa)
-        self.assertIn("vpn", str(ctx.exception))
+            projecao.projetar(
+                GT,
+                geradores={"vpn": gerador_que_inventa, "identity_audit": gerador_fiel},
+                formatos=self.formatos,
+                banner=banner.texto(CONTRATOS),
+            )
+        mensagem = str(ctx.exception)
+        self.assertIn("vpn", mensagem)
+        self.assertNotIn("identity_audit", mensagem)
 
     def test_gerador_fiel_ao_elenco_passa(self):
         """O par positivo da recusa: sem ele, um motor que recusasse TUDO
@@ -255,7 +267,7 @@ class OMotorProjeta(unittest.TestCase):
         for _ in range(3):
             projecao.projetar(
                 GT,
-                geradores={"identity_audit": espiao},
+                geradores={"identity_audit": espiao, "vpn": gerador_fiel},
                 formatos=self.formatos,
                 banner=banner.texto(CONTRATOS),
             )
@@ -329,6 +341,55 @@ class OManifesto(unittest.TestCase):
     def test_o_nome_do_arquivo_segue_o_formato_da_fonte(self):
         arquivos = {s["file"] for s in self.doc["sources"]}
         self.assertEqual(arquivos, {"vpn.log", "identity_audit.jsonl"})
+
+    def test_manifesto_INVALIDO_e_recusado_com_o_caminho(self):
+        """O par negativo, e sem ele o teste positivo nao afirma nada: um
+        validador que nunca recusa tambem devolve lista vazia.
+
+        Quatro defeitos de uma vez, cada um numa clausula diferente do contrato
+        — formato fora do enum v1, hash curto, sha invalido e `fact_id` fora da
+        forma. O caminho vem junto (`$.sources[0].format`), que e o que permite
+        ao autor do pack achar o defeito sem reler o manifesto inteiro.
+        """
+        ruim = {
+            "generated_from": {
+                "pack_id": PACK,
+                "ground_truth_hash": "sha256:0",
+                "random_seed": SEED,
+            },
+            "sources": [
+                {
+                    "file": "vpn.log",
+                    "format": "pcap",
+                    "delivery_mode": "pre_positioned",
+                    "window": "T-17d → T-15d",
+                    "projects_facts": ["gt-a-014"],
+                    "sha256": "zz",
+                }
+            ],
+        }
+        erros = manifesto.erros_de_schema(ruim, CONTRATOS)
+        caminhos = " ".join(erros)
+        self.assertIn("$.sources[0].format", caminhos)
+        self.assertIn("$.generated_from.ground_truth_hash", caminhos)
+        self.assertIn("$.sources[0].sha256", caminhos)
+
+    def test_o_ref_CRUZADO_para_o_contrato_de_ground_truth_resolve(self):
+        """`projects_facts.items` faz `$ref` para
+        `ground_truth.schema.json#/$defs/fact_id_pattern`, e resolver isso exige
+        o `Registry` montado com os DOIS contratos.
+
+        Sem o registry, `jsonschema` levantaria erro de resolucao — ou, pior,
+        um validador mal montado ignoraria a clausula e o teste acima passaria
+        pelos outros tres defeitos sem nunca exercitar este.
+        """
+        ruim = dict(self.doc)
+        ruim["sources"] = [dict(self.doc["sources"][0], projects_facts=["gt-a-014"])]
+        erros = manifesto.erros_de_schema(ruim, CONTRATOS)
+        self.assertTrue(
+            any("^GT-" in e for e in erros),
+            f"a forma de `fact_id` nao foi exercitada: {erros}",
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
