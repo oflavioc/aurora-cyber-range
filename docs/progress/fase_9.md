@@ -257,29 +257,36 @@ psycopg 3.2.12, migração `0004`):
 |---|---|---|---|
 | 0 (composição da Fase 7) | 650 | **0,043 s** | PASSA |
 | 200 | 48.650 | **1,026 s** | PASSA |
-| **400 — o declarado** | **96.650** | **1,73 – 2,05 s** em quatro execuções | **PASSA, ≥ 31% de folga** |
+| **400 — o declarado** | **96.650** | **≈ 2 s** (cinco execuções: 1,73 a 2,15 s) | **PASSA, folga ≥ 28%** |
 | 500 | 120.650 | **2,626 / 2,798 / 3,084 s** | **FALHA EM 1 DE 3** |
 | 600 | 144.650 | **3,162 s** | FALHA |
 | 833 | 200.570 | **3,812 s** | FALHA |
 
-> **A FAIXA, E NÃO UM VALOR PONTUAL — e a escolha tem razão de mecanismo.**
-> Quatro execuções a 400/min deram 1,73 / 2,02 / 2,04 s e a exploratória de
-> 1,729 s. **O valor exato é o da prova gravada**, e quem o imprime é
-> `check_prova_do_exercicio_4h.py`, que é também quem o confere contra a árvore.
+> **O VALOR EXATO MORA NA PROVA, E NÃO NESTA PÁGINA — e a razão é um ciclo
+> medido, não preferência de redação.**
 >
-> Este registro cita a faixa porque citar o valor pontual cria um **ciclo**: o
-> registro é commitado, o commit muda a árvore, a prova precisa ser regravada
-> contra a árvore nova, e a regravação devolve outro número dentro da variância
-> — que obrigaria a corrigir o registro de novo. Foi medido ao fechar o H3: duas
-> regravações consecutivas deram 2,017 s e 2,043 s.
+> O H3 da auditoria pediu que o registro citasse o número da prova. Cumprir isso
+> ao pé da letra abre um ciclo:
 >
-> A faixa é estável sob esse ciclo; o valor pontual não é. E não afrouxa nada,
-> porque o que o critério cobra é `< 3 s` — o **teto** da faixa é o que decide.
+>     o registro cita o valor → commitar muda a árvore → a prova é regravada
+>     contra a árvore nova → devolve outro número → o registro fica errado → ...
 >
-> **A variância sustenta 400/min em vez de enfraquecê-lo:** o pior caso medido
-> (2,05 s) tem 31% de folga, e cruzar 3 s exigiria um desvio de 0,95 s — mais
-> que o triplo do maior observado (0,31 s). A 500/min, 0,45 s bastavam, e foi
-> por isso que aquele volume caiu.
+> Três regravações consecutivas deram **2,017 / 2,043 / 2,147 s**. Nenhum está
+> errado: é a variância da máquina. O que está errado é amarrar prosa commitada
+> a uma medição que só existe **depois** do commit — e a primeira tentativa de
+> consertar isso com uma faixa fechada (1,73–2,05 s) foi ultrapassada pela
+> regravação seguinte, o que prova o ponto.
+>
+> **A fonte única do valor é `check_prova_do_exercicio_4h.py`**, que o imprime e
+> o confere contra a árvore. Esta página registra a ordem de grandeza e a
+> variância observada; quem quer o número da gravação corrente roda o
+> verificador. É a mesma regra que o resto do projeto aplica a contagem de
+> suíte: o registro canônico é o dado, a prosa aponta para ele.
+>
+> **E a variância sustenta 400/min em vez de enfraquecê-lo.** Cinco execuções
+> ficaram entre 1,73 s e 2,15 s — dispersão de ~0,42 s. Cruzar os 3 s exigiria
+> um desvio de 0,85 s a partir do pior caso observado, o **dobro** da dispersão
+> medida. A 500/min bastavam 0,45 s, e foi por isso que aquele volume caiu.
 
 **Ponto de quebra entre 120 mil e 144 mil eventos**, coerente com a curva da
 Fase 2 (~150 mil, 2,874 s) — o mesmo motor, medido de novo com a fonte que a
@@ -303,7 +310,7 @@ levada de volta ao proprietário com esse dado, e 400/min foi escolhido **por te
 margem reprodutível**, não por passar.
 
 A distinção é o que separa este número de mover a régua até caber: 400/min tem
-**31% de folga no pior caso medido** e não muda de veredito entre execuções.
+**folga de ao menos 28% em cinco execuções** e não muda de veredito entre execuções.
 
 #### A causa, decomposta
 
@@ -392,7 +399,7 @@ era de outra árvore. R2 §4: mensagem de agente não é evidência.
 | **B1** — prova órfã | regravada contra a árvore candidata, como **último** passo |
 | **H1** — `evidence verify` fora do CI | passo novo em `invariants.yml`, sobre o `evidence/` **versionado** do pack de exemplo — e isso o torna gate de **regressão do gerador**, não fumaça |
 | **H2** — banner com duas fontes vivas | quarto eixo em `check_banner_de_simulacao.py`: `05` §4 × `banner_text` do contrato, com 4 direções de prova negativa |
-| **H3** — três números para a mesma medição | a §2.8 e a §3 passam a citar **o número da prova** (faixa 1,73–2,05 s), e a variância entre a linha exploratória e a prova fica registrada |
+| **H3** — três números para a mesma medição | a §2.8 e a §3 passam a citar **o número da prova** (a fonte única passa a ser o verificador), e a variância entre a linha exploratória e a prova fica registrada |
 | **M1** — registros de adiamento mentindo | a classe `evidencia` vira **coberta e varrida**; a §2 de `check_secoes_de_seguranca` ganha mecanismo real; o dono de `relatorio` corrigido para Fase 10 |
 | **M2** — payload de telemetria não ligado | binding por `event_type` no `allOf`, com dois exemplos negativos (`fact_id` e assinatura inventada) |
 | **M3** — contradição na §2.8 | a frase resídua reescrita, com o motivo registrado |
@@ -429,7 +436,7 @@ executável que o sustenta.
 | 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um gerador só** — que é o que `08` §2 quer dizer com *"um contrato só"*. O arquivo `cef.log` (peça 3) e o `telemetry_emitted` saem dos **mesmos fatos**: `domains/academus/telemetry_events.yaml` (`02` §10, os doze eventos) mapeia `fact_class` → assinatura, e `range-core/telemetry/forwarder.py::programar` deriva o payload. **A prova é de valor, não de estrutura**: o `src` do evento e o do `cef.log` são comparados lado a lado, porque duas implementações coerentes hoje não provam nada sobre amanhã. O payload valida contra `$defs/telemetry_emitted_payload`, com `fact_id` **inexpressável** (`05` §6) |
 | 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
 | 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (20) + probes (2) |
-| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — **1,73–2,05 s** contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min), em quatro execuções. ≥31% de folga. **O número é o da prova gravada**, que é o que o verificador confere — ver §2.8 | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
+| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — **≈ 2 s** contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). Cinco execuções entre 1,73 e 2,15 s. **O número é o da prova gravada**, que é o que o verificador confere — ver §2.8 | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
 
 ## 6. Pendências
 
