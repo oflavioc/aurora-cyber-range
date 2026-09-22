@@ -22,8 +22,12 @@ O QUE `cef` AQUI NAO E: o telemetry-forwarder. O item 4 da DoD tem duas metades
 outra e tem peca propria. As duas compartilham este gerador, e e isso que `08`
 §2 quer dizer com *"um contrato so"*.
 
-`precursor` continua fora: e o item 3 (`precursor_events.jsonl` reproduzivel,
-com edicao manual detectada por hash), e `08` §2 o trata a parte.
+    precursor        jsonl         o sinal fraco que antecede o incidente
+
+`precursor` entrou na peca 4 — e o item 3, e `08` §2 e explicito sobre ele:
+*"deixa de ser artefato autoral: e GERADO como projecao"*. Ele e a unica fonte
+que **omite** um campo de proposito (`actor`): atribuicao e o achado do
+exercicio, nao o insumo. Ver o cabecalho de `precursor.py`.
 
 O CONTRATO DE UM GERADOR E MINIMO, E DE PROPOSITO
 ==================================================
@@ -96,6 +100,7 @@ def geradores(contratos: dict[str, dict]) -> dict[str, Callable]:
         "vpn": _modulo("vpn").gerar,
         "identity_audit": _modulo("identity_audit").gerar,
         "database_audit": _modulo("database_audit").gerar,
+        "precursor": _modulo("precursor").gerar,
         "cef": _modulo("cef").fabricar(
             restricoes["cef_vendor"], restricoes["cef_product"]
         ),

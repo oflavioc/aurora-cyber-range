@@ -124,7 +124,11 @@ def facts(seed: int) -> list[dict]:
             "exercise_time": (
                 f"T-{dia_acesso + dias_antes_do_acesso}d {hora_phishing:02d}:11"
             ),
-            "projections": ["email"],
+            # DUAS FONTES PARA O MESMO FATO, e e o modelo de `08` §1: o `.eml`
+            # traz a mensagem inteira, e o `precursor_events.jsonl` traz o sinal
+            # fraco — sem atribuicao de ator, que e o que o time azul constroi
+            # correlacionando. Uma realidade, multiplas projecoes.
+            "projections": ["email", "precursor"],
             "discoverability": {
                 "difficulty": "low",
                 "requires": "ler o cabecalho do e-mail e conferir o dominio do link",

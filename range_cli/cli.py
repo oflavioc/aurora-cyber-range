@@ -80,6 +80,10 @@ from range_core.engine.loader.pack_loader import PackError
 GROUND_TRUTH = "ground_truth.yaml"
 GM_NOTES = "GM_NOTES.md"
 
+#: `08` §7 — `scenarios/<domain>/<pack_id>/evidence/` com o `MANIFEST.json`.
+EVIDENCE = "evidence"
+MANIFESTO = "MANIFEST.json"
+
 
 class ComandoRecusado(Exception):
     """O comando nao executa, e nada foi escrito."""
@@ -233,6 +237,35 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="o `flags.yaml` do adapter; o default vem do `domain` do manifesto",
     )
+
+    # ---------------------------------------------------------------------
+    # `evidence` — o grupo da Fase 9. `08` §7.
+    #
+    # DOIS VERBOS DE CLASSES DIFERENTES, e a distincao e a de `04` §8.1 (a):
+    # `build` ESCREVE (como `materialize`) e fica fora das allowlists de quem
+    # opera o repositorio; `verify` so LE e entra nelas — e e por isso que ele
+    # nao pode escrever nem "para comparar".
+    # ---------------------------------------------------------------------
+    evidence = grupos.add_parser("evidence", help="projecao de evidencia — `08`")
+    verbos_de_evidencia = evidence.add_subparsers(dest="verbo", required=True)
+
+    verbo_build = verbos_de_evidencia.add_parser(
+        "build",
+        help=f"projeta o {GROUND_TRUTH} do pack em <pack>/{EVIDENCE}/, com {MANIFESTO}",
+    )
+    verbo_build.add_argument("path", help="o diretorio do pacote")
+    verbo_build.add_argument(
+        "--seed",
+        type=int,
+        required=True,
+        help="o RANDOM_SEED que gerou o gabarito; vai para o manifesto",
+    )
+
+    verbo_verify = verbos_de_evidencia.add_parser(
+        "verify",
+        help="confere o pacote de evidencia contra o ground truth; NAO escreve",
+    )
+    verbo_verify.add_argument("path", help="o diretorio do pacote")
     return parser
 
 
@@ -355,8 +388,106 @@ def _dryrun(args) -> int:
     return LIMPO
 
 
+def _contexto_de_evidencia(contratos):
+    """Os tres insumos do motor, montados do CONTRATO e do dominio.
+
+    O `domain` sai do pack? **Nao, e isto e limite declarado.** Hoje ha um
+    adapter com geradores (`academus`), e resolver o pacote de geradores pelo
+    `domain` do manifesto exigiria um registro dominio -> pacote que ainda nao
+    existe. Quando o segundo adapter tiver geradores, este e o ponto a mudar —
+    e o teste que o cobra e o de cobertura da tabela.
+    """
+    from domains.academus.evidence_generators import geradores
+
+    return {
+        "geradores": geradores(contratos),
+        "formatos": contract_source.formatos_por_fonte(contratos),
+        "banner": contratos["evidence"]["x-aurora-security-constraints"]["banner_text"],
+    }
+
+
+def _le_ground_truth(pack_dir: Path) -> bytes:
+    """Os BYTES do `ground_truth.yaml` — e sobre eles que o hash e feito."""
+    alvo = pack_dir / GROUND_TRUTH
+    if not alvo.exists():
+        raise ComandoRecusado(
+            f"{alvo} ausente. A evidencia e PROJECAO do gabarito (`00` §5.3), "
+            f"entao sem ele nao ha o que projetar — rode "
+            f"`range-cli scenario materialize` antes"
+        )
+    return alvo.read_bytes()
+
+
+def _evidence_build(args) -> int:
+    """`range-cli evidence build <path> --seed N`. ESCREVE."""
+    from range_core.evidence import build as build_de_evidencia
+
+    pack_dir = Path(args.path)
+    contratos = contract_source.read_contracts()
+    try:
+        manifesto = build_de_evidencia.construir(
+            _le_ground_truth(pack_dir),
+            destino=pack_dir / EVIDENCE,
+            pack_id=pack_dir.name,
+            random_seed=args.seed,
+            **_contexto_de_evidencia(contratos),
+        )
+    except (ComandoRecusado, ContractSourceError) as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+    except Exception as erro:  # noqa: BLE001 — as recusas do motor, nomeadas
+        # `projetar` levanta `GeradorAusente`, `FonteSemFormato`,
+        # `EntidadeInventada` e `IOCEncontrado`. Elas nao herdam de um tronco
+        # comum de proposito: cada uma nomeia uma norma diferente, e um tronco
+        # convidaria a captura generica que apaga qual delas disparou. Aqui a
+        # captura e generica porque este e o LIMITE do processo, e a mensagem
+        # original vai inteira para o operador.
+        print(f"RECUSADO: {type(erro).__name__}: {erro}", file=sys.stderr)
+        return RECUSADO
+
+    print(
+        f"{pack_dir / EVIDENCE}: {len(manifesto['sources'])} fonte(s) e {MANIFESTO} "
+        f"escritos."
+    )
+    return LIMPO
+
+
+def _evidence_verify(args) -> int:
+    """`range-cli evidence verify <path>`. SO LE — `04` §8.1 (a)."""
+    from range_core.evidence import build as build_de_evidencia
+
+    pack_dir = Path(args.path)
+    contratos = contract_source.read_contracts()
+    try:
+        achados = build_de_evidencia.conferir(
+            pack_dir / EVIDENCE,
+            _le_ground_truth(pack_dir),
+            contratos=contratos,
+            **_contexto_de_evidencia(contratos),
+        )
+    except (ComandoRecusado, ContractSourceError) as erro:
+        print(f"RECUSADO: {erro}", file=sys.stderr)
+        return RECUSADO
+
+    if not achados:
+        print(f"{pack_dir / EVIDENCE}: sem achados.")
+        return LIMPO
+
+    for achado in achados:
+        print(f"  {achado}", file=sys.stderr)
+    plural = "achado" if len(achados) == 1 else "achados"
+    print(f"{pack_dir / EVIDENCE}: {len(achados)} {plural}.", file=sys.stderr)
+    return RECUSADO
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+
+    if (args.grupo, args.verbo) == ("evidence", "build"):
+        return _evidence_build(args)
+
+    if (args.grupo, args.verbo) == ("evidence", "verify"):
+        return _evidence_verify(args)
 
     if (args.grupo, args.verbo) == ("scenario", "lint"):
         return _lint(args)

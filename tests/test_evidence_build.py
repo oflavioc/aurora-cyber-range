@@ -178,6 +178,51 @@ class AConferenciaEDirigidaPorFato(ABase):
         )
         self.assertTrue(any("ground_truth" in a for a in achados), achados)
 
+    def test_a_edicao_simples_e_reportada_PELO_HASH(self):
+        """`06` T13 nomeia o mecanismo: *"edicao manual e detectada **por hash**
+        no `MANIFEST.json`"*.
+
+        E a distincao importa para quem le o achado. Ha DUAS conferencias
+        empilhadas — o `sha256` do manifesto e a reprojecao — e elas respondem
+        perguntas diferentes: o hash diz *"o arquivo nao e o que foi escrito"*, e
+        a reprojecao diz *"o arquivo nao e o que o gabarito projeta"*. Sem este
+        caso, remover a comparacao de hash deixaria a reprojecao pegar a edicao
+        e reporta-la com a mensagem ERRADA — medido pela prova negativa.
+        """
+        alvo = self._arquivo("vpn.log")
+        alvo.write_text("editado", encoding="utf-8", newline="")
+        achados = self._conferir()
+        do_arquivo = [a for a in achados if "vpn.log" in a]
+        self.assertTrue(do_arquivo, achados)
+        self.assertIn("sha256", do_arquivo[0])
+
+    def test_manifesto_E_arquivo_alterados_JUNTOS_sao_distinguidos(self):
+        """A defesa em profundidade sendo verificada — e o caso que mostra que a
+        reprojecao nao e redundante com o hash.
+
+        Quem edita o arquivo E atualiza o `sha256` do manifesto passa pela
+        primeira conferencia. So a reprojecao o pega, porque ela nao pergunta
+        *"bate com o que foi escrito?"* e sim *"bate com o que o gabarito
+        projeta?"* — e a mensagem diz isso, em vez de acusar edicao manual.
+        """
+        import hashlib
+
+        alvo = self._arquivo("vpn.log")
+        forjado = "conluio"
+        alvo.write_text(forjado, encoding="utf-8", newline="")
+        manifesto = json.loads(self._arquivo(build.MANIFESTO).read_text(encoding="utf-8"))
+        for source in manifesto["sources"]:
+            if source["file"] == "vpn.log":
+                source["sha256"] = hashlib.sha256(forjado.encode("utf-8")).hexdigest()
+        self._arquivo(build.MANIFESTO).write_text(
+            json.dumps(manifesto, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+            newline="",
+        )
+        achados = [a for a in self._conferir() if "vpn.log" in a]
+        self.assertTrue(achados)
+        self.assertIn("juntos", achados[0])
+
     def test_arquivo_AUSENTE_e_detectado(self):
         self._arquivo("vpn.log").unlink()
         achados = self._conferir()
@@ -256,6 +301,108 @@ class OPrecursorEProjecao(ABase):
         for linha in conteudo.splitlines():
             if linha.strip() and not linha.startswith("{\"_banner"):
                 self.assertNotIn("actor", json.loads(linha))
+
+
+class OsVerbosDoCLI(unittest.TestCase):
+    """`range-cli evidence build` e `evidence verify` — `04` §8."""
+
+    def setUp(self):
+        import yaml
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="aurora-cli-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.pack = self.tmp / PACK
+        self.pack.mkdir(parents=True)
+        (self.pack / "ground_truth.yaml").write_text(
+            yaml.safe_dump({"facts": linha_a.facts(SEED)}, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+            newline="",
+        )
+
+    def _cli(self, *argv):
+        """Roda o CLI com a saida capturada, e devolve `(rc, stdout, stderr)`."""
+        import contextlib
+        import io
+
+        from range_cli.cli import main
+
+        saida, erro = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(saida), contextlib.redirect_stderr(erro):
+            rc = main(list(argv))
+        return rc, saida.getvalue(), erro.getvalue()
+
+    def test_build_escreve_e_sai_limpo(self):
+        rc, saida, _ = self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        self.assertEqual(rc, 0, saida)
+        self.assertTrue((self.pack / "evidence" / "MANIFEST.json").exists())
+
+    def test_verify_de_pacote_integro_sai_limpo(self):
+        self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        rc, saida, _ = self._cli("evidence", "verify", str(self.pack))
+        self.assertEqual(rc, 0, saida)
+
+    def test_verify_de_pacote_ADULTERADO_recusa(self):
+        """O codigo de saida e `2`, o mesmo de `lint` e `materialize`: `04` §8
+        poe esses verbos no CI, e um sinalizando recusa com `1` e outro com `2`
+        faria o job depender de qual deles falhou."""
+        self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        alvo = self.pack / "evidence" / "vpn.log"
+        alvo.write_text("adulterado", encoding="utf-8", newline="")
+        rc, _, erro = self._cli("evidence", "verify", str(self.pack))
+        self.assertEqual(rc, 2)
+        self.assertIn("vpn.log", erro)
+
+    def test_verify_NAO_escreve_no_pacote(self):
+        """`04` §8.1 (a) — `evidence verify` e da classe que so le, e as
+        allowlists de quem opera o repositorio dependem disso."""
+        self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        antes = {
+            p: (p.stat().st_mtime_ns, p.stat().st_size)
+            for p in sorted(self.pack.rglob("*"))
+        }
+        self._cli("evidence", "verify", str(self.pack))
+        depois = {
+            p: (p.stat().st_mtime_ns, p.stat().st_size)
+            for p in sorted(self.pack.rglob("*"))
+        }
+        self.assertEqual(antes, depois)
+
+    def test_build_sem_ground_truth_recusa_dizendo_o_que_falta(self):
+        """Falha fechada com instrucao: a evidencia e projecao do gabarito
+        (`00` §5.3), entao sem ele nao ha o que projetar."""
+        (self.pack / "ground_truth.yaml").unlink()
+        rc, _, erro = self._cli(
+            "evidence", "build", str(self.pack), "--seed", str(SEED)
+        )
+        self.assertEqual(rc, 2)
+        self.assertIn("materialize", erro)
+
+    def test_build_recusa_quando_o_motor_recusa(self):
+        """A recusa do motor chega INTEIRA ao operador, com o nome da excecao —
+        `GeradorAusente`, `EntidadeInventada`, `IOCEncontrado` nomeiam normas
+        diferentes, e uma mensagem generica mandaria procurar."""
+        import yaml
+
+        forjado = {
+            "facts": [
+                {
+                    "fact_id": "GT-A-777",
+                    "fact_class": "x",
+                    "exercise_time": "T+0",
+                    "projections": ["firewall"],
+                }
+            ]
+        }
+        (self.pack / "ground_truth.yaml").write_text(
+            yaml.safe_dump(forjado, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+            newline="",
+        )
+        rc, _, erro = self._cli(
+            "evidence", "build", str(self.pack), "--seed", str(SEED)
+        )
+        self.assertEqual(rc, 2)
+        self.assertIn("firewall", erro)
 
 
 if __name__ == "__main__":  # pragma: no cover
