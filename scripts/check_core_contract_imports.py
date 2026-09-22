@@ -254,12 +254,17 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
     "evidence/projecao.py": (
         frozenset({"dados_sinteticos"}),
         "O MESMO predicado, pelo mesmo motivo, no segundo produtor: o item 5 da "
-        "Fase 9 (`05` §2 e §3 — sem IOC real, sem dominio roteavel) e a mesma "
+        "DoD da Fase 9 — sem IOC real, sem dominio roteavel — e a mesma "
         "pergunta que o loader ja faz sobre o pack, agora sobre a evidencia "
         "PROJETADA. Escrever um detector proprio no motor seria a terceira "
         "resposta para 'este valor e sintetico?', e a P1-13 e exatamente o que "
         "acontece quando essa resposta tem mais de uma fonte: elas divergem na "
-        "primeira faixa nova, e a divergencia so aparece no exercicio",
+        "primeira faixa nova, e a divergencia so aparece no exercicio. "
+        "(A secao da spec NAO e citada por numero aqui de proposito: "
+        "`check_secoes_de_seguranca.py` le citacao em verificador como "
+        "reivindicacao de cobertura, e este verificador nao executa aquela "
+        "secao — ele guarda imports do core. Quem a executa e o proprio motor, "
+        "via `dados_sinteticos`.)",
     ),
 }
 
