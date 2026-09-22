@@ -709,6 +709,85 @@ $defs:
         type: string
         minLength: 1
 
+  # -------------------------------------------------------------------------
+  # TELEMETRIA — 02 secao 10 e 08 secao 2.
+  #
+  # `02` secao 10 fecha DOZE eventos de telemetria do adapter e lista os campos
+  # CEF que eles carregam. O enum abaixo e esse conjunto, e ele existe aqui pelo
+  # mesmo motivo do catalogo de `event_type`: assinatura com erro de digitacao
+  # nunca dispara, e o sinal simplesmente nao chega ao SIEM do exercicio — a
+  # falha que a secao 4 deste documento chama de "a mais cara possivel".
+  #
+  # A EMISSAO E PROJECAO, NUNCA INDEPENDENTE (08 secao 2): o mesmo fato produz a
+  # linha do `cef.log` e este payload. Um payload que pudesse carregar qualquer
+  # assinatura permitiria telemetria que nenhum fato sustenta, e o time azul
+  # encontraria a contradicao no meio do exercicio.
+  #
+  # O QUE ESTE PAYLOAD NAO TEM: `fact_id`. `05` secao 6 — o participante ve a
+  # telemetria, e o identificador de gabarito ali entrega o gabarito. Vale a
+  # mesma regra dos arquivos de evidencia.
+  # -------------------------------------------------------------------------
+  telemetry_signature:
+    enum:
+      - AUTH_FAIL
+      - AUTH_BRUTE
+      - BULK_STUDENT_EXPORT
+      - EXAM_BANK_ACCESS
+      - GRADE_CHANGE_RETROACTIVE
+      - SSO_FEDERATION_ANOMALY
+      - RADIUS_IMPOSSIBLE_TRAVEL
+      - HPC_JOB_ANOMALY
+      - DIPLOMA_ISSUE_OFFHOURS
+      - MASS_ENROLLMENT_CHANGE
+      - SERVICE_ACCOUNT_ANOMALY
+      - RESEARCH_REPO_BULK_READ
+
+  telemetry_emitted_payload:
+    type: object
+    required: [signature, severity]
+    # Fechado, como o de continuidade: e o que torna `fact_id` inexpressavel
+    # aqui, em vez de apenas desaconselhado.
+    additionalProperties: false
+    properties:
+
+      signature:
+        $ref: '#/$defs/telemetry_signature'
+
+      # 02 secao 10 lista `severity` entre os campos CEF. A escala e a do
+      # formato (0-10).
+      severity:
+        type: integer
+        minimum: 0
+        maximum: 10
+
+      # Os campos CEF de 02 secao 10. Todos OPCIONAIS: um evento de telemetria
+      # carrega o que o fato de origem tem, e campo ausente no fato nao vira
+      # chave nula — nulo afirmaria que o valor foi medido e e vazio, que e
+      # diferente de nao ter sido registrado.
+      src:
+        type: string
+      dst:
+        type: string
+      suser:
+        type: string
+      outcome:
+        enum: [success, failure]
+      cnt:
+        type: integer
+        minimum: 0
+
+      # `cs1`-`cs4` carregam contexto do DOMINIO (campus, curso, semestre,
+      # disciplina — 02 secao 10). Sao livres porque o contexto e do adapter, e
+      # fechar o vocabulario aqui poria dominio no contrato do nucleo.
+      cs1:
+        type: string
+      cs2:
+        type: string
+      cs3:
+        type: string
+      cs4:
+        type: string
+
 # ---------------------------------------------------------------------------
 # EFFECT_CLASS — 09 secao 4.0, acrescentada pelo spec-change
 # `effect-class-marcas-temporais-e-seed`.

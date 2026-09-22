@@ -55,6 +55,13 @@ forwarder = importlib.import_module("range_core.telemetry.forwarder")
 cef_mod = importlib.import_module("domains.academus.evidence_generators.cef")
 linha_a = importlib.import_module("domains.academus.seed.linha_a")
 
+#: O ATALHO E DO ADAPTER, e nao do nucleo. A primeira versao desta suite pedia
+#: `catalogo.do_academus(...)`, e o modulo do nucleo que o servia foi
+#: **bloqueado na escrita** pelo hook `check_architecture`: invariante 1,
+#: `range-core/` nao importa de `domains/`. O atalho nao mudou de forma, mudou
+#: de lado — e a fronteira foi defendida por mecanismo, nao por lembranca.
+telemetria_do_academus = importlib.import_module("domains.academus.telemetria")
+
 CONTRATOS = contract_source.read_contracts()
 SEED = 424242
 
@@ -93,7 +100,7 @@ class OCatalogoDoDominio(unittest.TestCase):
     """`02` §10 — `domains/academus/telemetry_events.yaml`."""
 
     def setUp(self):
-        self.catalogo = catalogo_mod.do_academus(CONTRATOS)
+        self.catalogo = telemetria_do_academus.catalogo(CONTRATOS)
 
     def test_declara_os_DOZE_eventos_de_02_secao_10(self):
         """A lista e fechada na spec, e o contrato a carrega como enum."""
@@ -125,7 +132,7 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
 
     def setUp(self):
         self.fatos = linha_a.facts(SEED)
-        self.catalogo = catalogo_mod.do_academus(CONTRATOS)
+        self.catalogo = telemetria_do_academus.catalogo(CONTRATOS)
         self.programados = forwarder.programar(self.fatos, catalogo=self.catalogo)
         restricoes = contract_source.restricoes_de_evidencia(CONTRATOS)
         self.cef = cef_mod.fabricar(
@@ -140,12 +147,38 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
     def test_os_VALORES_do_payload_aparecem_na_linha_CEF_do_mesmo_fato(self):
         """**A unificacao medida.** Se as duas metades divergissem, o mesmo fato
         produziria um `src` no arquivo e outro no evento — a contradicao que
-        `08` §1 chama de estruturalmente impossivel."""
+        `08` §1 chama de estruturalmente impossivel.
+
+        **O campo tem de ESTAR no payload, e nao so bater quando esta.** A
+        primeira versao deste caso pulava a asserção quando a chave faltava
+        (`if valor:`), e a prova negativa mostrou o custo: remover `src` do mapa
+        CEF nao derrubava teste nenhum. Um caso que se auto-desliga na ausencia
+        do que ele julga nao julga nada.
+        """
+        por_fato = {f["fact_id"]: f for f in self.fatos}
         for programado in self.programados:
-            for chave in ("src", "suser"):
-                valor = programado.payload.get(chave)
-                if valor:
-                    self.assertIn(str(valor), self.cef, f"{chave}={valor}")
+            fato = por_fato[programado.fact_id]
+            for campo, chave in (("source_ip", "src"), ("actor", "suser")):
+                if campo not in fato:
+                    continue
+                self.assertIn(chave, programado.payload, f"{chave} ausente do payload")
+                self.assertEqual(programado.payload[chave], fato[campo])
+                self.assertIn(str(fato[campo]), self.cef, f"{chave} fora do cef.log")
+
+    def test_a_severidade_vem_do_CATALOGO_e_nao_do_fato(self):
+        """`08` §2 — a telemetria nao julga.
+
+        `severity` e atributo do TIPO de sinal: dois `GRADE_CHANGE_RETROACTIVE`
+        tem a mesma severidade, aconteca o que acontecer no exercicio. Derivada
+        do fato, ela viraria avaliacao embutida na evidencia — a confusao de
+        camadas de `00` §3 que este projeto existe para evitar.
+
+        Sem este caso, uma severidade derivada de `records_affected` passava:
+        ela continua no intervalo do contrato, e o payload segue valido.
+        """
+        for programado in self.programados:
+            entrada = self.catalogo.entrada_de(programado.fact_class)
+            self.assertEqual(programado.payload["severity"], entrada.severity)
 
     def test_o_payload_carrega_a_assinatura_do_catalogo(self):
         for programado in self.programados:
@@ -158,6 +191,41 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
         for programado in self.programados:
             erros = forwarder.erros_de_payload(programado.payload, CONTRATOS)
             self.assertEqual(erros, [], erros)
+
+    def test_payload_INVALIDO_e_recusado_pelo_contrato(self):
+        """O par negativo, e sem ele o caso positivo nao afirma nada: um
+        validador que nunca recusa tambem devolve lista vazia — a licao da
+        peca 2.
+
+        Quatro defeitos, cada um numa clausula diferente. **O terceiro e o que
+        importa para `05` §6**: `fact_id` e INEXPRESSAVEL no payload, porque
+        `additionalProperties: false` o recusa — o participante ve a telemetria,
+        e o identificador de gabarito ali entregaria o gabarito.
+        """
+        casos = (
+            ({"signature": "INVENTADA", "severity": 3}, "$.signature"),
+            ({"signature": "AUTH_FAIL", "severity": 99}, "$.severity"),
+            ({"signature": "AUTH_FAIL", "severity": 3, "fact_id": "GT-A-014"}, "fact_id"),
+            ({"severity": 3}, "signature"),
+        )
+        for payload, esperado in casos:
+            erros = forwarder.erros_de_payload(payload, CONTRATOS)
+            self.assertTrue(erros, payload)
+            self.assertIn(esperado, " ".join(erros), payload)
+
+    def test_o_ENUM_das_doze_e_de_fato_exercitado(self):
+        """O `$ref` para `$defs/telemetry_signature` e de OUTRO nivel do mesmo
+        documento, e resolve-lo exige o alvo pelo `$id`.
+
+        Medido: com o sub-schema passado solto, `jsonschema` levanta
+        `PointerToNowhere` — e se o erro fosse silenciado, o enum deixaria de
+        ser conferido e assinatura inventada passaria. Este caso existe para
+        que o enum seja exercitado, e nao so referenciado.
+        """
+        erros = forwarder.erros_de_payload(
+            {"signature": "NAO_EXISTE", "severity": 1}, CONTRATOS
+        )
+        self.assertTrue(any("AUTH_FAIL" in e for e in erros), erros)
 
     def test_fato_sem_assinatura_NAO_vira_telemetria(self):
         forjado = [{"fact_id": "GT-A-500", "fact_class": "nada", "exercise_time": "T+0"}]

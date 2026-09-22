@@ -1,0 +1,109 @@
+# CATALOGO DE TELEMETRIA DO ADAPTER — `02_DOMAIN_ACADEMUS.md` secao 10.
+#
+# O QUE ESTE ARQUIVO E
+# ---------------------
+# Os DOZE eventos de telemetria que o ACADEMUS produz, e o `fact_class` que
+# dispara cada um. `02` secao 10 fecha a lista; `contracts/events.schema.yaml`
+# a carrega como enum (`$defs/telemetry_signature`), e o carregador cruza os
+# dois — assinatura fora do enum e recusada na carga.
+#
+# ESTE ARQUIVO E DO DOMINIO, E O MAPEAMENTO TAMBEM
+# -------------------------------------------------
+# O nucleo sabe programar e emitir telemetria; QUAL fato do mundo academico
+# vira QUAL sinal de SIEM e conhecimento do adapter. Invariante 1: o motor nao
+# conhece o dominio, e por isso o catalogo chega a ele por injecao.
+#
+# `fact_class` E A CHAVE, E NAO `action`
+# ---------------------------------------
+# `fact_class` e a ESPECIE do fato (`04` secao 3), e e o que o SIEM
+# classificaria; `action` e o verbo, mais granular e mais volatil. Um
+# mapeamento por `action` exigiria uma linha por verbo novo do gabarito, e o
+# gabarito e quem muda mais.
+#
+# NEM TODO EVENTO TEM FATO QUE O DISPARE, E ISSO E DESENHO
+# ---------------------------------------------------------
+# O catalogo e do ADAPTER e vale para todo pack; o gabarito de um pack dispara
+# os que a historia dele tem. Os que ficam sem `fact_class` aqui sao os que
+# `02` secao 10 declara e que nenhum fato do `ransomware-universidade` produz —
+# eles existem para o proximo pack, e declara-los agora e o que impede que o
+# proximo autor os invente com outro nome.
+#
+# A TELEMETRIA NAO JULGA — 08 secao 2
+# ------------------------------------
+# `severity` e do FORMATO CEF (0-10), e e atributo do tipo de sinal, nao
+# avaliacao do caso: dois `GRADE_CHANGE_RETROACTIVE` tem a mesma severidade,
+# aconteca o que acontecer no exercicio. A dificuldade de descobrir mora em
+# `discoverability`, que e do gabarito.
+
+events:
+
+  # ---------------------------------------------------------------------
+  # COM FATO QUE OS DISPARA no `ransomware-universidade`.
+  # ---------------------------------------------------------------------
+
+  # A Linha A: a credencial de servico entrando por VPN, fora de expediente e
+  # sem MFA. E o sinal que o time azul correlaciona com o `vpn.log`.
+  - signature: SERVICE_ACCOUNT_ANOMALY
+    fact_class: initial_access
+    severity: 7
+    outcome: success
+
+  # A escalada de escopo da mesma conta.
+  - signature: SSO_FEDERATION_ANOMALY
+    fact_class: privilege_escalation
+    severity: 8
+    outcome: success
+
+  # A leitura em massa — o `cnt` do CEF carrega `records_affected`.
+  - signature: BULK_STUDENT_EXPORT
+    fact_class: exfiltration
+    severity: 9
+    outcome: success
+
+  # A Linha B, a linha de INTEGRIDADE. Mesma severidade para todo caso: quais
+  # deles sao indevidos e o gabarito, nao a telemetria.
+  - signature: GRADE_CHANGE_RETROACTIVE
+    fact_class: grade_change_retroactive
+    severity: 6
+    outcome: success
+
+  # O phishing que abre a Linha A. `AUTH_FAIL` e o sinal que o gateway de
+  # e-mail produz ao recusar o remetente forjado.
+  - signature: AUTH_FAIL
+    fact_class: phishing_delivery
+    severity: 3
+    outcome: failure
+
+  # ---------------------------------------------------------------------
+  # DECLARADOS E SEM FATO NESTE PACK — ver o cabecalho. Sao de `02` secao 10 e
+  # existem para o proximo pack; `fact_class` ausente significa "nenhum fato
+  # deste gabarito o dispara", e nao "sem dono".
+  # ---------------------------------------------------------------------
+
+  - signature: AUTH_BRUTE
+    severity: 6
+    outcome: failure
+
+  - signature: EXAM_BANK_ACCESS
+    severity: 7
+    outcome: success
+
+  - signature: RADIUS_IMPOSSIBLE_TRAVEL
+    severity: 8
+    outcome: success
+
+  - signature: HPC_JOB_ANOMALY
+    severity: 5
+    outcome: success
+
+  - signature: DIPLOMA_ISSUE_OFFHOURS
+    severity: 7
+    outcome: success
+
+  - signature: MASS_ENROLLMENT_CHANGE
+    severity: 6
+    outcome: success
+
+  - signature: RESEARCH_REPO_BULK_READ
+    severity: 8
+    outcome: success
