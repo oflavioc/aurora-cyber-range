@@ -96,7 +96,7 @@ situação e **não constavam da tabela-resumo da §6 da Fase 8**:
 As três entram na tabela abaixo com o prefixo de origem preservado. O **defeito
 do mecanismo** que as deixou passar é a **P9-1**.
 
-### 2.3 A Linha B não declara `projections`, e `08` §3 diz que ela projeta
+### 2.3 Duas lacunas do gabarito contra `08` §3 — e as duas fecham na peça 3
 
 Medido na peça 1, lendo o gerador de gabarito. `domains/academus/seed/gabarito.py`
 produz os fatos da Linha B (`grade_change_retroactive`, um por linha da trilha
@@ -119,28 +119,80 @@ para impedir: a evidência que o time azul recebe deixaria de ter a linha de
 integridade, e nada ficaria vermelho — a cobertura de projeção passaria, porque
 fato sem `projections` **legitimamente** não projeta.
 
-### 2.4 Prova negativa só vale conferida na suíte COMPLETA
+**A segunda lacuna apareceu ao escrever a peça 3, e é da mesma família.**
+`08` §3 enumera `email.eml` com *"phishing de recadastramento — origem da
+Linha A"*, e **nenhum fato declarava `projections: [email]`**: o gerador não
+produzia o fato de phishing. Sem ele, o `.eml` seria conteúdo autoral em vez de
+projeção — exatamente o que `08` §2 proíbe ao dizer que *"precursor_events.jsonl
+deixa de ser artefato autoral: é gerado como projeção"*.
 
-Medido na peça 1, e vale para todo gate novo desta fase. Os quatro mutantes do
-item 1 eram mortos quando a prova rodava **sozinha** e **sobreviviam** quando ela
-rodava junto da árvore inteira — 949 verdes e quatro vermelhos, todos do próprio
-probe.
+**As duas fecham na peça 3.** `linha_a.py` passa a sintetizar
+`phishing_delivery` (determinístico por seed, antes do acesso inicial na ordem
+do incidente), e `gabarito.py` declara `projections: [database_audit]` nos fatos
+da Linha B. Nenhuma das duas é spec-change: `08` §3 é autoridade sobre o que
+cada fonte carrega, e quem declara `projections` é o gabarito, que é mecanismo.
 
-A causa não era o gate nem a mutação: era o **import da suíte alvo**. O harness
-planta a mutação substituindo a entrada de `sys.modules`; a suíte fazia
-`from range_core.evidence import elenco as mod`, que liga ao **atributo do
-pacote** — e o atributo o harness não toca. Sozinha, a suíte funcionava por
-acaso: o atributo ainda não existia, e o `from` caía no `sys.modules` mutado.
-Junto da árvore, `test_evidence_elenco` já tinha sido importado, o atributo já
-apontava para o original, e a suíte recarregada o repegava de lá.
+**E uma terceira, que o motor cobrou sozinho:** o gabarito já declarava `cef`
+desde a P7-10, e o motor recusa por falha fechada a cobertura que pede fonte sem
+gerador. Um pacote de geradores que parasse nas quatro de `08` §3 não projetaria
+o próprio gabarito do projeto — então `cef` entrou aqui. É a metade-arquivo do
+item 4; a outra (`telemetry_emitted` no event store) tem peça própria, e as duas
+compartilham o gerador, que é o que `08` §2 quer dizer com *"um contrato só"*.
 
-**Falha de instrumento lida como ausência de detecção** — o espelho exato do que
-o cabeçalho de `test_queda_de_sessao_probes.py` já registra para o sentido
-oposto (falha de instrumento lida como detecção). Corrigido com
-`importlib.import_module`, que consulta `sys.modules` primeiro.
+### 2.4 Prova negativa só vale conferida na suíte COMPLETA, e resolvida por `sys.modules`
 
-A regra que fica: **prova negativa se confere na suíte completa**. Isolada, ela
-pode estar medindo o acaso da ordem de import.
+**Três ocorrências da mesma família de defeito nesta fase, todas de instrumento
+lido como ausência de detecção.** Registradas juntas porque a terceira só foi
+reconhecida rápido por causa das duas primeiras.
+
+1. **Peça 1 — `from pacote import submodulo`.** Os quatro mutantes morriam com o
+   probe rodando sozinho e **sobreviviam** na suíte completa. O harness planta a
+   mutação substituindo `sys.modules`; `from range_core.evidence import elenco
+   as mod` liga ao **atributo do pacote**, que o harness não toca. Sozinho
+   funcionava por acaso — o atributo ainda não existia.
+2. **Peça 3 — o mesmo, com `linha_a` e com o `__init__` do pacote.** A mutação
+   do fato de phishing não derrubava nada porque a suíte segurava
+   `from domains.academus.seed import linha_a`; e as de `cef` e `jsonl` não
+   derrubavam nada porque `geradores()` resolvia os submódulos por atributo.
+   O `__init__` **não pode ser mutado**: o harness o carrega como módulo avulso,
+   sem `__path__`. A saída foi do outro lado — `geradores()` passou a resolver
+   por `import_module`.
+3. **Peça 3 — `identity_audit` e `database_audit` segurando `jsonl`.** Import no
+   topo guarda a função original; entram na lista de mutáveis **sem mutação
+   própria**, só para serem recarregados depois. É a ordem de dependência que o
+   cabeçalho do harness descreve e que `test_queda_de_sessao_probes.py` já usa.
+
+A regra que fica: **prova negativa se confere na suíte completa, e tudo o que
+ela muta resolve-se por `sys.modules`.** Isolada, ela pode estar medindo o acaso
+da ordem de import.
+
+### 2.5 `achados_no_valor` julga VALOR, não texto — a guarda que não guardava
+
+Medido na peça 3, e é a lição mais cara dela. O item 5 exige *"nenhum arquivo
+contém anexo, binário, IOC real ou domínio roteável"*, e o predicado que
+responde isso já existe em `dados_sinteticos` — reusá-lo em vez de escrever um
+segundo é a lição da P1-13.
+
+Mas `achados_no_valor` opera sobre **um valor de campo**: `hostnames_candidatos`
+assume que o valor é uma URL, um e-mail ou um hostname nu, e **texto com espaço
+no meio ele descarta**, devolvendo lista vazia. Chamado sobre o conteúdo inteiro
+de um arquivo de log, ele passa vacuamente: `"visite https://<host roteável>/login"`
+não produz achado nenhum.
+
+A primeira versão da guarda do motor fazia exatamente isso — e a primeira versão
+do teste que a julgava, também. **A guarda parecia proteger e não protegia, e o
+teste concordava com ela.**
+
+A correção é tokenizar antes de julgar, e a divisão de responsabilidade fica
+declarada: **a tokenização é do motor; o julgamento continua sendo do predicado
+único.** Ensinar `dados_sinteticos` a ler texto livre mudaria a semântica de um
+módulo que o CI e o loader já consomem, para servir a um chamador só.
+
+O teste usa `split()` puro e o motor usa uma regex que também corta pontuação —
+**as duas tokenizações são diferentes de propósito**: um teste que reusasse a do
+motor deixaria de ser oráculo independente e aprovaria um defeito na própria
+tokenização. E a prova negativa restaura o defeito exato, porque sem ela nada
+distinguiria a guarda que funciona da que não funciona.
 
 ## 3. Itens de DoD — status e evidência
 
@@ -150,11 +202,11 @@ executável que o sustenta.
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
-| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **EM CURSO** — o oráculo (peça 1) virou **porta** no motor (peça 2): `projetar()` recusa o gerador que inventa. Fecha quando os geradores reais existirem e o `evidence build` escrever em disco | `range-core/evidence/elenco.py` responde as três perguntas puras do item — `elenco_de` (entidades que a projeção pode usar), `cobertura_de` (fonte → `fact_id`, com fato sem `projections` fora) e `enderecos_no` (a rede sólida do "não inventa"). `tests/test_evidence_elenco.py` (18, puro, **dirigido por fato e não por seed** como `06` T13 exige) + `tests/test_evidence_elenco_probes.py` (2): quatro mutantes mortos com conjunto vermelho exato — elenco que aceita tudo, rótulo no lugar do destino, cobertura inventando fonte, regex sem fronteira. **Conferidos na suíte completa, e não só isolados** — ver §2.4 |
+| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE em conteúdo** — as cinco fontes que o gabarito declara são projeção de fato, e o motor **recusa** o gerador que inventa. Falta só a escrita em disco (`evidence build`, peça 4), que é mecânica | Três camadas. (a) `range-core/evidence/elenco.py` responde as três perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora) e `enderecos_no`; `tests/test_evidence_elenco.py` (18, **dirigido por fato e não por seed**, `06` T13) + probes (2), 4 mutantes. (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**: `EntidadeInventada` nomeia a fonte e o valor; `tests/test_evidence_projecao.py` (29) + probes (2), 5 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das cinco fontes, provados contra o fato em `tests/test_evidence_generators.py` (27) + probes (2), 5 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco em vez de ser escrito à mão — a fresta do item 1 onde o oráculo de endereço não olha |
 | 2 | `range-cli evidence verify` dirigido por fato | *não iniciado* | — |
 | 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | *não iniciado* | — |
 | 4 | Telemetria CEF é projeção, não emissão independente | *não iniciado* | — |
-| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **EM CURSO** — a metade do banner está posta (`06` T13 o cobra como critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado (falha fechada). Falta a guarda de anexo/IOC sobre os arquivos reais | `tests/test_evidence_projecao.py` (29), classe `OBannerVemDoContrato`: 8 casos, incluindo o negativo de posição (banner no rodapé não conta) e o de formato desconhecido |
+| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
 | 6 | Replay respeita o clock de exercício | *não iniciado* | — |
 | 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | *não iniciado* | — |
 
