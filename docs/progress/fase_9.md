@@ -235,7 +235,14 @@ distinguiria a guarda que funciona da que não funciona.
 
 ### 2.8 O volume do item 7 foi fixado pela MARGEM, e não pelo veredito
 
-**Medido na peça 6, e é o primeiro item de DoD desta fase que não fecha.**
+**Medido na peça 6, e é o único item desta fase que precisou de duas declarações
+retiradas antes de fechar.**
+
+> A frase original desta linha dizia *"o primeiro item de DoD desta fase que não
+> fecha"* — verdadeira enquanto 833/min estourava, e **resíduo** depois de
+> 400/min ser adotado: o item 7 fecha, e a §3 o marca VERDE. Duas afirmações
+> opostas no mesmo documento, num registro que é o insumo declarado do auditor.
+> Foi o M3 da auditoria.
 
 `06` T13 cobra que a reconstrução *"continua em < 3 s"* com `telemetry_emitted`
 no volume de um exercício de 4 h, e `07` §Fase 9 diz que telemetria *"pode
@@ -250,10 +257,25 @@ psycopg 3.2.12, migração `0004`):
 |---|---|---|---|
 | 0 (composição da Fase 7) | 650 | **0,043 s** | PASSA |
 | 200 | 48.650 | **1,026 s** | PASSA |
-| **400 — o declarado** | **96.650** | **1,729 s** | **PASSA, 42% de folga** |
+| **400 — o declarado** | **96.650** | **1,729 s** (exploratória) · **2,119 s** (a PROVA) | **PASSA, 29% de folga** |
 | 500 | 120.650 | **2,626 / 2,798 / 3,084 s** | **FALHA EM 1 DE 3** |
 | 600 | 144.650 | **3,162 s** | FALHA |
 | 833 | 200.570 | **3,812 s** | FALHA |
+
+> **O NÚMERO QUE VALE É O DA PROVA GRAVADA, e não o da linha exploratória.**
+> `.aurora-prova-do-exercicio-4h.json` registra **2,119 s** para os mesmos
+> 96.650 eventos, e é ele que `check_prova_do_exercicio_4h.py` confere — a §3
+> deste registro cita esse valor.
+>
+> A linha exploratória (1,729 s) e a da prova (2,119 s) diferem em 0,39 s, e
+> essa diferença **é a mesma variância que reprovou 500/min**. Ela está aqui de
+> propósito: um único número faria a margem parecer maior do que é. Foi o H3 da
+> auditoria, que achou três valores para a mesma medição espalhados pelo
+> registro.
+>
+> **E é a variância que sustenta 400/min, não a enfraquece:** o pior caso medido
+> (2,119 s) tem 29% de folga, e cruzar 3 s exigiria um desvio de 0,88 s — o
+> dobro do maior já observado. A 500/min, o desvio de 0,45 s bastava.
 
 **Ponto de quebra entre 120 mil e 144 mil eventos**, coerente com a curva da
 Fase 2 (~150 mil, 2,874 s) — o mesmo motor, medido de novo com a fonte que a
@@ -277,7 +299,7 @@ levada de volta ao proprietário com esse dado, e 400/min foi escolhido **por te
 margem reprodutível**, não por passar.
 
 A distinção é o que separa este número de mover a régua até caber: 400/min tem
-42% de folga e não muda de veredito entre execuções.
+**29% de folga no pior caso medido** e não muda de veredito entre execuções.
 
 #### A causa, decomposta
 
@@ -339,6 +361,56 @@ dentro dele o ciclo desserializar → reserializar domina.
 lote, como a do bench, porque o que o critério mede é **reconstrução**. Ela
 segue `ABERTA`, com o gatilho intacto, e a fase não pode alegar tê-la fechado.
 
+### 2.9 A 1ª auditoria — FAIL, e o que ela achou
+
+`docs/progress/audit_20260922T200341Z.md`, sobre `b4b5f50`. **Veredito FAIL**,
+por um BLOCKER mecânico, mais 3 HIGH, 4 MEDIUM e 2 LOW.
+
+**O B1 é processual e a causa é de disciplina, não de código.** A prova do
+exercício de 4 h foi gravada contra a árvore de `3b3e9c2` e **dois commits
+entraram depois** (a recusa nomeada do lançador e os pins dela) — que órfãos a
+prova. `check_prova_do_exercicio_4h.py` reprovou com a leitura certa: *"o código
+que mediu é OUTRO"*. O instrumento não falhou; **acusou**.
+
+A regra que fica: **a prova de 4 h é o ÚLTIMO artefato antes do disparo.**
+Gravá-la no meio e continuar commitando é o que a órfã, e nenhum gate pega isso
+antes do auditor.
+
+**E a nota de entrada do laudo é procedente.** O resumo que enviei declarava
+`3b3e9c2` como candidato, e eu continuei commitando depois de escrevê-lo —
+inclusive a correção que o proprietário pediu. Toda a evidência daquele resumo
+era de outra árvore. R2 §4: mensagem de agente não é evidência.
+
+#### O que cada achado produziu
+
+| Achado | Disposição |
+|---|---|
+| **B1** — prova órfã | regravada contra a árvore candidata, como **último** passo |
+| **H1** — `evidence verify` fora do CI | passo novo em `invariants.yml`, sobre o `evidence/` **versionado** do pack de exemplo — e isso o torna gate de **regressão do gerador**, não fumaça |
+| **H2** — banner com duas fontes vivas | quarto eixo em `check_banner_de_simulacao.py`: `05` §4 × `banner_text` do contrato, com 4 direções de prova negativa |
+| **H3** — três números para a mesma medição | a §2.8 e a §3 passam a citar **o número da prova** (2,119 s), e a variância entre a linha exploratória e a prova fica registrada |
+| **M1** — registros de adiamento mentindo | a classe `evidencia` vira **coberta e varrida**; a §2 de `check_secoes_de_seguranca` ganha mecanismo real; o dono de `relatorio` corrigido para Fase 10 |
+| **M2** — payload de telemetria não ligado | binding por `event_type` no `allOf`, com dois exemplos negativos (`fact_id` e assinatura inventada) |
+| **M3** — contradição na §2.8 | a frase resídua reescrita, com o motivo registrado |
+| **M4** — P1-13 sem disposição | **RESOLVIDA**: o cruzamento das faixas de IP fecha a metade que faltava |
+| **L1** — `verify` sem tratar recusas do motor | captura nomeada, como o `build` já tinha |
+| **L2** — regras do linter sem dono | as quatro ganham `mecanismo` no contrato |
+| **teste CEF por substring** | passa a comparar a **linha do próprio fato**, não o arquivo inteiro |
+
+#### Dois defeitos que a correção do M1 descobriu
+
+**A tokenização não cortava no `=`.** Log de fio é `chave=valor`, e o token
+virava `url=https://<host>/x` — `urlsplit` não reconhece `url=https` como
+esquema, e o IOC atravessava. O caso que existia usava `"visite https://..."`,
+**com espaço**, e por isso o defeito sobreviveu à peça 3: o único teste era o que
+não o alcança. Corrigido no motor e no verificador, com caso e mutante próprios.
+
+**O `evidence/` versionado não era varrido.** `check_synthetic_data.py`
+declarava, no próprio cabeçalho, que `.log`/`.eml` ficavam fora **e nomeava a
+Fase 9 como quem fecharia** — e eu não fechei. Pior: ao versionar o `evidence/`
+para o H1, criei arquivo de evidência na árvore que nenhum verificador olhava.
+Fechado com `TEXT_SUFFIXES` + varredura token a token, com número de linha.
+
 ## 3. Itens de DoD — status e evidência
 
 A §7 de fechamento é redigida por quem implementou **após** o veredito do
@@ -353,7 +425,7 @@ executável que o sustenta.
 | 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um gerador só** — que é o que `08` §2 quer dizer com *"um contrato só"*. O arquivo `cef.log` (peça 3) e o `telemetry_emitted` saem dos **mesmos fatos**: `domains/academus/telemetry_events.yaml` (`02` §10, os doze eventos) mapeia `fact_class` → assinatura, e `range-core/telemetry/forwarder.py::programar` deriva o payload. **A prova é de valor, não de estrutura**: o `src` do evento e o do `cef.log` são comparados lado a lado, porque duas implementações coerentes hoje não provam nada sobre amanhã. O payload valida contra `$defs/telemetry_emitted_payload`, com `fact_id` **inexpressável** (`05` §6) |
 | 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
 | 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (20) + probes (2) |
-| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — 1,884 s contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). 42% de folga, reprodutível | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
+| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — **2,119 s** contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). 29% de folga. **O número é o da prova gravada**, que é o que o verificador confere — ver §2.8 | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
 
 ## 6. Pendências
 
@@ -376,7 +448,7 @@ estado, e a relevância para ESTA fase.
 | P9-1 | a migração de pendência só é conferida entre fases com coluna de estado — o gatilho escrito numa tabela de três colunas (fases 0–5) não chega a destino nenhum por máquina | `ABERTA` | esta fase, junto do fechamento — foi ela que expôs o defeito ao resgatar P1-3, P1-13 e P2-11; ver abaixo |
 | P1-3 | ~~`evidence.schema.yaml` valida um artefato que ainda não é produzido~~ | `RESOLVIDA` | **venceu na peça 2**: `range-core/evidence/manifesto.py` produz o `MANIFEST.json` e `erros_de_schema` o valida contra o contrato real, com os `$ref` cruzados resolvidos pelo `Registry` do loader. Oito fases depois, o contrato tem consumidor; ver abaixo |
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | a fase que decidir o destino do pack (P7-9) ou o primeiro pack novo; detalhe em `fase_7.md` §"P1-7" |
-| P1-13 | duas cópias das faixas sintéticas — o contrato declara as faixas e `check_synthetic_data.py` declara as suas; divergiram duas vezes em silêncio | `ABERTA` | **esta fase** — é ela que constrói o gerador, e é aqui que o gerador seguiria o contrato enquanto o CI julga pela constante; detalhe em `fase_1.md` §"P1-13" |
+| P1-13 | ~~duas cópias das faixas sintéticas — o contrato declara as faixas e `check_synthetic_data.py` declara as suas; divergiram duas vezes em silêncio~~ | `RESOLVIDA` | **venceu nesta fase, nas duas metades**: o motor consome `dados_sinteticos` (fonte única do julgamento) e `check_contract_examples.py` passa a cruzar também as **faixas de IP**, que era a metade que faltava; ver abaixo |
 | P2-11 | `append` abre uma conexão por chamada | `ABERTA` | **esta fase** — telemetria não grava a ritmo de facilitador; leitura e escrita reabrem juntas, pela mesma causa (volume); detalhe em `fase_2.md` §"P2-11" |
 | P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `DECIDIDA` | **o gatilho disparou e a medição existe** (§2.8): `read_all` é 97% do custo, e o ponto de quebra está em ~135 mil eventos. A decisão de fundo — atacar a reserialização da cadeia — é estrutural e fica para a fase que a couber; ver abaixo |
 | P9-2 | o volume de telemetria do item 7 pressupõe **ruído de fundo** do ambiente simulado, e nenhum item de DoD o constrói | `ABERTA` | a fase que construir o produtor do ruído — o tráfego normal em que o time azul acha o sinal; ver abaixo |
@@ -452,19 +524,37 @@ Herdada da Fase 1, carregada pelas 7 e 8. O pack de 4 h decidiu por ids neutros
 `IN*`; falta o mecanismo que impeça o próximo pack de escolher o vazamento.
 Detalhe em `fase_7.md` §"P1-7".
 
-#### P1-13 — duas cópias das faixas sintéticas, e o gerador no meio
+#### P1-13 — duas cópias das faixas sintéticas — RESOLVIDA
 
 Herdada da Fase 1 (M2 da 2ª rodada de auditoria), resgatada nesta abertura.
 `contracts/evidence.schema.yaml` declara as faixas de IP, os sufixos de domínio
-e o vendor/product em `x-aurora-security-constraints`;
-`tools/check_synthetic_data.py` declara as suas em constantes próprias. As duas
-listas já divergiram **duas vezes** em silêncio, e hoje
-`scripts/check_contract_examples.py` cruza as duas e reprova em divergência — o
-que fechou o sintoma, não a causa.
+e o vendor/product em `x-aurora-security-constraints`; `dados_sinteticos`
+declara os seus em constantes próprias. As duas listas já divergiram **duas
+vezes** em silêncio.
 
-A causa é esta fase: **o gerador seguiria o contrato e o CI julgaria pela
-constante**. Enquanto ninguém gerava evidência, a duplicação era inerte.
-Detalhe em `fase_1.md` §"P1-13".
+**A causa era esta fase**: o gerador seguiria o contrato e o CI julgaria pela
+constante. Enquanto ninguém gerava evidência, a duplicação era inerte.
+
+**RESOLVIDA nas duas metades, e a segunda só fechou depois da auditoria (M4).**
+
+1. **O julgamento tem fonte única.** O motor de projeção consome
+   `dados_sinteticos` — o mesmo predicado do CI e do loader de pack —, com
+   entrada própria na whitelist de imports do core. Não há segundo detector.
+2. **As duas listas são cruzadas por máquina.** `check_contract_examples.py`
+   já cruzava os sufixos de domínio desde a Fase 1; passa a cruzar também as
+   **faixas de IP**, que era a metade aberta — o auditor mediu que sete faixas
+   do contrato não eram conferidas contra nenhuma.
+
+**O cruzamento de IP não é de conjunto, e a razão é substantiva.** As três
+faixas privadas do contrato (RFC 1918) não aparecem em
+`DOCUMENTATION_NETWORKS` porque `ip_permitido` as aceita por
+`address.is_private`, que é **predicado e não lista**. Comparar conjuntos
+exigiria duplicar a RFC 1918 numa das pontas — a cópia que a P1-13 existe para
+não multiplicar. O que se cruza é o **veredito**: toda faixa declarada tem de
+ser aceita pelo predicado, e um endereço roteável tem de ser recusado (a
+anti-vacuidade, sem a qual um `ip_permitido` que aceitasse tudo passaria).
+
+Detalhe de origem em `fase_1.md` §"P1-13".
 
 #### P2-11 — `append` abre uma conexão por chamada
 

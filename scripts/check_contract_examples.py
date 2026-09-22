@@ -32,6 +32,7 @@ que a Fase 0 construiu nao ganhe dependencia.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import sys
 from pathlib import Path
@@ -219,6 +220,58 @@ def main(argv: list[str] | None = None) -> int:
                 "faixas de dominio divergentes.\n"
                 f"    so no contrato: {sorted(declarados - aplicados) or 'nenhum'}\n"
                 f"    so no verificador: {sorted(aplicados - declarados) or 'nenhum'}"
+            )
+
+        # ------------------------------------------------------------------
+        # A METADE DA P1-13 QUE FALTAVA — as faixas de IP.
+        #
+        # O cruzamento de dominio existia desde a Fase 1; o de IP nao, e era a
+        # metade que a P1-13 declarava aberta. `contracts/evidence.schema.yaml`
+        # lista sete `allowed_ip_ranges` e `dados_sinteticos` decide por quatro
+        # redes de DOCUMENTACAO mais os predicados de faixa privada do
+        # `ipaddress` — as duas listas ja divergiram DUAS vezes em silencio, e e
+        # por isso que a pendencia existe.
+        #
+        # A COMPARACAO NAO E DE CONJUNTO, e nao podia ser: as tres faixas
+        # privadas do contrato (RFC 1918) nao aparecem em
+        # `DOCUMENTATION_NETWORKS` porque `ip_permitido` as aceita por
+        # `address.is_private`, que e predicado e nao lista. Comparar conjuntos
+        # exigiria duplicar a RFC 1918 numa das pontas — a copia que a P1-13
+        # existe para nao multiplicar.
+        #
+        # O QUE SE CRUZA E O VEREDITO: toda faixa que o contrato declara tem de
+        # ser ACEITA pelo predicado, e uma faixa roteavel tem de ser recusada.
+        # Isso pega a divergencia real (faixa nova no contrato que o verificador
+        # nao conhece) sem exigir que as duas listas tenham a mesma forma.
+        # ------------------------------------------------------------------
+        faixas = (ev.get("x-aurora-security-constraints") or {}).get(
+            "allowed_ip_ranges"
+        ) or []
+        if not faixas:
+            falhas.append(
+                "contracts/evidence.schema.yaml sem `allowed_ip_ranges`: "
+                "sem a lista, nada cruza o contrato com `dados_sinteticos`"
+            )
+        for cidr in faixas:
+            try:
+                rede = ipaddress.ip_network(cidr)
+            except ValueError as exc:
+                falhas.append(f"`allowed_ip_ranges` com faixa invalida: {cidr!r} ({exc})")
+                continue
+            if not csd.ip_permitido(rede.network_address):
+                falhas.append(
+                    f"contracts/evidence.schema.yaml declara {cidr} como faixa "
+                    f"permitida, e `dados_sinteticos.ip_permitido` a RECUSA.\n"
+                    "    As duas fontes da mesma norma de `05` §3 divergiram — "
+                    "e a do verificador e quem o CI aplica, entao o gerador "
+                    "seguiria o contrato e o CI reprovaria o resultado."
+                )
+        # ANTI-VACUIDADE: se `ip_permitido` aceitasse tudo, o laco acima passaria
+        # sem afirmar nada. Um endereco roteavel tem de ser recusado.
+        if csd.ip_permitido(ipaddress.ip_address("8.8.8.8")):
+            falhas.append(
+                "`dados_sinteticos.ip_permitido` aceita endereco roteavel: o "
+                "cruzamento de faixas acima passaria vacuamente"
             )
 
     flags_schema = contratos.get("state_flags")

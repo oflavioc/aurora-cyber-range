@@ -88,6 +88,14 @@ MUTAVEIS = (
 
 GUARDA_DE_IOC = "        achados = _achados_no_texto(conteudo)"
 
+#: TRIPLE-QUOTED, e nao aspas simples: a linha alvo tem `"` escapado E `'` cru,
+#: e qualquer um dos dois delimitadores exigiria escape que muda os bytes — o
+#: harness casa TEXTO, entao o alvo tem de ser byte a byte o que esta no
+#: arquivo. A primeira tentativa errou aqui e o harness quebrou alto ("casou 0"),
+#: que e o comportamento certo.
+TOKEN_COM_IGUAL = r'''_TOKEN = re.compile(r"[^\s\"'<>()\[\],;=]+")'''
+TOKEN_SEM_IGUAL = r'''_TOKEN = re.compile(r"[^\s\"'<>()\[\],;]+")'''
+
 #: A linha ACOMPANHOU a peca 4: o phishing passou a projetar tambem em
 #: `precursor` (duas fontes para o mesmo fato, o modelo de `08` §1). O harness
 #: exige casamento EXATO e uma vez so — e por isso que um alvo desatualizado
@@ -99,7 +107,18 @@ REGISTRO = "        registro = {c: fato[c] for c in campos if c in fato}"
 MUTACOES = {
     "a guarda de IOC volta a julgar o conteudo inteiro": (
         [("projecao", GUARDA_DE_IOC, "        achados = achados_no_valor(conteudo)")],
-        {"test_o_motor_RECUSA_gerador_que_escreve_dominio_roteavel"},
+        {
+            "test_o_motor_RECUSA_gerador_que_escreve_dominio_roteavel",
+            "test_o_motor_RECUSA_IOC_na_forma_CHAVE_VALOR_de_log",
+        },
+    ),
+    # A TOKENIZACAO SEM `=`, que e o defeito que o M1 da auditoria descobriu de
+    # lado. Com ela, o caso com espaco (`"visite https://..."`) continua VERDE e
+    # so o de `chave=valor` acusa — que e exatamente por que o defeito
+    # sobreviveu a peca 3: o unico caso existente era o que nao o alcanca.
+    "a tokenizacao nao corta no `=`": (
+        [("projecao", TOKEN_COM_IGUAL, TOKEN_SEM_IGUAL)],
+        {"test_o_motor_RECUSA_IOC_na_forma_CHAVE_VALOR_de_log"},
     ),
     # FINA DE PROPOSITO, e a escolha tem historia. A primeira versao mutava o
     # SUFIXO para um TLD roteavel — e derrubava 20 dos 27 testes, porque a

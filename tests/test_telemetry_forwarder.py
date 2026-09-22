@@ -156,14 +156,34 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
         do que ele julga nao julga nada.
         """
         por_fato = {f["fact_id"]: f for f in self.fatos}
+        #: `fact_class` -> a linha CEF daquele fato. O cabecalho CEF traz a
+        #: classe como `signature` (campo 5), entao a linha e localizavel.
+        linhas_cef = {
+            linha.split("|")[4]: linha for linha in self.cef.splitlines() if "|" in linha
+        }
         for programado in self.programados:
             fato = por_fato[programado.fact_id]
+            # A LINHA DO PROPRIO FATO, e nao o arquivo inteiro.
+            #
+            # A primeira versao fazia `assertIn(valor, self.cef)` — substring
+            # sobre o `cef.log` todo. Um `src` que aparecesse na linha de OUTRO
+            # fato satisfazia, e o docstring prometia "comparados lado a lado".
+            # Afirmava menos do que dizia, e o auditor da Fase 9 o listou entre
+            # os testes que nao provam o requisito.
+            linha = linhas_cef.get(programado.fact_class)
+            self.assertIsNotNone(
+                linha, f"{programado.fact_class} nao tem linha no cef.log"
+            )
             for campo, chave in (("source_ip", "src"), ("actor", "suser")):
                 if campo not in fato:
                     continue
                 self.assertIn(chave, programado.payload, f"{chave} ausente do payload")
                 self.assertEqual(programado.payload[chave], fato[campo])
-                self.assertIn(str(fato[campo]), self.cef, f"{chave} fora do cef.log")
+                self.assertIn(
+                    f"{chave}={fato[campo]}",
+                    linha,
+                    f"{chave} da linha CEF de {programado.fact_class} diverge do payload",
+                )
 
     def test_a_severidade_vem_do_CATALOGO_e_nao_do_fato(self):
         """`08` §2 — a telemetria nao julga.

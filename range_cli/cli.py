@@ -468,6 +468,23 @@ def _evidence_verify(args) -> int:
     except (ComandoRecusado, ContractSourceError) as erro:
         print(f"RECUSADO: {erro}", file=sys.stderr)
         return RECUSADO
+    except Exception as erro:  # noqa: BLE001 — as recusas do motor, nomeadas
+        # L1 DA AUDITORIA DA FASE 9. `conferir` chama `projetar` para reprojetar,
+        # e `projetar` levanta `GeradorAusente`, `FonteSemFormato`,
+        # `EntidadeInventada` e `IOCEncontrado`. Sem esta captura, um pack cujo
+        # gabarito dispare qualquer das quatro devolvia TRACEBACK em vez de
+        # `RECUSADO` + rc=2.
+        #
+        # E o mesmo tratamento que `_evidence_build` ja tinha, pelo mesmo motivo
+        # e com a mesma forma: o tipo da excecao vai na mensagem, porque as
+        # quatro nomeiam normas diferentes e uma saida generica mandaria o autor
+        # do pack procurar.
+        #
+        # `04` §8.1 (a) poe `evidence verify` na classe dos que SO LEEM, e
+        # allowlist de operador depende de codigo de saida estavel — traceback
+        # sai com rc=1 e nao distingue "recusado" de "quebrou".
+        print(f"RECUSADO: {type(erro).__name__}: {erro}", file=sys.stderr)
+        return RECUSADO
 
     if not achados:
         print(f"{pack_dir / EVIDENCE}: sem achados.")

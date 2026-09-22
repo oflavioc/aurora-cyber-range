@@ -106,10 +106,38 @@ COMPONENTE = "BannerDeSimulacao"
 #: `classe -> (coberta_aqui, dono)`. Ver o cabecalho.
 CLASSES_DA_SECAO_4 = {
     "telas": (True, "`01` §2 + Fase 8 (`07`): exam-mode, investigation-console, persona-panel"),
-    "evidencia": (False, "Fase 9 — `08_EVIDENCE_SIMULATOR.md`, comentario na primeira linha"),
-    "exportacao": (False, "Fase 8/9 — artefatos gerados por `academus-web`: historico, diploma, PDF"),
-    "relatorio": (False, "Fase 9 — `range-core/aar/`"),
+    # COBERTA DESDE A FASE 9, e a mudanca de `False` para `True` e o M1 daquela
+    # auditoria: a classe seguia declarada como PENDENTE com dono "Fase 9"
+    # depois de a Fase 9 a entregar — o registro mentia sobre o estado da arvore,
+    # e por construcao nao podia ficar vermelho quando o banner regredisse.
+    #
+    # O que a torna coberta NAO e a declaracao: e a varredura de
+    # `ARQUIVOS_DE_EVIDENCIA` abaixo, sobre o `evidence/` versionado do pack de
+    # exemplo.
+    "evidencia": (True, "Fase 9: `range-core/evidence/banner.py`, primeira linha de cada arquivo"),
+    "exportacao": (False, "a fase que construir os artefatos de `academus-web`: historico, diploma, PDF (P8-2)"),
+    # O DONO ESTAVA ERRADO, e o M1 o pegou de raspao: `range-core/aar/` e
+    # entregavel da FASE 10 (`07` §Fase 10 — "o AAR tem as doze secoes de `03`
+    # §9"), nunca da 9. A Fase 9 nao produz relatorio.
+    "relatorio": (False, "Fase 10 — `range-core/aar/`, o AAR de `03` §9"),
 }
+
+#: Os arquivos de evidencia VERSIONADOS — o objeto da classe `evidencia`.
+#:
+#: `scenarios/**/evidence/` fica fora do Git por decisao da Fase 5, entao o
+#: unico objeto versionado e o do pack de EXEMPLO SANITIZADO, que e a isencao
+#: declarada de `check_gabarito_fora_do_git`. Ele existe desde a Fase 9 e e o
+#: mesmo objeto sobre o qual o CI roda `range-cli evidence verify`.
+#:
+#: DIRETORIO VAZIO OU AUSENTE NAO E "PASSOU": ver `verifica`.
+EVIDENCIA_DO_EXEMPLO = REPO_ROOT / "tests" / "fixtures" / "pack_exemplo" / "evidence"
+
+#: O `MANIFEST.json` NAO carrega banner, e a exclusao e do formato: `05` §4 pede
+#: o banner "como comentario na primeira linha, no formato do proprio arquivo",
+#: e um JSON de indice nao tem onde po-lo sem deixar de validar contra
+#: `evidence.schema.yaml` (`additionalProperties: false` na raiz). Ele e indice,
+#: nao artefato entregue.
+SEM_BANNER = frozenset({"MANIFEST.json"})
 
 _BLOCO = re.compile(r"^## 4\..*?```\s*\n(.*?)\n```", re.S | re.M)
 
@@ -136,9 +164,89 @@ def _alvos_de_bundle() -> list[Path]:
     return [BUNDLE / tela / "index.html" for tela in TELAS]
 
 
-def verifica(banner: str, fonte_do_banner: Path, telas: list[Path], bundles: list[Path]) -> list[str]:
-    """Os tres eixos. Tudo por parametro, para o probe injetar."""
+#: O contrato que carrega o banner dos ARQUIVOS de evidencia — a segunda fonte
+#: viva do mesmo texto normativo, nascida na Fase 9.
+CONTRATO_DE_EVIDENCIA = REPO_ROOT / "contracts" / "evidence.schema.yaml"
+
+_BANNER_DO_CONTRATO = re.compile(r"^\s*banner_text:\s*'([^']*)'", re.M)
+
+
+def texto_do_contrato(contrato: Path | None = None) -> str | None:
+    """O `banner_text` de `contracts/evidence.schema.yaml`, ou `None`.
+
+    `None` quando o contrato nao existe ou nao declara a chave — e quem chama
+    decide, porque as duas coisas sao problemas diferentes.
+
+    LEITURA LEXICA, e nao parse de YAML: este verificador e stdlib pura e roda
+    no job `seguranca`, que NAO instala a aplicacao (decisao registrada em
+    `design-decisions.md` — gate que depende da aplicacao que julga deixa de ser
+    gate). `parse_yaml` de `tools/` resolveria, mas a chave e uma linha de
+    string simples e a regex a alcanca sem trazer dependencia.
+
+    `spec=None` pelo mesmo motivo de `texto_normativo`: default de funcao e
+    avaliado na definicao, e o probe precisa injetar.
+    """
+    alvo = CONTRATO_DE_EVIDENCIA if contrato is None else contrato
+    if not alvo.is_file():
+        return None
+    achado = _BANNER_DO_CONTRATO.search(alvo.read_text(encoding="utf-8"))
+    return achado.group(1) if achado else None
+
+
+def verifica(
+    banner: str,
+    fonte_do_banner: Path,
+    telas: list[Path],
+    bundles: list[Path],
+    contrato: Path | None = None,
+    evidencia: Path | None = None,
+) -> list[str]:
+    """Os tres eixos, mais o cruzamento com o contrato de evidencia.
+
+    Tudo por parametro, para o probe injetar.
+    """
     problemas: list[str] = []
+
+    # ------------------------------------------------------------------
+    # O QUARTO EIXO — `05` §4 x `contracts/evidence.schema.yaml`.
+    #
+    # H2 da auditoria da Fase 9. Ate ela, o texto do banner tinha UMA fonte
+    # normativa (`05` §4) e um consumidor conferido (o componente das telas).
+    # A Fase 9 criou a SEGUNDA fonte viva: `banner_text` no contrato de
+    # evidencia, que e o que `range-core/evidence/banner.py` le para carimbar
+    # TODO arquivo entregue ao time azul.
+    #
+    # E NADA CRUZAVA AS DUAS. O teste que parecia fechar isso era tautologico —
+    # comparava `banner.texto(CONTRATOS)` com o proprio valor do contrato, que e
+    # o que aquela funcao devolve. Ele provava que o produtor nao reescreve; nao
+    # provava que o valor e o de `05` §4.
+    #
+    # Consequencia medida: editar `banner_text` mudava o banner de toda a
+    # evidencia, a suite seguia verde (1082/1082) e este verificador tambem,
+    # porque so olhava telas. E a P1-13 pela porta que a Fase 9 abriu — e o
+    # cabecalho de `banner.py` invoca justamente a P1-13 como razao para ler do
+    # contrato em vez de copiar.
+    # ------------------------------------------------------------------
+    alvo_do_contrato = CONTRATO_DE_EVIDENCIA if contrato is None else contrato
+    do_contrato = texto_do_contrato(alvo_do_contrato)
+    if do_contrato is None:
+        problemas.append(
+            f"{alvo_do_contrato} nao declara "
+            "`x-aurora-security-constraints.banner_text`. Ele e a fonte que "
+            "`range-core/evidence/banner.py` le para carimbar todo arquivo de "
+            "evidencia — sem ela, o motor nao tem texto e o banner de `05` §4 "
+            "deixa de existir no artefato gerado."
+        )
+    elif do_contrato != banner:
+        problemas.append(
+            f"o banner do contrato de evidencia diverge de `05` §4:\n"
+            f"    `05` §4:   {banner!r}\n"
+            f"    contrato:  {do_contrato!r}\n"
+            "    Sao duas fontes VIVAS do mesmo texto normativo — a spec manda "
+            "nas telas, o contrato manda nos ARQUIVOS de evidencia. Divergindo, "
+            "o participante ve um banner na tela e outro no log, e nenhum teste "
+            "da suite acusa."
+        )
 
     if not fonte_do_banner.is_file():
         problemas.append(
@@ -175,6 +283,47 @@ def verifica(banner: str, fonte_do_banner: Path, telas: list[Path], bundles: lis
                 "    A fonte pode te-lo e o BUNDLE nao — e o bundle e o que vai ao "
                 "navegador. Presenca no DOM e a propriedade; renderizacao e outra."
             )
+
+    # ------------------------------------------------------------------
+    # A CLASSE `evidencia` — `05` §4: *"nos arquivos de evidencia, como
+    # comentario na PRIMEIRA LINHA, no formato do proprio arquivo"*.
+    #
+    # DIRETORIO AUSENTE OU VAZIO REPROVA, e isto e o ponto: a classe esta
+    # marcada COBERTA no registro, e cobertura sem objeto e a forma exata do
+    # SKIP SILENCIOSO que a R10 §2 chama de FAIL. Se o `evidence/` do pack de
+    # exemplo sumir, este verificador tem de ficar vermelho — e nao passar por
+    # nao ter o que olhar.
+    #
+    # A POSICAO E O REQUISITO, e nao a presenca: banner no rodape nao avisa
+    # quem abre o arquivo e le as primeiras linhas, que e o que alguem faz com
+    # um log de 40 mil registros.
+    # ------------------------------------------------------------------
+    alvo_de_evidencia = EVIDENCIA_DO_EXEMPLO if evidencia is None else evidencia
+    if CLASSES_DA_SECAO_4["evidencia"][0]:
+        arquivos = (
+            sorted(p for p in alvo_de_evidencia.iterdir() if p.is_file())
+            if alvo_de_evidencia.is_dir()
+            else []
+        )
+        candidatos = [p for p in arquivos if p.name not in SEM_BANNER]
+        if not candidatos:
+            problemas.append(
+                f"a classe `evidencia` esta COBERTA e nao ha arquivo de evidencia "
+                f"em {rel(alvo_de_evidencia)}.\n"
+                "    Cobertura sem objeto e skip silencioso: o verificador "
+                "passaria por nao ter o que olhar. Rode "
+                "`range-cli evidence build tests/fixtures/pack_exemplo --seed <n>`."
+            )
+        for caminho in candidatos:
+            primeira = caminho.read_text(encoding="utf-8").split("\n", 1)[0]
+            if banner not in primeira:
+                problemas.append(
+                    f"{rel(caminho)} nao traz o banner na PRIMEIRA linha.\n"
+                    f"    Primeira linha: {primeira[:80]!r}\n"
+                    "    `05` §4 exige o banner como comentario na primeira "
+                    "linha, no formato do proprio arquivo — no rodape ele nao "
+                    "avisa quem abre o log e le as primeiras linhas."
+                )
 
     return problemas
 

@@ -109,7 +109,14 @@ Gerador = Callable[[Sequence[Mapping]], str]
 #: A alternativa — ensinar `dados_sinteticos` a ler texto livre — mudaria a
 #: semantica de um modulo que o CI e o loader ja consomem, para servir a um
 #: chamador so. Compor e mais barato e nao move a fonte da resposta (R9 §8).
-_TOKEN = re.compile(r"[^\s\"'<>()\[\],;]+")
+#:
+#: `=` E SEPARADOR, e isto foi medido na correcao do M1 da auditoria: log de fio
+#: e `chave=valor`, e sem cortar no `=` o token vira `url=https://<host>/x` —
+#: `urlsplit` nao reconhece `url=https` como esquema, `hostnames_candidatos`
+#: devolve nada, e o IOC passa. O caso original desta guarda usava
+#: `"visite https://..."`, com espaco, e por isso o defeito nao aparecia: a
+#: forma que um GERADOR de log realmente escreve e a outra.
+_TOKEN = re.compile(r"[^\s\"'<>()\[\],;=]+")
 
 
 def _achados_no_texto(conteudo: str) -> list:

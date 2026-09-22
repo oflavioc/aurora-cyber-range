@@ -22,9 +22,22 @@ arquivo bruto.
 Limites conhecidos, declarados de proposito para que a lacuna seja rastreavel
 em vez de silenciosa:
 
-1. Arquivos sem gramatica declarada (.log, .eml, .txt, CEF) nao sao cobertos.
-   Quando o evidence-simulator da Fase 9 passar a emiti-los, a verificacao
-   correspondente precisa ser projetada junto com o formato.
+1. ~~Arquivos sem gramatica declarada (.log, .eml, .txt, CEF) nao sao cobertos.~~
+   **FECHADO NA FASE 9**, pelo gatilho que este proprio limite declarava: o
+   evidence-simulator passou a emiti-los, e `TEXT_SUFFIXES` + `_walk_texto`
+   varrem `.log` e `.eml` token a token. `.jsonl` ja caia em `DATA_SUFFIXES`.
+
+   **E com isso este verificador passa a executar tambem
+   05_SECURITY_REQUIREMENTS.md secao 2** — *"evidencias sinteticas: proibido IOC
+   de campanha real, IP roteavel de terceiro, dominio registrado real"*. A secao
+   3 continua sendo o assunto principal (dados, CPF, faixas); a 2 entra porque o
+   sujeito dela — o ARQUIVO de evidencia — passou a existir na arvore
+   versionada, no `evidence/` do pack de exemplo.
+
+   O que NAO esta coberto e declarado: `.txt` (nenhum formato de fio o usa) e o
+   pack REAL, que fica fora do Git desde a Fase 5 — ali a garantia e do
+   produtor (`range-core/evidence/projecao.py`, `IOCEncontrado`), com o mesmo
+   predicado.
 
 2. Dos identificadores, apenas CPF e verificado — e o unico que
    05_SECURITY_REQUIREMENTS.md secao 3 nomeia. CNPJ, PIS/PASEP, titulo de
@@ -35,6 +48,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -88,11 +102,38 @@ from dados_sinteticos import (  # noqa: E402
     RULE_IDENTIFIER,
     RULE_IP,
     achados_na_arvore,
+    achados_no_valor,
 )
 
 #: Diretorios de dado sintetico. Contratos (flags.yaml, schemas) ficam de
 #: fora: nome de flag tem a mesma forma de hostname e seria falso positivo.
 DATA_SUFFIXES = (".json", ".jsonl", ".yaml", ".yml", ".csv")
+
+#: Os formatos de FIO da evidencia projetada, que nao tem gramatica estrutural.
+#:
+#: FECHA O LIMITE 1 DECLARADO NO CABECALHO, e o gatilho e o que ele mesmo
+#: escreveu: *"quando o evidence-simulator da Fase 9 passar a emiti-los, a
+#: verificacao correspondente precisa ser projetada junto com o formato"*. A
+#: Fase 9 emite `.log` (vpn, cef), `.eml` (phishing) e `.jsonl` (identity,
+#: database, precursor) — o ultimo ja caia em `DATA_SUFFIXES`, os dois
+#: primeiros nao.
+#:
+#: E A LACUNA VIROU CONCRETA NA MESMA FASE: o `evidence/` do pack de exemplo
+#: passou a ser VERSIONADO (para o CI rodar `range-cli evidence verify`), entao
+#: ha arquivo de evidencia na arvore que este verificador varria — e nao varria.
+TEXT_SUFFIXES = (".log", ".eml")
+
+#: Um token de texto livre. A MESMA forma de `range-core/evidence/projecao.py`,
+#: e a duplicacao e deliberada: `tools/` e stdlib pura e NAO importa a
+#: aplicacao (gate que depende do que julga deixa de ser gate — WORKFLOW.md).
+#: O que NAO se duplica e o julgamento: os dois chamam `achados_no_valor` de
+#: `dados_sinteticos`, que e a fonte unica da resposta (P1-13).
+#:
+#: `=` E SEPARADOR, e isto foi medido: log de fio e `chave=valor`, e sem cortar
+#: no `=` o token vira `url=https://<host>/x` — `urlsplit` nao reconhece
+#: `url=https` como esquema, `hostnames_candidatos` devolve nada, e o IOC passa.
+#: Com o corte, o token e a URL e o host e extraido.
+_TOKEN = re.compile(r"[^\s\"'<>()\[\],;=]+")
 
 
 def _scanned_subdirs(root: Path) -> list[str]:
@@ -100,6 +141,21 @@ def _scanned_subdirs(root: Path) -> list[str]:
     for adapter in adapter_names(root):
         subdirs.append(f"domains/{adapter}/seed")
         subdirs.append(f"domains/{adapter}/evidence_generators")
+    # O PACK DE EXEMPLO SANITIZADO, acrescentado na Fase 9.
+    #
+    # `scenarios/` esta acima e e o alvo obvio — e esta VAZIO em todo checkout,
+    # porque a Fase 5 o tirou do Git. O unico dado sintetico VERSIONADO desta
+    # familia e o pack de exemplo, e desde a Fase 9 ele inclui `evidence/`, que
+    # o CI usa como objeto de `range-cli evidence verify`.
+    #
+    # Sem esta linha, o arquivo de evidencia que a arvore de fato carrega nao
+    # seria varrido por IOC — a lacuna que o versionamento do `evidence/` criou
+    # na mesma fase que fechou o limite 1 do cabecalho.
+    #
+    # RESTRITO AO PACK, e nao a `tests/fixtures` inteiro: as outras fixtures sao
+    # insumo de teste de contrato, com identificadores de forma proposital que
+    # dariam falso positivo.
+    subdirs.append("tests/fixtures/pack_exemplo")
     return subdirs
 
 
@@ -113,6 +169,36 @@ def _walk(value, source: str, exempt: frozenset[str], violations: list[Violation
     """
     for achado in achados_na_arvore(value, isentos=exempt):
         violations.append(Violation(source, 0, achado.regra, achado.detalhe))
+
+
+def _walk_texto(
+    caminho: Path, source: str, exempt: frozenset[str], violations: list[Violation]
+) -> None:
+    """A travessia dos formatos de FIO — `.log` e `.eml`. Token a token.
+
+    POR QUE TOKENIZAR, E NAO PASSAR O TEXTO INTEIRO. `achados_no_valor` julga UM
+    VALOR DE CAMPO: `hostnames_candidatos` assume URL, e-mail ou hostname nu, e
+    **descarta texto com espaco no meio**, devolvendo lista vazia. Chamado sobre
+    a linha inteira de um log, ele passa vacuamente — foi exatamente o defeito
+    que a peca 3 da Fase 9 cometeu no motor e corrigiu do mesmo jeito.
+
+    A LINHA E REPORTADA, e aqui ela existe: os formatos estruturais nao tem
+    numero de linha util depois do parse (por isso `_walk` usa `0`), e um log e
+    linha a linha por natureza. Quem varre um `vpn.log` de 40 mil registros
+    precisa do numero.
+    """
+    try:
+        texto = caminho.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        violations.append(Violation(source, 0, "leitura", f"nao pude ler: {exc}"))
+        return
+
+    for numero, linha in enumerate(texto.splitlines(), start=1):
+        for token in _TOKEN.findall(linha):
+            for achado in achados_no_valor(token, isentos=exempt):
+                violations.append(
+                    Violation(source, numero, achado.regra, achado.detalhe)
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -161,10 +247,16 @@ def main() -> int:
             load_declared_event_types(REPO_ROOT)
         )
 
-        for path in iter_files(REPO_ROOT, _scanned_subdirs(REPO_ROOT), DATA_SUFFIXES):
+        subdirs = _scanned_subdirs(REPO_ROOT)
+        for path in iter_files(REPO_ROOT, subdirs, DATA_SUFFIXES):
             source = rel(path)
             for document in _load(path):
                 _walk(document, source, exempt, violations)
+
+        # Os formatos de FIO — ver `TEXT_SUFFIXES`. Travessia textual, porque
+        # nao ha gramatica estrutural que percorrer.
+        for path in iter_files(REPO_ROOT, subdirs, TEXT_SUFFIXES):
+            _walk_texto(path, rel(path), exempt, violations)
     except ContractError as exc:
         return fail(str(exc))
 

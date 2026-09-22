@@ -53,10 +53,35 @@ def main() -> int:
         bundle_ok = _arquivo(raiz, "dist/index.html", f"<html>{BANNER}</html>")
         bundle_sem = _arquivo(raiz, "dist/sem.html", "<html>telao</html>")
 
+        # OS DOIS EIXOS DA FASE 9, injetados em TODOS os casos.
+        #
+        # Sem injetar, os `None` resolveriam para o contrato e o `evidence/`
+        # REAIS — os casos antigos passariam a depender da arvore, e um probe
+        # que le a arvore que ele existe para julgar deixa de isolar o eixo que
+        # mede. A mesma razao pela qual `texto_normativo` resolve o global na
+        # CHAMADA e nao no `def`.
+        contrato_ok = _arquivo(
+            raiz, "contrato.yaml", f"x-aurora-security-constraints:\n  banner_text: '{BANNER}'\n"
+        )
+        evidencia_ok = raiz / "evidence"
+        _arquivo(raiz, "evidence/vpn.log", f"# {BANNER}\nT-9d user=svc\n")
+        _arquivo(raiz, "evidence/MANIFEST.json", '{"sources": []}\n')
+
+        def verifica(banner, fonte, telas, bundles, contrato=None, evidencia=None):
+            """Os dois eixos novos com fixture valida, salvo quando o caso os ataca."""
+            return alvo.verifica(
+                banner,
+                fonte,
+                telas,
+                bundles,
+                contrato_ok if contrato is None else contrato,
+                evidencia_ok if evidencia is None else evidencia,
+            )
+
         confere(
             "reprovou componente SEM o texto normativo",
             bool(
-                alvo.verifica(
+                verifica(
                     BANNER,
                     _arquivo(raiz, "outro.tsx", 'export const T = "AMBIENTE DE TESTE";'),
                     [tela_ok],
@@ -66,30 +91,128 @@ def main() -> int:
         )
         confere(
             "reprovou tela que NAO renderiza o componente",
-            bool(alvo.verifica(BANNER, componente, [tela_sem], [])),
+            bool(verifica(BANNER, componente, [tela_sem], [])),
         )
         confere(
             "reprovou BUNDLE sem o banner, com a fonte correta — a direcao que vale",
-            bool(alvo.verifica(BANNER, componente, [tela_ok], [bundle_sem])),
+            bool(verifica(BANNER, componente, [tela_ok], [bundle_sem])),
         )
         confere(
             "reprovou componente ausente do disco",
-            bool(alvo.verifica(BANNER, raiz / "nao-existe.tsx", [tela_ok], [])),
+            bool(verifica(BANNER, raiz / "nao-existe.tsx", [tela_ok], [])),
         )
         confere(
             "reprovou bundle ausente quando ele e exigido",
-            bool(alvo.verifica(BANNER, componente, [tela_ok], [raiz / "dist/nao-existe.html"])),
+            bool(verifica(BANNER, componente, [tela_ok], [raiz / "dist/nao-existe.html"])),
         )
         confere(
             "NAO reprovou a combinacao correta",
-            not alvo.verifica(BANNER, componente, [tela_ok], [bundle_ok]),
+            not verifica(BANNER, componente, [tela_ok], [bundle_ok]),
         )
 
-        # ANTI-VACUIDADE: banner vazio faria todos os eixos passarem, porque
-        # `"" in qualquer_texto` e sempre verdadeiro.
+        # ANTI-VACUIDADE: banner vazio faz os eixos de SUBSTRING passarem,
+        # porque `"" in qualquer_texto` e sempre verdadeiro — e e por isso que o
+        # `main` sai com rc=2 quando nao consegue extrair o texto, em vez de
+        # seguir verificando.
+        #
+        # O EIXO DO CONTRATO NAO E VACUO, e a diferenca e de operador: ele
+        # compara por IGUALDADE (`do_contrato != banner`), entao banner vazio
+        # contra contrato preenchido ACUSA. Para medir a vacuidade que sobra, o
+        # caso zera os dois lados — senao mediria o eixo novo, que nao e o
+        # assunto aqui.
+        contrato_vazio = _arquivo(
+            raiz, "contrato_zero.yaml", "x-aurora-security-constraints:\n  banner_text: ''\n"
+        )
         confere(
-            "com banner VAZIO, a combinacao errada passaria — por isso o rc=2",
-            not alvo.verifica("", componente, [tela_ok], [bundle_sem]),
+            "com banner VAZIO, os eixos de substring passariam — por isso o rc=2",
+            not verifica(
+                "", componente, [tela_ok], [bundle_sem], contrato=contrato_vazio
+            ),
+        )
+        confere(
+            "o eixo do CONTRATO nao e vacuo: banner vazio contra contrato cheio acusa",
+            bool(verifica("", componente, [tela_ok], [bundle_ok])),
+        )
+
+        # ------------------------------------------------------------------
+        # O QUARTO EIXO — `05` §4 x contrato de evidencia. H2 da Fase 9.
+        # ------------------------------------------------------------------
+        confere(
+            "reprovou contrato cujo `banner_text` DIVERGE de `05` §4",
+            bool(
+                verifica(
+                    BANNER,
+                    componente,
+                    [tela_ok],
+                    [bundle_ok],
+                    contrato=_arquivo(
+                        raiz,
+                        "contrato_divergente.yaml",
+                        "x-aurora-security-constraints:\n  banner_text: 'AMBIENTE DE TESTE'\n",
+                    ),
+                )
+            ),
+        )
+        confere(
+            "reprovou contrato SEM `banner_text` — o motor ficaria sem texto",
+            bool(
+                verifica(
+                    BANNER,
+                    componente,
+                    [tela_ok],
+                    [bundle_ok],
+                    contrato=_arquivo(raiz, "contrato_vazio.yaml", "x-aurora: {}\n"),
+                )
+            ),
+        )
+        confere(
+            "reprovou contrato ausente do disco",
+            bool(
+                verifica(
+                    BANNER, componente, [tela_ok], [bundle_ok],
+                    contrato=raiz / "nao-existe.yaml",
+                )
+            ),
+        )
+        confere(
+            "extracao do contrato devolve None quando a chave some",
+            alvo.texto_do_contrato(_arquivo(raiz, "c2.yaml", "outra: coisa\n")) is None,
+        )
+
+        # ------------------------------------------------------------------
+        # O QUINTO EIXO — a classe `evidencia`, agora COBERTA. M1 da Fase 9.
+        # ------------------------------------------------------------------
+        sem_banner = raiz / "evidence_ruim"
+        _arquivo(raiz, "evidence_ruim/vpn.log", "T-9d user=svc\n")
+        confere(
+            "reprovou arquivo de evidencia SEM banner",
+            bool(verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=sem_banner)),
+        )
+
+        rodape = raiz / "evidence_rodape"
+        _arquivo(raiz, "evidence_rodape/vpn.log", f"T-9d user=svc\n# {BANNER}\n")
+        confere(
+            "reprovou banner no RODAPE — a posicao e o requisito",
+            bool(verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=rodape)),
+        )
+
+        # A ANTI-VACUIDADE DESTE EIXO, e ela e a que importa: cobertura
+        # declarada sem objeto e skip silencioso, que a R10 §2 chama de FAIL.
+        confere(
+            "reprovou diretorio de evidencia AUSENTE — cobertura sem objeto",
+            bool(
+                verifica(
+                    BANNER, componente, [tela_ok], [bundle_ok],
+                    evidencia=raiz / "evidence_inexistente",
+                )
+            ),
+        )
+        vazio = raiz / "evidence_vazio"
+        vazio.mkdir()
+        _arquivo(raiz, "evidence_vazio/MANIFEST.json", "{}\n")
+        confere(
+            "reprovou diretorio SO com MANIFEST — o indice nao e artefato",
+            bool(verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=vazio)),
         )
 
         spec_sem_bloco = _arquivo(raiz, "05.md", "## 4. Banner obrigatorio\n\nsem bloco\n")

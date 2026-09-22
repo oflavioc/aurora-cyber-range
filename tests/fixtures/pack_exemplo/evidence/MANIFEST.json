@@ -1,0 +1,19 @@
+{
+  "generated_from": {
+    "pack_id": "pack_exemplo",
+    "ground_truth_hash": "sha256:082adf246b9551892ebdebd1a97de5c2757a963a63d267c8713bebaa6db7f72d",
+    "random_seed": 424242
+  },
+  "sources": [
+    {
+      "file": "vpn.log",
+      "format": "syslog_text",
+      "delivery_mode": "pre_positioned",
+      "window": "T-9d 02:14 → T-9d 02:14",
+      "projects_facts": [
+        "GT-A-020"
+      ],
+      "sha256": "071f279b7572b181538c432ee78902ccc8e5f1fb0452091110151f0bc334316b"
+    }
+  ]
+}

@@ -241,11 +241,28 @@ x-aurora-security-constraints:
   # 05 secao 2: sem hash de malware real, sem IOC de campanha real.
   real_ioc_allowed: false
 
+# ---------------------------------------------------------------------------
+# AS REGRAS, COM DONO NOMEADO — L2 da auditoria da Fase 9.
+#
+# Ate a auditoria esta lista era PROSA PLANA: quatro frases sem dizer quem as
+# executa. `scripts/check_regras_do_linter.py` — o verificador que existe
+# exatamente para acabar com "regra declarada que ninguem executa e ninguem
+# deve" — fixa `CONTRATO = scenario.schema.v2.yaml` e nao le este arquivo, entao
+# as quatro ficavam fora do universo dele.
+#
+# Cada uma passa a nomear o mecanismo. Nao e um registro novo: e a mesma forma
+# que o contrato de cenario usa, aplicada ao de evidencia, para que a pergunta
+# "quem executa isto?" tenha resposta no lugar onde a regra mora.
+# ---------------------------------------------------------------------------
 x-aurora-linter-rules:
-  - 'cobertura de projecao: todo fato com `projections` tem os arquivos correspondentes (08 secao 7)'
-  - '`format` do arquivo deve casar com o formato declarado para aquela fonte em x-aurora-registry.source_formats'
-  - '`sha256` confere com o conteudo do arquivo — verificado por `range-cli evidence verify`'
-  - 'banner presente na primeira linha de todo artefato gerado (05 secao 4)'
+  - regra: 'cobertura de projecao: todo fato com `projections` tem os arquivos correspondentes (08 secao 7)'
+    mecanismo: 'range-core/evidence/build.py::conferir (declarados x reprojetados)'
+  - regra: '`format` do arquivo deve casar com o formato declarado para aquela fonte em x-aurora-registry.source_formats'
+    mecanismo: 'range-core/evidence/projecao.py::projetar (FonteSemFormato) + o enum `evidence_format` deste contrato'
+  - regra: '`sha256` confere com o conteudo do arquivo'
+    mecanismo: 'range-core/evidence/build.py::conferir, e `range-cli evidence verify` no CI'
+  - regra: 'banner presente na primeira linha de todo artefato gerado (05 secao 4)'
+    mecanismo: 'range-core/evidence/banner.py (producao) + scripts/check_banner_de_simulacao.py (varredura do evidence/ versionado)'
 
 # ---------------------------------------------------------------------------
 # AUTORIDADE, COMO DADO E NAO COMO COMENTARIO.

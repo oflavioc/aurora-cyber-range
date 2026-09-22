@@ -338,6 +338,36 @@ allOf:
         payload:
           $ref: '#/$defs/continuity_action_taken_payload'
 
+  # SEXTO PAYLOAD POR event_type — Fase 9, e ele fechava uma fresta que so a
+  # auditoria viu (M2).
+  #
+  # `telemetry_emitted_payload` nasceu DECLARADO e NAO LIGADO: o unico consumidor
+  # era `forwarder.erros_de_payload`, chamado so por teste. O registro da fase
+  # afirmava que `fact_id` era "inexpressavel" no payload — e era, para quem
+  # chamasse aquela funcao. No ENVELOPE, o payload continuava aberto como os
+  # outros 32, e `05` secao 6 e afirmacao sobre o que pode ser GRAVADO, nao sobre
+  # o que uma funcao valida.
+  #
+  # Com o binding, a exigencia passa a valer para todo evento que entre no store:
+  # `additionalProperties: false` no payload torna `fact_id` recusado pelo
+  # contrato, e nao por lembranca do emissor. E a diferenca entre regra e
+  # impedimento.
+  #
+  # POR QUE ISSO IMPORTA MAIS AQUI DO QUE NOS OUTROS CINCO: telemetria e a unica
+  # fonte com ordem de grandeza de centenas de milhares (07 secao Fase 9), e e a
+  # que o PARTICIPANTE ve no SIEM do exercicio. Um `fact_id` vazando ali entrega
+  # o gabarito em volume.
+  - if:
+      required: [event_type]
+      properties:
+        event_type:
+          const: telemetry_emitted
+    then:
+      required: [payload]
+      properties:
+        payload:
+          $ref: '#/$defs/telemetry_emitted_payload'
+
 $defs:
 
   # -------------------------------------------------------------------------
@@ -1352,3 +1382,42 @@ x-aurora-invalid-examples:
         by_user: 'gm-001'
         role: facilitador
         reason: porque_sim
+
+  # A NEGATIVA DO BINDING DA FASE 9 (M2 da auditoria). Ate o binding existir,
+  # este documento VALIDAVA: o payload de `telemetry_emitted` era livre como o
+  # dos outros 32, e `fact_id` cabia nele. `05` secao 6 e afirmacao sobre o que
+  # pode ser GRAVADO — o participante ve a telemetria no SIEM do exercicio, e o
+  # identificador de gabarito ali entrega o gabarito em volume.
+  - reason: 'fact_id no payload de telemetry_emitted: gabarito no que o participante ve (05 secao 6)'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000D'
+      event_type: telemetry_emitted
+      truth_layer: observable_evidence
+      producer: telemetry-forwarder
+      exercise_time: 'T+00:12:00'
+      exercise_timestamp: '2026-08-13T09:12:00'
+      wall_timestamp: '2026-08-13T10:29:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        signature: SERVICE_ACCOUNT_ANOMALY
+        severity: 7
+        src: 198.51.100.42
+        fact_id: GT-A-014
+
+  - reason: 'assinatura de telemetria fora das doze de 02 secao 10'
+    rejected_by: schema
+    instance:
+      event_id: '01J9F00000000000000000000E'
+      event_type: telemetry_emitted
+      truth_layer: observable_evidence
+      producer: telemetry-forwarder
+      exercise_time: 'T+00:13:00'
+      exercise_timestamp: '2026-08-13T09:13:00'
+      wall_timestamp: '2026-08-13T10:30:12-03:00'
+      clock_multiplier: 1
+      simulation_epoch: 0
+      payload:
+        signature: INVENTADA_PELO_PACK
+        severity: 5

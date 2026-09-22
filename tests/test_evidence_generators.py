@@ -323,6 +323,28 @@ class NenhumaFonteCarregaIOC(unittest.TestCase):
             )
         self.assertIn("vpn", str(ctx.exception))
 
+    def test_o_motor_RECUSA_IOC_na_forma_CHAVE_VALOR_de_log(self):
+        """**A forma que um gerador de log realmente escreve.**
+
+        O caso acima usa `"visite https://..."`, com espaco — e por isso ele
+        passava mesmo com a tokenizacao quebrada. Log de fio e `chave=valor`, e
+        sem cortar no `=` o token vira `url=https://<host>/x`: `urlsplit` nao
+        reconhece `url=https` como esquema, `hostnames_candidatos` devolve nada,
+        e o IOC atravessa a guarda.
+
+        Medido na correcao do M1 da auditoria, e o mesmo defeito estava em
+        `tools/check_synthetic_data.py`, que nasceu com a tokenizacao copiada.
+        """
+        with self.assertRaises(projecao.IOCEncontrado) as ctx:
+            _projetar(
+                linha_a.facts(SEED),
+                geradores={
+                    **GERADORES,
+                    "vpn": lambda fatos: "T-9d host=vpn-gw url=https://www.bancoreal.com.br/x",
+                },
+            )
+        self.assertIn("bancoreal", str(ctx.exception))
+
     def test_o_par_positivo_os_geradores_reais_passam(self):
         """Sem ele, um motor que recusasse TUDO passaria no teste acima."""
         fatos = linha_a.facts(SEED)

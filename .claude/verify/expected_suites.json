@@ -13,7 +13,7 @@
     "test_evidence_elenco_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_elenco_probes.py\"", "pass": 2, "fail": 0},
     "test_evidence_projecao": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_projecao.py\"", "pass": 29, "fail": 0},
     "test_evidence_projecao_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_projecao_probes.py\"", "pass": 2, "fail": 0},
-    "test_evidence_generators": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_generators.py\"", "pass": 27, "fail": 0},
+    "test_evidence_generators": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_generators.py\"", "pass": 28, "fail": 0},
     "test_evidence_generators_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_generators_probes.py\"", "pass": 2, "fail": 0},
     "test_evidence_build": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_build.py\"", "pass": 28, "fail": 0},
     "test_evidence_build_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_build_probes.py\"", "pass": 2, "fail": 0},
