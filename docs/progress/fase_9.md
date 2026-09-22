@@ -166,7 +166,30 @@ A regra que fica: **prova negativa se confere na suíte completa, e tudo o que
 ela muta resolve-se por `sys.modules`.** Isolada, ela pode estar medindo o acaso
 da ordem de import.
 
-### 2.5 `achados_no_valor` julga VALOR, não texto — a guarda que não guardava
+### 2.5 A conferência empilha duas perguntas, e elas não são redundantes
+
+Medido na peça 4, pela prova negativa. `conferir` compara o `sha256` do
+manifesto **e** o conteúdo reprojetado, e a mutação que removia a primeira
+comparação **não matava teste nenhum** — a segunda pegava a edição de qualquer
+forma.
+
+Não era gate frouxo: as duas perguntas são diferentes.
+
+- **o `sha256`** pergunta *"o arquivo é o que foi escrito?"*;
+- **a reprojeção** pergunta *"o arquivo é o que o gabarito projeta?"*.
+
+Quem edita o arquivo **e** atualiza o hash no manifesto passa pela primeira, e só
+a segunda o pega. E quem edita só o arquivo é pego pelas duas — mas com
+**mensagens diferentes**, e `06` T13 nomeia o hash como o mecanismo da detecção
+de edição manual. Sem a comparação de hash, a edição simples era reportada como
+*"manifesto e arquivo foram alterados juntos"*, que é falso.
+
+O gate ganhou dois casos por causa dessa medição: um que exige a mensagem do
+hash, outro que exerce o conluio — e a mutação passou a morder. **A redundância
+aparente era divisão de trabalho**, e o que faltava era um teste que a
+distinguisse.
+
+### 2.6 `achados_no_valor` julga VALOR, não texto — a guarda que não guardava
 
 Medido na peça 3, e é a lição mais cara dela. O item 5 exige *"nenhum arquivo
 contém anexo, binário, IOC real ou domínio roteável"*, e o predicado que
@@ -202,9 +225,9 @@ executável que o sustenta.
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
-| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE em conteúdo** — as cinco fontes que o gabarito declara são projeção de fato, e o motor **recusa** o gerador que inventa. Falta só a escrita em disco (`evidence build`, peça 4), que é mecânica | Três camadas. (a) `range-core/evidence/elenco.py` responde as três perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora) e `enderecos_no`; `tests/test_evidence_elenco.py` (18, **dirigido por fato e não por seed**, `06` T13) + probes (2), 4 mutantes. (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**: `EntidadeInventada` nomeia a fonte e o valor; `tests/test_evidence_projecao.py` (29) + probes (2), 5 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das cinco fontes, provados contra o fato em `tests/test_evidence_generators.py` (27) + probes (2), 5 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco em vez de ser escrito à mão — a fresta do item 1 onde o oráculo de endereço não olha |
-| 2 | `range-cli evidence verify` dirigido por fato | *não iniciado* | — |
-| 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | *não iniciado* | — |
+| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE** — as seis fontes que o gabarito declara são projeção de fato, o motor **recusa** o gerador que inventa, e `evidence build` as escreve em disco com o `MANIFEST.json` | Três camadas. (a) `range-core/evidence/elenco.py` responde as três perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora) e `enderecos_no`; `tests/test_evidence_elenco.py` (18, **dirigido por fato e não por seed**, `06` T13) + probes (2), 4 mutantes. (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**: `EntidadeInventada` nomeia a fonte e o valor; `tests/test_evidence_projecao.py` (29) + probes (2), 5 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das cinco fontes, provados contra o fato em `tests/test_evidence_generators.py` (27) + probes (2), 5 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco em vez de ser escrito à mão — a fresta do item 1 onde o oráculo de endereço não olha |
+| 2 | `range-cli evidence verify` dirigido por fato | **VERDE** | `range-core/evidence/build.py::conferir` **reprojeta em memória** e compara com o disco — não há regra de validação escrita à mão, o oráculo é o próprio produtor rodado de novo. Confere, em ordem de dependência: manifesto presente e válido contra o contrato → `ground_truth_hash` → cobertura declarada × projetada → `sha256` por arquivo → conteúdo reprojetado → arquivo a mais. `range-cli evidence verify <path>` sai `0`/`2` e **não escreve** (`04` §8.1 (a), provado por `st_mtime_ns` antes/depois). `tests/test_evidence_build.py` (28) + probes (2) |
+| 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | **VERDE** | `domains/academus/evidence_generators/precursor.py` — o phishing projeta em **duas** fontes (`email` e `precursor`), que é o modelo de `08` §1. O arquivo tem o nome que a spec usa, é reproduzível byte a byte, e a edição manual é detectada. **O precursor omite `actor` de propósito**: atribuição é o achado do exercício, não o insumo |
 | 4 | Telemetria CEF é projeção, não emissão independente | *não iniciado* | — |
 | 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
 | 6 | Replay respeita o clock de exercício | *não iniciado* | — |

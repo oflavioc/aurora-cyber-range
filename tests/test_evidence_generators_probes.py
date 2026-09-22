@@ -88,7 +88,11 @@ MUTAVEIS = (
 
 GUARDA_DE_IOC = "        achados = _achados_no_texto(conteudo)"
 
-PHISHING = '            "projections": ["email"],'
+#: A linha ACOMPANHOU a peca 4: o phishing passou a projetar tambem em
+#: `precursor` (duas fontes para o mesmo fato, o modelo de `08` §1). O harness
+#: exige casamento EXATO e uma vez so — e por isso que um alvo desatualizado
+#: quebra alto aqui em vez de plantar outra coisa em silencio.
+PHISHING = '            "projections": ["email", "precursor"],'
 
 REGISTRO = "        registro = {c: fato[c] for c in campos if c in fato}"
 
