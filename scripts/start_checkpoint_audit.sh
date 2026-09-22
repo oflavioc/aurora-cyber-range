@@ -49,7 +49,68 @@ if ! [[ "$PHASE" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-ROOT=$(git rev-parse --show-toplevel)
+# ---------------------------------------------------------------------------
+# O BASH ERRADO — recusa nomeada, antes de a primeira chamada git morrer com um
+# caminho concatenado que nao diz o que aconteceu.
+#
+# O CASO, medido no fechamento da Fase 9. Worktree criado pelo app do Claude
+# Code tem um `.git` que e ARQUIVO, com `gitdir:` apontando para caminho
+# WINDOWS absoluto:
+#
+#     gitdir: C:/Projetos/aurora-cyber-range/.git/worktrees/<nome>
+#
+# O Git Bash (Cygwin/MSYS) resolve `C:/...` como absoluto. O **WSL nao** — para
+# ele, um caminho que nao comeca com `/` e RELATIVO, entao ele concatena com o
+# diretorio corrente e produz:
+#
+#     fatal: not a git repository: /mnt/c/.../<worktree>/C:/Projetos/.../<nome>
+#
+# Essa mensagem tem a forma de "o repositorio esta quebrado", e nao e: o
+# repositorio esta intacto e o interpretador e que esta errado. Quem a le perde
+# tempo procurando defeito onde nao ha — foi o que aconteceu.
+#
+# POR QUE A DETECCAO E PELO DIRETORIO E NAO PELO `uname`. Testar "estou no WSL?"
+# responderia a pergunta errada: o que quebra nao e o WSL, e o gitdir que este
+# interpretador nao alcanca. Um `.git` com caminho POSIX num Git Bash sem o
+# drive montado falharia igual, e a mesma mensagem serve. A condicao e
+# **o gitdir declarado nao existe**, que e exatamente o que impede o git de
+# abrir o repositorio.
+# ---------------------------------------------------------------------------
+if ! ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+  echo "ERRO: este diretorio nao abre como repositorio git." >&2
+  if [ -f .git ]; then
+    GITDIR_DECLARADO=$(sed -n 's/^gitdir: *//p' .git | head -1)
+    if [ -n "$GITDIR_DECLARADO" ] && [ ! -d "$GITDIR_DECLARADO" ]; then
+      echo >&2
+      # ASPAS SIMPLES onde ha crase: dentro de aspas duplas o bash trataria
+      # `.git` como substituicao de comando, e `bash -n` NAO pega isso — a
+      # sintaxe e valida e o estrago aparece so na execucao, que e justamente o
+      # caminho de erro que quase nunca roda.
+      echo '  E um WORKTREE, e o `.git` dele aponta para um gitdir que ESTE' >&2
+      echo "  interpretador nao alcanca:" >&2
+      echo >&2
+      echo "      gitdir: $GITDIR_DECLARADO" >&2
+      echo >&2
+      if [ "${GITDIR_DECLARADO:1:1}" = ":" ]; then
+        echo "  O caminho e WINDOWS absoluto. O Git Bash o resolve; o WSL nao —" >&2
+        echo '  para ele um caminho sem `/` inicial e relativo, e por isso a' >&2
+        echo "  mensagem do git sai com os dois caminhos concatenados." >&2
+        echo >&2
+        echo "  RODE NO GIT BASH, e nao no WSL nem no bash do CMD:" >&2
+        echo >&2
+        echo "      \"C:\\Program Files\\Git\\bin\\bash.exe\" scripts/start_checkpoint_audit.sh $PHASE" >&2
+      else
+        echo "  O diretorio apontado nao existe neste sistema de arquivos." >&2
+        echo "  Confira de onde este worktree foi criado." >&2
+      fi
+      echo >&2
+      echo "  O REPOSITORIO ESTA INTACTO — o que esta errado e o interpretador." >&2
+      exit 1
+    fi
+  fi
+  echo "  Rode a partir da raiz do repositorio ou de um worktree dele." >&2
+  exit 1
+fi
 cd "$ROOT"
 
 if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
