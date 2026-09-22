@@ -16,7 +16,9 @@
     "test_evidence_generators": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_generators.py\"", "pass": 27, "fail": 0},
     "test_evidence_generators_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_generators_probes.py\"", "pass": 2, "fail": 0},
     "test_evidence_build": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_build.py\"", "pass": 28, "fail": 0},
-    "test_evidence_build_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_build_probes.py\"", "pass": 2, "fail": 0}
+    "test_evidence_build_probes": {"cmd": "python -m unittest discover -s tests -p \"test_evidence_build_probes.py\"", "pass": 2, "fail": 0},
+    "test_telemetry_forwarder": {"cmd": "python -m unittest discover -s tests -p \"test_telemetry_forwarder.py\"", "pass": 20, "fail": 0},
+    "test_telemetry_forwarder_probes": {"cmd": "python -m unittest discover -s tests -p \"test_telemetry_forwarder_probes.py\"", "pass": 2, "fail": 0}
   },
   "heavy": {},
   "visual": {

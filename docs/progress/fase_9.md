@@ -189,7 +189,23 @@ hash, outro que exerce o conluio — e a mutação passou a morder. **A redundâ
 aparente era divisão de trabalho**, e o que faltava era um teste que a
 distinguisse.
 
-### 2.6 `achados_no_valor` julga VALOR, não texto — a guarda que não guardava
+### 2.6 O hook defendeu a fronteira, e a conveniência era plausível
+
+Medido na peça 5. A primeira versão de `range-core/telemetry/catalogo.py` trazia
+um atalho `do_academus(contratos)` — conveniência de composição, para o chamador
+não montar o caminho. O hook `check_architecture` **bloqueou a escrita**:
+invariante 1, `range-core/` não importa de `domains/`.
+
+O atalho não mudou de forma, mudou de lado: foi para
+`domains/academus/telemetria.py`, que é quem sabe onde mora o próprio arquivo. O
+núcleo carrega e confere; **qual fato do mundo acadêmico vira qual sinal de SIEM
+é conhecimento do adapter**.
+
+Fica registrado porque a conveniência era plausível e o defeito seria invisível
+no verde — é exatamente assim que uma fronteira vaza. E é a diferença que a §1.6
+do registro da Fase 1 estabelece: **instrução é regra; hook é impedimento**.
+
+### 2.7 `achados_no_valor` julga VALOR, não texto — a guarda que não guardava
 
 Medido na peça 3, e é a lição mais cara dela. O item 5 exige *"nenhum arquivo
 contém anexo, binário, IOC real ou domínio roteável"*, e o predicado que
@@ -228,9 +244,9 @@ executável que o sustenta.
 | 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE** — as seis fontes que o gabarito declara são projeção de fato, o motor **recusa** o gerador que inventa, e `evidence build` as escreve em disco com o `MANIFEST.json` | Três camadas. (a) `range-core/evidence/elenco.py` responde as três perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora) e `enderecos_no`; `tests/test_evidence_elenco.py` (18, **dirigido por fato e não por seed**, `06` T13) + probes (2), 4 mutantes. (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**: `EntidadeInventada` nomeia a fonte e o valor; `tests/test_evidence_projecao.py` (29) + probes (2), 5 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das cinco fontes, provados contra o fato em `tests/test_evidence_generators.py` (27) + probes (2), 5 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco em vez de ser escrito à mão — a fresta do item 1 onde o oráculo de endereço não olha |
 | 2 | `range-cli evidence verify` dirigido por fato | **VERDE** | `range-core/evidence/build.py::conferir` **reprojeta em memória** e compara com o disco — não há regra de validação escrita à mão, o oráculo é o próprio produtor rodado de novo. Confere, em ordem de dependência: manifesto presente e válido contra o contrato → `ground_truth_hash` → cobertura declarada × projetada → `sha256` por arquivo → conteúdo reprojetado → arquivo a mais. `range-cli evidence verify <path>` sai `0`/`2` e **não escreve** (`04` §8.1 (a), provado por `st_mtime_ns` antes/depois). `tests/test_evidence_build.py` (28) + probes (2) |
 | 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | **VERDE** | `domains/academus/evidence_generators/precursor.py` — o phishing projeta em **duas** fontes (`email` e `precursor`), que é o modelo de `08` §1. O arquivo tem o nome que a spec usa, é reproduzível byte a byte, e a edição manual é detectada. **O precursor omite `actor` de propósito**: atribuição é o achado do exercício, não o insumo |
-| 4 | Telemetria CEF é projeção, não emissão independente | *não iniciado* | — |
+| 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um gerador só** — que é o que `08` §2 quer dizer com *"um contrato só"*. O arquivo `cef.log` (peça 3) e o `telemetry_emitted` saem dos **mesmos fatos**: `domains/academus/telemetry_events.yaml` (`02` §10, os doze eventos) mapeia `fact_class` → assinatura, e `range-core/telemetry/forwarder.py::programar` deriva o payload. **A prova é de valor, não de estrutura**: o `src` do evento e o do `cef.log` são comparados lado a lado, porque duas implementações coerentes hoje não provam nada sobre amanhã. O payload valida contra `$defs/telemetry_emitted_payload`, com `fact_id` **inexpressável** (`05` §6) |
 | 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
-| 6 | Replay respeita o clock de exercício | *não iniciado* | — |
+| 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (20) + probes (2) |
 | 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | *não iniciado* | — |
 
 ## 6. Pendências
