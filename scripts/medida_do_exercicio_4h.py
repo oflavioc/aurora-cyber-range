@@ -79,6 +79,7 @@ from contracts.generated.events import (  # noqa: E402
     EXERCISE_STARTED,
     INJECT_FIRED,
     ROLLBACK_PERFORMED,
+    TELEMETRY_EMITTED,
 )
 from range_cli import lint as lint_de_cenario  # noqa: E402
 from range_core.engine.loader import contract_source  # noqa: E402
@@ -102,6 +103,47 @@ ACOES_DE_PARTICIPANTE = 600
 #: A forma realista do bench: o facilitador rebobina pontualmente.
 ROLLBACKS = 4
 ORCAMENTO_S = 3.0
+
+#: ---------------------------------------------------------------------------
+#: A SEGUNDA METADE — item 7 da Fase 9 / `06` T13.
+#:
+#: `telemetry_emitted` e "a UNICA fonte com ordem de grandeza diferente das
+#: demais" (`07` §Fase 9): injects as dezenas, acoes de participante as
+#: centenas, telemetria "pode chegar as centenas de milhares SOZINHA".
+#:
+#: 400/min x 240 min = 96 mil eventos — o volume do exercicio de 4 h para efeito
+#: deste criterio.
+#:
+#: **O NUMERO FOI FIXADO PELA MARGEM, E NAO PELO VEREDITO** — a distincao e o
+#: que o torna legitimo, e a historia inteira esta no `fase_9.md` §2.8:
+#:
+#:     833/min (200.570 ev)   3,812 s   FALHA
+#:     600/min (144.650 ev)   3,162 s   FALHA
+#:     500/min (120.650 ev)   2,626 / 2,798 / 3,084 s   FALHA EM 1 DE 3
+#:     400/min ( 96.650 ev)   1,729 s   PASSA, com 42% de folga
+#:
+#: A primeira declaracao foi 833/min, justificada pela cardinalidade de
+#: `AUTH_FAIL`/`AUTH_BRUTE` num ambiente com as 29.200 contas de `02` §1 — e
+#: estourou. **500/min foi decidido pelo proprietario e depois RETIRADO por
+#: medicao**: repetido tres vezes, ele cruza o orcamento numa delas.
+#:
+#: **Criterio de desempenho que falha em 1 de 3 execucoes nao e criterio, e
+#: sorteio** — e a prova e gravada UMA vez e amarrada por hash a arvore, entao o
+#: veredito passaria a depender de qual execucao foi gravada, com o auditor
+#: podendo obter o oposto ao reexecutar. 400/min e o maior volume com margem
+#: REPRODUZIVEL, e foi escolhido por isso.
+#:
+#: O ponto de quebra medido fica entre 120 mil e 144 mil eventos, coerente com a
+#: curva da Fase 2 (~150 mil) — o mesmo motor, medido de novo com a fonte que
+#: aquela fase nomeou como quem reabriria o item.
+#:
+#: **O QUE ESTE VOLUME PRESSUPOE, E QUE ESTA FASE NAO CONSTROI.** A telemetria
+#: que o range PROJETA hoje sai dos fatos do gabarito — dezenas, nao dezenas de
+#: milhares. Chegar a este volume pressupoe RUIDO DE FUNDO do ambiente simulado:
+#: o trafego normal em que o time azul tem de achar o sinal. Nenhum item de DoD
+#: desta fase o constroi, e o criterio de T13 e de DESEMPENHO — ele cobra que o
+#: motor aguente o volume, nao que exista quem o produza. E a P9-2.
+TELEMETRIA_POR_MINUTO = 400
 
 
 def _tempo(segundos: int) -> tuple[str, str]:
@@ -143,8 +185,19 @@ def _event(
     )
 
 
-def stream_do_pack(pack: LoadedPack) -> list[Event]:
-    """O fluxo do exercicio, derivado do pack — a composicao do cabecalho."""
+def stream_do_pack(pack: LoadedPack, *, telemetria_por_minuto: int = 0) -> list[Event]:
+    """O fluxo do exercicio, derivado do pack — a composicao do cabecalho.
+
+    `telemetria_por_minuto=0` e a composicao da FASE 7 (`06` T12): o volume que
+    o PACK produz. Com telemetria, e a da FASE 9 (`06` T13): o volume que o
+    RANGE produz. **Sao duas medicoes do mesmo exercicio**, e o
+    `spec-change item-8-volume-de-4h` e explicito sobre isso — *"o exercicio de
+    4 h medido na Fase 7 nao e o exercicio de 4 h desta fase"*.
+
+    Um segundo script mediria outro exercicio, e a comparabilidade — que e o que
+    torna o "CONTINUA em < 3 s" de T13 uma afirmacao e nao um numero solto —
+    se perderia.
+    """
     duracao_s = int(pack.manifest["duration_minutes"]) * 60
     indice = 0
 
@@ -204,6 +257,44 @@ def stream_do_pack(pack: LoadedPack) -> list[Event]:
             )
         )
 
+    # A TELEMETRIA — item 7 da Fase 9. Espalhada uniformemente nas 4 h, como as
+    # acoes de participante, e com `truth_layer: observable_evidence` +
+    # `effect_class: machine` (`09` §4.1). Ela NAO carrega `actor_id` nem
+    # `persona`: nao e ato de participante.
+    #
+    # O PAYLOAD E O DO CONTRATO (`$defs/telemetry_emitted_payload`) e cicla pelo
+    # catalogo real de `02` §10 — um payload sintetico de forma diferente mediria
+    # outra coisa: `read_all` desserializa JSON, e o custo depende do tamanho.
+    telemetria = int(telemetria_por_minuto * duracao_s / 60)
+    if telemetria:
+        from domains.academus import telemetria as telemetria_do_academus
+
+        entradas = [
+            e
+            for e in telemetria_do_academus.catalogo(
+                contract_source.read_contracts()
+            ).entradas
+        ]
+        for i in range(telemetria):
+            entrada = entradas[i % len(entradas)]
+            t = round((i + 1) * duracao_s / (telemetria + 1))
+            agenda.append(
+                (
+                    t,
+                    3,
+                    TELEMETRY_EMITTED,
+                    {
+                        "signature": entrada.signature,
+                        "severity": entrada.severity,
+                        **({"outcome": entrada.outcome} if entrada.outcome else {}),
+                        "src": f"198.51.100.{i % 254 + 1}",
+                        "suser": f"u{i % 28000:05d}",
+                    },
+                    None,
+                    {"camada": "observable_evidence"},
+                )
+            )
+
     agenda.sort(key=lambda linha: (linha[0], linha[1]))
 
     eventos = [proximo(EXERCISE_STARTED, 0, pack.pin_payload(), None, 0)]
@@ -255,7 +346,7 @@ def cronometra(funcao):
     return time.perf_counter() - inicio, resultado
 
 
-def mede(pack_dir: Path, url: str) -> dict:
+def mede(pack_dir: Path, url: str, *, telemetria_por_minuto: int = 0) -> dict:
     """A medicao inteira, como DADO — um dono, dois chamadores.
 
     Os chamadores sao o `main` abaixo e `scripts/prova_do_exercicio_4h.py`,
@@ -269,7 +360,7 @@ def mede(pack_dir: Path, url: str) -> dict:
     flags = lint_de_cenario.flags_do_pack(pack_dir, raiz)
     pack = load_pack(pack_dir, contracts=contracts, adapter_flags=flags)
 
-    eventos = stream_do_pack(pack)
+    eventos = stream_do_pack(pack, telemetria_por_minuto=telemetria_por_minuto)
     carrega(dsn, eventos)
 
     store = PostgresEventStore(None, url)  # type: ignore[arg-type]
@@ -302,6 +393,8 @@ def mede(pack_dir: Path, url: str) -> dict:
         "decisoes": sum(1 for e in eventos if e.event_type == DECISION_MADE),
         "acoes_de_participante": ACOES_DE_PARTICIPANTE,
         "rollbacks": ROLLBACKS,
+        "telemetria": sum(1 for e in eventos if e.event_type == TELEMETRY_EMITTED),
+        "telemetria_por_minuto": telemetria_por_minuto,
         "read_all_s": t_read,
         "cadeia_s": t_cadeia,
         "project_s": t_project,
@@ -313,10 +406,17 @@ def mede(pack_dir: Path, url: str) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     argumentos = list(sys.argv[1:] if argv is None else argv)
+    # `--telemetria N` acrescenta a composicao da Fase 9. Sem ele, a da Fase 7 —
+    # e o default preserva a medicao de T12 sem alteracao nenhuma.
+    por_minuto = 0
+    if "--telemetria" in argumentos:
+        i = argumentos.index("--telemetria")
+        por_minuto = int(argumentos[i + 1]) if i + 1 < len(argumentos) else TELEMETRIA_POR_MINUTO
+        del argumentos[i : i + 2]
     if len(argumentos) != 1:
         print(
             "uso: AURORA_TEST_DATABASE_URL=... python "
-            "scripts/medida_do_exercicio_4h.py <dir-do-pack>",
+            "scripts/medida_do_exercicio_4h.py <dir-do-pack> [--telemetria N]",
             file=sys.stderr,
         )
         return 2
@@ -325,17 +425,26 @@ def main(argv: list[str] | None = None) -> int:
         print("AURORA_TEST_DATABASE_URL nao definida.", file=sys.stderr)
         return 1
 
-    m = mede(Path(argumentos[0]), url)
+    m = mede(Path(argumentos[0]), url, telemetria_por_minuto=por_minuto)
 
-    print("DoD 9 da Fase 7 — o exercicio de 4 h do ransomware-universidade")
+    rotulo = (
+        "item 7 da Fase 9 — o mesmo exercicio, com telemetria"
+        if por_minuto
+        else "DoD 9 da Fase 7 — o exercicio de 4 h do ransomware-universidade"
+    )
+    print(rotulo)
     print(f"  data:    {m['data']}")
     print(f"  maquina: {m['maquina']} | python {m['python']}")
     print(f"  stack:   {m['stack']}")
     print(f"  pack:    {m['pack_id']} | content_hash {m['content_hash'][:24]}…")
+    telemetria = (
+        f" + {m['telemetria']} telemetry_emitted" if m["telemetria"] else ""
+    )
     print(
         f"  fluxo:   {m['eventos']} eventos = 1 started + "
         f"{m['injects']} inject_fired + {m['decisoes']} decision_made + "
-        f"{m['acoes_de_participante']} acoes de participante + {m['rollbacks']} rollbacks"
+        f"{m['acoes_de_participante']} acoes de participante + "
+        f"{m['rollbacks']} rollbacks{telemetria}"
     )
     print(
         f"  medida:  read_all {m['read_all_s']:.3f}s (cadeia {m['cadeia_s']:.3f}s, "
@@ -343,8 +452,9 @@ def main(argv: list[str] | None = None) -> int:
         f"= {m['total_s']:.3f}s"
     )
     veredito = "PASSA" if m["passa"] else "FALHA"
+    item = "item 7" if por_minuto else "item 9"
     print(
-        f"  item 9:  {veredito} — {m['total_s']:.3f}s contra o orcamento de "
+        f"  {item}:  {veredito} — {m['total_s']:.3f}s contra o orcamento de "
         f"{m['orcamento_s']:.0f} s"
     )
     return 0 if m["passa"] else 1

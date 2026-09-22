@@ -56,6 +56,26 @@ _COLUMNS = (
     "actor_id, persona, correlation, payload, previous_hash, row_hash"
 )
 
+#: OTIMIZACAO MEDIDA E NAO ADOTADA — peca 6 da Fase 9, registrada porque medir
+#: de novo custa mais do que ler isto.
+#:
+#: Pedir os dois campos JSONB como `::text` e desserializa-los em Python, em vez
+#: de deixar o driver faze-lo no caminho do fetch, e mais barato **isoladamente**.
+#: Sobre os 200.570 eventos do exercicio de 4 h com telemetria:
+#:
+#:     json como dict (driver)      1,192 s
+#:     json como text + json.loads  0,929 s
+#:
+#: **E o ganho NAO apareceu no caminho real.** Com a troca aplicada em `_stored`,
+#: o `read_all` completo mediu 2,980 s e 2,851 s; sem ela, 2,988 s, 3,076 s,
+#: 2,546 s e 2,719 s. A variancia entre execucoes (~0,45 s) e maior que o ganho,
+#: e o `json.loads` dentro do laco que ja constroi `Event` e `Correlation`
+#: dilui o que o benchmark isolado mostrava.
+#:
+#: Revertida: complexidade a mais no event store — superficie de `05` §7 — sem
+#: beneficio reprodutivel e custo. Quem voltar a este ponto comeca sabendo que o
+#: gargalo NAO esta por onde o JSON passa.
+
 
 def normalize_dsn(url: str) -> str:
     """`postgresql+psycopg://...` -> `postgresql://...`.
