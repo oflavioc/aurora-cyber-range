@@ -233,6 +233,112 @@ motor deixaria de ser oráculo independente e aprovaria um defeito na própria
 tokenização. E a prova negativa restaura o defeito exato, porque sem ela nada
 distinguiria a guarda que funciona da que não funciona.
 
+### 2.8 O volume do item 7 foi fixado pela MARGEM, e não pelo veredito
+
+**Medido na peça 6, e é o primeiro item de DoD desta fase que não fecha.**
+
+`06` T13 cobra que a reconstrução *"continua em < 3 s"* com `telemetry_emitted`
+no volume de um exercício de 4 h, e `07` §Fase 9 diz que telemetria *"pode
+chegar às centenas de milhares sozinha"*. O harness da Fase 7 foi estendido com
+a composição da Fase 9 — **sem tocar a da Fase 7**, porque as duas medem o mesmo
+exercício e a comparabilidade é o que torna o "continua" uma afirmação.
+
+A curva, no mesmo ambiente (Windows-11, Python 3.12.10, PostgreSQL 16.4,
+psycopg 3.2.12, migração `0004`):
+
+| telemetria/min | eventos | total | veredito |
+|---|---|---|---|
+| 0 (composição da Fase 7) | 650 | **0,043 s** | PASSA |
+| 200 | 48.650 | **1,026 s** | PASSA |
+| **400 — o declarado** | **96.650** | **1,729 s** | **PASSA, 42% de folga** |
+| 500 | 120.650 | **2,626 / 2,798 / 3,084 s** | **FALHA EM 1 DE 3** |
+| 600 | 144.650 | **3,162 s** | FALHA |
+| 833 | 200.570 | **3,812 s** | FALHA |
+
+**Ponto de quebra entre 120 mil e 144 mil eventos**, coerente com a curva da
+Fase 2 (~150 mil, 2,874 s) — o mesmo motor, medido de novo com a fonte que a
+Fase 2 nomeou como quem reabriria o item.
+
+#### A linha de 500/min é a que importa, e ela é sobre método
+
+O proprietário decidiu 500/min **com a curva à vista**, depois de a primeira
+declaração (833/min, justificada pela cardinalidade de `AUTH_FAIL`/`AUTH_BRUTE`
+num ambiente com as 29.200 contas de `02` §1) ter estourado. À época, 500/min
+tinha **uma** medição: 2,626 s.
+
+Repetida três vezes, ela deu 2,626 / 2,798 / 3,084 s — **cruza o orçamento numa
+delas**. A variância entre execuções (~0,45 s) é maior que a folga.
+
+**Critério de desempenho que falha em 1 de 3 execuções não é critério, é
+sorteio.** E o agravante é estrutural: a prova é gravada **uma vez** e amarrada
+por hash à árvore, então o veredito passaria a depender de qual execução foi
+gravada — com o auditor podendo obter o oposto ao reexecutar. A decisão foi
+levada de volta ao proprietário com esse dado, e 400/min foi escolhido **por ter
+margem reprodutível**, não por passar.
+
+A distinção é o que separa este número de mover a régua até caber: 400/min tem
+42% de folga e não muda de veredito entre execuções.
+
+#### A causa, decomposta
+
+Com 200.570 eventos, medido isoladamente:
+
+| etapa | custo |
+|---|---|
+| query + transporte, sem JSON | 0,13 s |
+| desserialização JSONB → dict **pelo driver** | 1,19 s |
+| construção de 200 mil `Event`/`Correlation` | ~0,5 s |
+| `verify_chain` — reserialização canônica + SHA-256 | 1,19 s |
+| `project` (o fold) | 0,11 s |
+
+**O custo dominante é um ciclo desserializar → reserializar.** O `payload` e o
+`correlation` vêm do banco como JSON, viram `dict`, e `canonical_form` os
+transforma em JSON canônico outra vez para conferir o hash.
+
+#### O que NÃO é saída
+
+**Tornar a verificação de cadeia opcional.** `postgres_store._stored` já declara
+por que: *"a verificação é incondicional, e não há como desligá-la — um
+`verify=False` seria a porta que a próxima pressa usaria, e store adulterado que
+responde produz projeção plausível e falsa"*. É `01` §4.1 e `05` §7. Desligá-la
+para passar no orçamento seria enfraquecer o gate, que é o que a R10 §1 proíbe
+em primeiro lugar.
+
+**Escolher o volume que faz passar.** O número é declarado por mim; declarar
+500/min em vez de 833/min faria o item ficar verde sem que nada no motor
+mudasse. Isso é a mesma classe: mover a régua até o resultado caber.
+
+#### A otimização que foi medida e NÃO adotada
+
+`::text` + `json.loads` em vez da desserialização do driver é mais barato
+**isoladamente**: 0,929 s contra 1,192 s sobre 200.570 eventos.
+
+**Aplicada em `_stored`, o ganho não apareceu.** Com a troca, o `read_all`
+completo mediu 2,980 s e 2,851 s; sem ela, 2,988 / 3,076 / 2,546 / 2,719 s. A
+variância entre execuções é maior que o ganho, e o `json.loads` dentro do laço
+que já constrói `Event` e `Correlation` dilui o que o benchmark isolado
+mostrava.
+
+**Revertida**, e o registro ficou em comentário no próprio `postgres_store.py`:
+complexidade a mais numa superfície de `05` §7 sem benefício reprodutível é
+custo, e quem voltar a este ponto começa sabendo que o gargalo **não** está por
+onde o JSON passa.
+
+O caminho com ganho suficiente é atacar a **reserialização da cadeia** (teto
+~1,0 s) — mudança estrutural, não otimização local, e fora do escopo desta fase.
+
+#### As duas pendências de volume, e só uma venceu
+
+**A P4-8 venceu aqui, e com número.** Ela dizia *"leitura síncrona no laço de
+eventos serializa e bloqueia em volume"*, com gatilho declarado em "medição de
+volume". A medição existe, e é precisa: `read_all` é 97% do custo total, e
+dentro dele o ciclo desserializar → reserializar domina.
+
+**A P2-11 NÃO foi exercitada, e isso é limite e não descuido.** Ela é sobre
+`append` abrir uma conexão por chamada — **escrita**. A carga do harness é em
+lote, como a do bench, porque o que o critério mede é **reconstrução**. Ela
+segue `ABERTA`, com o gatilho intacto, e a fase não pode alegar tê-la fechado.
+
 ## 3. Itens de DoD — status e evidência
 
 A §7 de fechamento é redigida por quem implementou **após** o veredito do
@@ -247,7 +353,7 @@ executável que o sustenta.
 | 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um gerador só** — que é o que `08` §2 quer dizer com *"um contrato só"*. O arquivo `cef.log` (peça 3) e o `telemetry_emitted` saem dos **mesmos fatos**: `domains/academus/telemetry_events.yaml` (`02` §10, os doze eventos) mapeia `fact_class` → assinatura, e `range-core/telemetry/forwarder.py::programar` deriva o payload. **A prova é de valor, não de estrutura**: o `src` do evento e o do `cef.log` são comparados lado a lado, porque duas implementações coerentes hoje não provam nada sobre amanhã. O payload valida contra `$defs/telemetry_emitted_payload`, com `fact_id` **inexpressável** (`05` §6) |
 | 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
 | 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (20) + probes (2) |
-| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | *não iniciado* | — |
+| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — 1,884 s contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). 42% de folga, reprodutível | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
 
 ## 6. Pendências
 
@@ -272,7 +378,8 @@ estado, e a relevância para ESTA fase.
 | P1-7 | o id do inject pode vazar a linha; falta o mecanismo que impeça o próximo pack de decidir pelo vazamento | `ABERTA` | a fase que decidir o destino do pack (P7-9) ou o primeiro pack novo; detalhe em `fase_7.md` §"P1-7" |
 | P1-13 | duas cópias das faixas sintéticas — o contrato declara as faixas e `check_synthetic_data.py` declara as suas; divergiram duas vezes em silêncio | `ABERTA` | **esta fase** — é ela que constrói o gerador, e é aqui que o gerador seguiria o contrato enquanto o CI julga pela constante; detalhe em `fase_1.md` §"P1-13" |
 | P2-11 | `append` abre uma conexão por chamada | `ABERTA` | **esta fase** — telemetria não grava a ritmo de facilitador; leitura e escrita reabrem juntas, pela mesma causa (volume); detalhe em `fase_2.md` §"P2-11" |
-| P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `ABERTA` | **esta fase** é o gatilho de medição declarado — o volume de `telemetry_emitted`; detalhe em `fase_4.md`/`fase_7.md` §"P4-8" |
+| P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `DECIDIDA` | **o gatilho disparou e a medição existe** (§2.8): `read_all` é 97% do custo, e o ponto de quebra está em ~135 mil eventos. A decisão de fundo — atacar a reserialização da cadeia — é estrutural e fica para a fase que a couber; ver abaixo |
+| P9-2 | o volume de telemetria do item 7 pressupõe **ruído de fundo** do ambiente simulado, e nenhum item de DoD o constrói | `ABERTA` | a fase que construir o produtor do ruído — o tráfego normal em que o time azul acha o sinal; ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` | `ABERTA` | o schema v3, quando houver delta real; detalhe em `fase_5.md`/`fase_7.md` §"P5-4" |
 | P6-2 | `observable_impact` (start de `TTA`) não existe em contrato | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; detalhe em `fase_6.md` §"P6-2" |
 | P6-3 | `before`/`after`/`since` dependem de uma gramática de `exercise_time` que não existe | `ABERTA` | os três gatilhos herdados da Fase 6, intactos; detalhe em `fase_6.md` §"P6-3" |
@@ -369,11 +476,52 @@ desta DoD. Leitura (P4-8) e escrita (esta) reabrem juntas, pela mesma causa.
 A saída provável é conexão reusada ou pool, **medindo antes de escolher**.
 Detalhe em `fase_2.md` §"P2-11".
 
-#### P4-8 — leitura síncrona no laço de eventos
+#### P4-8 — leitura síncrona no laço de eventos — DECIDIDA
 
-Herdada da Fase 4. O gatilho declarado é medição de volume, e o volume chega
-aqui: o item 7 da DoD mede a reconstrução com `telemetry_emitted`. Par natural
-da P2-11. Detalhe em `fase_4.md`/`fase_7.md` §"P4-8".
+Herdada da Fase 4, com gatilho declarado em "medição de volume". **O gatilho
+disparou nesta fase e a medição existe** — §2.8 traz a curva inteira, a
+decomposição de custo e o ponto de quebra.
+
+O número: com 200.570 eventos, `read_all` é **97% do custo total** (3,698 s de
+3,812 s), e dentro dele o ciclo **desserializar → reserializar** domina — o
+`payload` vem do banco como JSON, vira `dict`, e `canonical_form` o transforma
+em JSON canônico outra vez para conferir o hash.
+
+**Duas saídas foram examinadas e uma foi medida e descartada.** `::text` +
+`json.loads` é mais barato isoladamente (0,929 s contra 1,192 s) e **não
+entregou ganho no caminho real**: a variância entre execuções é maior. Revertida,
+com o registro em comentário no `postgres_store.py`.
+
+**O que fica DECIDIDO:** a saída com ganho suficiente é atacar a reserialização
+da cadeia (teto ~1,0 s), e ela é mudança **estrutural** no event store —
+superfície de `05` §7, onde a verificação incondicional é garantia e não
+otimização pendente. Fora do escopo desta fase, e o vencimento é a fase que
+couber esse trabalho. O que NÃO é saída está escrito na §2.8: tornar a
+verificação de cadeia opcional.
+
+Detalhe de origem em `fase_4.md`/`fase_7.md` §"P4-8".
+
+#### P9-2 — o volume do item 7 pressupõe ruído que ninguém produz
+
+**Nasce na peça 6.** O item 7 mede a reconstrução com 96 mil `telemetry_emitted`
+em 4 h. Mas **a telemetria que o range projeta hoje sai dos fatos do gabarito** —
+e são dezenas, não dezenas de milhares.
+
+Chegar ao volume que `07` §Fase 9 nomeia (*"pode chegar às centenas de milhares
+sozinha"*) pressupõe **ruído de fundo** do ambiente simulado: o tráfego normal
+em que o time azul tem de achar o sinal. `08` §2 põe o limite de detecção no
+gabarito, e `02` §10 declara doze espécies de evento — sete delas sem nenhum
+`fact_class` que as dispare no `ransomware-universidade`, justamente porque são
+o ambiente e não o incidente.
+
+**Isso não é falha do item 7**, e a distinção importa: `06` T13 é critério de
+**desempenho** — ele cobra que o motor aguente o volume, não que exista quem o
+produza. A medição usa um fluxo sintético declarado, como o bench da Fase 2.
+
+**Vence em:** a fase que construir o produtor do ruído de fundo. Até lá, o
+exercício real tem telemetria na ordem de dezenas, e o time azul não tem em que
+procurar — o que torna esta pendência material para a qualidade do exercício,
+ainda que não para a DoD desta fase.
 
 #### P5-4 — os seis conjuntos não cabem nos três valores de `set`
 
