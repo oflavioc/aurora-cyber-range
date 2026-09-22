@@ -159,6 +159,15 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
                     "source_ip": ip,
                     "records_affected": 1,
                     "dest": payload["student_id"],
+                    # `08` §3: `database_audit.jsonl` carrega "leitura em massa
+                    # (Linha A) e ALTERACOES DE NOTA COM IP E SESSAO (Linha B)".
+                    #
+                    # Sem esta linha os fatos da Linha B eram invisiveis ao time
+                    # azul — e invisivel e um estado LEGITIMO em `08` §2 (o
+                    # limite de deteccao deliberado), entao a cobertura de
+                    # projecao passava e nada ficava vermelho. Medido na peca 1
+                    # da Fase 9, §2.3 do registro.
+                    "projections": ["database_audit"],
                 }
             )
 

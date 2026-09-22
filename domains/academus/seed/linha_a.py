@@ -68,6 +68,20 @@ FATO = "GT-A-{:03d}"
 #: recusa qualquer outra. O octeto final e sorteado do seed.
 REDE_DE_DOCUMENTACAO = "198.51.100.{}"
 
+#: O remetente forjado do phishing — `08` §3: *"phishing de recadastramento,
+#: origem da Linha A"*.
+#:
+#: E ELE QUE O DOMINIO DO LINK DERIVA, e essa dependencia e deliberada: o
+#: gerador de `email.eml` monta a URL a partir deste valor mais um sufixo
+#: reservado a documentacao (`05` §2). Um dominio escrito a mao no gerador seria
+#: entidade que o ground truth nao fixou — o item 1 entrando pela porta do
+#: texto, onde o oraculo de endereco nao olha.
+#:
+#: SEM `_`, e a restricao vem do uso: o valor vira rotulo de host, e `_` nao e
+#: valido em hostname. `svc_academus` pode te-lo porque e ator e nunca vira
+#: dominio.
+REMETENTE_FORJADO = "ti-recadastro"
+
 
 def facts(seed: int) -> list[dict]:
     """Os fatos do incidente, sintetizados do seed — a forma de `04` §3.
@@ -86,7 +100,36 @@ def facts(seed: int) -> list[dict]:
     octeto = r.randint(10, 250)
     registros_exfiltrados = r.randrange(800, 4000, 100)
 
+    # O phishing ANTECEDE o acesso inicial, e e o que o possibilita — `08` §3 o
+    # chama de "origem da Linha A". Dois a cinco dias antes: e a janela em que a
+    # credencial e colhida e usada, curta o bastante para a correlacao ser
+    # descobrivel e longa o bastante para nao ser obvia.
+    dias_antes_do_acesso = r.randint(2, 5)
+    hora_phishing = r.randint(9, 17)
+    octeto_do_mta = r.randint(10, 250)
+
     return [
+        {
+            # A ORIGEM. Sem este fato, `email.eml` seria conteudo autoral em vez
+            # de projecao, e `08` §3 exige a fonte com origem na Linha A.
+            "fact_id": FATO.format(1),
+            "fact_class": "phishing_delivery",
+            "actor": REMETENTE_FORJADO,
+            "action": "credential_phishing_email",
+            "source_ip": REDE_DE_DOCUMENTACAO.format(octeto_do_mta),
+            # O DESTINATARIO e a conta que sera comprometida: e o que liga o
+            # phishing ao `initial_access` sem precisar de campo de referencia,
+            # que o contrato nao tem.
+            "dest": ATOR_DO_INCIDENTE,
+            "exercise_time": (
+                f"T-{dia_acesso + dias_antes_do_acesso}d {hora_phishing:02d}:11"
+            ),
+            "projections": ["email"],
+            "discoverability": {
+                "difficulty": "low",
+                "requires": "ler o cabecalho do e-mail e conferir o dominio do link",
+            },
+        },
         {
             "fact_id": FATO.format(14),
             "fact_class": "initial_access",

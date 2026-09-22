@@ -53,9 +53,11 @@ A JANELA SAI DA MESMA ORDEM, e herda o mesmo limite.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
+from dados_sinteticos import achados_no_valor
 from range_core.evidence import banner as _banner
 from range_core.evidence.elenco import cobertura_de, elenco_de, enderecos_no
 
@@ -64,6 +66,7 @@ __all__ = [
     "GeradorAusente",
     "FonteSemFormato",
     "EntidadeInventada",
+    "IOCEncontrado",
     "projetar",
     "nome_do_arquivo",
 ]
@@ -91,6 +94,31 @@ EXTENSAO = {
 
 Gerador = Callable[[Sequence[Mapping]], str]
 
+#: Um token de conteudo: tudo que nao e espaco nem pontuacao de delimitacao.
+#:
+#: **POR QUE TOKENIZAR, E ESTE E O PONTO QUE UMA PRIMEIRA VERSAO ERROU.**
+#: `dados_sinteticos.achados_no_valor` opera sobre UM VALOR DE CAMPO — e o que
+#: `hostnames_candidatos` assume: ou o valor e uma URL, ou um e-mail, ou um
+#: hostname nu. Texto com espaco no meio ele descarta e devolve **lista vazia**.
+#:
+#: Aplicado ao conteudo INTEIRO de um arquivo de log, o predicado passava
+#: vacuamente: `"visite https://<host roteavel>/login"` nao produzia achado
+#: nenhum. A guarda parecia proteger e nao protegia — medido na peca 3.
+#:
+#: A TOKENIZACAO E DO MOTOR; O JULGAMENTO CONTINUA SENDO DO PREDICADO UNICO.
+#: A alternativa — ensinar `dados_sinteticos` a ler texto livre — mudaria a
+#: semantica de um modulo que o CI e o loader ja consomem, para servir a um
+#: chamador so. Compor e mais barato e nao move a fonte da resposta (R9 §8).
+_TOKEN = re.compile(r"[^\s\"'<>()\[\],;]+")
+
+
+def _achados_no_texto(conteudo: str) -> list:
+    """Os achados de `dados_sinteticos`, token a token — ver `_TOKEN`."""
+    achados = []
+    for token in _TOKEN.findall(conteudo):
+        achados.extend(achados_no_valor(token))
+    return achados
+
 
 class GeradorAusente(Exception):
     """A cobertura pede uma fonte para a qual nao ha gerador."""
@@ -102,6 +130,17 @@ class FonteSemFormato(Exception):
 
 class EntidadeInventada(Exception):
     """A saida do gerador traz entidade que o ground truth nao fixou — item 1."""
+
+
+class IOCEncontrado(Exception):
+    """A saida do gerador traz dado nao sintetico — item 5, `05` §2 e §3.
+
+    **Quem decide e `dados_sinteticos`**, o mesmo predicado que o loader de pack
+    e o CI usam. Um detector proprio aqui seria a terceira resposta para *"este
+    valor e sintetico?"* — a P1-13 por mais uma porta, divergindo na primeira
+    faixa nova. `05` §2 nao admite excecao, e a guarda fica no PRODUTOR: o
+    arquivo nao chega a existir, em vez de existir e ser reprovado depois.
+    """
 
 
 @dataclass(frozen=True)
@@ -199,6 +238,20 @@ def projetar(
                 f"a projecao de {fonte!r} traz endereco que o ground truth nao "
                 f"fixou: {', '.join(inventadas)}. `08` §2 — a projecao consome o "
                 f"elenco do ground truth, e nao inventa entidade"
+            )
+
+        # O item 5, com o predicado que o CI ja usa. Vem DEPOIS da guarda de
+        # elenco porque as duas perguntas sao diferentes e a ordem importa para
+        # a mensagem: endereco de documentacao fora do elenco e invencao (a
+        # primeira), e endereco roteavel e IOC (esta) — reportar a segunda para
+        # um caso da primeira mandaria o autor do gerador procurar a faixa
+        # errada.
+        achados = _achados_no_texto(conteudo)
+        if achados:
+            raise IOCEncontrado(
+                f"a projecao de {fonte!r} traz dado que nao e sintetico: "
+                f"{achados[:5]}. `05` §2 e §3 nao admitem excecao — sem IOC real, "
+                f"sem dominio roteavel, IP so de faixa de documentacao ou privada"
             )
 
         projetadas.append(

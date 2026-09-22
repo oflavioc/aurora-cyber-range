@@ -51,28 +51,46 @@ from __future__ import annotations
 import importlib
 import json
 import unittest
+from urllib.parse import urlsplit
 
 from dados_sinteticos import achados_no_valor
-from domains.academus.seed import linha_a
 from range_core.engine.loader import contract_source
 
+#: Tudo o que a prova negativa muta e resolvido por `sys.modules`, e nunca por
+#: `from <pacote> import <submodulo>` — o atributo do pacote nao acompanha a
+#: substituicao que o harness faz. A licao e da peca 1 (§2.4 do registro), e
+#: reincidiu aqui com `linha_a`: a mutacao do fato de phishing nao derrubava
+#: teste nenhum porque este arquivo segurava o modulo original.
 banner = importlib.import_module("range_core.evidence.banner")
 projecao = importlib.import_module("range_core.evidence.projecao")
 geradores_mod = importlib.import_module("domains.academus.evidence_generators")
+linha_a = importlib.import_module("domains.academus.seed.linha_a")
 
 CONTRATOS = contract_source.read_contracts()
 SEED = 424242
 
-#: As quatro de `08` §3. `cef` e `precursor` estao no registro de formatos do
-#: contrato e tem fase propria nesta mesma fase — item 4 (telemetria) e item 3
-#: (precursor reproduzivel).
+#: As quatro de `08` §3. `cef` entra pela tabela porque o GABARITO o declara
+#: (`projections` da Linha A desde a P7-10) e o motor recusa cobertura sem
+#: gerador; `precursor` continua fora — e o item 3, com desenho proprio.
 FONTES_DA_SECAO_3 = ("email", "vpn", "identity_audit", "database_audit")
 
+GERADORES = geradores_mod.geradores(CONTRATOS)
 
-def _projetar(fatos):
+
+def _fontes_que_o_gabarito_declara(fatos):
+    """A cobertura esperada, DERIVADA do gabarito.
+
+    Numero fixo aqui seria constante magica que envelhece: quando o gabarito
+    ganhar uma fonte, o teste deve cobrar a fonte nova — nao falhar por
+    contagem. Foi o que aconteceu quando o `cef` entrou nesta peca.
+    """
+    return {fonte for fato in fatos for fonte in (fato.get("projections") or ())}
+
+
+def _projetar(fatos, geradores=None):
     return projecao.projetar(
         {"facts": fatos},
-        geradores=geradores_mod.GERADORES,
+        geradores=GERADORES if geradores is None else geradores,
         formatos=contract_source.formatos_por_fonte(CONTRATOS),
         banner=banner.texto(CONTRATOS),
     )
@@ -117,14 +135,25 @@ class OGabaritoDeclaraAsFontesQueA08SecaoTresExige(unittest.TestCase):
 class ATabelaDeGeradores(unittest.TestCase):
     def test_as_quatro_fontes_da_secao_3_tem_gerador(self):
         for fonte in FONTES_DA_SECAO_3:
-            self.assertIn(fonte, geradores_mod.GERADORES, fonte)
+            self.assertIn(fonte, GERADORES, fonte)
 
     def test_a_tabela_nao_declara_fonte_FORA_do_registro_do_contrato(self):
         """`x-aurora-registry.source_formats` e conjunto FECHADO de v1: um
         gerador para fonte que o contrato nao conhece escreveria arquivo que o
         manifesto nao sabe declarar."""
         do_contrato = set(contract_source.formatos_por_fonte(CONTRATOS))
-        self.assertEqual(set(geradores_mod.GERADORES) - do_contrato, set())
+        self.assertEqual(set(GERADORES) - do_contrato, set())
+
+    def test_a_tabela_cobre_TUDO_o_que_o_gabarito_declara(self):
+        """A conjuncao que o motor cobra por falha fechada: se o gabarito
+        declara uma fonte sem gerador, o `evidence build` nao roda. E como o
+        `cef` entrou nesta peca — o gabarito ja o declarava desde a P7-10."""
+        declaradas = {
+            fonte
+            for fato in linha_a.facts(SEED)
+            for fonte in (fato.get("projections") or ())
+        }
+        self.assertEqual(declaradas - set(GERADORES), set())
 
 
 class CadaGeradorProjetaOFato(unittest.TestCase):
@@ -160,6 +189,19 @@ class CadaGeradorProjetaOFato(unittest.TestCase):
                 if linha.strip():
                     self.assertIn("exercise_time", json.loads(linha), fonte)
 
+    def test_NENHUMA_fonte_carrega_o_fact_id(self):
+        """`05` §6 — o arquivo vai para o PARTICIPANTE, e `GT-A-014` numa linha
+        de log entrega o gabarito.
+
+        E a mesma razao pela qual a amarracao fato -> fonte e por CONTEUDO (o
+        elenco, peca 1) em vez de por carimbo: o carimbo seria trivial de
+        verificar e impossivel de publicar.
+        """
+        ids = {f["fact_id"] for f in self.fatos}
+        for fonte in self.fontes.values():
+            for fact_id in ids:
+                self.assertNotIn(fact_id, fonte.conteudo, f"{fonte.fonte}: {fact_id}")
+
 
 class OEmailDePhishingObedeceA05SecaoDois(unittest.TestCase):
     def setUp(self):
@@ -182,42 +224,111 @@ class OEmailDePhishingObedeceA05SecaoDois(unittest.TestCase):
 
     def test_o_link_aponta_para_SUFIXO_RESERVADO_a_documentacao(self):
         """`05` §2: *"nenhuma URL clicavel para host existente"*. Quem julga e o
-        mesmo predicado que o CI usa, e nao uma lista escrita aqui."""
-        self.assertIn("http", self.eml)
-        self.assertEqual(achados_no_valor(self.eml), [])
+        mesmo predicado que o CI usa, e nao uma lista escrita aqui.
+
+        Sobre o TOKEN da URL, e nao sobre o corpo inteiro — ver o caso de IOC.
+        """
+        urls = [t for t in self.eml.split() if t.startswith("http")]
+        self.assertTrue(urls, "o phishing nao tem link, e `08` §3 o exige")
+        for url in urls:
+            self.assertEqual(achados_no_valor(url), [], url)
 
     def test_o_dominio_do_link_DERIVA_de_entidade_do_elenco(self):
         """Nao ha dominio inventado: ele sai de um valor que o fato declara,
         mais um sufixo reservado. Um dominio escrito a mao no gerador seria
-        entidade que o ground truth nao fixou — o item 1 pela porta do texto."""
+        entidade que o ground truth nao fixou — o item 1 pela porta do texto,
+        onde o oraculo de endereco nao olha (ele so tem forma fechada para IP).
+
+        **SOBRE O HOST DA URL, e nao sobre o corpo.** A primeira versao deste
+        caso so verificava que o ator aparecia em algum lugar do `.eml` — e ele
+        aparece no `From:` de qualquer jeito, entao um host escrito a mao no
+        link passaria inteiro. Medido pela prova negativa desta peca.
+        """
         phishing = next(f for f in self.fatos if f["fact_class"] == "phishing_delivery")
-        self.assertIn(phishing["actor"], self.eml)
+        rotulo = phishing["actor"].replace("_", "-")
+        urls = [t for t in self.eml.split() if t.startswith("http")]
+        self.assertTrue(urls)
+        for url in urls:
+            host = urlsplit(url).hostname or ""
+            self.assertTrue(
+                host.startswith(rotulo), f"{host!r} nao deriva de {rotulo!r}"
+            )
+
+
+class OCefEProjecaoDoMesmoFato(unittest.TestCase):
+    """`08` §2: *"a telemetria CEF e projecao, nao emissao independente"*."""
+
+    def setUp(self):
+        self.fatos = linha_a.facts(SEED)
+        self.cef = _corpo({f.fonte: f for f in _projetar(self.fatos)}["cef"])
+
+    def test_o_vendor_e_o_product_vem_do_CONTRATO(self):
+        """`05` §5.1 — produto FICTICIO, nunca fornecedor real de mercado. Os
+        valores vivem no contrato, e escreve-los no modulo seria a P1-13."""
+        restricoes = contract_source.restricoes_de_evidencia(CONTRATOS)
+        for linha in self.cef.splitlines():
+            partes = linha.split("|")
+            self.assertEqual(partes[1], restricoes["cef_vendor"])
+            self.assertEqual(partes[2], restricoes["cef_product"])
+
+    def test_o_cabecalho_tem_os_sete_campos_do_formato(self):
+        for linha in self.cef.splitlines():
+            self.assertGreaterEqual(len(linha.split("|")), 7, linha)
+
+    def test_o_mesmo_fato_aparece_no_CEF_e_na_outra_fonte_dele(self):
+        """A unificacao sendo verificada: `initial_access` projeta em `vpn` e em
+        `cef`, e o endereco que aparece nos dois e o MESMO — porque sai do mesmo
+        fato, e nao de dois geradores independentes."""
+        acesso = next(f for f in self.fatos if f["fact_class"] == "initial_access")
+        fontes = {f.fonte: _corpo(f) for f in _projetar(self.fatos)}
+        self.assertIn(acesso["source_ip"], fontes["vpn"])
+        self.assertIn(acesso["source_ip"], fontes["cef"])
+
+    def test_NAO_julga_severidade_por_fato(self):
+        """Severidade variavel seria avaliacao embutida na evidencia — a
+        confusao de camadas de `00` §3 que este projeto existe para evitar."""
+        severidades = {linha.split("|")[6] for linha in self.cef.splitlines()}
+        self.assertEqual(len(severidades), 1)
 
 
 class NenhumaFonteCarregaIOC(unittest.TestCase):
     """Item 5, com o predicado que o CI ja usa."""
 
-    def test_nenhuma_das_quatro_tem_achado_de_dado_nao_sintetico(self):
+    def test_nenhuma_fonte_tem_achado_de_dado_nao_sintetico(self):
+        """**Token a token, e a tokenizacao aqui e por `split()` de proposito.**
+
+        `achados_no_valor` opera sobre UM VALOR DE CAMPO: texto com espaco no
+        meio ele descarta e devolve lista vazia. Chamado sobre o conteudo
+        inteiro do arquivo, ele passa VACUAMENTE — foi o que a primeira versao
+        desta suite fazia, e o que a primeira versao da guarda do motor fazia.
+
+        O motor tokeniza por uma regex que tambem corta pontuacao; aqui e
+        `split()` puro. **As duas tokenizacoes sao diferentes de proposito**: um
+        teste que reusasse a do motor deixaria de ser oraculo independente e
+        aprovaria um defeito na propria tokenizacao.
+        """
         for fonte in _projetar(linha_a.facts(SEED)):
-            self.assertEqual(achados_no_valor(fonte.conteudo), [], fonte.fonte)
+            for token in fonte.conteudo.split():
+                self.assertEqual(achados_no_valor(token), [], f"{fonte.fonte}: {token}")
 
     def test_o_motor_RECUSA_gerador_que_escreve_dominio_roteavel(self):
         """A guarda no motor, e nao so no CI: o arquivo nao chega a existir."""
         with self.assertRaises(projecao.IOCEncontrado) as ctx:
-            projecao.projetar(
-                {"facts": linha_a.facts(SEED)},
+            _projetar(
+                linha_a.facts(SEED),
                 geradores={
-                    **geradores_mod.GERADORES,
+                    **GERADORES,
                     "vpn": lambda fatos: "visite https://www.bancoreal.com.br/login",
                 },
-                formatos=contract_source.formatos_por_fonte(CONTRATOS),
-                banner=banner.texto(CONTRATOS),
             )
         self.assertIn("vpn", str(ctx.exception))
 
     def test_o_par_positivo_os_geradores_reais_passam(self):
         """Sem ele, um motor que recusasse TUDO passaria no teste acima."""
-        self.assertEqual(len(_projetar(linha_a.facts(SEED))), 4)
+        fatos = linha_a.facts(SEED)
+        self.assertEqual(
+            {f.fonte for f in _projetar(fatos)}, _fontes_que_o_gabarito_declara(fatos)
+        )
 
 
 class ADeterminismoDaProjecao(unittest.TestCase):
@@ -236,8 +347,11 @@ class ADeterminismoDaProjecao(unittest.TestCase):
 
     def test_nenhum_gerador_inventa_entidade(self):
         """O item 1 sobre os geradores REAIS: se algum inventasse, `projetar`
-        teria levantado `EntidadeInventada` e o `setUp` nao chegaria aqui."""
-        self.assertEqual(len(_projetar(linha_a.facts(SEED))), 4)
+        teria levantado `EntidadeInventada` antes de devolver as fontes."""
+        fatos = linha_a.facts(SEED)
+        self.assertEqual(
+            {f.fonte for f in _projetar(fatos)}, _fontes_que_o_gabarito_declara(fatos)
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover
