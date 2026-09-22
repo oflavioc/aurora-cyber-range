@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "1ffe918fdd65ef888e545aaa6978475d80c348e2",
+    "gerado_de_head": "ddd062f646896998a37ca00459399ee6ee8fd067",
     "gerado_em": "2026-09-22",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -340,7 +340,7 @@
     "scripts/reancorar_sessao.py": "e984d30c2a409428209dc05edb9177dce129aadeb7651dd0ce4788feee29df5f",
     "scripts/sincroniza_escopo_de_usuario.py": "042a3ee275f58803c260fb2c307c053ddcba026feb8c5e2f44cda09fd57c46bf",
     "scripts/sobe_sala.py": "daa1308cb2b57e95a55e0c2b13aeed5a79bd8b4cb0166182ffc0f98408d725c2",
-    "scripts/start_checkpoint_audit.sh": "a545a86c9af879ca8eb91db2570f216912134b1496231aa411805694edb6c7a7",
+    "scripts/start_checkpoint_audit.sh": "d1ac0e92b89b97e7bfd5fddc56a69c34b30ef973cd070d2ce39fcb34b9c337f8",
     "tests/_academus_app.py": "5c4a1e14d11ff84a6ba762ab10f3695166f010cf0eaf01e0c76b655190cd7f9e",
     "tests/_academus_banco.py": "ecb88c052f5e5f4527b033b6a94340c5c00f2aeeb910a0c1dcbaa11e21c3bfbc",
     "tests/_le_business_state_em_outro_processo.py": "bd3cb26d993f721a684d0f41a55817921d9b249ce3b1e307728a2a9c01a1bacc",
