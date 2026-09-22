@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "82f2d8288b86005e41a86063363beae2b00d7884",
+    "gerado_de_head": "1ffe918fdd65ef888e545aaa6978475d80c348e2",
     "gerado_em": "2026-09-22",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -283,7 +283,7 @@
     "scripts/check_banner_de_simulacao_probes.py": "40fd24ebd96f32173cf336366d4376cfcb45d561a2c4b964a31dd0cd231dfd4f",
     "scripts/check_contract_examples.py": "86018a31cf28def972b352352f8d5d2c38bdf523458df5d3f460bbc2f563696e",
     "scripts/check_contract_examples_probes.py": "ef953b67b1a49dee64ffc6e3eb93ad068f4a02dee2cf04e8faa19f932c0aed0b",
-    "scripts/check_core_contract_imports.py": "74dbed2213bdd574951b5cee83306ba4345a5b0fd2bbf86145626d4fe0ad9181",
+    "scripts/check_core_contract_imports.py": "c6bc9db375e0027cd665e239ce2334c61c17e5f4dd1ceb01bfa480dbce153336",
     "scripts/check_core_contract_imports_probes.py": "2126cbb11a71d6475297eab2bfbd5a346a9623001bdce70452d28d9ce6347a68",
     "scripts/check_fabrica_liga_emissor.py": "3398effa3a5665fedd5405ee26e4bbcede1c767998e722489fecf6bdd5a706dc",
     "scripts/check_fabrica_liga_emissor_probes.py": "9092831da29b7595bf8cbecd1e9be658e76acb36b2224d5fbbbad3a99d0e9519",
