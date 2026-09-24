@@ -304,6 +304,30 @@ class AConferenciaEDirigidaPorFato(ABase):
         achados = self._conferir()
         self.assertTrue(any("formato" in a for a in achados), achados)
 
+    def test_a_CONFERENCIA_pega_window_adulterada(self):
+        """**L1 da terceira auditoria.** `08` §7 lista o que o manifesto carrega:
+        arquivo, JANELA, modo de entrega, hash e os `fact_id`. Os dois primeiros
+        passaram a ser conferidos no H2; a janela nao era.
+
+        Ela e operacional: e por ela que o facilitador sabe o que o arquivo
+        abrange, e uma janela adulterada manda a equipe procurar no periodo
+        errado — com todos os hashes intactos.
+        """
+        self._adultera_o_manifesto(lambda s: s.__setitem__("window", "T-99d → T-98d"))
+        achados = self._conferir()
+        self.assertTrue(any("janela" in a for a in achados), achados)
+
+    def test_a_CONFERENCIA_pega_delivery_mode_adulterado(self):
+        """A outra metade do L1. `08` §5 — pre-posicionado afirma
+        disponibilidade desde o start, e liberado por inject nao. Um manifesto
+        que mente sobre isso promete ao facilitador uma fonte que o exercicio
+        ainda nao liberou."""
+        self._adultera_o_manifesto(
+            lambda s: s.__setitem__("delivery_mode", "released_by_inject")
+        )
+        achados = self._conferir()
+        self.assertTrue(any("entrega" in a for a in achados), achados)
+
     def test_o_par_positivo_manifesto_INTACTO_nao_gera_achado(self):
         """Sem ele, um `conferir` que reclamasse de tudo passaria nos dois
         casos acima."""

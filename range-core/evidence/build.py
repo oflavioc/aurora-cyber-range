@@ -61,7 +61,7 @@ import json
 from collections.abc import Mapping
 from pathlib import Path
 
-from range_core.evidence.manifesto import hash_do_ground_truth, montar
+from range_core.evidence.manifesto import MODO_PADRAO, hash_do_ground_truth, montar
 from range_core.evidence.projecao import projetar
 
 __all__ = ["MANIFESTO", "construir", "conferir"]
@@ -122,6 +122,7 @@ def construir(
         pack_id=pack_id,
         ground_truth_bytes=ground_truth_bytes,
         random_seed=random_seed,
+        banner=banner,
         entrega=entrega,
         atrasos=atrasos,
     )
@@ -150,6 +151,7 @@ def conferir(
     banner: str,
     campos_do_fato: Mapping[str, frozenset[str]],
     contratos: dict[str, dict],
+    entrega: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Os achados do pacote em disco. Lista vazia significa integro.
 
@@ -264,6 +266,32 @@ def conferir(
                 f"e o unico lugar onde o `fact_id` aparece — as fontes nao o "
                 f"carregam (`05` §6), entao adultera-la aqui nao deixa rastro "
                 f"em arquivo nenhum"
+            )
+
+        # L1 DA TERCEIRA AUDITORIA — as outras duas colunas de `08` §7.
+        #
+        # O manifesto existe para o facilitador saber **o que existe, de quando,
+        # e desde quando esta disponivel**. `sha256` e `projects_facts` ja eram
+        # conferidos; `window` e `delivery_mode` eram escritos e nunca lidos.
+        #
+        # E os dois sao exatamente o que um facilitador usa para operar a sala:
+        # uma janela adulterada manda a equipe procurar no periodo errado, e um
+        # `delivery_mode` adulterado afirma disponibilidade que o inject ainda
+        # nao liberou.
+        if source.get("window") != fonte.janela:
+            achados.append(
+                f"{nome}: o {MANIFESTO} declara janela {source.get('window')!r} "
+                f"e os fatos projetados abrangem {fonte.janela!r}. A janela e o "
+                f"que o facilitador usa para saber o que o arquivo cobre"
+            )
+
+        esperado_modo = (entrega or {}).get(fonte.fonte, MODO_PADRAO)
+        if source.get("delivery_mode") != esperado_modo:
+            achados.append(
+                f"{nome}: o {MANIFESTO} declara entrega "
+                f"{source.get('delivery_mode')!r} e o pack declara "
+                f"{esperado_modo!r}. `08` §5 — pre-posicionado afirma "
+                f"disponibilidade desde o start, e liberado por inject nao"
             )
 
         if source.get("format") != fonte.formato:

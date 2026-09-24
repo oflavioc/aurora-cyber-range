@@ -558,25 +558,53 @@ class AsProjecoesDoMesmoFatoSaoMUTUAMENTEConsistentes(unittest.TestCase):
         zero fontes lidas, "todas concordam" e verdade."""
         self.assertEqual(set(self.fontes), set(self.FATO["projections"]))
 
+    #: A UNICA omissao admitida, NOMEADA — M1 da terceira auditoria.
+    #:
+    #: A versao anterior filtrava `if valores[campo] is not None`, e o filtro
+    #: era GENERICO: qualquer fonte que deixasse de escrever qualquer campo
+    #: saia da comparacao em silencio. Um `vpn.py` que parasse de escrever
+    #: `src=` continuava verde, e o teste que existe para provar consistencia
+    #: mutua passava a provar a de quem sobrou.
+    #:
+    #: `precursor` omite `actor` por DESENHO (atribuicao e o achado, nao o
+    #: insumo). Declarar a excecao aqui e o que separa "desenho" de "regressao":
+    #: toda outra ausencia passa a ser falha.
+    OMISSOES = {("precursor", "actor")}
+
     def test_usuario_IP_e_timestamp_CONCORDAM_entre_as_projecoes(self):
         lidos = {
             fonte: LEITORES[fonte](_corpo(f)) for fonte, f in self.fontes.items()
         }
         for campo in ("exercise_time", "actor", "source_ip"):
-            vistos = {
-                fonte: valores[campo]
-                for fonte, valores in lidos.items()
-                if valores[campo] is not None
-            }
-            # A fonte que NAO carrega o campo nao entra — `precursor` omite
-            # `actor` de proposito (atribuicao e o achado), e exigi-lo aqui
-            # transformaria um desenho em falha.
+            vistos = {}
+            for fonte, valores in lidos.items():
+                if valores[campo] is None:
+                    self.assertIn(
+                        (fonte, campo),
+                        self.OMISSOES,
+                        f"{fonte} deixou de carregar {campo!r}, e a omissao nao "
+                        f"esta declarada em OMISSOES. Ou e regressao, ou e "
+                        f"desenho novo que precisa de nome",
+                    )
+                    continue
+                vistos[fonte] = valores[campo]
+
             self.assertTrue(vistos, campo)
             self.assertEqual(
                 set(vistos.values()),
                 {self.FATO[campo]},
                 f"{campo}: {vistos}",
             )
+
+    def test_toda_omissao_declarada_ACONTECE(self):
+        """O outro lado de `OMISSOES`: entrada que nao corresponde a nenhuma
+        ausencia real e permissao pendurada — ela sobreviveria a fonte voltar a
+        escrever o campo, e a proxima omissao entraria por ela."""
+        lidos = {
+            fonte: LEITORES[fonte](_corpo(f)) for fonte, f in self.fontes.items()
+        }
+        for fonte, campo in self.OMISSOES:
+            self.assertIsNone(lidos[fonte][campo], f"{fonte}.{campo}")
 
     def test_o_precursor_NAO_atribui_ator(self):
         """A metade negativa da consistencia: uma fonte que carregasse tudo

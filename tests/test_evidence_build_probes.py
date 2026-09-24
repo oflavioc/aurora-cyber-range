@@ -93,6 +93,10 @@ COMPARA_COBERTURA = "        if declarada != reprojetada:"
 
 COMPARA_FORMATO = '        if source.get("format") != fonte.formato:'
 
+COMPARA_JANELA = '        if source.get("window") != fonte.janela:'
+
+COMPARA_ENTREGA = '        if source.get("delivery_mode") != esperado_modo:'
+
 ESCRITA = '    alvo.write_text(conteudo, encoding="utf-8", newline="")'
 
 CAMPOS_DO_PRECURSOR = '    "exercise_time",\n    "action",\n    "source_ip",\n    "dest",\n)'
@@ -163,6 +167,8 @@ MUTACOES = {
             # baixo no ruido.
             "test_a_CONFERENCIA_pega_projects_facts_adulterado",
             "test_a_CONFERENCIA_pega_format_adulterado",
+            "test_a_CONFERENCIA_pega_window_adulterada",
+            "test_a_CONFERENCIA_pega_delivery_mode_adulterado",
             "test_o_par_positivo_manifesto_INTACTO_nao_gera_achado",
         },
     ),
@@ -176,6 +182,17 @@ MUTACOES = {
             "test_fonte_liberada_por_inject_NAO_sai_pre_posicionada",
             "test_inject_que_libera_fonte_QUE_O_GABARITO_NAO_PROJETA_e_recusado",
         },
+    ),
+    # L1 DA TERCEIRA AUDITORIA. As duas colunas que `08` secao 7 lista e que o
+    # `conferir` escrevia sem nunca reler. Finas de proposito: nao tocam byte de
+    # evidencia nenhum, entao o que sobra e exatamente a pergunta do manifesto.
+    "a janela declarada no manifesto nao e conferida": (
+        [("build", COMPARA_JANELA, "        if False:")],
+        {"test_a_CONFERENCIA_pega_window_adulterada"},
+    ),
+    "o modo de entrega declarado no manifesto nao e conferido": (
+        [("build", COMPARA_ENTREGA, "        if False:")],
+        {"test_a_CONFERENCIA_pega_delivery_mode_adulterado"},
     ),
     "o precursor passa a atribuir ator": (
         [

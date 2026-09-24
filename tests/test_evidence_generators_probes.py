@@ -158,6 +158,7 @@ TUDO_QUE_PROJETA = {
     "test_seeds_diferentes_produzem_projecoes_diferentes",
     "test_tem_os_cabecalhos_de_RFC_5322",
     "test_toda_fonte_declarada_virou_arquivo",
+    "test_toda_omissao_declarada_ACONTECE",
     "test_todo_registro_JSONL_carrega_o_instante_do_fato",
     "test_um_fato_com_OUTRO_ator_muda_todas_as_projecoes",
     "test_usuario_IP_e_timestamp_CONCORDAM_entre_as_projecoes",

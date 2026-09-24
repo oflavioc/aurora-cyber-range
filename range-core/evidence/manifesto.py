@@ -74,6 +74,7 @@ def montar(
     pack_id: str,
     ground_truth_bytes: bytes,
     random_seed: int,
+    banner: str,
     entrega: Mapping[str, str] | None = None,
     atrasos: Mapping[str, int] | None = None,
 ) -> dict:
@@ -104,6 +105,18 @@ def montar(
         sources.append(source)
 
     return {
+        # O BANNER DO PROPRIO MANIFESTO — `05` §4, L2 da 3a auditoria.
+        #
+        # Ele ficou de fora porque a producao do banner e por FORMATO DE FIO, e
+        # o manifesto nao tem formato de fio: nao e fonte de evidencia e nao
+        # passa por `projetar`. A razao explica a omissao e nao a justifica — o
+        # facilitador abre este arquivo ANTES de qualquer outro, porque e ele
+        # que diz o que existe.
+        #
+        # PRIMEIRA CHAVE do documento, e nao em qualquer lugar: `05` §4 diz *na
+        # primeira linha*, e `json.dumps` com `sort_keys=False` preserva a ordem
+        # de insercao. O aviso e o que se le sem rolar.
+        "_banner": banner,
         "generated_from": {
             "pack_id": pack_id,
             "ground_truth_hash": hash_do_ground_truth(ground_truth_bytes),

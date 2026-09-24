@@ -117,10 +117,10 @@ ORCAMENTO_S = 3.0
 #: **O NUMERO FOI FIXADO PELA MARGEM, E NAO PELO VEREDITO** — a distincao e o
 #: que o torna legitimo, e a historia inteira esta no `fase_9.md` §2.8:
 #:
-#:     833/min (200.570 ev)   3,812 s   FALHA
-#:     600/min (144.650 ev)   3,162 s   FALHA
-#:     500/min (120.650 ev)   2,626 / 2,798 / 3,084 s   FALHA EM 1 DE 3
-#:     400/min ( 96.650 ev)   1,729 s   PASSA, com 42% de folga
+#:     833/min (200.570 ev)   3,812 s                     acima
+#:     600/min (144.650 ev)   3,162 s                     acima
+#:     500/min (120.650 ev)   2,626 / 2,798 / 3,084 s     uma acima, em tres
+#:     400/min ( 96.650 ev)   1,73 a 2,75 s               nenhuma acima, em nove
 #:
 #: A primeira declaracao foi 833/min, justificada pela cardinalidade de
 #: `AUTH_FAIL`/`AUTH_BRUTE` num ambiente com as 29.200 contas de `02` §1 — e
@@ -130,8 +130,19 @@ ORCAMENTO_S = 3.0
 #: **Criterio de desempenho que falha em 1 de 3 execucoes nao e criterio, e
 #: sorteio** — e a prova e gravada UMA vez e amarrada por hash a arvore, entao o
 #: veredito passaria a depender de qual execucao foi gravada, com o auditor
-#: podendo obter o oposto ao reexecutar. 400/min e o maior volume com margem
-#: REPRODUZIVEL, e foi escolhido por isso.
+#: podendo obter o oposto ao reexecutar.
+#:
+#: 400/min foi escolhido porque NENHUMA execucao dele cruzou o orcamento,
+#: enquanto 500/min cruzou na terceira. **E so isso — M2 da terceira
+#: auditoria.** Estas linhas diziam "1,729 s, com 42% de folga" e "o maior
+#: volume com margem REPRODUZIVEL", e a prova gravada contra a arvore final deu
+#: 2,75 s: folga de 8%. O H3 da segunda auditoria mandou parar de declarar
+#: margem, e a correcao daquela vez so alcancou o registro de fase; o
+#: argumento sobreviveu aqui, que e onde ele nasceu.
+#:
+#: A tabela acima e HISTORICO DE OBSERVACOES, e nao previsao: a dispersao
+#: medida e da ordem da folga, e uma gravacao futura acima de 3 s e possivel. A
+#: saida, se acontecer, e a reserializacao da cadeia — nunca diminuir o volume.
 #:
 #: O ponto de quebra medido fica entre 120 mil e 144 mil eventos, coerente com a
 #: curva da Fase 2 (~150 mil) — o mesmo motor, medido de novo com a fonte que

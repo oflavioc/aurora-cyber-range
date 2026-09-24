@@ -19,10 +19,32 @@ x-aurora-contract: evidence
 x-aurora-schema-version: 1
 
 type: object
-required: [generated_from, sources]
+required: [_banner, generated_from, sources]
 additionalProperties: false
 
 properties:
+
+  # ---------------------------------------------------------------------------
+  # O BANNER DO PROPRIO MANIFESTO — 05 secao 4, L2 da 3a auditoria da Fase 9.
+  #
+  # `05` secao 4 fala de TODO ARTEFATO GERADO, e `06` T13 de CADA ARQUIVO. O
+  # `MANIFEST.json` e gerado e e arquivo; ele ficou de fora porque a producao do
+  # banner e por FORMATO DE FIO, e o manifesto nao tem formato de fio — ele nao
+  # e fonte de evidencia, e por isso nao passa por `projetar`.
+  #
+  # A razao explica a omissao e nao a justifica: o facilitador abre este arquivo
+  # antes de qualquer outro, porque e ele que diz o que existe. Um indice de
+  # evidencia simulada sem o aviso e exatamente o artefato que alguem encaminha
+  # por engano.
+  #
+  # A CHAVE E A MESMA DO JSONL (`_banner`), e nao uma nova: `banner.py` ja a
+  # declara para o formato JSON, e o manifesto e JSON. Duas chaves para o mesmo
+  # aviso fariam o verificador de banner ter de conhecer as duas.
+  #
+  # `required` DE PROPOSITO: banner opcional e banner ausente com outro nome.
+  _banner:
+    type: string
+    minLength: 1
 
   generated_from:
     $ref: '#/$defs/generated_from'
@@ -358,7 +380,8 @@ x-aurora-authority:
 # Exemplo POSITIVO — deve validar.
 # ---------------------------------------------------------------------------
 examples:
-  - generated_from:
+  - _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
+    generated_from:
       pack_id: ransomware-universidade
       ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
       random_seed: 424242
@@ -389,6 +412,24 @@ examples:
 # ---------------------------------------------------------------------------
 x-aurora-invalid-examples:
 
+  # A NEGATIVA DO BANNER — L2 da 3a auditoria. Sem ela, `_banner: required`
+  # seria clausula que nenhum exemplo exercita, e a regra passaria a existir sem
+  # ninguem provar que ela morde.
+  - reason: 'sem _banner: o manifesto e artefato gerado, e 05 secao 4 exige o aviso em todo artefato — e ele e o PRIMEIRO arquivo que o facilitador abre'
+    rejected_by: schema
+    instance:
+      generated_from:
+        pack_id: ransomware-universidade
+        ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
+        random_seed: 424242
+      sources:
+        - file: vpn.log
+          format: syslog_text
+          delivery_mode: pre_positioned
+          window: 'T-9d → T-8d'
+          projects_facts: [GT-A-014]
+          sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+
   # A NEGATIVA DA CLAUSULA NOVA. Ate este commit `projects_facts.items` era
   # `type: string` sem padrao: a lista podia citar qualquer coisa, e so
   # `x-aurora-ref: pack_facts` reclamava — e ele exige o registro montado, que o
@@ -396,6 +437,7 @@ x-aurora-invalid-examples:
   - reason: 'projects_facts com id fora da forma de fact_id: minusculo nao casa fact_id_pattern, e sem esta clausula so a resolucao pegaria — que exige o ground truth ao lado'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -411,6 +453,7 @@ x-aurora-invalid-examples:
   - reason: 'projects_facts vazio: arquivo autoral disfarcado de projecao'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -431,6 +474,7 @@ x-aurora-invalid-examples:
   - reason: 'fonte sem window: o facilitador nao sabe o que o arquivo abrange (08 secao 7)'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -445,6 +489,7 @@ x-aurora-invalid-examples:
   - reason: 'anexo em evidencia: proibido por 05 secao 2'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -461,6 +506,7 @@ x-aurora-invalid-examples:
   - reason: 'formato fora do conjunto v1'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -476,6 +522,7 @@ x-aurora-invalid-examples:
   - reason: 'sem sha256: o teste nao teria como verificar cobertura de projecao'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -490,6 +537,7 @@ x-aurora-invalid-examples:
   - reason: 'atraso de fornecedor declarado fora do modo sob demanda: campo sem efeito'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'
@@ -506,6 +554,7 @@ x-aurora-invalid-examples:
   - reason: 'sem generated_from: manifesto sem seed nem hash nao e reconstruivel'
     rejected_by: schema
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       sources:
         - file: vpn.log
           format: syslog_text
@@ -517,6 +566,7 @@ x-aurora-invalid-examples:
   - reason: 'fact_id inexistente no ground_truth do pack'
     rejected_by: 'x-aurora-ref:pack_facts'
     instance:
+      _banner: 'AMBIENTE SIMULADO — DADOS FICTÍCIOS'
       generated_from:
         pack_id: ransomware-universidade
         ground_truth_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000000'

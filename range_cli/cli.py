@@ -568,10 +568,19 @@ def _evidence_verify(args) -> int:
     pack_dir = Path(args.path)
     contratos = contract_source.read_contracts()
     try:
+        ground_truth_bytes = _le_ground_truth(pack_dir)
         achados = build_de_evidencia.conferir(
             pack_dir / EVIDENCE,
-            _le_ground_truth(pack_dir),
+            ground_truth_bytes,
             contratos=contratos,
+            # O MESMO CALCULO DO BUILD — L1 da terceira auditoria. `conferir`
+            # so pode julgar `delivery_mode` se souber o que o pack declara, e
+            # quem sabe ler `evidence_release` e esta funcao. Um default
+            # `pre_positioned` aqui faria o verificador aprovar o manifesto
+            # errado de todo pack que libera fonte por inject.
+            entrega=_entrega_declarada(
+                pack_dir, _fontes_projetadas(ground_truth_bytes)
+            ),
             **_contexto_de_evidencia(contratos),
         )
     except (ComandoRecusado, ContractSourceError) as erro:
