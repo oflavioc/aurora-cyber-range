@@ -99,7 +99,6 @@ def fabricar(vendor: str, produto: str, *, catalogo: Catalogo) -> Callable:
                     vendor=vendor,
                     produto=produto,
                     nome=str(fato.get("action", "-")),
-                    instante=str(fato.get("exercise_time", "-")),
                     origem=ORIGEM,
                 )
             )

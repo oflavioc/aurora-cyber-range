@@ -248,7 +248,7 @@ class InjectEngine:
         self._telemetria = Replay(
             programados=pack.telemetria,
             clock=clock,
-            emissor=para_o_store(store, scenario_id=pack.pack_id),
+            emissor=para_o_store(store, scenario_id=pack.pack_id, clock=clock),
         )
 
     # -- leitura -------------------------------------------------------------

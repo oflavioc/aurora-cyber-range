@@ -790,6 +790,46 @@ $defs:
         minimum: 0
         maximum: 10
 
+      # -----------------------------------------------------------------------
+      # AS DUAS MARCAS DA TELEMETRIA — 00 secao 5.6 e 01 secao 3.
+      #
+      # H1 DA TERCEIRA AUDITORIA DA FASE 9, e ele e da especie mais cara: a fase
+      # que CRIA o contrato de telemetria fechou, por `additionalProperties:
+      # false`, um campo que o MASTER declara obrigatorio. Fechar o payload foi
+      # a correcao certa para o `fact_id`; ela levou junto o que devia entrar.
+      #
+      #   00 secao 5.6  "Telemetria carrega tambem `ingest_time`"
+      #   01 secao 3    "Telemetria carrega adicionalmente `ingest_time`,
+      #                  distinto de `event_time`"
+      #
+      # SAO DUAS, E A DISTINCAO E O PONTO. `event_time` e quando o fato
+      # aconteceu no mundo simulado; `ingest_time` e quando o SIEM o recebeu.
+      # Num exercicio elas sao MUITO distantes: o acesso inicial e de `T-17d
+      # 02:14` e o sinal esta no SIEM desde o start (telemetria pre-posicionada,
+      # 08 secao 5). Sem as duas, o `discoverability.requires` da Linha A manda
+      # correlacionar um horario que o evento nao carrega.
+      #
+      # O ENVELOPE NAO RESOLVE ISSO. Ele carrega as tres marcas de 00 secao 5.6
+      # (`exercise_time`, `exercise_timestamp`, `wall_timestamp`), e as tres
+      # descrevem o INSTANTE DA GRAVACAO. Nenhuma delas sabe quando o fato
+      # ocorreu — e por isso a quarta marca e do payload, e nao do envelope: ela
+      # so existe para telemetria.
+      #
+      # FORMA LIVRE, e a frouxidao e declarada: `exercise_time` do fato admite
+      # tanto o rotulo relativo (`T-17d 02:14`) quanto ISO-8601 (a Linha B usa),
+      # e `ground_truth.schema.yaml` o declara `type: string` pela mesma razao.
+      # Fechar o formato aqui exigiria a gramatica temporal da P6-3, e um
+      # `pattern` que aceitasse os dois seria a terceira definicao do mesmo
+      # formato.
+      # -----------------------------------------------------------------------
+      event_time:
+        type: string
+        minLength: 1
+
+      ingest_time:
+        type: string
+        minLength: 1
+
       # Os campos CEF de 02 secao 10. Todos OPCIONAIS: um evento de telemetria
       # carrega o que o fato de origem tem, e campo ausente no fato nao vira
       # chave nula — nulo afirmaria que o valor foi medido e e vazio, que e

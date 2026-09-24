@@ -105,6 +105,17 @@ def programar(
             "signature": entrada.signature,
             "severity": entrada.severity,
         }
+        # `event_time` — A PRIMEIRA DAS DUAS MARCAS DE `00` §5.6, e ela e da
+        # PROJECAO: quando o fato aconteceu no mundo simulado. A outra,
+        # `ingest_time`, e de quem grava, porque so existe no ato de gravar —
+        # ver `telemetry/emissao.py`.
+        #
+        # H1 DA TERCEIRA AUDITORIA. Sem ela, o evento nao carregava o instante
+        # que `discoverability.requires` manda correlacionar, e o
+        # `additionalProperties: false` do contrato impedia acrescenta-lo.
+        instante = fato.get("exercise_time")
+        if isinstance(instante, str) and instante:
+            payload["event_time"] = instante
         if entrada.outcome:
             payload["outcome"] = entrada.outcome
         for campo, chave in CAMPO_PARA_CEF:

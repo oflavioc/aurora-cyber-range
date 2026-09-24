@@ -209,11 +209,17 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
             partes = cabecalho.split("|")
             payload = dict(programado.payload)
 
-            # As DUAS chaves que o cabecalho consome, no lugar que o formato
-            # fixa: `signature` e o Device Event Class ID (campo 5) e
-            # `severity` e o campo 7.
+            # As TRES chaves que o cabecalho consome, cada uma no lugar que o
+            # formato fixa: `signature` e o Device Event Class ID (campo 5),
+            # `severity` e o campo 7, e `event_time` e o carimbo do prefixo
+            # syslog — a marca de `00` §5.6 que entrou com o H1 da 3a auditoria.
             self.assertEqual(partes[4], payload.pop("signature"))
             self.assertEqual(partes[6], str(payload.pop("severity")))
+            self.assertTrue(
+                linha.startswith(payload.pop("event_time") + " "),
+                f"{programado.fact_id}: o prefixo syslog nao e o `event_time` "
+                f"do payload — {linha[:40]!r}",
+            )
 
             # E TODO O RESTO, nos dois sentidos.
             na_linha = dict(
