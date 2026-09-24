@@ -159,15 +159,34 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
                     "source_ip": ip,
                     "records_affected": 1,
                     "dest": payload["student_id"],
-                    # `08` §3: `database_audit.jsonl` carrega "leitura em massa
-                    # (Linha A) e ALTERACOES DE NOTA COM IP E SESSAO (Linha B)".
+                    # -------------------------------------------------------
+                    # SEM `projections`, E A AUSENCIA E DECIDIDA — B1 da 3a
+                    # auditoria da Fase 9.
                     #
-                    # Sem esta linha os fatos da Linha B eram invisiveis ao time
-                    # azul — e invisivel e um estado LEGITIMO em `08` §2 (o
-                    # limite de deteccao deliberado), entao a cobertura de
-                    # projecao passava e nada ficava vermelho. Medido na peca 1
-                    # da Fase 9, §2.3 do registro.
-                    "projections": ["database_audit"],
+                    # A peca 3 acrescentou aqui `projections: ["database_audit"]`
+                    # citando `08` §3 (*"alteracoes de nota com IP e sessao"*).
+                    # A citacao estava certa e a conclusao estava errada, e o
+                    # motivo esta TRES LINHAS ACIMA deste laco: ele so percorre
+                    # `CONJUNTOS_DE_CASO`, que sao tres dos seis.
+                    #
+                    # Ou seja: os unicos fatos que a Linha B tem sao os CASOS.
+                    # Projeta-los produz um arquivo com 67 linhas numa populacao
+                    # de 3.145 — e quem o abre sabe quais sao caso sem analisar
+                    # nenhuma. A defensibilidade vinha de brinde, na ordem.
+                    #
+                    # E O CONSERTO NAO E PROJETAR OS SEIS CONJUNTOS. Os outros
+                    # tres sao 3.078 linhas de trilha: dado academico REAL,
+                    # semeado, que `01` §2 poe em business state. Transforma-los
+                    # em `fact_id` faria o `ground_truth.yaml` virar copia da
+                    # tabela — e `linha_a` ja registra a fronteira: o incidente
+                    # e sintetizado porque e overlay, a Linha B e LIDA porque e
+                    # dado.
+                    #
+                    # A metade Linha B de `08` §3 fica em aberto, com mecanismo
+                    # nomeado: ela exige uma fonte que projete da TRILHA, e o
+                    # motor de evidencia recebe fatos, nunca business state.
+                    # P9-4.
+                    # -------------------------------------------------------
                 }
             )
 

@@ -417,10 +417,100 @@ class OMotorProjeta(unittest.TestCase):
 
         self.assertEqual(len(self._projetar(cita_a_fonte)), 2)
 
+    # -- B1 da 3a auditoria: a fonte que entrega a resposta -------------------
+
+    #: Um gabarito com CASO DECLARADO. `GT-A-014` e o unico `initial_access` do
+    #: documento e o `line_b_cases` o cita — entao, dentro daquela especie, toda
+    #: linha que as fontes dele carregam e caso.
+    #:
+    #: `GT-A-031` (`exfiltration`) fica de fora dos casos de proposito: e ele
+    #: que mostra que a guarda julga POR ESPECIE. Se julgasse a fonte inteira, a
+    #: presenca dele ja diluiria o vazamento — e o time azul nao confunde uma
+    #: exfiltracao com um acesso inicial.
+    GT_COM_CASOS = {
+        "facts": GT["facts"],
+        "line_b_cases": [
+            {
+                "case_id": "GC-001",
+                "defensibility": 1.0,
+                "set": "indevido_comprovado",
+                "supporting_evidence": ["GT-A-014"],
+            },
+        ],
+    }
+
+    def test_a_fonte_que_projeta_SO_CASO_e_recusada(self):
+        """**B1 da terceira auditoria.**
+
+        O `database_audit.jsonl` levava as 67 linhas que `line_b_cases` cita
+        como caso, e **so elas**, numa populacao de 3.145 alteracoes de nota. O
+        participante nao precisava ler campo nenhum: se esta no arquivo, e caso.
+
+        E a guarda e sobre COBERTURA, nao sobre conteudo — ela dispara antes de
+        o gerador escrever o primeiro byte, porque o defeito esta na declaracao
+        do gabarito e nao na escrita.
+        """
+        with self.assertRaises(projecao.RespostaEntregue) as ctx:
+            self._projetar(gt=self.GT_COM_CASOS)
+        mensagem = str(ctx.exception)
+        self.assertIn("line_b_cases", mensagem)
+
+        # A FONTE NOMEADA E A DE CLASSES MISTAS, e e isso que prova que o
+        # julgamento e POR ESPECIE. `identity_audit` carrega `initial_access`
+        # (so caso) e `exfiltration` (nenhum caso); uma guarda que olhasse a
+        # fonte inteira a consideraria diluida e so acusaria `vpn`.
+        self.assertIn("identity_audit", mensagem)
+        self.assertIn("initial_access", mensagem)
+
+    def test_a_fonte_com_caso_ENTRE_ruido_passa(self):
+        """O par positivo, e ele e o que impede a guarda de proibir o desenho
+        correto: um arquivo com 67 casos entre 3.145 linhas nao revela nada.
+
+        Aqui basta UM fato da mesma especie que nao seja caso para a igualdade
+        se desfazer — que e exatamente a forma de conserto que a mensagem da
+        recusa recomenda.
+        """
+        com_ruido = {
+            "facts": [
+                *GT["facts"],
+                {
+                    "fact_id": "GT-A-777",
+                    "fact_class": "initial_access",
+                    "exercise_time": "T-14d 09:00",
+                    "actor": "svc_academus",
+                    "action": "vpn_login",
+                    "source_ip": "198.51.100.42",
+                    "projections": ["vpn", "identity_audit"],
+                },
+            ],
+            "line_b_cases": self.GT_COM_CASOS["line_b_cases"],
+        }
+        self.assertEqual(len(self._projetar(gt=com_ruido)), 2)
+
+    def test_gabarito_SEM_casos_nao_tem_o_que_entregar(self):
+        """O limite declarado: a guarda so morde onde ha resposta escrita. Um
+        pack sem `line_b_cases` nao declara caso nenhum."""
+        self.assertEqual(len(self._projetar()), 2)
+
     def test_gerador_fiel_ao_elenco_passa(self):
         """O par positivo da recusa: sem ele, um motor que recusasse TUDO
         passaria no teste acima."""
         self.assertEqual(len(self._projetar()), 2)
+
+    def test_o_manifesto_CARREGA_o_banner(self):
+        """**L2 da terceira auditoria.** `05` §4 fala de todo artefato gerado, e
+        o `MANIFEST.json` e o PRIMEIRO arquivo que o facilitador abre — e o que
+        diz o que existe. Ele ficou de fora porque a producao do banner e por
+        formato de fio, e o manifesto nao tem um."""
+        doc = manifesto.montar(
+            self._projetar(),
+            banner=banner.texto(CONTRATOS),
+            pack_id=PACK,
+            ground_truth_bytes=b"facts: []\n",
+            random_seed=SEED,
+        )
+        self.assertEqual(doc["_banner"], banner.texto(CONTRATOS))
+        self.assertEqual(next(iter(doc)), "_banner")
 
     def test_os_fatos_chegam_em_ordem_ESTAVEL(self):
         """Determinismo (R7 §6): a saida e funcao das fontes e do seed, e ordem
@@ -467,6 +557,7 @@ class OManifesto(unittest.TestCase):
         self.gt_bytes = b"facts: []\n"
         self.doc = manifesto.montar(
             self.fontes,
+            banner=banner.texto(CONTRATOS),
             pack_id=PACK,
             ground_truth_bytes=self.gt_bytes,
             random_seed=SEED,

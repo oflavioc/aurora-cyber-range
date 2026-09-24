@@ -125,6 +125,18 @@ RECUSA_DE_HOST = "        hosts = hosts_inventados(conteudo, elenco)"
 #: que e o outro jeito de um gate deixar de servir.
 ROTULOS = '        return frozenset(v.replace("_", "-").lower() for v in self.todos)'
 
+#: A PORTA DO B1 DA 3a AUDITORIA — a fonte que entrega a resposta.
+RECUSA_DE_RESPOSTA = "        classe = _entrega_a_resposta(da_fonte, casos)"
+
+#: O JULGAMENTO POR ESPECIE. Trocar o subconjunto por igualdade sobre a fonte
+#: INTEIRA e o defeito espelhado: `exfiltration` na mesma fonte passaria a
+#: diluir `grade_change_retroactive`, e o vazamento voltaria com cara de
+#: populacao mista.
+POR_CLASSE = "        if set(ids) <= casos:"
+
+#: O BANNER DO MANIFESTO — L2 da 3a auditoria.
+BANNER_DO_MANIFESTO = '        "_banner": banner,'
+
 MUTACOES = {
     "a recusa de invencao vira aviso": (
         [("projecao", RECUSA, RECUSA_MUTADA)],
@@ -184,6 +196,33 @@ MUTACOES = {
     "a normalizacao de rotulo de host some": (
         [("elenco", ROTULOS, "        return frozenset(self.todos)")],
         {"test_o_host_DERIVADO_do_elenco_passa"},
+    ),
+    "a fonte que entrega a resposta passa em silencio": (
+        [("projecao", RECUSA_DE_RESPOSTA, "        classe = None")],
+        {"test_a_fonte_que_projeta_SO_CASO_e_recusada"},
+    ),
+    # O DEFEITO ESPELHADO da mesma guarda: julgar a fonte inteira em vez da
+    # especie. Ele nao produz falso positivo — produz falso NEGATIVO, porque
+    # qualquer fato de outra especie na mesma fonte passa a diluir o vazamento.
+    "a guarda de resposta julga a fonte inteira, e nao a especie": (
+        [
+            (
+                "projecao",
+                POR_CLASSE,
+                "        if set(ids) <= casos and len(por_classe) == 1:",
+            )
+        ],
+        {"test_a_fonte_que_projeta_SO_CASO_e_recusada"},
+    ),
+    "o manifesto nasce sem banner": (
+        [("manifesto", BANNER_DO_MANIFESTO, '        "_banner": "",')],
+        {
+            "test_o_manifesto_CARREGA_o_banner",
+            # ACUSA TAMBEM, e nao esta sobrando: `_banner` e `required` com
+            # `minLength: 1` no contrato, entao banner vazio e manifesto
+            # INVALIDO — a regra morde nas duas camadas.
+            "test_o_manifesto_VALIDA_contra_o_contrato_real",
+        },
     ),
     "o manifesto declara fato que a fonte nao projeta": (
         [

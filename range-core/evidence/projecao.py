@@ -83,6 +83,7 @@ __all__ = [
     "EntidadeInventada",
     "IOCEncontrado",
     "VereditoDoGabarito",
+    "RespostaEntregue",
     "projetar",
     "nome_do_arquivo",
 ]
@@ -176,6 +177,31 @@ class FonteSemFormato(Exception):
 
 class EntidadeInventada(Exception):
     """A saida do gerador traz entidade que o ground truth nao fixou — item 1."""
+
+
+class RespostaEntregue(Exception):
+    """A fonte projeta EXATAMENTE os fatos que o gabarito cita como caso.
+
+    B1 DA TERCEIRA AUDITORIA, e ele e o irmao gemeo do B1 da segunda por outro
+    canal. La o vazamento era de CAMPO — `credential_state` dizendo a resposta
+    dentro da linha. Aqui e de CONJUNTO: o `database_audit.jsonl` levava as 67
+    linhas que `line_b_cases` cita como caso, e **so elas**, numa populacao de
+    3.145 alteracoes de nota.
+
+    O participante nao precisava ler campo nenhum. Bastava abrir o arquivo: se
+    esta aqui, e caso. E como a ordem e a do documento e o gabarito agrupa por
+    conjunto, a posicao ainda entregava a particao por defensibilidade.
+
+    O QUE SE AFIRMA, E POR FACT_CLASS. A pergunta nao e *"a fonte tem caso?"* —
+    tem, e deve ter. E *"dentro de uma especie de fato, a fonte tem SO casos?"*.
+    Um arquivo com 67 casos entre 3.145 linhas nao revela nada; um com 67 de 67
+    revela tudo. Por isso a comparacao e de igualdade dentro da classe, e nao de
+    pertinencia: `exfiltration` na mesma fonte nao dilui `grade_change_retroactive`,
+    porque o time azul nao confunde as duas populacoes.
+
+    O LIMITE, DECLARADO: a guarda so morde onde o gabarito DECLARA casos. Um
+    pack sem `line_b_cases` nao tem resposta escrita, e nao ha o que entregar.
+    """
 
 
 class VereditoDoGabarito(Exception):
@@ -278,6 +304,48 @@ def _do_gabarito_no_fato(
     return agulhas
 
 
+def _fatos_de_caso(ground_truth: Mapping) -> frozenset[str]:
+    """Os `fact_id` que `line_b_cases` cita como evidencia de apoio.
+
+    E a RESPOSTA escrita: quem tem esta lista sabe quais linhas da trilha sao
+    caso e qual a defensibilidade de cada uma. `04` §3 a poe no ground truth
+    justamente porque ela e gabarito, e `05` §6 a mantem fora de tudo que chega
+    ao participante.
+    """
+    citados: set[str] = set()
+    for caso in ground_truth.get("line_b_cases") or ():
+        if isinstance(caso, Mapping):
+            citados.update(
+                f for f in (caso.get("supporting_evidence") or ()) if isinstance(f, str)
+            )
+    return frozenset(citados)
+
+
+def _entrega_a_resposta(
+    da_fonte: Sequence[Mapping], casos: frozenset[str]
+) -> str | None:
+    """A `fact_class` cuja populacao nesta fonte e so de caso, ou `None`.
+
+    POR CLASSE, e a razao esta em `RespostaEntregue`: e dentro de uma especie de
+    fato que o participante compara linhas. Misturar classes para diluir seria
+    esconder o vazamento atras de uma populacao que ninguem confunde com a
+    outra.
+    """
+    if not casos:
+        return None
+
+    por_classe: dict[str, list[str]] = {}
+    for fato in da_fonte:
+        classe, fact_id = fato.get("fact_class"), fato.get("fact_id")
+        if isinstance(classe, str) and isinstance(fact_id, str):
+            por_classe.setdefault(classe, []).append(fact_id)
+
+    for classe, ids in por_classe.items():
+        if set(ids) <= casos:
+            return classe
+    return None
+
+
 def projetar(
     ground_truth: Mapping,
     *,
@@ -305,6 +373,7 @@ def projetar(
     ordem_do_documento = list(ground_truth.get("facts") or ())
     projetaveis = campos_do_fato["projectable"]
     nomes_de_fonte = frozenset(formatos)
+    casos = _fatos_de_caso(ground_truth)
 
     faltando = sorted(set(cobertura) - set(geradores))
     if faltando:
@@ -326,6 +395,23 @@ def projetar(
             )
 
         da_fonte = [f for f in ordem_do_documento if f.get("fact_id") in cobertura[fonte]]
+
+        # A RESPOSTA, ANTES DE QUALQUER BYTE SER GERADO — B1 da 3a auditoria.
+        # Esta guarda nao olha conteudo: ela olha a COBERTURA, e por isso vem
+        # antes do gerador. Uma fonte que projeta so caso ja esta errada na
+        # declaracao do gabarito, e nao na escrita do arquivo — o conserto e
+        # remover a projecao ou acrescentar a populacao, nunca mudar o gerador.
+        classe = _entrega_a_resposta(da_fonte, casos)
+        if classe is not None:
+            raise RespostaEntregue(
+                f"a fonte {fonte!r} projeta, da especie {classe!r}, APENAS fatos "
+                f"que `line_b_cases` cita como caso. O arquivo entrega a "
+                f"resposta: quem o abre sabe quais linhas sao caso sem analisar "
+                f"nenhuma. `05` §6 — o gabarito fica fora do que chega ao "
+                f"participante. Projete a populacao inteira daquela especie, ou "
+                f"nao projete a especie"
+            )
+
         corpo = geradores[fonte](da_fonte)
         conteudo = _banner.linha(formato, banner) + "\n" + corpo
 
