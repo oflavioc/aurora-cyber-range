@@ -52,6 +52,9 @@ manifesto = importlib.import_module("range_core.evidence.manifesto")
 
 CONTRATOS = contract_source.read_contracts()
 
+#: A particao de `x-aurora-registry.fact_fields` — B1 da segunda auditoria.
+CAMPOS = contract_source.campos_do_fato(CONTRATOS)
+
 SEED = 424242
 PACK = "ransomware-universidade"
 
@@ -67,6 +70,16 @@ GT = {
             "action": "vpn_login",
             "source_ip": "198.51.100.42",
             "dest": "vpn-gw-01",
+            # OS DOIS CAMPOS DE GABARITO, no fato que o caso positivo projeta —
+            # B1 da segunda auditoria. Sem eles aqui, a guarda de veredito
+            # passaria vacuamente: nao haveria o que ela pudesse encontrar, e
+            # um motor que nunca a executasse ficaria verde.
+            "credential_state": "compromised",
+            "mfa": "absent",
+            "discoverability": {
+                "difficulty": "medium",
+                "requires": "correlacionar horario fora de expediente com ausencia de MFA",
+            },
             "projections": ["vpn", "identity_audit"],
         },
         {
@@ -92,9 +105,16 @@ GT = {
 
 
 def gerador_fiel(fatos):
-    """Escreve so o que os fatos deram — o gerador que o item 1 admite."""
+    """Escreve so campo PROJETAVEL — o gerador que os itens 1 e 5 admitem.
+
+    A versao anterior escrevia `id={f['fact_class']}`, e `fact_class` e a
+    classificacao do incidente na kill chain: gabarito. Ela passava porque nao
+    havia guarda; hoje seria recusada, e e por isso que ela virou o caso
+    negativo `gerador_que_classifica`.
+    """
     return "\n".join(
-        f"user={f.get('actor', '-')} src={f.get('source_ip', '-')} id={f['fact_class']}"
+        f"user={f.get('actor', '-')} src={f.get('source_ip', '-')} "
+        f"action={f.get('action', '-')}"
         for f in fatos
     )
 
@@ -102,6 +122,59 @@ def gerador_fiel(fatos):
 def gerador_que_inventa(fatos):
     """Acrescenta um endereco que o ground truth nao fixou."""
     return gerador_fiel(fatos) + "\nrelay=203.0.113.200"
+
+
+def gerador_que_inventa_host(fatos):
+    """Acrescenta um host de sufixo impecavel e rotulo que ninguem fixou.
+
+    O sufixo E reservado (`05` §2), entao o predicado de IOC o aprova: quem tem
+    de recusar e o elenco, e so ele — M2 da segunda auditoria.
+    """
+    return gerador_fiel(fatos) + "\nrelay=intranet-ti.example"
+
+
+def gerador_que_entrega_o_veredito(fatos):
+    """Escreve `credential_state` — o defeito exato do B1."""
+    return "\n".join(
+        f"user={f.get('actor', '-')} credential={f.get('credential_state', '-')}"
+        for f in fatos
+    )
+
+
+def gerador_que_registra_o_campo_vazio(fatos):
+    """Escreve a CHAVE `credential_state` com valor vazio, e mais nada.
+
+    O valor nao vaza; a chave sim. `jsonl.py` ja tinha o argumento escrito: um
+    campo presente com valor vazio *"afirmaria que o valor foi medido e e
+    vazio — que e diferente de nao ter sido registrado. O time azul le a
+    diferenca"*. A chave diz que a fonte RASTREIA o estado da credencial, e o
+    time azul passa a procurar onde o gabarito ja disse que ha o que achar.
+    """
+    return "\n".join(
+        json.dumps({"actor": f.get("actor"), "credential_state": ""}) for f in fatos
+    )
+
+
+def gerador_que_classifica(fatos):
+    """Escreve `fact_class` — a leitura do gabarito sobre a kill chain."""
+    return "\n".join(f"signature={f['fact_class']}" for f in fatos)
+
+
+def gerador_que_carimba_o_fact_id(fatos):
+    """Escreve o `fact_id` no registro — `05` §6, o gabarito na primeira linha."""
+    return "\n".join(f"ref={f['fact_id']} user={f.get('actor', '-')}" for f in fatos)
+
+
+def gerador_que_copia_a_dificuldade(fatos):
+    """Copia a frase de `discoverability.requires` para o corpo do arquivo.
+
+    E o caso que a busca por TOKEN nao pegaria: o valor tem espacos, e e a
+    frase que literalmente diz ao leitor o que ha para descobrir.
+    """
+    return "\n".join(
+        f"user={f.get('actor', '-')} nota: {(f.get('discoverability') or {}).get('requires', '-')}"
+        for f in fatos
+    )
 
 
 def geradores_para(fontes, gerador=gerador_fiel):
@@ -171,6 +244,7 @@ class OMotorProjeta(unittest.TestCase):
             geradores=geradores_para(("vpn", "identity_audit"), gerador),
             formatos=self.formatos,
             banner=banner.texto(CONTRATOS),
+            campos_do_fato=CAMPOS,
         )
 
     def test_uma_fonte_por_entrada_da_cobertura(self):
@@ -192,6 +266,7 @@ class OMotorProjeta(unittest.TestCase):
             geradores={f: espiao_de(f) for f in ("vpn", "identity_audit")},
             formatos=self.formatos,
             banner=banner.texto(CONTRATOS),
+            campos_do_fato=CAMPOS,
         )
         self.assertEqual(recebidos["vpn"], ["GT-A-014"])
         self.assertEqual(recebidos["identity_audit"], ["GT-A-014", "GT-A-031"])
@@ -221,6 +296,7 @@ class OMotorProjeta(unittest.TestCase):
                 geradores=geradores_para(("vpn",)),
                 formatos=self.formatos,
                 banner=banner.texto(CONTRATOS),
+                campos_do_fato=CAMPOS,
             )
         self.assertIn("identity_audit", str(ctx.exception))
 
@@ -244,10 +320,102 @@ class OMotorProjeta(unittest.TestCase):
                 geradores={"vpn": gerador_que_inventa, "identity_audit": gerador_fiel},
                 formatos=self.formatos,
                 banner=banner.texto(CONTRATOS),
+                campos_do_fato=CAMPOS,
             )
         mensagem = str(ctx.exception)
         self.assertIn("vpn", mensagem)
         self.assertNotIn("identity_audit", mensagem)
+
+    def test_gerador_que_INVENTA_host_e_recusado(self):
+        """**M2 da segunda auditoria.** O sufixo e reservado, entao `05` §2 esta
+        satisfeito e o predicado de IOC aprova. Quem tem de recusar e o elenco:
+        `intranet-ti` nao e ator, destino nem endereco de fato nenhum.
+
+        E ELE NAO PODIA SER PEGO DEPOIS. Um literal no gerador e determinista, e
+        a reprojecao do `evidence verify` roda o MESMO gerador — os bytes batem
+        das duas vezes. Ou a recusa e aqui, ou nao ha recusa.
+        """
+        with self.assertRaises(projecao.EntidadeInventada) as ctx:
+            self._projetar(gerador_que_inventa_host)
+        self.assertIn("intranet-ti.example", str(ctx.exception))
+
+    def test_o_host_DERIVADO_do_elenco_passa(self):
+        """O par positivo do anterior, e o que impede a guarda de proibir o
+        unico jeito correto: `svc_academus` vira `svc-academus.example` porque
+        `_` nao e valido em rotulo de host (RFC 1123)."""
+
+        def deriva(fatos):
+            return gerador_fiel(fatos) + "\nlink=https://svc-academus.example/x"
+
+        self.assertEqual(len(self._projetar(deriva)), 2)
+
+    def test_gerador_que_escreve_o_VEREDITO_do_gabarito_e_recusado(self):
+        """**B1 da segunda auditoria, o defeito verbatim.**
+
+        `credential_state` e `compromised` no fato real, e nenhum concentrador
+        de VPN do mundo sabe disso — e atribuicao, e atribuicao e o achado que o
+        exercicio mede. `00` §3 separa evidencia observavel de ground truth.
+        """
+        with self.assertRaises(projecao.VereditoDoGabarito) as ctx:
+            self._projetar(gerador_que_entrega_o_veredito)
+        self.assertIn("credential_state", str(ctx.exception))
+
+    def test_gerador_que_escreve_a_CLASSE_do_fato_e_recusado(self):
+        """`initial_access` e `exfiltration` sao a classificacao do incidente na
+        kill chain — leitura do gabarito, nao sinal de sensor. Era a `signature`
+        do `cef.log` ate o H1."""
+        with self.assertRaises(projecao.VereditoDoGabarito) as ctx:
+            self._projetar(gerador_que_classifica)
+        self.assertIn("fact_class", str(ctx.exception))
+
+    def test_a_CHAVE_do_campo_de_gabarito_tambem_e_recusada(self):
+        """O valor nao vaza e a guarda morde mesmo assim — e o motivo esta
+        escrito em `jsonl.py` desde a peca 3: campo presente com valor vazio
+        **afirma que o valor foi medido**, e isso e diferente de nao ter sido
+        registrado. A chave sozinha ja diz ao time azul onde procurar."""
+        with self.assertRaises(projecao.VereditoDoGabarito) as ctx:
+            self._projetar(gerador_que_registra_o_campo_vazio)
+        self.assertIn("credential_state", str(ctx.exception))
+
+    def test_gerador_que_carimba_o_FACT_ID_e_recusado(self):
+        """`05` §6. `jsonl.py` ja excluia o campo em comentario, e comentario nao
+        e mecanismo: a exclusao dependia de cada autor de gerador lembrar."""
+        with self.assertRaises(projecao.VereditoDoGabarito) as ctx:
+            self._projetar(gerador_que_carimba_o_fact_id)
+        self.assertIn("GT-A-014", str(ctx.exception))
+
+    def test_a_guarda_alcanca_valor_COM_ESPACO_dentro_de_mapa(self):
+        """`discoverability.requires` e uma FRASE, e e a que diz o que ha para
+        descobrir. Ela nao e um token — a guarda tem de alcanca-la inteira, e e
+        por isso que a busca e por fronteira de palavra e nao por igualdade de
+        token."""
+        with self.assertRaises(projecao.VereditoDoGabarito) as ctx:
+            self._projetar(gerador_que_copia_a_dificuldade)
+        self.assertIn("ausencia de MFA", str(ctx.exception))
+
+    def test_a_guarda_NAO_reclama_de_campo_projetavel(self):
+        """O par negativo da guarda — sem ele, uma versao que recusasse todo
+        campo passaria nos cinco testes acima e proibiria o `vpn.log` inteiro.
+
+        `mfa` esta no fato e E projetavel: um concentrador de VPN registra se o
+        segundo fator foi apresentado. O veredito sobre a credencial, nao.
+        """
+
+        def escreve_mfa(fatos):
+            return "\n".join(f"mfa={f.get('mfa', '-')}" for f in fatos)
+
+        fontes = self._projetar(escreve_mfa)
+        self.assertIn("mfa=absent", fontes[0].conteudo)
+
+    def test_nome_de_FONTE_no_conteudo_nao_e_veredito(self):
+        """A exclusao declarada: `projections` carrega nomes de fonte, e eles
+        sao vocabulario da camada de projecao. Procura-los em texto livre
+        acusaria a palavra "email" no corpo de um e-mail."""
+
+        def cita_a_fonte(fatos):
+            return gerador_fiel(fatos) + "\ncomentario: consulte o vpn e o email"
+
+        self.assertEqual(len(self._projetar(cita_a_fonte)), 2)
 
     def test_gerador_fiel_ao_elenco_passa(self):
         """O par positivo da recusa: sem ele, um motor que recusasse TUDO
@@ -270,6 +438,7 @@ class OMotorProjeta(unittest.TestCase):
                 geradores={"identity_audit": espiao, "vpn": gerador_fiel},
                 formatos=self.formatos,
                 banner=banner.texto(CONTRATOS),
+                campos_do_fato=CAMPOS,
             )
         self.assertEqual(recebidos, [primeira, primeira, primeira])
 
@@ -293,6 +462,7 @@ class OManifesto(unittest.TestCase):
             geradores=geradores_para(("vpn", "identity_audit")),
             formatos=self.formatos,
             banner=banner.texto(CONTRATOS),
+            campos_do_fato=CAMPOS,
         )
         self.gt_bytes = b"facts: []\n"
         self.doc = manifesto.montar(

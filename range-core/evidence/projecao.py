@@ -11,12 +11,21 @@ A espinha que transforma ground truth em fontes de evidencia:
 
     cobertura  ->  UM gerador por fonte, com APENAS os fatos daquela fonte
                ->  banner na primeira linha
+               ->  RECUSA se a saida expressar campo que so o gabarito sabe
                ->  RECUSA se a saida trouxer entidade que o ground truth nao fixou
+               ->  RECUSA se a saida trouxer dado que nao e sintetico
 
-E o terceiro passo que faz a diferenca. `08` §1 afirma que *"contradicao entre
+Sao as RECUSAS que fazem a diferenca. `08` §1 afirma que *"contradicao entre
 fontes torna-se estruturalmente impossivel"*, e essa frase so e verdadeira se
-houver quem a imponha: sem a recusa, ela seria uma intencao sobre como escrever
+houver quem a imponha: sem elas, seria uma intencao sobre como escrever
 geradores. A peca 1 deu o oraculo (`elenco.py`); aqui ele vira **porta**.
+
+E A PRIMEIRA DAS TRES E A QUE GUARDA A CAMADA. `00` §3 separa ground truth de
+evidencia observavel, e a separacao nao sobrevive a boa vontade: tres geradores
+escreviam `credential_state` — o veredito do gabarito sobre a credencial — e o
+unico que NAO o escrevia dizia em comentario que nao o escrevia de proposito.
+Uma norma que depende de cada autor lembrar dela ja esta quebrada; foi o B1 da
+segunda auditoria. Ver `VereditoDoGabarito`.
 
 O MOTOR NAO CONHECE FORMATO DE FIO
 ===================================
@@ -59,7 +68,13 @@ from dataclasses import dataclass
 
 from dados_sinteticos import achados_no_valor
 from range_core.evidence import banner as _banner
-from range_core.evidence.elenco import cobertura_de, elenco_de, enderecos_no
+from range_core.evidence.elenco import (
+    cobertura_de,
+    elenco_de,
+    enderecos_no,
+    hosts_inventados,
+    tokens_no,
+)
 
 __all__ = [
     "FonteProjetada",
@@ -67,6 +82,7 @@ __all__ = [
     "FonteSemFormato",
     "EntidadeInventada",
     "IOCEncontrado",
+    "VereditoDoGabarito",
     "projetar",
     "nome_do_arquivo",
 ]
@@ -94,37 +110,60 @@ EXTENSAO = {
 
 Gerador = Callable[[Sequence[Mapping]], str]
 
-#: Um token de conteudo: tudo que nao e espaco nem pontuacao de delimitacao.
-#:
-#: **POR QUE TOKENIZAR, E ESTE E O PONTO QUE UMA PRIMEIRA VERSAO ERROU.**
-#: `dados_sinteticos.achados_no_valor` opera sobre UM VALOR DE CAMPO — e o que
-#: `hostnames_candidatos` assume: ou o valor e uma URL, ou um e-mail, ou um
-#: hostname nu. Texto com espaco no meio ele descarta e devolve **lista vazia**.
-#:
-#: Aplicado ao conteudo INTEIRO de um arquivo de log, o predicado passava
-#: vacuamente: `"visite https://<host roteavel>/login"` nao produzia achado
-#: nenhum. A guarda parecia proteger e nao protegia — medido na peca 3.
-#:
-#: A TOKENIZACAO E DO MOTOR; O JULGAMENTO CONTINUA SENDO DO PREDICADO UNICO.
-#: A alternativa — ensinar `dados_sinteticos` a ler texto livre — mudaria a
-#: semantica de um modulo que o CI e o loader ja consomem, para servir a um
-#: chamador so. Compor e mais barato e nao move a fonte da resposta (R9 §8).
-#:
-#: `=` E SEPARADOR, e isto foi medido na correcao do M1 da auditoria: log de fio
-#: e `chave=valor`, e sem cortar no `=` o token vira `url=https://<host>/x` —
-#: `urlsplit` nao reconhece `url=https` como esquema, `hostnames_candidatos`
-#: devolve nada, e o IOC passa. O caso original desta guarda usava
-#: `"visite https://..."`, com espaco, e por isso o defeito nao aparecia: a
-#: forma que um GERADOR de log realmente escreve e a outra.
-_TOKEN = re.compile(r"[^\s\"'<>()\[\],;=]+")
-
-
 def _achados_no_texto(conteudo: str) -> list:
-    """Os achados de `dados_sinteticos`, token a token — ver `_TOKEN`."""
+    """Os achados de `dados_sinteticos`, token a token.
+
+    A TOKENIZACAO E DE `elenco.tokens_no`; O JULGAMENTO CONTINUA SENDO DO
+    PREDICADO UNICO. A alternativa — ensinar `dados_sinteticos` a ler texto
+    livre — mudaria a semantica de um modulo que o CI e o loader ja consomem,
+    para servir a um chamador so. Compor e mais barato e nao move a fonte da
+    resposta (R9 §8).
+    """
     achados = []
-    for token in _TOKEN.findall(conteudo):
+    for token in tokens_no(conteudo):
         achados.extend(achados_no_valor(token))
     return achados
+
+
+def _folhas(valor: object) -> list[str]:
+    """Os valores ESCALARES de um campo do fato, como texto.
+
+    Campo do fato e escalar ou mapa (`discoverability`) ou lista
+    (`projections`). Descer ate a folha e o que faz a guarda alcancar
+    `discoverability.requires`, que e a frase que literalmente diz ao
+    facilitador o que ha para descobrir.
+
+    `bool` fica de fora por ser `int` em Python e por nao existir campo booleano
+    em `$defs/fact` — incluir produziria a busca pelos literais `True`/`False`,
+    que casam palavra comum sem nomear nada.
+    """
+    if isinstance(valor, str):
+        return [valor] if valor else []
+    if isinstance(valor, bool):
+        return []
+    if isinstance(valor, (int, float)):
+        return [str(valor)]
+    if isinstance(valor, Mapping):
+        return [f for v in valor.values() for f in _folhas(v)]
+    if isinstance(valor, Sequence):
+        return [f for v in valor for f in _folhas(v)]
+    return []
+
+
+def _ocorre(agulha: str, conteudo: str) -> bool:
+    """A agulha aparece no conteudo como UNIDADE, e nao como pedaco de palavra.
+
+    POR QUE FRONTEIRA E NAO TOKEN. A tokenizacao de `_TOKEN` serve ao predicado
+    de IOC, que precisa de um candidato a host por vez; aqui o alvo e outro —
+    `{"fact_class": "initial_access"}` produz o token `initial_access}`, com a
+    chave colada, e a igualdade de token nao casaria. A fronteira `[\\w.-]` das
+    duas pontas atravessa a pontuacao de QUALQUER formato de fio (`=` do
+    syslog, `"` e `:` do JSON, `|` do CEF) sem casar `GT-A-0142` para `GT-A-014`.
+
+    E ela e o que permite buscar valor com ESPACO — a frase de
+    `discoverability.requires` — com a mesma regra, em vez de uma segunda.
+    """
+    return re.search(rf"(?<![\w.-]){re.escape(agulha)}(?![\w.-])", conteudo) is not None
 
 
 class GeradorAusente(Exception):
@@ -137,6 +176,23 @@ class FonteSemFormato(Exception):
 
 class EntidadeInventada(Exception):
     """A saida do gerador traz entidade que o ground truth nao fixou — item 1."""
+
+
+class VereditoDoGabarito(Exception):
+    """A saida do gerador expressa campo que so o gabarito sabe — `00` §3.
+
+    B1 DA SEGUNDA AUDITORIA, e o defeito que ele nomeia e de CAMADA, nao de
+    seguranca: `vpn.log`, `identity_audit.jsonl` e o CEF saiam com
+    `credential=compromised`. Nenhum concentrador de VPN do mundo registra que
+    uma credencial esta comprometida — isso e ATRIBUICAO, e atribuicao e o que o
+    time azul constroi. A segunda linha do arquivo entregava pronta a conclusao
+    que o proprio fato manda correlacionar.
+
+    **A guarda nao le uma lista escrita aqui.** Ela consome a particao de
+    `contracts/evidence.schema.yaml` §`x-aurora-registry.fact_fields`, e o
+    comentario de la explica por que a particao e de tres listas: uma lista de
+    proibidos envelhece calada, porque campo novo no fato nasceria permitido.
+    """
 
 
 class IOCEncontrado(Exception):
@@ -192,17 +248,49 @@ def _janela(fatos: Sequence[Mapping]) -> str:
     return f"{primeiro} → {ultimo}"
 
 
+def _do_gabarito_no_fato(
+    fato: Mapping, projetaveis: frozenset[str], fontes: frozenset[str]
+) -> list[tuple[str, str]]:
+    """`(campo, agulha)` do que este fato tem e que NAO pode ir para o fio.
+
+    O CAMPO VIAJA JUNTO COM A AGULHA porque e ele que a recusa precisa nomear:
+    quem le *"expressa 'compromised'"* procura uma string no gerador; quem le
+    *"expressa `credential_state`"* sabe qual campo do fato nao devia estar
+    sendo lido. Os dois na mensagem, e a mensagem aponta o conserto.
+
+    O NOME entra junto com o valor porque a fonte JSONL escreve a chave: um
+    registro com `"credential_state"` e `""` nao seria pego pelo valor, e a
+    chave ja afirma que o campo foi registrado — que e o que o time azul le.
+
+    A EXCLUSAO DECLARADA: valor que e NOME DE FONTE do registro do contrato nao
+    entra. `projections` carrega exatamente esses nomes (`vpn`, `email`, `cef`),
+    e eles sao vocabulario da camada de projecao, nao fato sobre o mundo —
+    procura-los em texto livre acusaria a palavra "email" no corpo de um e-mail.
+    O que `projections` de fato revela — em quais OUTRAS fontes o fato aparece —
+    nao e expressavel dentro de um arquivo so.
+    """
+    agulhas: list[tuple[str, str]] = []
+    for campo, valor in fato.items():
+        if campo in projetaveis:
+            continue
+        agulhas.append((campo, campo))
+        agulhas.extend((campo, f) for f in _folhas(valor) if f not in fontes)
+    return agulhas
+
+
 def projetar(
     ground_truth: Mapping,
     *,
     geradores: Mapping[str, Gerador],
     formatos: Mapping[str, str],
     banner: str,
+    campos_do_fato: Mapping[str, frozenset[str]],
 ) -> list[FonteProjetada]:
     """Projeta o ground truth nas fontes que ele declara.
 
-    `formatos` vem de `contract_source.formatos_por_fonte` e `banner` de
-    `contract_source.restricoes_de_evidencia` — os dois LIDOS do contrato, nunca
+    `formatos` vem de `contract_source.formatos_por_fonte`, `banner` de
+    `contract_source.restricoes_de_evidencia` e `campos_do_fato` de
+    `contract_source.campos_do_fato` — os tres LIDOS do contrato, nunca
     reescritos aqui (a P1-13).
 
     A ordem das fontes e alfabetica, e a razao e determinismo: iteracao de
@@ -215,6 +303,8 @@ def projetar(
 
     elenco = elenco_de(ground_truth)
     ordem_do_documento = list(ground_truth.get("facts") or ())
+    projetaveis = campos_do_fato["projectable"]
+    nomes_de_fonte = frozenset(formatos)
 
     faltando = sorted(set(cobertura) - set(geradores))
     if faltando:
@@ -239,12 +329,46 @@ def projetar(
         corpo = geradores[fonte](da_fonte)
         conteudo = _banner.linha(formato, banner) + "\n" + corpo
 
+        # O VEREDITO DO GABARITO — B1 da segunda auditoria. Vem PRIMEIRO das
+        # tres guardas, e a ordem e a da gravidade: endereco inventado e fonte
+        # incoerente, IOC e norma de seguranca, e isto aqui e o exercicio
+        # perdendo o sentido — a evidencia passa a afirmar a resposta, e toda
+        # medicao de deteccao sobre ela vira medicao de leitura de rotulo.
+        for fato in da_fonte:
+            for campo, agulha in _do_gabarito_no_fato(
+                fato, projetaveis, nomes_de_fonte
+            ):
+                if _ocorre(agulha, conteudo):
+                    raise VereditoDoGabarito(
+                        f"a projecao de {fonte!r} expressa {agulha!r}, que e o "
+                        f"campo de gabarito `{campo}` do fato "
+                        f"{fato.get('fact_id')!r}. "
+                        f"`00` §3 separa ground truth de evidencia observavel: "
+                        f"so os campos de "
+                        f"`x-aurora-registry.fact_fields.projectable` vao para "
+                        f"o fio, porque so eles um sensor registraria"
+                    )
+
         inventadas = sorted(enderecos_no(conteudo) - elenco.enderecos)
         if inventadas:
             raise EntidadeInventada(
                 f"a projecao de {fonte!r} traz endereco que o ground truth nao "
                 f"fixou: {', '.join(inventadas)}. `08` §2 — a projecao consome o "
                 f"elenco do ground truth, e nao inventa entidade"
+            )
+
+        # A SEGUNDA FORMA FECHADA — M2 da segunda auditoria. Endereco e hostname
+        # sao as duas entidades sobre as quais se pode afirmar AUSENCIA de
+        # invencao; a mensagem separa as duas porque quem escreve o gerador
+        # procura em lugares diferentes.
+        hosts = hosts_inventados(conteudo, elenco)
+        if hosts:
+            raise EntidadeInventada(
+                f"a projecao de {fonte!r} traz host cujo rotulo o ground truth "
+                f"nao fixou: {', '.join(hosts)}. `08` §2 — o rotulo tem de vir "
+                f"do elenco (o sufixo reservado de `05` §2 nao conta), e um "
+                f"literal escrito no gerador se reproduz identico na "
+                f"reprojecao, entao o `evidence verify` NAO o pegaria"
             )
 
         # O item 5, com o predicado que o CI ja usa. Vem DEPOIS da guarda de

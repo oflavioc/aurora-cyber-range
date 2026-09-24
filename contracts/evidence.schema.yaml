@@ -172,6 +172,72 @@ x-aurora-registry:
     cef: cef_syslog
     precursor: jsonl
 
+  # -------------------------------------------------------------------------
+  # OS CAMPOS DO FATO, CLASSIFICADOS — 00 secao 3 e 05 secao 6. B1 da segunda
+  # auditoria da Fase 9.
+  #
+  # O QUE ESTE REGISTRO DECIDE
+  # ---------------------------
+  # `ground_truth.yaml` guarda UMA realidade, e ela mistura duas naturezas:
+  #
+  #   o que um SENSOR registraria      hora, conta, verbo, origem, destino, MFA
+  #   o que so o GABARITO sabe         a classe na kill chain, o veredito sobre
+  #                                    a credencial, a dificuldade de descobrir
+  #
+  # A segunda nao e "evidencia mais sensivel": ela e OUTRA CAMADA de 00 secao 3.
+  # Nenhum concentrador de VPN do mundo escreve `credential=compromised` — isso
+  # e ATRIBUICAO, e atribuicao e o achado que o exercicio mede. Projeta-la faz a
+  # evidencia observavel AFIRMAR ground truth, e 00 secao 3 diz que essa
+  # confusao invalida o AAR.
+  #
+  # O DEFEITO QUE ISTO FECHA: `vpn.log`, `identity_audit.jsonl` e o CEF saiam
+  # com `credential_state`, e a segunda linha do `vpn.log` entregava pronta a
+  # conclusao que `discoverability.requires` manda correlacionar. Nenhum teste
+  # guardava — o `precursor.py` ja EXCLUIA o campo, em comentario, e a exclusao
+  # dependia de tres autores lembrarem dela.
+  #
+  # POR QUE AQUI, E POR QUE AS TRES LISTAS
+  # ---------------------------------------
+  # Uma lista de proibidos envelhece calada: campo novo no fato nasce permitido.
+  # As tres juntas sao uma PARTICAO, e `scripts/check_contract_examples.py`
+  # cruza a uniao delas com as `properties` de `$defs/fact` em
+  # `ground_truth.schema.yaml` — campo novo la reprova aqui ate ser
+  # classificado. E a mesma forma com que as faixas de IP deixaram de divergir
+  # do verificador: o alinhamento e verificado, nao afirmado.
+  #
+  # `structural` e a terceira porque `fact_id` e `projections` nao sao nem uma
+  # nem outra: sao a AMARRACAO — quem e o fato e para onde ele projeta. Eles
+  # tambem nao vao para o fio (05 secao 6 para o `fact_id`), e por isso entram
+  # na guarda junto com `ground_truth_only`; o que os separa e a razao, e razao
+  # diferente merece nome diferente.
+  fact_fields:
+
+    # O que um sensor registraria. Sao estes que um gerador pode escrever.
+    projectable:
+      - exercise_time
+      - actor
+      - action
+      - source_ip
+      - dest
+      - mfa
+      - records_affected
+
+    # Atribuicao e facilitacao. Ficam no gabarito.
+    #
+    # `fact_class` esta aqui e a inclusao e decidida: `initial_access` e
+    # `exfiltration` sao a classificacao do incidente na kill chain, que e
+    # leitura do gabarito. Ele continua sendo a CHAVE que escolhe a assinatura
+    # de telemetria (02 secao 10) — o que a guarda proibe e ele ir para o fio.
+    ground_truth_only:
+      - fact_class
+      - credential_state
+      - discoverability
+
+    # Amarracao. Nao vao para o fio pela mesma guarda, por outra razao.
+    structural:
+      - fact_id
+      - projections
+
 # ---------------------------------------------------------------------------
 # RESTRICOES DE SEGURANCA — 05 secoes 2, 3 e 4. Nao admitem excecao.
 #
@@ -256,13 +322,17 @@ x-aurora-security-constraints:
 # ---------------------------------------------------------------------------
 x-aurora-linter-rules:
   - regra: 'cobertura de projecao: todo fato com `projections` tem os arquivos correspondentes (08 secao 7)'
-    mecanismo: 'range-core/evidence/build.py::conferir (declarados x reprojetados)'
+    mecanismo: 'range-core/evidence/build.py::conferir — arquivos declarados x reprojetados, E `projects_facts` de cada fonte (H2 da 2a auditoria: ate ela so os nomes de arquivo eram comparados)'
   - regra: '`format` do arquivo deve casar com o formato declarado para aquela fonte em x-aurora-registry.source_formats'
-    mecanismo: 'range-core/evidence/projecao.py::projetar (FonteSemFormato) + o enum `evidence_format` deste contrato'
+    mecanismo: 'range-core/evidence/projecao.py::projetar (FonteSemFormato) na producao + range-core/evidence/build.py::conferir na conferencia + o enum `evidence_format` deste contrato'
   - regra: '`sha256` confere com o conteudo do arquivo'
     mecanismo: 'range-core/evidence/build.py::conferir, e `range-cli evidence verify` no CI'
   - regra: 'banner presente na primeira linha de todo artefato gerado (05 secao 4)'
     mecanismo: 'range-core/evidence/banner.py (producao) + scripts/check_banner_de_simulacao.py (varredura do evidence/ versionado)'
+  - regra: 'nenhuma fonte projetada expressa campo de gabarito (00 secao 3, 05 secao 6): so os de x-aurora-registry.fact_fields.projectable vao para o fio'
+    mecanismo: 'range-core/evidence/projecao.py::projetar (VereditoDoGabarito) + scripts/check_contract_examples.py (a particao cobre $defs/fact)'
+  - regra: 'a linha CEF do arquivo e o payload de telemetry_emitted sao a MESMA projecao (08 secao 2)'
+    mecanismo: 'domains/academus/evidence_generators/cef.py sobre range_core.telemetry.forwarder::programar + range_core.telemetry.cef::linha'
 
 # ---------------------------------------------------------------------------
 # AUTORIDADE, COMO DADO E NAO COMO COMENTARIO.

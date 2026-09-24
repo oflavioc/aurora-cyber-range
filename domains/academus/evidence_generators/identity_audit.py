@@ -28,13 +28,18 @@ __all__ = ["gerar", "CAMPOS"]
 #: que carregasse tudo faria as outras tres redundantes, e `08` §1 perderia o
 #: que a torna util — fontes diferentes mostram ANGULOS diferentes do mesmo
 #: fato, e o exercicio e correlaciona-las.
+#:
+#: `credential_state` ESTAVA AQUI e saiu no B1 da segunda auditoria. Uma trilha
+#: de identidade registra a sessao e o escopo; ela nao sabe, e nao teria como
+#: saber, que a credencial esta comprometida. Esse e o veredito do gabarito, e
+#: ele e o achado do exercicio — ver o cabecalho de `vpn.py`, e a recusa em
+#: `projecao.VereditoDoGabarito`, que agora impede a volta.
 CAMPOS = (
     "exercise_time",
     "actor",
     "action",
     "source_ip",
     "dest",
-    "credential_state",
     "mfa",
 )
 

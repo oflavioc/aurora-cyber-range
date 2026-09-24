@@ -165,6 +165,43 @@ PROBES = [
         "  - reason: 'classe derived nao existe: a ontologia de evidencia e binaria'",
         "sem `rejected_by`",
     ),
+    # -----------------------------------------------------------------------
+    # OS QUATRO EIXOS DA PARTICAO DOS CAMPOS DO FATO — B1 da 2a auditoria.
+    #
+    # A particao decide o que pode ir para a evidencia que o time azul le. As
+    # quatro direcoes cobrem as quatro formas de ela deixar de valer: campo
+    # novo sem classe, campo em duas classes, classe orfa, e a guarda
+    # desligada por esvaziamento.
+    # -----------------------------------------------------------------------
+    (
+        "campo do fato sem classe na particao",
+        "evidence.schema.yaml",
+        "      - credential_state\n",
+        "",
+        "sem classe em `fact_fields`",
+    ),
+    (
+        "campo do fato classificado em DUAS classes",
+        "evidence.schema.yaml",
+        "    structural:\n      - fact_id\n",
+        "    structural:\n      - fact_id\n      - mfa\n",
+        "classifica o mesmo campo em duas classes",
+    ),
+    (
+        "particao classificando campo que o fato nao tem",
+        "evidence.schema.yaml",
+        "    structural:\n      - fact_id\n",
+        "    structural:\n      - campo_que_nao_existe\n      - fact_id\n",
+        "classifica campo que `$defs/fact` nao tem",
+    ),
+    (
+        "a classe de gabarito esvaziada desliga a guarda",
+        "evidence.schema.yaml",
+        "    ground_truth_only:\n      - fact_class\n      - credential_state\n"
+        "      - discoverability\n",
+        "    ground_truth_only: []\n",
+        "`fact_fields.ground_truth_only` vazia",
+    ),
 ]
 
 

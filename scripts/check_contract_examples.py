@@ -274,6 +274,91 @@ def main(argv: list[str] | None = None) -> int:
                 "cruzamento de faixas acima passaria vacuamente"
             )
 
+        # ------------------------------------------------------------------
+        # A PARTICAO DOS CAMPOS DO FATO COBRE `$defs/fact` — B1 DA 2a AUDITORIA.
+        #
+        # `x-aurora-registry.fact_fields` classifica cada campo do fato em
+        # `projectable` / `ground_truth_only` / `structural`, e o motor de
+        # projecao recusa a fonte que expresse o que nao for projetavel.
+        #
+        # SEM ESTE CRUZAMENTO, A PARTICAO ENVELHECE CALADA. Campo novo em
+        # `$defs/fact` nasceria sem classe, e o motor o trataria como... o que?
+        # A implementacao trata o nao-projetavel como gabarito, que e o default
+        # SEGURO — mas um default seguro que ninguem confere vira surpresa na
+        # outra direcao: o autor acrescenta `geo_country` ao fato, espera ve-lo
+        # no `vpn.log`, e o build recusa sem que nada tenha dito que faltava
+        # classificar.
+        #
+        # Era exatamente a forma do defeito original: `credential_state` estava
+        # no contrato de ground truth desde a Fase 1, e a decisao sobre o que
+        # fazer com ele morava em COMENTARIO, em dois modulos, com tres outros
+        # ignorando-a.
+        #
+        # O CRUZAMENTO E DE CONJUNTO, e aqui ele pode ser: as duas pontas falam
+        # de nomes de propriedade do MESMO documento. Nao ha predicado a
+        # respeitar, como havia nas faixas de IP.
+        # ------------------------------------------------------------------
+        gt = contratos.get("ground_truth") or {}
+        do_contrato = set(
+            ((gt.get("$defs") or {}).get("fact") or {}).get("properties") or {}
+        )
+        classes = (ev.get("x-aurora-registry") or {}).get("fact_fields") or {}
+        if not do_contrato:
+            falhas.append(
+                "contracts/ground_truth.schema.yaml sem `$defs/fact.properties`: "
+                "sem o universo, a particao de `fact_fields` nao cruza com nada"
+            )
+        elif not classes:
+            falhas.append(
+                "contracts/evidence.schema.yaml sem "
+                "`x-aurora-registry.fact_fields`: o motor de projecao nao teria "
+                "como distinguir campo de sensor de campo de gabarito"
+            )
+        else:
+            declarados: list[str] = []
+            for nome in ("projectable", "ground_truth_only", "structural"):
+                declarados.extend(classes.get(nome) or ())
+
+            repetidos = sorted(
+                {c for c in declarados if declarados.count(c) > 1}
+            )
+            if repetidos:
+                falhas.append(
+                    f"`fact_fields` classifica o mesmo campo em duas classes: "
+                    f"{repetidos}.\n"
+                    "    A particao decide o que vai para o fio; campo em duas "
+                    "classes torna a resposta dependente da ordem de leitura."
+                )
+
+            sem_classe = sorted(do_contrato - set(declarados))
+            if sem_classe:
+                falhas.append(
+                    f"campos de `$defs/fact` sem classe em `fact_fields`: "
+                    f"{sem_classe}.\n"
+                    "    Decida se um SENSOR os registraria (`projectable`), se "
+                    "sao atribuicao ou facilitacao (`ground_truth_only`), ou se "
+                    "sao amarracao (`structural`). `00` §3 — evidencia "
+                    "observavel nao afirma ground truth."
+                )
+
+            inexistentes = sorted(set(declarados) - do_contrato)
+            if inexistentes:
+                falhas.append(
+                    f"`fact_fields` classifica campo que `$defs/fact` nao tem: "
+                    f"{inexistentes}.\n"
+                    "    Classe orfa e regra que nunca dispara — o inverso do "
+                    "problema, e igualmente invisivel."
+                )
+
+            # ANTI-VACUIDADE: uma particao que pusesse TUDO em `projectable`
+            # satisfaria os tres cruzamentos acima e desligaria a guarda.
+            if not (classes.get("ground_truth_only") or ()):
+                falhas.append(
+                    "`fact_fields.ground_truth_only` vazia: a guarda de "
+                    "`VereditoDoGabarito` nao teria o que recusar, e os "
+                    "cruzamentos acima passariam sem afirmar nada"
+                )
+
     flags_schema = contratos.get("state_flags")
     if flags_schema is not None:
         validador_flags = Draft202012Validator(flags_schema, registry=registry)

@@ -14,6 +14,19 @@ Nao ha `suspicious=true` nem `anomaly_score`: `08` §2 poe a dificuldade em
 aqui entregaria a resposta e, pior, misturaria as camadas de `00` §3 — evidencia
 observavel virando avaliacao.
 
+E ESTA LINHA JA ESCREVEU UM. Ate o B1 da segunda auditoria havia um
+`credential={credential_state}` aqui, e ele e `compromised` no fato real: a
+segunda linha do arquivo entregava a conclusao que o proprio fato manda
+correlacionar (*"horario fora de expediente com ausencia de MFA"*). O nome era
+outro, o efeito era o mesmo que `suspicious=true` — **nenhum concentrador de VPN
+do mundo sabe que uma credencial foi comprometida**, porque isso e atribuicao, e
+atribuicao e o achado.
+
+O que ficou e o observavel: a conta, a origem, o verbo e o MFA ausente. O
+julgamento e do time azul, e agora e o motor que o garante — a particao de
+`x-aurora-registry.fact_fields` decide o que pode ir para o fio, e `projetar`
+recusa o resto.
+
 O INSTANTE E `exercise_time`, E NAO UM RELOGIO DE PAREDE
 =========================================================
 O log carrega o tempo do EXERCICIO (`T-17d 02:14`), que e o que o fato declara.
@@ -46,7 +59,6 @@ def gerar(fatos: Sequence[Mapping]) -> str:
             f"src={fato.get('source_ip', '-')}",
             f"action={fato.get('action', '-')}",
             f"mfa={fato.get('mfa', '-')}",
-            f"credential={fato.get('credential_state', '-')}",
         ]
         alvo = fato.get("dest", "-")
         linhas.append(

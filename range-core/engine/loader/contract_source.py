@@ -334,3 +334,42 @@ def restricoes_de_evidencia(contratos: dict[str, dict]) -> dict:
             "faixas, que e a copia que a P1-13 existe para nao multiplicar"
         )
     return dict(restricoes)
+
+
+#: As tres classes de `x-aurora-registry.fact_fields`, e QUAL delas pode ir para
+#: o fio. Uma so — e a assimetria e o ponto: projetavel e a excecao declarada,
+#: e tudo o mais no fato e gabarito ate que alguem o classifique.
+_CLASSES_DE_CAMPO = ("projectable", "ground_truth_only", "structural")
+
+
+def campos_do_fato(contratos: dict[str, dict]) -> dict[str, frozenset[str]]:
+    """A particao dos campos do fato, LIDA do contrato — B1 da 2a auditoria.
+
+    `contracts/evidence.schema.yaml` §`x-aurora-registry.fact_fields` classifica
+    cada campo de `$defs/fact` em **projetavel**, **so-gabarito** ou
+    **estrutural**, e o comentario de la diz por que sao tres listas e nao uma
+    lista de proibidos.
+
+    QUEM CONSOME: `range-core/evidence/projecao.py`, que recusa a fonte cuja
+    saida expresse valor de campo nao projetavel; e
+    `scripts/check_contract_examples.py`, que cruza a uniao das tres com as
+    `properties` do contrato de ground truth — campo novo la fica sem classe
+    aqui, e o verificador reprova ate alguem decidir de que natureza ele e.
+
+    MESMA FORMA DE `formatos_por_fonte`: recebe os contratos ja parseados, faz a
+    busca, nao toca disco. E pela mesma razao — uma copia da particao no motor
+    faria o gerador seguir uma lista e o verificador julgar por outra.
+    """
+    evidence = contratos.get("evidence") or {}
+    registro = ((evidence.get("x-aurora-registry") or {}).get("fact_fields")) or {}
+
+    faltando = [classe for classe in _CLASSES_DE_CAMPO if not registro.get(classe)]
+    if faltando:
+        raise ContractSourceError(
+            "contracts/evidence.schema.yaml sem "
+            f"`x-aurora-registry.fact_fields.{'`, `'.join(faltando)}`: sem a "
+            "particao o motor de projecao nao teria como distinguir campo de "
+            "sensor de campo de gabarito, e `credential_state` voltaria para o "
+            "`vpn.log` — B1 da segunda auditoria da Fase 9"
+        )
+    return {classe: frozenset(registro[classe]) for classe in _CLASSES_DE_CAMPO}
