@@ -266,6 +266,27 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "secao — ele guarda imports do core. Quem a executa e o proprio motor, "
         "via `dados_sinteticos`.)",
     ),
+    "evidence/elenco.py": (
+        frozenset({"dados_sinteticos"}),
+        "O MESMO predicado, agora para a segunda forma fechada do oraculo de "
+        "invencao: `hostnames_no` e `hosts_inventados` perguntam 'isto tem "
+        "forma de host?' e 'este sufixo e reservado?', e as duas ja tem dono. "
+        "M2 da segunda auditoria da Fase 9 — o oraculo afirmava ausencia de "
+        "invencao so para endereco IP, e `email.py` tinha rotulo de host "
+        "escrito a mao passando exatamente onde ele nao olhava. Um "
+        "reconhecedor proprio aqui seria a segunda resposta para a mesma "
+        "pergunta, e a divergencia apareceria como gerador aprovado pelo motor "
+        "e reprovado pelo CI",
+    ),
+    "telemetry/emissao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao das outras cinco entradas de `contracts.generated.events`: "
+        "o emissor de telemetria grava `telemetry_emitted`, e literal de "
+        "catalogo dentro do core violaria o invariante 2. E EMISSAO — ele "
+        "recebe o store e chama `append` —, e por isso o modulo e so o "
+        "envelope: quando emitir e do `Replay`, e o payload vem pronto de "
+        "`programar`",
+    ),
 }
 
 

@@ -357,6 +357,30 @@ class LoadedPack:
     #: valendo, e `check_api_surface.py` continua sendo quem o cobra por rota.
     verification_predicates: Mapping[str, Mapping] = field(default_factory=dict)
 
+    #: A telemetria que este gabarito produz, **ja projetada** — `08` §2 e §5.
+    #:
+    #: M4 DA SEGUNDA AUDITORIA DA FASE 9. `Replay` existia, `programar` existia,
+    #: e nenhum codigo de produto emitia `telemetry_emitted`: o unico lugar que
+    #: montava payload de telemetria era o script de medicao do exercicio de
+    #: 4 h. O item 7 media a reconstrucao sobre um volume que o range nao
+    #: produzia.
+    #:
+    #: **E `Programado`, e nao os fatos.** A distincao e a mesma de
+    #: `verification_predicates` logo acima, e aqui ela cai do lado oposto:
+    #: aqueles SAO gabarito e entram porque o laco continuo precisa deles; isto
+    #: aqui ja e evidencia observavel — a projecao foi feita no loader, com o
+    #: catalogo do adapter, e o que o engine recebe e o payload de `02` §10. O
+    #: `fact_id` viaja fora do payload, no `Programado`, e nunca e publicado
+    #: (`05` §6).
+    #:
+    #: Por o gabarito inteiro em `LoadedPack` para o engine projetar seria
+    #: entregar os fatos a uma camada que nao precisa deles.
+    #:
+    #: VAZIA e caso normal: adapter sem catalogo de telemetria, ou pack sem
+    #: `ground_truth.yaml`. Quem exige a composicao completa e `processo.criar`,
+    #: que e a de producao — a mesma divisao que `laco` ja usa.
+    telemetria: tuple = ()
+
     def by_id(self, inject_id: str) -> Inject | None:
         for inject in self.injects:
             if inject.id == inject_id:
@@ -378,11 +402,32 @@ class LoadedPack:
         }
 
 
+def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
+    """Os eventos de telemetria que este gabarito produz — `08` §2, item 4.
+
+    A PROJECAO ACONTECE AQUI, E NAO NO ENGINE, e e a mesma razao pela qual o
+    `cef.log` nao tem tabela propria: **um produtor so**. `programar` e o mesmo
+    que o gerador de CEF usa, entao o que vai para o event store e o que esta no
+    arquivo — nao duas implementacoes coerentes, e sim um dicionario.
+
+    `catalogo` e `None` em teste e em demo, e a tolerancia e deliberada: o
+    catalogo e do ADAPTER (`02` §10), e o loader nao sabe qual adapter e. Quem
+    exige a composicao completa e `processo.criar`.
+    """
+    if catalogo is None or not ground_truth:
+        return ()
+
+    from range_core.telemetry.forwarder import programar
+
+    return programar(ground_truth.get("facts") or (), catalogo=catalogo)
+
+
 def load_pack(
     pack_dir: Path | str,
     *,
     contracts: Mapping[str, Mapping],
     adapter_flags: AdapterFlags,
+    adapter_telemetry=None,
 ) -> LoadedPack:
     """Carrega, valida e devolve o pack. Levanta `PackError` em qualquer recusa.
 
@@ -436,6 +481,9 @@ def load_pack(
             "verification_predicates"
         )
         or {},
+        telemetria=_telemetria_do_pack(
+            documentos.get("ground_truth.yaml"), adapter_telemetry
+        ),
         declarations=Declarations(
             pack_id=manifest["pack_id"],
             schema_version=manifest["schema_version"],

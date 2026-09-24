@@ -50,6 +50,7 @@ from contracts.generated.events import (
     EXERCISE_STARTED,
     INJECT_FIRED,
     ROLLBACK_PERFORMED,
+    TELEMETRY_EMITTED,
 )
 from range_core.clock.exercise_clock import ExerciseClock, label_seconds
 from range_core.engine.inject_engine import (
@@ -791,6 +792,152 @@ class MarcadoresDeStartNoPayload(_ComEngine):
         self.assertEqual(len(ruido), 1)
         evento = self.engine.fire(ruido[0].id)
         self.assertFalse(evento.payload["observable_impact"])
+
+
+# ---------------------------------------------------------------------------
+# M4 DA SEGUNDA AUDITORIA — `telemetry_emitted` saindo de codigo de PRODUTO.
+# ---------------------------------------------------------------------------
+
+
+class OExercicioEMITEATelemetria(ValidacaoDeEnvelope, unittest.TestCase):
+    """Item 4, segunda metade: o evento vai para o event store de verdade.
+
+    O QUE FALTAVA, E COMO ISSO PASSOU. `programar` produzia o payload, `Replay`
+    decidia a hora, e **nenhum codigo de produto escrevia**: em toda a arvore,
+    `Replay.emissor` recebia `list.append`, e o unico lugar que punha
+    `telemetry_emitted` num store era `scripts/medida_do_exercicio_4h.py` —
+    que monta o payload a mao.
+
+    O efeito era pior que "falta codigo". O item 7 mede a reconstrucao sobre o
+    volume de telemetria de um exercicio de 4 h, e esse volume **nao era
+    produzido pelo range**; e o binding de contrato por `event_type`, escrito
+    na primeira rodada, nao tinha emissor real que o exercitasse.
+
+    O CATALOGO ENTRA PELO LOADER, e e por isso que esta classe carrega o pack
+    de novo: `PACK_CARREGADO`, la em cima, e a composicao SEM adapter de
+    telemetria — que continua legitima (teste e demo), e e a que prova que a
+    ausencia nao quebra nada.
+    """
+
+    def setUp(self) -> None:
+        from range_core.telemetry.catalogo import carregar as carregar_catalogo
+
+        catalogo = carregar_catalogo(
+            REPO_ROOT / "domains" / "academus" / "telemetry_events.yaml",
+            contratos=CONTRATOS,
+        )
+        self.pack = load_pack(
+            PACK,
+            contracts=CONTRATOS,
+            adapter_flags=FLAGS,
+            adapter_telemetry=catalogo,
+        )
+        self.parede = RelogioDeParede()
+        self.clock = ExerciseClock(T_ZERO, now=self.parede)
+        self.store = InMemoryEventStore(self.clock)
+        self.engine = InjectEngine(
+            pack=self.pack,
+            clock=self.clock,
+            store=self.store,
+            facilitator=Facilitator(user="facilitador-teste", role="control"),
+            rollback_reasons=MOTIVOS,
+        )
+
+    def _telemetria(self):
+        return [
+            e for e in self.store.read_all() if e.event_type == TELEMETRY_EMITTED
+        ]
+
+    def test_o_pack_carrega_a_telemetria_JA_PROJETADA(self):
+        """O que `LoadedPack` guarda e `Programado`, e nao os fatos.
+
+        A distincao e a fronteira: `verification_predicates` SAO gabarito e
+        entram porque o laco continuo precisa deles; isto aqui ja e evidencia
+        observavel, projetada no loader pelo mesmo `programar` que o `cef.log`
+        usa. O engine nunca ve um fato.
+        """
+        self.assertTrue(self.pack.telemetria)
+        for programado in self.pack.telemetria:
+            self.assertIn("signature", programado.payload)
+
+    def test_o_START_emite_a_telemetria_pre_posicionada(self):
+        """`08` §5 — pre-posicionada quer dizer *ja no SIEM quando o exercicio
+        comeca*. Ela vence em `t=0`, e o primeiro tick a emite."""
+        self.assertEqual(self._telemetria(), [])
+        self.engine.start()
+        self.assertEqual(len(self._telemetria()), len(self.pack.telemetria))
+
+    def test_a_telemetria_vem_DEPOIS_do_exercise_started(self):
+        """O event store e append-only e a ordem de chegada e a da timeline do
+        AAR. Telemetria antes do inicio seria sinal de um exercicio que ainda
+        nao existia."""
+        self.engine.start()
+        tipos = [e.event_type for e in self.store.read_all()]
+        self.assertLess(tipos.index(EXERCISE_STARTED), tipos.index(TELEMETRY_EMITTED))
+
+    def test_o_envelope_e_de_evidencia_OBSERVAVEL_e_sem_ator(self):
+        """`09` §4.1 poe `telemetry_emitted` em `observable_evidence` com
+        `effect_class: machine`.
+
+        `actor_id` e `persona` AUSENTES e o que a camada significa: telemetria
+        nao e ato de participante. Preenche-los faria o computador de metrica
+        enxergar acao onde houve sinal de maquina.
+        """
+        self.engine.start()
+        for evento in self._telemetria():
+            self.assertEqual(evento.truth_layer, "observable_evidence")
+            self.assertIsNone(evento.actor_id)
+            self.assertIsNone(evento.persona)
+            self.assertEqual(evento.correlation.scenario_id, self.pack.pack_id)
+
+    def test_o_evento_emitido_VALIDA_contra_o_contrato(self):
+        """**O binding por `event_type` ganhando emissor real.**
+
+        `$defs/telemetry_emitted_payload` nasceu declarado e nao ligado, e o
+        binding entrou na PRIMEIRA auditoria desta fase. Ate agora nenhum
+        produto o exercitava: quem chamava `erros_de_payload` era teste.
+
+        Aqui o payload atravessa o envelope inteiro, pelo mesmo validador que
+        todo outro produtor usa — `additionalProperties: false` no payload passa
+        a ser impedimento, e nao regra escrita.
+        """
+        self.engine.start()
+        self.assertConformeAoContrato(
+            self.store.read_all(), esperados={TELEMETRY_EMITTED}
+        )
+
+    def test_o_payload_NAO_carrega_fact_id(self):
+        """`05` §6 — o participante ve este evento no SIEM do exercicio, e o
+        `fact_id` ali entrega o gabarito. Duas guardas: `programar` o deixa
+        fora por construcao, e o contrato o torna inexpressavel."""
+        self.engine.start()
+        for evento in self._telemetria():
+            self.assertNotIn("fact_id", evento.payload)
+
+    def test_o_tick_NAO_REEMITE(self):
+        """Item 6, propriedade (3). Duplicata no event store e sinal para a
+        reconstrucao: ela nao sabe distinguir telemetria repetida de telemetria
+        de verdade, e o item 7 mede reconstrucao sobre esse volume."""
+        self.engine.start()
+        antes = len(self._telemetria())
+        self.assertEqual(self.engine.tick_de_telemetria(), 0)
+        self.assertEqual(len(self._telemetria()), antes)
+
+    def test_pack_SEM_catalogo_nao_emite_e_nao_quebra(self):
+        """O par negativo da composicao. Teste e demo montam sem adapter de
+        telemetria, e isso tem de continuar valendo — quem exige a composicao
+        completa e `processo.criar`, que e a de producao."""
+        engine = InjectEngine(
+            pack=PACK_CARREGADO,
+            clock=self.clock,
+            store=self.store,
+            facilitator=Facilitator(user="facilitador-teste", role="control"),
+            rollback_reasons=MOTIVOS,
+        )
+        self.assertEqual(PACK_CARREGADO.telemetria, ())
+        engine.start()
+        self.assertEqual(self._telemetria(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

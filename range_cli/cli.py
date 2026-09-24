@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 import yaml
@@ -83,6 +84,15 @@ GM_NOTES = "GM_NOTES.md"
 #: `08` §7 — `scenarios/<domain>/<pack_id>/evidence/` com o `MANIFEST.json`.
 EVIDENCE = "evidence"
 MANIFESTO = "MANIFEST.json"
+
+#: O documento que carrega `evidence_release` — `04` §5 e `08` §5.
+INJECTS = "injects.yaml"
+
+#: O modo de entrega que um `evidence_release` produz. O valor e do enum
+#: `delivery_mode` de `contracts/evidence.schema.yaml`, e o schema recusa
+#: qualquer outro — escrever errado aqui falharia na validacao do manifesto,
+#: que e o comportamento certo mas a mensagem erraria o endereco.
+LIBERADO_POR_INJECT = "released_by_inject"
 
 
 class ComandoRecusado(Exception):
@@ -403,6 +413,7 @@ def _contexto_de_evidencia(contratos):
         "geradores": geradores(contratos),
         "formatos": contract_source.formatos_por_fonte(contratos),
         "banner": contratos["evidence"]["x-aurora-security-constraints"]["banner_text"],
+        "campos_do_fato": contract_source.campos_do_fato(contratos),
     }
 
 
@@ -418,18 +429,116 @@ def _le_ground_truth(pack_dir: Path) -> bytes:
     return alvo.read_bytes()
 
 
+def _fontes_projetadas(ground_truth_bytes: bytes) -> set[str]:
+    """As fontes que este gabarito projeta — pela MESMA funcao que o motor usa.
+
+    `cobertura_de`, e nao uma varredura propria de `projections`: a pergunta
+    *"quais fontes este gabarito projeta?"* ja tem dono, e uma segunda resposta
+    divergiria dele na primeira regra nova (fato sem `fact_id`, lista vazia,
+    `projections` ausente — os tres casos que `cobertura_de` ja decide).
+    """
+    from importlib import import_module
+
+    elenco = import_module("range_core.evidence.elenco")
+    documento = yaml.safe_load(ground_truth_bytes.decode("utf-8")) or {}
+    return set(elenco.cobertura_de(documento))
+
+
+def _entrega_declarada(pack_dir: Path, fontes_projetadas: set[str]) -> dict[str, str]:
+    """`fonte -> delivery_mode`, LIDO dos injects do pack — `08` §5.
+
+    M3 DA SEGUNDA AUDITORIA. `montar` sempre soube receber `entrega`, e o CLI
+    nunca a passava: **todo manifesto saia `pre_positioned`**, inclusive o de um
+    pack cujos injects liberam fonte por `evidence_release`. O manifesto e o que
+    o facilitador le para saber o que existe e desde quando (`08` §7), e ele
+    afirmava disponibilidade desde o start para fonte que so chega no meio do
+    exercicio.
+
+    A LEITURA E DIRETA, E NAO POR `load_pack`. O `evidence build` nao carrega o
+    pack: ele projeta o gabarito, e exigir a carga inteira aqui acoplaria a
+    projecao a validacao de objetivos, ramificacoes e flags de adapter — coisas
+    que nao tem nada a ver com escrever um `.log`. O que se le e UM campo, cuja
+    forma o contrato de cenario fixa (`$defs/evidence_release_item`).
+
+    `on_request` NAO TEM COMO SER PRODUZIDO AQUI, e o limite e do contrato, nao
+    desta funcao: `evidence_release_item` tem `source` e `window`, e nenhum
+    campo de atraso. `08` §5 descreve o terceiro modo, e a forma que o
+    expressaria num pack ainda nao existe — quando existir, `atrasos` ja e
+    parametro de `montar` e entra por aqui.
+    """
+    import yaml
+
+    alvo = pack_dir / INJECTS
+    if not alvo.exists():
+        return {}
+
+    documento = yaml.safe_load(alvo.read_text(encoding="utf-8")) or {}
+    entrega: dict[str, str] = {}
+    for inject in documento.get("injects") or ():
+        if not isinstance(inject, Mapping):
+            continue
+        for item in inject.get("evidence_release") or ():
+            if not isinstance(item, Mapping):
+                continue
+            fonte = item.get("source")
+            if not isinstance(fonte, str):
+                continue
+            # FONTE LIBERADA QUE O GABARITO NAO PROJETA E RECUSA, e ela e barata
+            # de cometer: `evidence_release` e escrito no roteiro de facilitacao,
+            # e `projections` no gabarito, por autores e em momentos diferentes.
+            # Um inject que libera `firewall` num pack sem fato de firewall
+            # promete ao participante um arquivo que nao existe — e a promessa
+            # so falha na sala.
+            if fonte not in fontes_projetadas:
+                raise ComandoRecusado(
+                    f"o inject {inject.get('id')!r} libera a fonte {fonte!r} por "
+                    f"`evidence_release`, e o ground truth nao projeta nada "
+                    f"nela. `08` §5 libera o que existe — as fontes projetadas "
+                    f"sao: {', '.join(sorted(fontes_projetadas)) or 'nenhuma'}"
+                )
+            entrega[fonte] = LIBERADO_POR_INJECT
+    return entrega
+
+
+def _motor_de_evidencia():
+    """O modulo `range_core.evidence.build`, resolvido por `sys.modules`.
+
+    **`import_module`, e nao `from range_core.evidence import build`** — pelo
+    mesmo motivo que a fabrica de geradores adotou a mesma forma na peca 3, e
+    aqui a causa foi medida de novo na correcao da segunda auditoria.
+
+    `from <pacote> import <submodulo>` resolve pelo ATRIBUTO do pacote quando
+    ele ja existe, e o harness de prova negativa substitui `sys.modules`. O
+    atributo nao acompanha — entao o CLI rodava o modulo ORIGINAL enquanto o
+    resto da suite rodava o mutado. O efeito era pior que nao detectar: o
+    conjunto vermelho declarado passou a depender da ORDEM em que a suite
+    importou o pacote, e a prova negativa ficou intermitente.
+
+    `import_module` consulta `sys.modules` primeiro, entao o modulo vem sempre
+    do lugar corrente. Em producao as duas formas sao equivalentes; sob
+    substituicao, so uma delas e determinista.
+    """
+    from importlib import import_module
+
+    return import_module("range_core.evidence.build")
+
+
 def _evidence_build(args) -> int:
     """`range-cli evidence build <path> --seed N`. ESCREVE."""
-    from range_core.evidence import build as build_de_evidencia
+    build_de_evidencia = _motor_de_evidencia()
 
     pack_dir = Path(args.path)
     contratos = contract_source.read_contracts()
     try:
+        ground_truth_bytes = _le_ground_truth(pack_dir)
         manifesto = build_de_evidencia.construir(
-            _le_ground_truth(pack_dir),
+            ground_truth_bytes,
             destino=pack_dir / EVIDENCE,
             pack_id=pack_dir.name,
             random_seed=args.seed,
+            entrega=_entrega_declarada(
+                pack_dir, _fontes_projetadas(ground_truth_bytes)
+            ),
             **_contexto_de_evidencia(contratos),
         )
     except (ComandoRecusado, ContractSourceError) as erro:
@@ -454,7 +563,7 @@ def _evidence_build(args) -> int:
 
 def _evidence_verify(args) -> int:
     """`range-cli evidence verify <path>`. SO LE — `04` §8.1 (a)."""
-    from range_core.evidence import build as build_de_evidencia
+    build_de_evidencia = _motor_de_evidencia()
 
     pack_dir = Path(args.path)
     contratos = contract_source.read_contracts()

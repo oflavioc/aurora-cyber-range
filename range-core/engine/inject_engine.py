@@ -233,6 +233,24 @@ class InjectEngine:
         self._rollback_reasons = frozenset(rollback_reasons)
         self._laco = laco
 
+        # O REPLAY DE TELEMETRIA — item 4 (2a metade) e item 6, M4 da segunda
+        # auditoria. Montado aqui e nao no `start` porque o conjunto do que ja
+        # saiu e do objeto: um `Replay` novo a cada tick reemitiria tudo, que e
+        # exatamente o defeito que a propriedade (3) do item 6 nomeia.
+        #
+        # `Replay` recebe o STORE por um emissor que so sabe fazer `append` —
+        # nao o engine. A dependencia estreita e a mesma razao pela qual o
+        # forwarder so pede `elapsed_seconds()` do clock: quem emite telemetria
+        # nao deve poder disparar inject.
+        from range_core.telemetry.emissao import para_o_store
+        from range_core.telemetry.forwarder import Replay
+
+        self._telemetria = Replay(
+            programados=pack.telemetria,
+            clock=clock,
+            emissor=para_o_store(store, scenario_id=pack.pack_id),
+        )
+
     # -- leitura -------------------------------------------------------------
 
     @property
@@ -288,6 +306,13 @@ class InjectEngine:
         Recusa o segundo start: `01` §4.2 tem `exercise_reset` para recomecar, e
         ele e de outra fase. Dois `exercise_started` sem reset seria o mesmo
         exercicio afirmando dois inicios.
+
+        E E AQUI QUE A TELEMETRIA PRE-POSICIONADA ENTRA NO STORE (`08` §5): ela
+        ja esta no SIEM quando o exercicio comeca, entao vence em `t=0` e o
+        primeiro tick a emite. **Depois** do `exercise_started`, e a ordem
+        importa: o event store e append-only e a ordem de chegada e a da
+        timeline do AAR — telemetria antes do inicio seria sinal de um exercicio
+        que ainda nao existia.
         """
         if any(e.event_type == EXERCISE_STARTED for e in self._store.read_all()):
             raise EngineError(
@@ -295,9 +320,27 @@ class InjectEngine:
                 "o exercicio ja comecou. Recomecar e `exercise_reset`, que e "
                 "entregavel de outra fase",
             )
-        return self._avalia(
+        evento = self._avalia(
             self._append(EXERCISE_STARTED, payload=self._pack.pin_payload())
         )
+        self.tick_de_telemetria()
+        return evento
+
+    def tick_de_telemetria(self) -> int:
+        """Emite a telemetria que ja venceu no tempo de EXERCICIO. Item 6.
+
+        Publico e idempotente: chamar duas vezes no mesmo instante emite zero na
+        segunda, porque o `Replay` guarda o que ja saiu. Quem o chama de novo e
+        quem move o exercicio adiante — hoje o `start`, e a cada novo instante
+        de vencimento quando a gramatica temporal da P6-3 existir.
+
+        O LIMITE, DECLARADO: `programar` poe todo evento em `em_segundos=0`
+        (telemetria pre-posicionada, `08` §5), entao na pratica tudo sai no
+        start. `Programado.em_segundos` ja e parametro e `Replay` ja o respeita;
+        o que falta e converter `T-17d 02:14` em segundos de exercicio, e essa
+        conversao e a P6-3. Ver o cabecalho de `forwarder.py`.
+        """
+        return self._telemetria.tick()
 
     def fire(self, inject_id: str) -> Event:
         """Disparo MANUAL de um inject. Permitido durante a pausa — ver o modulo.
