@@ -233,16 +233,34 @@ motor deixaria de ser oráculo independente e aprovaria um defeito na própria
 tokenização. E a prova negativa restaura o defeito exato, porque sem ela nada
 distinguiria a guarda que funciona da que não funciona.
 
-### 2.8 O volume do item 7 foi fixado pela MARGEM, e não pelo veredito
+### 2.8 O volume do item 7, e a margem que eu declarei sem poder declarar
 
-**Medido na peça 6, e é o único item desta fase que precisou de duas declarações
-retiradas antes de fechar.**
+**Medido na peça 6, e é o item desta fase que precisou de três declarações
+retiradas antes de fechar — duas na 1ª auditoria, uma na 2ª.**
 
 > A frase original desta linha dizia *"o primeiro item de DoD desta fase que não
 > fecha"* — verdadeira enquanto 833/min estourava, e **resíduo** depois de
 > 400/min ser adotado: o item 7 fecha, e a §3 o marca VERDE. Duas afirmações
 > opostas no mesmo documento, num registro que é o insumo declarado do auditor.
-> Foi o M3 da auditoria.
+> Foi o M3 da 1ª auditoria.
+
+> **E A TERCEIRA RETIRADA É A MAIS INSTRUTIVA — H3 da 2ª auditoria.**
+>
+> Esta seção afirmava *"folga ≥ 28%"* e *"cruzar os 3 s exigiria um desvio de
+> 0,85 s a partir do pior caso observado"*. A prova gravada contra a árvore
+> final deu **2,750 s**: a folga real era de 8%, o valor ficou 0,60 s acima do
+> "pior caso" declarado, e caiu **dentro** da faixa que a tabela atribuía a
+> 500/min — o volume que esta mesma seção rejeitou por *"não ter margem
+> reprodutível"*.
+>
+> O critério `< 3 s` continuou passando. **O que não passou foi o argumento de
+> método**, e ele é o que esta seção põe no centro: eu deduzi uma dispersão de
+> cinco execuções e a tratei como limite. Cinco execuções não limitam nada —
+> elas descrevem a máquina naquele intervalo, com aquela carga.
+>
+> A correção não é medir mais e declarar outra faixa. É **parar de declarar
+> margem em prosa**: o que esta página pode afirmar com honestidade é o que foi
+> observado e quando, nunca o que não será excedido.
 
 `06` T13 cobra que a reconstrução *"continua em < 3 s"* com `telemetry_emitted`
 no volume de um exercício de 4 h, e `07` §Fase 9 diz que telemetria *"pode
@@ -253,14 +271,22 @@ exercício e a comparabilidade é o que torna o "continua" uma afirmação.
 A curva, no mesmo ambiente (Windows-11, Python 3.12.10, PostgreSQL 16.4,
 psycopg 3.2.12, migração `0004`):
 
-| telemetria/min | eventos | total | veredito |
+A tabela abaixo é **histórico de observações**, e não previsão. Cada linha diz o
+que aquela execução mediu naquele dia, naquela máquina — nenhuma delas afirma o
+que a próxima medirá.
+
+| telemetria/min | eventos | observações | veredito das observações |
 |---|---|---|---|
-| 0 (composição da Fase 7) | 650 | **0,043 s** | PASSA |
-| 200 | 48.650 | **1,026 s** | PASSA |
-| **400 — o declarado** | **96.650** | **≈ 2 s** (cinco execuções: 1,73 a 2,15 s) | **PASSA, folga ≥ 28%** |
-| 500 | 120.650 | **2,626 / 2,798 / 3,084 s** | **FALHA EM 1 DE 3** |
-| 600 | 144.650 | **3,162 s** | FALHA |
-| 833 | 200.570 | **3,812 s** | FALHA |
+| 0 (composição da Fase 7) | 650 | 0,043 s | todas abaixo de 3 s |
+| 200 | 48.650 | 1,026 s | todas abaixo de 3 s |
+| **400 — o declarado** | **96.650** | 1,73 / 1,79 / 2,02 / 2,04 / 2,15 / **2,75** s | **todas abaixo de 3 s, em nove execuções** |
+| 500 | 120.650 | 2,626 / 2,798 / **3,084** s | **uma acima, em três execuções** |
+| 600 | 144.650 | 3,162 s | acima |
+| 833 | 200.570 | 3,812 s | acima |
+
+O **2,75 s** em negrito é a gravação que o H3 trouxe, e ele está na tabela pela
+mesma razão pela qual achado refutado permanece riscado (R2 §5): tirá-lo faria
+esta página voltar a descrever uma dispersão menor do que a observada.
 
 > **O VALOR EXATO MORA NA PROVA, E NÃO NESTA PÁGINA — e a razão é um ciclo
 > medido, não preferência de redação.**
@@ -278,15 +304,30 @@ psycopg 3.2.12, migração `0004`):
 > regravação seguinte, o que prova o ponto.
 >
 > **A fonte única do valor é `check_prova_do_exercicio_4h.py`**, que o imprime e
-> o confere contra a árvore. Esta página registra a ordem de grandeza e a
-> variância observada; quem quer o número da gravação corrente roda o
-> verificador. É a mesma regra que o resto do projeto aplica a contagem de
-> suíte: o registro canônico é o dado, a prosa aponta para ele.
->
-> **E a variância sustenta 400/min em vez de enfraquecê-lo.** Cinco execuções
-> ficaram entre 1,73 s e 2,15 s — dispersão de ~0,42 s. Cruzar os 3 s exigiria
-> um desvio de 0,85 s a partir do pior caso observado, o **dobro** da dispersão
-> medida. A 500/min bastavam 0,45 s, e foi por isso que aquele volume caiu.
+> o confere contra a árvore. Esta página registra as observações e quando elas
+> aconteceram; quem quer o número da gravação corrente roda o verificador. É a
+> mesma regra que o resto do projeto aplica a contagem de suíte: o registro
+> canônico é o dado, a prosa aponta para ele.
+
+#### A folga é fina, e isso está declarado — não contornado
+
+A tentativa seguinte de fechar o H3 foi **argumentar a margem a partir da
+dispersão**: cinco execuções entre 1,73 s e 2,15 s, dispersão de ~0,42 s, logo
+cruzar os 3 s exigiria o dobro dela. A gravação seguinte deu 2,75 s e derrubou o
+argumento inteiro — a amostra não limitava a máquina, apenas a descrevia.
+
+O que sobra, dito sem enfeite:
+
+- **o critério passa**, e quem o afirma é o verificador, contra a árvore;
+- **a dispersão observada é da mesma ordem que a folga**. Uma gravação futura
+  acima de 3 s é possível, e não seria surpresa;
+- **se acontecer, a saída não é diminuir o volume.** Isso seria mover a régua até
+  caber, que é o que o resto desta seção recusa em dois lugares. A saída é a
+  otimização já nomeada — atacar a reserialização da cadeia, o custo dominante
+  decomposto logo abaixo.
+
+Declarar o risco é mais barato que descobri-lo na próxima auditoria: foi
+exatamente por não o declarar que esta seção precisou ser reescrita duas vezes.
 
 **Ponto de quebra entre 120 mil e 144 mil eventos**, coerente com a curva da
 Fase 2 (~150 mil, 2,874 s) — o mesmo motor, medido de novo com a fonte que a
@@ -306,11 +347,15 @@ delas**. A variância entre execuções (~0,45 s) é maior que a folga.
 sorteio.** E o agravante é estrutural: a prova é gravada **uma vez** e amarrada
 por hash à árvore, então o veredito passaria a depender de qual execução foi
 gravada — com o auditor podendo obter o oposto ao reexecutar. A decisão foi
-levada de volta ao proprietário com esse dado, e 400/min foi escolhido **por ter
-margem reprodutível**, não por passar.
+levada de volta ao proprietário com esse dado, e 400/min foi escolhido porque
+**nenhuma execução dele cruzou o orçamento**, enquanto 500/min cruzou na
+terceira.
 
-A distinção é o que separa este número de mover a régua até caber: 400/min tem
-**folga de ao menos 28% em cinco execuções** e não muda de veredito entre execuções.
+**Essa é toda a distinção, e ela é mais modesta do que a redação anterior
+afirmava.** A versão que o H3 derrubou dizia *"folga de ao menos 28% em cinco
+execuções"* — e nove execuções depois, a pior está a 8%. O que continua
+verdadeiro é o comparativo: nas observações registradas, 400/min não mudou de
+veredito e 500/min mudou. O que nunca foi verdadeiro é a margem como garantia.
 
 #### A causa, decomposta
 
@@ -422,6 +467,109 @@ Fase 9 como quem fecharia** — e eu não fechei. Pior: ao versionar o `evidence
 para o H1, criei arquivo de evidência na árvore que nenhum verificador olhava.
 Fechado com `TEXT_SUFFIXES` + varredura token a token, com número de linha.
 
+### 2.10 A 2ª auditoria — FAIL, e o achado que redefine a fase
+
+`docs/progress/audit_20260923T191036Z.md`, sobre `36e139c`. **Veredito FAIL**,
+por 1 BLOCKER, 4 HIGH, 4 MEDIUM e 2 LOW.
+
+#### O B1 não é um defeito de implementação. É a fase inteira olhando para o lado errado
+
+> *"A evidência entregue ao time azul carrega o veredito do gabarito:
+> `credential=compromised`."*
+
+Três fontes escreviam `credential_state` — `vpn.log`, `identity_audit.jsonl` e o
+`cef.log` —, e o valor no fato real é `compromised`. **Nenhum concentrador de VPN
+do mundo registra que uma credencial está comprometida**, porque isso é
+atribuição, e atribuição é o achado que o exercício existe para medir. A segunda
+linha do `vpn.log` entregava pronta a conclusão que o próprio fato manda
+correlacionar (`discoverability.requires`: *"correlacionar horário fora de
+expediente com ausência de MFA"*).
+
+**O que torna este achado severo não é o campo. É que eu escrevi o argumento
+certo e não o apliquei.** O cabeçalho de `vpn.py` recusava `suspicious=true`
+dizendo que *"entregaria a resposta e misturaria as camadas de `00` §3"*. O de
+`precursor.py` excluía `actor` **e `credential_state`** dizendo que *"atribuição
+é o achado, não o insumo"*. Quatro geradores, dois com a doutrina escrita e três
+violando-a — porque a doutrina estava em **comentário**, e comentário depende de
+cada autor lembrar.
+
+A fase passou seis peças construindo portas para "não inventar entidade" e "não
+vazar IOC", e nenhuma para **"não afirmar ground truth"** — que é a primeira das
+quatro verdades de `00` §3, a camada que o projeto inteiro existe para separar.
+
+A correção é estrutural e não é uma lista de proibidos:
+`contracts/evidence.schema.yaml` §`x-aurora-registry.fact_fields` **particiona**
+os campos de `$defs/fact` em `projectable` / `ground_truth_only` / `structural`,
+`projetar` recusa o que não for projetável (`VereditoDoGabarito`), e
+`check_contract_examples.py` cruza a união das três com as `properties` do
+contrato de ground truth — **campo novo no fato reprova até ser classificado**.
+Lista de proibidos envelhece calada; partição conferida não.
+
+#### O H1 e o B1 são o mesmo defeito, em duas camadas
+
+`cef.py` tinha mapeamento próprio — `signature` = `fact_class`, severidade fixa
+5, sem `outcome`, `credential_state` em `cs1` — enquanto `telemetry_emitted` saía
+do catálogo de `02` §10. Para o **mesmo fato**, o arquivo dizia
+`initial_access|…|5` e o evento dizia `SERVICE_ACCOUNT_ANOMALY`, severidade 7,
+`outcome=success`.
+
+`08` §2 diz que a telemetria CEF é projeção, *"e isso unifica evidence-simulator
+e telemetry-forwarder sob um contrato só"*. Eu li isso como **disciplina de
+escrita** — dois geradores coerentes — e escrevi na §3 que havia "um gerador só".
+Não havia: havia dois caminhos de código em camadas diferentes, que já nasceram
+divergentes.
+
+"Um contrato só" é **um produtor só**. Hoje `cef.py` chama `programar` — o mesmo
+que produz o evento — e renderiza o payload com `range_core.telemetry.cef.linha`.
+O que o arquivo diz é o que o event store carrega, porque é o mesmo dicionário.
+
+> **E o teste dependia da divergência para funcionar.** Ele localizava a linha
+> CEF pela `fact_class` — só o gerador antigo punha a classe do fato no campo de
+> assinatura. Um par que compara dois campos de sete e acha a linha pelo que
+> difere não prova unificação nenhuma. Hoje a asserção é de igualdade **total**,
+> nos dois sentidos.
+
+#### O que cada achado produziu
+
+| Achado | Disposição |
+|---|---|
+| **B1** — veredito do gabarito na evidência | partição declarada no contrato + `VereditoDoGabarito` no motor + verificador que cobra a cobertura da partição; `credential_state` sai das três fontes |
+| **H1** — dois contratos para a mesma projeção | `range-core/telemetry/cef.py` renderiza o payload de `programar`; o gerador do adapter deixa de mapear; fato roteado para `cef` sem assinatura vira **recusa nomeada** |
+| **H2** — `verify` não confere a cobertura por fato | `conferir` passa a comparar `projects_facts` e `format`; o teste que não chamava `conferir` foi partido em dois, com o nome de cada um dizendo o que ele julga |
+| **H3** — margem declarada que a prova desmente | a §2.8 para de declarar margem: a tabela vira **histórico de observações**, e o risco residual fica escrito |
+| **H4** — 1º critério de T13 sem teste | `AsProjecoesDoMesmoFatoSaoMUTUAMENTEConsistentes` — fato escrito **à mão**, cinco fontes, um parser por formato de fio, igualdade entre o que cada um extraiu |
+| **M1** — `evidence/` versionado reprova em checkout Windows | `.gitattributes` com `eol=lf` para `**/evidence/*`, mais dois casos: um mede o sintoma (CR no disco) e outro a causa (o atributo declarado, que o CI cobra) |
+| **M2** — "não inventa entidade" só guardava IP | hostname vira a **segunda forma fechada** do oráculo; os dois fallbacks inventados de `email.py` saem; as afirmações falsas sobre o alcance da reprojeção são corrigidas onde estavam escritas |
+| **M3** — `delivery_mode` sempre `pre_positioned` | o CLI lê `evidence_release` dos injects; fonte liberada que o gabarito não projeta vira recusa |
+| **M4** — nenhum produto emite `telemetry_emitted` | `range-core/telemetry/emissao.py` + `LoadedPack.telemetria` + `InjectEngine.tick_de_telemetria()`, composto em `processo.criar` por variável de ambiente **exigida** |
+| **L1** — `phishing_delivery` → `AUTH_FAIL`/`failure` | o mapeamento sai: o gateway **não** barrou o phishing, e é por isso que há Linha A. Fato sem assinatura é o limite de detecção de `08` §2 |
+| **L2** — README datando o fechamento de uma fase aberta | redação corrigida, contagem reconferida |
+
+#### Três defeitos que a correção descobriu, e não estavam no laudo
+
+**A tokenização não cortava no `|`.** O cabeçalho CEF é
+`CEF:0|vendor|produto|versão|assinatura|NOME|severidade|`, e o `NOME` sai de
+`action` — campo do fato. Sem cortar no `|`, o token vira o cabeçalho inteiro,
+não tem forma de host, e um domínio roteável escrito ali **atravessa a guarda de
+IOC**. É o mesmo defeito do `=` na 1ª auditoria, com outro separador: a família
+não se descobre por inspeção, ela se descobre quando um formato de fio novo
+chega. Os separadores agora estão declarados, com a data de cada um.
+
+**A unificação do H1 deixou um gate sem dono.** Enquanto o arquivo e o evento
+tinham caminhos próprios, compará-los guardava conteúdo. Desde que os dois saem
+do mesmo `programar`, um campo que suma do payload some dos dois e a igualdade
+continua verdadeira — **a mutação *"o `src` sai do payload"* parou de derrubar
+qualquer teste**. Medido pelo harness, não previsto. Nasceu
+`test_o_payload_carrega_os_campos_do_FATO`, com o mapa de `02` §10 escrito à mão
+no teste.
+
+**A prova negativa estava intermitente, e a causa era minha.** `cli.py` fazia
+`from range_core.evidence import build`, que resolve pelo **atributo do pacote**;
+o harness substitui `sys.modules`. O CLI rodava o módulo original enquanto o
+resto da suíte rodava o mutado — e o conjunto vermelho declarado passou a
+depender da **ordem** em que a suíte importou o pacote. É a quarta ocorrência
+desta família na fase, e a terceira com a mesma correção (`import_module`).
+
 ## 3. Itens de DoD — status e evidência
 
 A §7 de fechamento é redigida por quem implementou **após** o veredito do
@@ -430,13 +578,13 @@ executável que o sustenta.
 
 | # | Item de DoD | Status | Evidência executável |
 |---|---|---|---|
-| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE** — as seis fontes que o gabarito declara são projeção de fato, o motor **recusa** o gerador que inventa, e `evidence build` as escreve em disco com o `MANIFEST.json` | Três camadas. (a) `range-core/evidence/elenco.py` responde as três perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora) e `enderecos_no`; `tests/test_evidence_elenco.py` (18, **dirigido por fato e não por seed**, `06` T13) + probes (2), 4 mutantes. (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**: `EntidadeInventada` nomeia a fonte e o valor; `tests/test_evidence_projecao.py` (29) + probes (2), 5 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das cinco fontes, provados contra o fato em `tests/test_evidence_generators.py` (27) + probes (2), 5 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco em vez de ser escrito à mão — a fresta do item 1 onde o oráculo de endereço não olha |
-| 2 | `range-cli evidence verify` dirigido por fato | **VERDE** | `range-core/evidence/build.py::conferir` **reprojeta em memória** e compara com o disco — não há regra de validação escrita à mão, o oráculo é o próprio produtor rodado de novo. Confere, em ordem de dependência: manifesto presente e válido contra o contrato → `ground_truth_hash` → cobertura declarada × projetada → `sha256` por arquivo → conteúdo reprojetado → arquivo a mais. `range-cli evidence verify <path>` sai `0`/`2` e **não escreve** (`04` §8.1 (a), provado por `st_mtime_ns` antes/depois). `tests/test_evidence_build.py` (28) + probes (2) |
+| 1 | Toda fonte é projeção de `fact_id`; nenhum gerador inventa entidade | **VERDE** — as seis fontes que o gabarito declara são projeção de fato, o motor **recusa** o gerador que inventa, e `evidence build` as escreve em disco com o `MANIFEST.json` | Três camadas. (a) `range-core/evidence/elenco.py` responde as perguntas puras — `elenco_de`, `cobertura_de` (fato sem `projections` fora), `enderecos_no` e, desde o M2 da 2ª auditoria, `hostnames_no`/`hosts_inventados`; `tests/test_evidence_elenco.py` (23, **dirigido por fato e não por seed**, `06` T13) + probes (2). (b) `range-core/evidence/projecao.py` transforma o oráculo em **porta**, e são **duas** formas fechadas — endereço IP e hostname —, com `EntidadeInventada` nomeando a fonte e o valor; `tests/test_evidence_projecao.py` (38) + probes (2), 9 mutantes. (c) `domains/academus/evidence_generators/` — os geradores reais das seis fontes, provados contra o fato em `tests/test_evidence_generators.py` (35) + probes (2), 6 mutantes. **Nenhuma fonte carrega `fact_id`** (`05` §6), e o domínio do link do `.eml` **deriva** do elenco. **O LIMITE, DECLARADO:** ator nu escrito à mão, sem virar endereço nem hostname, continua fora do alcance — e a reprojeção do `verify` **não** o pega, porque roda o mesmo gerador. A versão anterior desta linha afirmava que pegava; era falsa por construção (M2) |
+| 2 | `range-cli evidence verify` dirigido por fato | **VERDE** | `range-core/evidence/build.py::conferir` **reprojeta em memória** e compara com o disco — não há regra de validação escrita à mão, o oráculo é o próprio produtor rodado de novo. Confere, em ordem de dependência: manifesto presente e válido contra o contrato → `ground_truth_hash` → conjunto de arquivos declarado × projetado → `sha256` por arquivo → conteúdo reprojetado → **`projects_facts` e `format` de cada fonte** → arquivo a mais. Os dois últimos degraus entraram no H2 da 2ª auditoria, e são os que tornam a conferência **dirigida por fato**: o `fact_id` não está nas fontes (`05` §6), então o manifesto é o único lugar onde ele aparece — adulterá-lo não deixava rastro em arquivo nenhum. `range-cli evidence verify <path>` sai `0`/`2` e **não escreve** (`04` §8.1 (a), provado por `st_mtime_ns` antes/depois). `tests/test_evidence_build.py` (38) + probes (2) |
 | 3 | `precursor_events.jsonl` reproduzível; edição manual detectada por hash | **VERDE** | `domains/academus/evidence_generators/precursor.py` — o phishing projeta em **duas** fontes (`email` e `precursor`), que é o modelo de `08` §1. O arquivo tem o nome que a spec usa, é reproduzível byte a byte, e a edição manual é detectada. **O precursor omite `actor` de propósito**: atribuição é o achado do exercício, não o insumo |
-| 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um gerador só** — que é o que `08` §2 quer dizer com *"um contrato só"*. O arquivo `cef.log` (peça 3) e o `telemetry_emitted` saem dos **mesmos fatos**: `domains/academus/telemetry_events.yaml` (`02` §10, os doze eventos) mapeia `fact_class` → assinatura, e `range-core/telemetry/forwarder.py::programar` deriva o payload. **A prova é de valor, não de estrutura**: o `src` do evento e o do `cef.log` são comparados lado a lado, porque duas implementações coerentes hoje não provam nada sobre amanhã. O payload valida contra `$defs/telemetry_emitted_payload`, com `fact_id` **inexpressável** (`05` §6) |
-| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Duas metades. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
-| 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (20) + probes (2) |
-| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE** — **≈ 2 s** contra 3 s, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). Cinco execuções entre 1,73 e 2,15 s. **O número é o da prova gravada**, que é o que o verificador confere — ver §2.8 | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
+| 4 | Telemetria CEF é projeção, não emissão independente | **VERDE** | Duas metades, **um produtor só** — e a distinção custou o H1 da 2ª auditoria: a versão anterior tinha dois geradores coerentes, que já nasceram divergentes para o mesmo fato. Hoje `range-core/telemetry/forwarder.py::programar` monta o payload a partir de `domains/academus/telemetry_events.yaml` (`02` §10), e as duas saídas o **renderizam**: `range-core/telemetry/cef.py::linha` escreve o `cef.log`, `range-core/telemetry/emissao.py` grava `telemetry_emitted` no event store. **A prova é de igualdade total, nos dois sentidos**: todo campo do payload aparece na linha com o mesmo valor, e a linha não tem extensão que o payload não tenha. A segunda metade tem emissor de **produto** desde o M4: `LoadedPack.telemetria` carrega a projeção pronta e `InjectEngine.start()` a emite; o payload atravessa o envelope pelo mesmo validador de todo produtor, com `fact_id` **inexpressável** (`05` §6). `tests/test_telemetry_forwarder.py` (23) + probes (2) e `tests/test_inject_engine.py` (classe própria, 8 casos) |
+| 5 | Nenhum anexo, binário, IOC real ou domínio roteável | **VERDE para as fontes que existem** | Três metades — a terceira entrou no B1 da 2ª auditoria, e é de OUTRA natureza: `credential_state` não é IOC nem dado real, e nenhum verificador de `05` reclamaria dele; ele arruína o exercício por confundir **camada** (`00` §3), e quem o guarda é `VereditoDoGabarito`. (a) **Banner** (`06` T13, critério próprio): `range-core/evidence/banner.py` produz e reconhece o banner na **primeira linha**, por formato de fio, com o texto **lido do contrato**; formato sem forma declarada é recusado. 8 casos, incluindo o negativo de posição (rodapé não conta). (b) **IOC**: `projetar()` levanta `IOCEncontrado` usando `dados_sinteticos` — **o mesmo predicado do CI e do loader**, não um segundo detector (P1-13). O `.eml` tem as três negativas de `05` §2 em casos separados: sem anexo, sem MIME multipart, link em sufixo reservado. **A guarda passava vacuamente na primeira versão** — ver §2.5, e o mutante que restaura o defeito |
+| 6 | Replay respeita o clock de exercício | **VERDE** | `range-core/telemetry/forwarder.py::Replay` lê `elapsed_seconds()` — nunca o relógio de parede — e tem as três propriedades com caso próprio: só emite o que venceu em tempo de **exercício**, **nada novo vence durante a pausa** (`01` §3 congela o clock), e **não reemite** (duplicata no event store é sinal para a reconstrução). O forwarder **não sabe pausar**: ele lê o tempo, e quem o move é o gm-console — duas autoridades sobre o mesmo relógio seria o defeito. `tests/test_telemetry_forwarder.py` (23) + probes (2). **A integração com o store existe desde o M4 da 2ª auditoria**: o `start` do engine emite a telemetria pré-posicionada, e o `tick` seguinte devolve zero — a propriedade (3) provada contra o event store de verdade, e não contra dublê |
+| 7 | Reconstrução < 3 s com `telemetry_emitted` no volume de 4 h | **VERDE**, com 96.650 eventos (96.000 `telemetry_emitted`, 400/min). **O número é o da prova gravada, e esta página não o repete**: a fonte única é `check_prova_do_exercicio_4h.py`, que o imprime e o confere contra a árvore. **A folga é fina e o risco está declarado** — a dispersão observada é da mesma ordem que ela, e a saída para uma gravação futura acima de 3 s é a otimização nomeada, nunca diminuir o volume. Ver §2.8, que perdeu duas redações por afirmar margem que a prova desmentiu | `scripts/medida_do_exercicio_4h.py --telemetria N` estende a composição da Fase 9 **sem tocar a da Fase 7** — as duas medem o mesmo exercício, e é a comparabilidade que torna o "continua" de T13 uma afirmação. A prova é gravada por `prova_do_exercicio_4h.py` e amarrada por hash à árvore e aos sete arquivos do pack; `check_prova_do_exercicio_4h.py` a cobra, com prova negativa própria para o item da Fase 9 (10 venenos, 7 direções). **O volume foi fixado pela margem, não pelo veredito — ver §2.8** |
 
 ## 6. Pendências
 
@@ -463,6 +611,7 @@ estado, e a relevância para ESTA fase.
 | P2-11 | `append` abre uma conexão por chamada | `ABERTA` | **esta fase** — telemetria não grava a ritmo de facilitador; leitura e escrita reabrem juntas, pela mesma causa (volume); detalhe em `fase_2.md` §"P2-11" |
 | P4-8 | leitura síncrona no laço de eventos serializa e bloqueia em volume | `DECIDIDA` | **o gatilho disparou e a medição existe** (§2.8): `read_all` é 97% do custo, e o ponto de quebra está em ~135 mil eventos. A decisão de fundo — atacar a reserialização da cadeia — é estrutural e fica para a fase que a couber; ver abaixo |
 | P9-2 | o volume de telemetria do item 7 pressupõe **ruído de fundo** do ambiente simulado, e nenhum item de DoD o constrói | `ABERTA` | a fase que construir o produtor do ruído — o tráfego normal em que o time azul acha o sinal; ver abaixo |
+| P9-3 | `08` §5 declara **três** modos de entrega e o contrato de cenário sabe expressar **dois**: `evidence_release_item` tem `source` e `window`, e nenhum campo de atraso — `on_request` é inalcançável por um pack | `ABERTA` | a fase que entregar o dashboard de TI de `08` §5 (*"o modo mais realista, e o que melhor exercita OBJ-02"*); ver abaixo |
 | P5-4 | os seis conjuntos de `02` §6.1 não cabem nos três valores de `line_b_case.set` | `ABERTA` | o schema v3, quando houver delta real; detalhe em `fase_5.md`/`fase_7.md` §"P5-4" |
 | P6-2 | `observable_impact` (start de `TTA`) não existe em contrato | `DECIDIDA` | o commit em que o consumidor de `TTA` for desenhado; detalhe em `fase_6.md` §"P6-2" |
 | P6-3 | `before`/`after`/`since` dependem de uma gramática de `exercise_time` que não existe | `ABERTA` | os três gatilhos herdados da Fase 6, intactos; detalhe em `fase_6.md` §"P6-3" |
@@ -577,6 +726,20 @@ desta DoD. Leitura (P4-8) e escrita (esta) reabrem juntas, pela mesma causa.
 A saída provável é conexão reusada ou pool, **medindo antes de escolher**.
 Detalhe em `fase_2.md` §"P2-11".
 
+> **O M4 da 2ª auditoria pôs o gatilho ao alcance, e não o disparou.** O
+> `InjectEngine.start()` agora emite a telemetria pré-posicionada **um evento
+> por vez**, por `append` — exatamente o padrão que esta pendência nomeia.
+>
+> Com três eventos no `ransomware-universidade`, isso é irrelevante. Com o
+> produtor de ruído de fundo da P9-2, são três conexões por evento de ambiente,
+> todas no start. **As duas pendências passam a ter o mesmo gatilho**, e quem
+> abrir a P9-2 herda esta junto — dito aqui para que a segunda não seja
+> descoberta durante a primeira.
+>
+> Continua `ABERTA` e **não exercitada**: a carga do harness do item 7 é em
+> lote, porque o que o critério mede é reconstrução. Esta fase não pode alegar
+> tê-la fechado nem tê-la medido.
+
 #### P4-8 — leitura síncrona no laço de eventos — DECIDIDA
 
 Herdada da Fase 4, com gatilho declarado em "medição de volume". **O gatilho
@@ -623,6 +786,46 @@ produza. A medição usa um fluxo sintético declarado, como o bench da Fase 2.
 exercício real tem telemetria na ordem de dezenas, e o time azul não tem em que
 procurar — o que torna esta pendência material para a qualidade do exercício,
 ainda que não para a DoD desta fase.
+
+> **O M4 da 2ª auditoria mudou a natureza desta pendência, e para pior.** Até
+> ele, o range não emitia `telemetry_emitted` nenhum: a lacuna entre "o que a
+> medição supõe" e "o que o exercício produz" era total, e por isso abstrata.
+>
+> Agora o exercício **emite de verdade** — e emite exatamente o que esta
+> pendência prevê: um evento por fato de gabarito que o catálogo mapeie. No
+> `ransomware-universidade` isso são **três**. O número deixou de ser hipótese.
+>
+> A pendência segue `ABERTA` e com o mesmo dono. O que ela ganhou foi uma
+> medida: a distância entre 3 e 96.000.
+
+#### P9-3 — `on_request` é declarado pela spec e inexpressável por um pack
+
+**Nasce na correção do M3 da 2ª auditoria.** O `evidence build` passou a ler
+`evidence_release` dos injects e a marcar as fontes liberadas como
+`released_by_inject`. Ao escrever isso, o terceiro modo ficou visível pela
+ausência.
+
+`08` §5 declara três: **pré-posicionado**, **liberado por inject** e **sob
+requisição** — este último com *"atraso configurável simula dependência de
+fornecedor"*, e a spec o chama de *"o modo mais realista e o que melhor exercita
+OBJ-02"*. `contracts/evidence.schema.yaml` conhece os três no enum
+`delivery_mode`, e `manifesto.montar` já aceita `atrasos` como parâmetro.
+
+**O que falta é o lado do pack.** `$defs/evidence_release_item` tem `source` e
+`window`, e nada mais: não há onde um autor de cenário escreva o atraso. Então
+`on_request` é um valor que o manifesto pode carregar e que **nenhum pack pode
+produzir** — o parâmetro existe e nunca chega ninguém por ele.
+
+**Não é defeito desta fase**, e a distinção é a mesma da P9-2: o item 2 da DoD
+cobra que o `verify` seja dirigido por fato, não que os três modos tenham
+autoria. Mas é exatamente a forma de um requisito morrer em silêncio — o enum
+fica completo, o código fica pronto, e o modo nunca é usado porque ninguém
+percebe que não dá.
+
+**Vence em:** a fase que entregar o dashboard de TI por onde o participante
+solicita a fonte. Mudar `evidence_release_item` é mudança de contrato de
+cenário, e entra com o consumidor — antes dele seria campo declarado sem quem o
+leia, que é a P1-3 outra vez.
 
 #### P5-4 — os seis conjuntos não cabem nos três valores de `set`
 
