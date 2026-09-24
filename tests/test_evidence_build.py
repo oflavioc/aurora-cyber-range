@@ -69,6 +69,7 @@ def _contexto():
         "geradores": geradores_mod.geradores(CONTRATOS),
         "formatos": contract_source.formatos_por_fonte(CONTRATOS),
         "banner": banner.texto(CONTRATOS),
+        "campos_do_fato": contract_source.campos_do_fato(CONTRATOS),
     }
 
 
@@ -240,10 +241,15 @@ class AConferenciaEDirigidaPorFato(ABase):
         self._arquivo(build.MANIFESTO).unlink()
         self.assertTrue(self._conferir())
 
-    def test_a_conferencia_e_DIRIGIDA_POR_FATO(self):
+    def test_o_BUILD_declara_a_cobertura_por_fato(self):
         """`06` T13: *"para cada `fact_id`, todas as projecoes declaradas
-        existem"*. O manifesto declara a cobertura; a conferencia a cruza com o
-        ground truth, e nao com o que achou no disco."""
+        existem"*, do lado do PRODUTOR.
+
+        Este caso julga `self.manifesto`, que e a saida do `construir` — e por
+        isso ele nao substitui o de baixo. Foi exatamente a confusao que o H2 da
+        segunda auditoria nomeou: ele se chamava
+        `test_a_conferencia_e_DIRIGIDA_POR_FATO` e **nunca chamava `conferir`**.
+        """
         declarados = {
             f for s in self.manifesto["sources"] for f in s["projects_facts"]
         }
@@ -251,6 +257,57 @@ class AConferenciaEDirigidaPorFato(ABase):
             f["fact_id"] for f in linha_a.facts(SEED) if f.get("projections")
         }
         self.assertEqual(declarados, com_projecao)
+
+    def _adultera_o_manifesto(self, muda):
+        """Reescreve o `MANIFEST.json` com `muda` aplicada a cada `source`.
+
+        **Sem tocar em arquivo nenhum de evidencia** — e esse o ponto: o
+        `sha256`, o `ground_truth_hash` e a reprojecao continuam todos batendo.
+        O que muda e so a amarracao por fato, que e o que o manifesto existe
+        para carregar.
+        """
+        import json
+
+        caminho = self._arquivo(build.MANIFESTO)
+        documento = json.loads(caminho.read_text(encoding="utf-8"))
+        for source in documento["sources"]:
+            muda(source)
+        caminho.write_text(
+            json.dumps(documento, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+            newline="",
+        )
+
+    def test_a_CONFERENCIA_pega_projects_facts_adulterado(self):
+        """**H2 da segunda auditoria, o defeito verbatim.**
+
+        `conferir` comparava so os NOMES DE ARQUIVO. `projects_facts` era
+        escrito no build, validado pelo schema quanto a FORMA, e nunca mais
+        lido: um manifesto com a cobertura por fato trocada e os arquivos
+        intactos passava por todos os degraus — schema, `ground_truth_hash`,
+        conjunto de arquivos, `sha256` e reprojecao.
+
+        E e justamente a amarracao que nao tem outro guardiao: o `fact_id` NAO
+        esta nas fontes (`05` §6 — ele entregaria o gabarito na primeira linha),
+        entao o manifesto e o unico lugar onde ele aparece.
+        """
+        self._adultera_o_manifesto(lambda s: s.__setitem__("projects_facts", ["GT-A-999"]))
+        achados = self._conferir()
+        self.assertTrue(any("GT-A-999" in a for a in achados), achados)
+
+    def test_a_CONFERENCIA_pega_format_adulterado(self):
+        """A outra metade do mesmo degrau. Um manifesto que mente sobre o
+        formato manda o facilitador abrir o arquivo com o parser errado, e o
+        registro que liga fonte a formato e `x-aurora-registry.source_formats`
+        — nao o que estiver escrito no manifesto."""
+        self._adultera_o_manifesto(lambda s: s.__setitem__("format", "jsonl"))
+        achados = self._conferir()
+        self.assertTrue(any("formato" in a for a in achados), achados)
+
+    def test_o_par_positivo_manifesto_INTACTO_nao_gera_achado(self):
+        """Sem ele, um `conferir` que reclamasse de tudo passaria nos dois
+        casos acima."""
+        self.assertEqual(self._conferir(), [])
 
     def test_a_conferencia_NAO_ESCREVE_nada(self):
         """`04` §8.1 (a) e R7 §3 — `evidence verify` e da classe que so le."""
@@ -341,6 +398,89 @@ class OsVerbosDoCLI(unittest.TestCase):
         rc, saida, _ = self._cli("evidence", "verify", str(self.pack))
         self.assertEqual(rc, 0, saida)
 
+    # -- M3 da segunda auditoria: o modo de entrega ---------------------------
+
+    def _com_injects(self, *liberadas):
+        import yaml
+
+        (self.pack / "injects.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "injects": [
+                        {
+                            "id": "A07",
+                            "evidence_release": [
+                                {"source": f, "window": "T-9d → T-8d"}
+                                for f in liberadas
+                            ],
+                        }
+                    ]
+                },
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+            newline="",
+        )
+
+    def _modos(self):
+        return {
+            s["file"]: s["delivery_mode"]
+            for s in json.loads(
+                (self.pack / "evidence" / build.MANIFESTO).read_text(encoding="utf-8")
+            )["sources"]
+        }
+
+    def test_fonte_liberada_por_inject_NAO_sai_pre_posicionada(self):
+        """**M3 da segunda auditoria.** `montar` sempre soube receber `entrega`,
+        e o CLI nunca a passava: todo manifesto saia `pre_positioned`, inclusive
+        o de um pack cujos injects liberam fonte no meio do exercicio.
+
+        O manifesto e o que o facilitador le para saber o que existe e desde
+        quando (`08` §7). Dizer `pre_positioned` para uma fonte de
+        `evidence_release` afirma disponibilidade desde o start — e e falso.
+        """
+        self._com_injects("vpn")
+        rc, _, erro = self._cli(
+            "evidence", "build", str(self.pack), "--seed", str(SEED)
+        )
+        self.assertEqual(rc, 0, erro)
+        modos = self._modos()
+        self.assertEqual(modos["vpn.log"], "released_by_inject")
+
+    def test_a_fonte_NAO_liberada_continua_pre_posicionada(self):
+        """O par negativo, e ele e o que impede a correcao de virar o oposto do
+        defeito: sem ele, um CLI que marcasse TUDO como liberado passaria no
+        caso acima."""
+        self._com_injects("vpn")
+        self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        modos = self._modos()
+        self.assertTrue(len(modos) > 1, modos)
+        for arquivo, modo in modos.items():
+            if arquivo != "vpn.log":
+                self.assertEqual(modo, "pre_positioned", arquivo)
+
+    def test_pack_SEM_injects_continua_tudo_pre_posicionado(self):
+        """`08` §5 — pre-posicionado e o unico modo que nao depende de decisao
+        de cenario, e por isso e o default. Pack sem `injects.yaml` nao e erro:
+        e o caso do pacote projetado fora de exercicio."""
+        self._cli("evidence", "build", str(self.pack), "--seed", str(SEED))
+        self.assertEqual(set(self._modos().values()), {"pre_positioned"})
+
+    def test_inject_que_libera_fonte_QUE_O_GABARITO_NAO_PROJETA_e_recusado(self):
+        """A promessa que so falha na sala.
+
+        `evidence_release` e escrito no roteiro de facilitacao e `projections`
+        no gabarito — autores e momentos diferentes. Um inject que libera uma
+        fonte sem fato promete ao participante um arquivo que nao existe.
+        """
+        self._com_injects("database_audit", "firewall")
+        rc, _, erro = self._cli(
+            "evidence", "build", str(self.pack), "--seed", str(SEED)
+        )
+        self.assertEqual(rc, 2)
+        self.assertIn("firewall", erro)
+
     def test_verify_de_pacote_ADULTERADO_recusa(self):
         """O codigo de saida e `2`, o mesmo de `lint` e `materialize`: `04` §8
         poe esses verbos no CI, e um sinalizando recusa com `1` e outro com `2`
@@ -403,6 +543,70 @@ class OsVerbosDoCLI(unittest.TestCase):
         )
         self.assertEqual(rc, 2)
         self.assertIn("firewall", erro)
+
+
+class OEvidenceVersionadoSobreviveAoCheckout(unittest.TestCase):
+    """**M1 da segunda auditoria** — o pacote versionado e o seu fim de linha.
+
+    `tests/fixtures/pack_exemplo/evidence/` nasceu versionado nesta fase para
+    dar objeto ao `evidence verify` no CI. O `MANIFEST.json` declara o `sha256`
+    do conteudo **em bytes**, como o gerador o escreveu: UTF-8 com LF.
+
+    Num checkout com `core.autocrlf=true` — o da maquina do operador, e o do
+    worktree que a auditoria cria — sem atributo os arquivos chegam com CRLF, e
+    o `evidence verify` sai com rc=2 dizendo *"edicao manual, ou build de outro
+    gabarito"*. **Acusa uma edicao que nao houve**, e manda procurar pelo lado
+    errado. O CI, em Linux, passava.
+
+    E a R2 §2 do outro lado: la a licao era medir identidade sobre blob de HEAD;
+    aqui nao ha blob a que recorrer, porque em pack real (`scenarios/`, fora do
+    Git desde a Fase 5) nao existe blob nenhum e o verificador le o disco. A
+    disciplina tem de estar no checkout.
+    """
+
+    #: O diretorio VERSIONADO. Nao ha outro hoje, e o teste descobre os arquivos
+    #: em vez de lista-los: arquivo novo entra na guarda sozinho.
+    EVIDENCIA = Path(__file__).resolve().parent / "fixtures" / "pack_exemplo" / "evidence"
+
+    def _arquivos(self):
+        return sorted(p for p in self.EVIDENCIA.iterdir() if p.is_file())
+
+    def test_ha_o_que_conferir(self):
+        """Anti-vacuidade: diretorio vazio faria os dois casos abaixo passarem
+        sem olhar nada — a mesma armadilha que o quinto eixo do verificador de
+        banner fechou na primeira auditoria."""
+        self.assertTrue(self._arquivos())
+
+    def test_nenhum_arquivo_chegou_com_CARRIAGE_RETURN(self):
+        """O sintoma, medido no disco. Este caso e VERDE no CI e vermelho na
+        maquina onde o defeito existe — e por isso ele nao basta sozinho."""
+        for caminho in self._arquivos():
+            self.assertNotIn(
+                b"\r", caminho.read_bytes(), f"{caminho.name} veio com CRLF"
+            )
+
+    def test_o_gitattributes_DECLARA_eol_lf_para_cada_um(self):
+        """A causa, e ela e independente de plataforma — entao o CI a cobra.
+
+        O caso acima so fica vermelho em quem ja sofreu o defeito; este fica
+        vermelho em qualquer lugar onde a declaracao falte, que e o momento util.
+        """
+        import subprocess
+
+        resultado = subprocess.run(
+            ["git", "check-attr", "eol", "--", *[str(p) for p in self._arquivos()]],
+            capture_output=True,
+            text=True,
+            cwd=str(self.EVIDENCIA.parent.parent.parent.parent),
+        )
+        self.assertEqual(resultado.returncode, 0, resultado.stderr)
+        linhas = [l for l in resultado.stdout.splitlines() if l.strip()]
+        self.assertEqual(len(linhas), len(self._arquivos()))
+        for linha in linhas:
+            self.assertTrue(
+                linha.endswith(": eol: lf"),
+                f"sem `eol=lf` no .gitattributes: {linha}",
+            )
 
 
 if __name__ == "__main__":  # pragma: no cover

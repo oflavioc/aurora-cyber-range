@@ -13,6 +13,8 @@ Tres perguntas, todas PURAS:
     elenco_de(ground_truth)    quais entidades as projecoes PODEM usar
     cobertura_de(ground_truth) fonte -> os `fact_id` que ela projeta
     enderecos_no(texto)        quais enderecos um texto CONTEM
+    hostnames_no(texto)        quais hostnames um texto CONTEM
+    hosts_inventados(t, e)     quais deles o ground truth NAO fixou
 
 As duas primeiras sao funcao do ground truth e de mais nada — **nem do seed**.
 `06` T13 exige teste *"dirigido por fato, nao por seed"*, e um modulo que
@@ -30,21 +32,31 @@ fonte se escreve — o formato de fio —, e isso mora em
 
 A ASSIMETRIA DO ORACULO, DECLARADA
 ===================================
-Para **endereco** a rede e solida: a forma e fechada, entao toda ocorrencia num
-arquivo de evidencia ou esta no elenco, ou foi inventada — e `enderecos_no(t) -
-elenco.enderecos` e a afirmacao de AUSENCIA que o item 1 cobra.
+Ha DUAS formas fechadas, e sobre elas se afirma AUSENCIA de invencao:
 
-Para **ator** e **destino** nao ha forma assim. `svc_academus` e `vpn-gw-01` sao
-reconheciveis a olho, mas uma rede lexica que os pegasse pegaria tambem palavra
-comum do corpo do log, que e texto livre — a sobre-inclusao que `citacoes.py`
-aceita de proposito para `fact_id` (onde o alvo tem forma) aqui viraria ruido.
-Para eles, `contem()` sustenta a afirmacao de PRESENCA, que e a consistencia
-mutua de `06` T13 (*"apresentam usuario, IP e timestamp mutuamente
+    endereco IP   `enderecos_no(t) - elenco.enderecos`
+    hostname      `hosts_inventados(t, elenco)`
+
+A segunda entrou no M2 da segunda auditoria. `email.py` dizia fechar essa fresta
+*"por construcao"* — o rotulo de host do link deriva de `actor` — e a construcao
+tinha dois `fato.get(campo, "<literal>")` de fallback, com `"ti"` e `"usuario"`
+escritos a mao. Fallback deterministico e o pior caso possivel para a
+reprojecao: ele se reproduz byte a byte, e `conferir` devolve lista vazia.
+
+Para **ator** e **destino** nus nao ha forma assim. `svc_academus` e `vpn-gw-01`
+sao reconheciveis a olho, mas uma rede lexica que os pegasse pegaria tambem
+palavra comum do corpo do log, que e texto livre — a sobre-inclusao que
+`citacoes.py` aceita de proposito para `fact_id` (onde o alvo tem forma) aqui
+viraria ruido. Para eles, `contem()` sustenta a afirmacao de PRESENCA, que e a
+consistencia mutua de `06` T13 (*"apresentam usuario, IP e timestamp mutuamente
 consistentes"*).
 
-**O que fica de fora das duas:** ator inventado que nao colide com nada. Ele e
-alcancado pela reprojecao determinista do `evidence verify` (item 2), e nao por
-este modulo. Dito aqui porque um limite nao declarado vira garantia suposta.
+**O que fica de fora das tres:** ator inventado escrito nu, sem virar endereco
+nem hostname. E O LIMITE, E ELE NAO E FECHADO PELA REPROJECAO — a versao
+anterior desta linha dizia que o `evidence verify` o alcancava, e isso e falso
+por construcao: `conferir` roda o MESMO gerador, e um valor inventado de forma
+determinista sai identico das duas vezes. Dito assim porque a afirmacao errada
+custou mais que o limite: ela fez `email.py` parecer guardado.
 
 O `fact_id` NAO VAI PARA O REGISTRO PROJETADO
 ==============================================
@@ -62,7 +74,15 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-__all__ = ["Elenco", "elenco_de", "cobertura_de", "enderecos_no"]
+__all__ = [
+    "Elenco",
+    "elenco_de",
+    "cobertura_de",
+    "enderecos_no",
+    "hostnames_no",
+    "hosts_inventados",
+    "tokens_no",
+]
 
 #: Os campos do fato que nomeiam ENTIDADE do mundo simulado.
 #:
@@ -95,6 +115,30 @@ _IPV4 = re.compile(r"(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?![\w.])")
 #: forma, e nao e endereco (tres grupos sem `::` nao formam IPv6).
 _IPV6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
 
+#: Um token de conteudo: tudo que nao e espaco nem separador de formato de fio.
+#:
+#: **POR QUE TOKENIZAR, E ESTE E O PONTO QUE UMA PRIMEIRA VERSAO ERROU.**
+#: `dados_sinteticos` opera sobre UM VALOR DE CAMPO — e o que
+#: `hostnames_candidatos` assume: ou o valor e uma URL, ou um e-mail, ou um
+#: hostname nu. Texto com espaco no meio ele descarta e devolve lista vazia.
+#: Aplicado ao conteudo INTEIRO de um arquivo, o predicado passava vacuamente.
+#:
+#: OS SEPARADORES FORAM APRENDIDOS UM A UM, e e por isso que eles estao
+#: declarados e nao supostos:
+#:
+#:     `=`   syslog e CEF escrevem `chave=valor`. Sem ele o token vira
+#:           `url=https://<host>/x`, `urlsplit` nao reconhece o esquema, e o IOC
+#:           passa — M1 da primeira auditoria.
+#:     `|`   o cabecalho CEF e `CEF:0|vendor|produto|…|severidade|`, e sem ele a
+#:           primeira chave de extensao sai colada ao cabecalho inteiro. O
+#:           candidato resultante nao tem forma de host e o IOC escaparia —
+#:           medido na correcao do H1 da segunda.
+#:
+#: `:` NAO ENTRA, e a exclusao e a razao de o resto funcionar: `https://x` perde
+#: o esquema se cortado no `:`, e `hostnames_candidatos` deixa de reconhecer a
+#: URL. JSON ja se separa sozinho, pelas aspas.
+_TOKEN = re.compile(r"[^\s\"'<>()\[\],;=|]+")
+
 
 @dataclass(frozen=True)
 class Elenco:
@@ -112,6 +156,18 @@ class Elenco:
     def contem(self, valor: str) -> bool:
         """A afirmacao de PRESENCA — ver a assimetria, no cabecalho."""
         return valor in self.todos
+
+    @property
+    def rotulos_de_host(self) -> frozenset[str]:
+        """O elenco na forma de ROTULO DE HOST — minusculo e com `-` no lugar de `_`.
+
+        A normalizacao e de SINTAXE DE HOSTNAME, e por isso mora aqui e nao no
+        adapter: RFC 1123 nao admite `_` em rotulo, e comparacao de dominio e
+        case-insensitive. `svc_academus` e ator legitimo e nunca poderia virar
+        dominio sem essa traducao; exigir que o gerador escrevesse o valor cru
+        proibiria o unico jeito correto de deriva-lo.
+        """
+        return frozenset(v.replace("_", "-").lower() for v in self.todos)
 
 
 def _facts(ground_truth: Mapping | None) -> Sequence[Mapping]:
@@ -204,3 +260,73 @@ def enderecos_no(texto: str) -> set[str]:
             achados.add(candidato)
 
     return achados
+
+
+def tokens_no(texto: str) -> list[str]:
+    """Os tokens de conteudo do texto — ver `_TOKEN`.
+
+    **UM tokenizador, dois consumidores.** Ele nasceu dentro do motor de
+    projecao para o predicado de IOC e agora serve tambem ao oraculo de
+    hostname; duas copias divergiriam na primeira separador novo, e o separador
+    novo ja apareceu duas vezes (`=` na primeira auditoria, `|` na segunda).
+    R9 §8 — helper unico por semantica.
+    """
+    return _TOKEN.findall(texto)
+
+
+def hostnames_no(texto: str) -> set[str]:
+    """Todo hostname que o texto contem, em minusculo.
+
+    QUEM DECIDE O QUE E HOSTNAME E `dados_sinteticos`, o mesmo modulo que o
+    loader de pack e o CI consultam. Um reconhecedor proprio aqui seria a
+    segunda resposta para *"isto e um host?"* — a P1-13 por mais uma porta, e a
+    divergencia apareceria como um gerador aprovado aqui e reprovado no CI.
+    """
+    from dados_sinteticos import hostnames_candidatos, tem_forma_de_hostname
+
+    achados: set[str] = set()
+    for token in tokens_no(texto):
+        for candidato in hostnames_candidatos(token):
+            if tem_forma_de_hostname(candidato):
+                achados.add(candidato.rstrip(".").lower())
+    return achados
+
+
+def hosts_inventados(texto: str, elenco: Elenco) -> list[str]:
+    """Os hostnames do texto cujos rotulos o ground truth NAO fixou.
+
+    O SUFIXO RESERVADO NAO CONTA, e e ele que separa as duas perguntas. `05` §2
+    exige que todo dominio esteja em faixa reservada a documentacao, e o sufixo
+    que cumpre isso (`.example`, `.invalid`, `example.com`…) e norma de
+    seguranca, nao entidade do mundo simulado: exigi-lo no elenco obrigaria todo
+    gabarito a declarar `.example` como se fosse um ator.
+
+    O que tem de vir do elenco e o RESTO — o rotulo que identifica quem e o
+    host. `ti-recadastro.example` passa porque `ti-recadastro` e o remetente
+    forjado que o fato declara; `suporte.example` nao passa, mesmo com sufixo
+    impecavel.
+
+    HOST FORA DE FAIXA RESERVADA NAO E REPORTADO AQUI, e a omissao e deliberada:
+    ele e IOC, e quem o nomeia e `dados_sinteticos` na guarda seguinte. Reportar
+    "entidade inventada" para um dominio roteavel mandaria o autor do gerador
+    procurar no elenco o que e problema de `05` §3.
+    """
+    from dados_sinteticos import hostname_permitido
+
+    inventados: list[str] = []
+    for host in sorted(hostnames_no(texto)):
+        rotulos = host.split(".")
+        reservados = next(
+            (
+                k
+                for k in range(1, len(rotulos) + 1)
+                if hostname_permitido(".".join(rotulos[-k:]))
+            ),
+            None,
+        )
+        if reservados is None:
+            continue
+        proprios = rotulos[: len(rotulos) - reservados]
+        if any(rotulo not in elenco.rotulos_de_host for rotulo in proprios):
+            inventados.append(host)
+    return inventados

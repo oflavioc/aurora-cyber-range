@@ -16,11 +16,23 @@ produtor, rodado de novo — e um verificador que reimplementasse as regras
 divergiria do produtor na primeira mudanca, que e o defeito que `08` §1 existe
 para impedir, um nivel acima.
 
-E ISSO ALCANCA O QUE O ELENCO NAO ALCANCA. `elenco.py` declara o proprio limite:
-ele afirma ausencia de invencao para ENDERECO, que tem forma fechada; um ator
-inventado que nao colidisse com nada passaria. A reprojecao o pega, porque o
-byte diverge — qualquer que seja a natureza da diferenca. O limite da peca 1
-fecha aqui, e nao por acrescimo de regra.
+O QUE A REPROJECAO ALCANCA, E O QUE ELA NAO ALCANCA — M2 DA 2a AUDITORIA
+=========================================================================
+Ela pega **edicao**: qualquer byte que alguem mude no disco depois do build
+diverge da projecao, seja qual for a natureza da diferenca.
+
+**Ela NAO pega invencao do gerador.** A versao anterior deste cabecalho dizia
+que o limite do elenco *"fecha aqui"* — que um ator inventado, fora do alcance
+do oraculo de endereco, seria pego pela reprojecao. Isso e falso por construcao,
+e o "por construcao" e literal: `conferir` roda o **mesmo** gerador, entao um
+valor inventado de forma deterministica sai identico das duas vezes e a lista de
+achados volta vazia.
+
+A afirmacao custou caro por parecer uma garantia: `email.py` tinha dois
+fallbacks escritos a mao, e a fresta que ele dizia fechar *"por construcao"*
+ficou aberta oito pecas com um verificador que nunca poderia ve-la. O limite
+volta a ser do elenco, e foi la que ele encolheu — hostname entrou na forma
+fechada, ao lado de endereco IP.
 
 O QUE `conferir` DEVOLVE, E POR QUE E LISTA
 ============================================
@@ -82,6 +94,7 @@ def construir(
     geradores: Mapping,
     formatos: Mapping[str, str],
     banner: str,
+    campos_do_fato: Mapping[str, frozenset[str]],
     pack_id: str,
     random_seed: int,
     entrega: Mapping[str, str] | None = None,
@@ -101,6 +114,7 @@ def construir(
         geradores=geradores,
         formatos=formatos,
         banner=banner,
+        campos_do_fato=campos_do_fato,
     )
 
     manifesto = montar(
@@ -134,6 +148,7 @@ def conferir(
     geradores: Mapping,
     formatos: Mapping[str, str],
     banner: str,
+    campos_do_fato: Mapping[str, frozenset[str]],
     contratos: dict[str, dict],
 ) -> list[str]:
     """Os achados do pacote em disco. Lista vazia significa integro.
@@ -180,6 +195,7 @@ def conferir(
         geradores=geradores,
         formatos=formatos,
         banner=banner,
+        campos_do_fato=campos_do_fato,
     )
     por_arquivo = {f.nome_do_arquivo: f for f in fontes}
 
@@ -216,11 +232,48 @@ def conferir(
             continue
 
         fonte = por_arquivo.get(nome)
-        if fonte is not None and bruto != fonte.conteudo.encode("utf-8"):
+        if fonte is None:
+            continue
+
+        if bruto != fonte.conteudo.encode("utf-8"):
             achados.append(
                 f"{nome}: o hash confere com o {MANIFESTO}, mas o conteudo NAO e "
                 f"o que o ground truth projeta — manifesto e arquivo foram "
                 f"alterados juntos"
+            )
+
+        # A AMARRACAO POR FATO, QUE E O QUE `08` §7 PEDE AO MANIFESTO — H2 da
+        # segunda auditoria.
+        #
+        # Ate ela, `conferir` comparava so os NOMES DE ARQUIVO: `projects_facts`
+        # e `format` eram escritos no build, validados pelo schema (forma) e
+        # nunca mais lidos. Um `MANIFEST.json` com a cobertura por fato
+        # adulterada e os arquivos intactos passava por todos os degraus.
+        #
+        # E e justamente essa amarracao que nao tem outro guardiao: o `fact_id`
+        # NAO esta nas fontes (`05` §6 — ele entregaria o gabarito na primeira
+        # linha), entao o manifesto e o unico lugar onde ele aparece. O que o
+        # item 2 chama de *"dirigido por fato"* mora aqui, e em nenhum outro
+        # degrau.
+        declarada = list(source.get("projects_facts") or ())
+        reprojetada = list(fonte.projects_facts)
+        if declarada != reprojetada:
+            achados.append(
+                f"{nome}: o {MANIFESTO} declara projetar {declarada} e o ground "
+                f"truth projeta {reprojetada}. A cobertura por fato de `08` §7 "
+                f"e o unico lugar onde o `fact_id` aparece — as fontes nao o "
+                f"carregam (`05` §6), entao adultera-la aqui nao deixa rastro "
+                f"em arquivo nenhum"
+            )
+
+        if source.get("format") != fonte.formato:
+            achados.append(
+                f"{nome}: o {MANIFESTO} declara formato {source.get('format')!r} "
+                f"e a fonte {fonte.fonte!r} projeta {fonte.formato!r}. O "
+                f"registro que liga os dois e "
+                f"`x-aurora-registry.source_formats`, e um manifesto que mente "
+                f"sobre o formato manda o facilitador abrir o arquivo com o "
+                f"parser errado"
             )
 
     # ARQUIVO A MAIS: conteudo autoral entrando pela porta dos fundos. A

@@ -4,15 +4,33 @@ R3 §5. O motor e uma funcao curta que orquestra tres decisoes, e as tres sao do
 tipo que um gate distraido concede: *"filtrei os fatos certos"*, *"pus o
 banner"*, *"recusei a invencao"*. Cada mutacao ataca uma.
 
-AS CINCO MUTACOES
-==================
+AS NOVE MUTACOES
+=================
 | mutacao | o que ela e | propriedade atacada |
 |---|---|---|
 | **a recusa vira aviso** | sai o `raise EntidadeInventada` | a porta do item 1 |
 | **o gerador recebe TODOS os fatos** | some o filtro por cobertura | fato invisivel nao projeta |
 | **o banner some** | o conteudo passa a ser so o corpo | `05` §4, primeira linha |
 | **a fonte ausente passa** | sai o `raise GeradorAusente` | falha fechada |
+| **a guarda de veredito nao encontra nada** | `_ocorre` devolve `False` | `00` §3, B1 da 2a auditoria |
+| **o NOME do campo sai da busca** | so os valores ficam guardados | `05` §6, o campo vazio que afirma |
+| **a recusa de host inventado vira aviso** | `hosts_inventados` devolve `[]` | item 1, M2 da 2a auditoria |
+| **a normalizacao de rotulo some** | `_` deixa de virar `-` | o falso POSITIVO do mesmo gate |
 | **o manifesto declara todos os fatos** | `projects_facts` vira o elenco inteiro | cobertura de `08` §7 |
+
+A QUINTA E A SEXTA SAO A CAMADA, E NAO A SEGURANCA
+===================================================
+`credential_state` valia `compromised` no fato real, e tres fontes o
+escreviam. Nao e IOC, nao e dado real, nenhum verificador de `05` reclamaria —
+e mesmo assim arruina o exercicio, porque a segunda linha do `vpn.log` entrega
+a conclusao que o proprio fato manda correlacionar. Um gate contra isso nao
+tem como ser derivado de norma de seguranca: ele vem de `00` §3, e e por isso
+que a particao mora no contrato e nao numa lista no motor.
+
+A OITAVA E O DEFEITO ESPELHADO, e ela existe porque gate que atrapalha morre.
+Se a normalizacao `_` -> `-` sumir, `svc_academus` nunca casa `svc-academus` e
+o oraculo passa a acusar a unica derivacao CORRETA. Falso positivo nao e um
+gate mais rigoroso — e um gate que sera desligado (R10 §2).
 
 A PRIMEIRA E A QUE DEFINE A PECA
 =================================
@@ -58,11 +76,15 @@ from pathlib import Path
 from mutation_harness import caso_de_prova_negativa
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+ELENCO = REPO_ROOT / "range-core" / "evidence" / "elenco.py"
 PROJECAO = REPO_ROOT / "range-core" / "evidence" / "projecao.py"
 MANIFESTO = REPO_ROOT / "range-core" / "evidence" / "manifesto.py"
 TESTES = REPO_ROOT / "tests" / "test_evidence_projecao.py"
 
+#: `elenco` ANTES de `projecao` — ordem de dependencia: `projecao.py` importa as
+#: funcoes do elenco no topo e guarda as ORIGINAIS.
 MUTAVEIS = (
+    ("elenco", "range_core.evidence.elenco", ELENCO),
     ("projecao", "range_core.evidence.projecao", PROJECAO),
     ("manifesto", "range_core.evidence.manifesto", MANIFESTO),
 )
@@ -86,6 +108,22 @@ GUARDA_DE_GERADOR = """    faltando = sorted(set(cobertura) - set(geradores))
     if faltando:"""
 
 PROJECTS_FACTS = '            "projects_facts": list(fonte.projects_facts),'
+
+#: A PORTA DO B1. Mutar `_ocorre` para `False` desliga a guarda inteira sem
+#: mudar mais nada — e a forma mais limpa de perguntar "o que este gate custa?".
+OCORRE = '    return re.search(rf"(?<![\\w.-]){re.escape(agulha)}(?![\\w.-])", conteudo) is not None'
+
+#: O NOME DO CAMPO saindo da busca. Mais fina que a acima: os VALORES continuam
+#: guardados, e o que se perde e so a chave escrita no registro JSONL.
+NOME_DO_CAMPO = "        agulhas.append((campo, campo))"
+
+#: A PORTA DO M2 — a segunda forma fechada do oraculo.
+RECUSA_DE_HOST = "        hosts = hosts_inventados(conteudo, elenco)"
+
+#: A NORMALIZACAO de rotulo de host. Sem ela, `svc_academus` nunca casa
+#: `svc-academus` e a derivacao legitima passa a ser acusada — o falso POSITIVO,
+#: que e o outro jeito de um gate deixar de servir.
+ROTULOS = '        return frozenset(v.replace("_", "-").lower() for v in self.todos)'
 
 MUTACOES = {
     "a recusa de invencao vira aviso": (
@@ -118,6 +156,34 @@ MUTACOES = {
             )
         ],
         {"test_gerador_AUSENTE_para_fonte_da_cobertura_e_recusado_nomeando_a_fonte"},
+    ),
+    # AS QUATRO DA SEGUNDA AUDITORIA. As duas primeiras sao o B1 — a guarda que
+    # impede o veredito do gabarito de ir para o fio —, e as duas ultimas sao o
+    # M2, o oraculo de hostname.
+    "a guarda de veredito nunca encontra nada": (
+        [("projecao", OCORRE, "    return False")],
+        {
+            "test_gerador_que_escreve_o_VEREDITO_do_gabarito_e_recusado",
+            "test_gerador_que_escreve_a_CLASSE_do_fato_e_recusado",
+            "test_gerador_que_carimba_o_FACT_ID_e_recusado",
+            "test_a_CHAVE_do_campo_de_gabarito_tambem_e_recusada",
+            "test_a_guarda_alcanca_valor_COM_ESPACO_dentro_de_mapa",
+        },
+    ),
+    "o NOME do campo de gabarito sai da busca": (
+        [("projecao", NOME_DO_CAMPO, "        pass")],
+        {"test_a_CHAVE_do_campo_de_gabarito_tambem_e_recusada"},
+    ),
+    "a recusa de host inventado vira aviso": (
+        [("projecao", RECUSA_DE_HOST, "        hosts = []")],
+        {"test_gerador_que_INVENTA_host_e_recusado"},
+    ),
+    # O FALSO POSITIVO, que e o defeito espelhado. Um gate que recusa o unico
+    # jeito CORRETO de derivar o host seria abandonado na primeira vez que
+    # atrapalhasse — e gate abandonado nao guarda nada (R10 §2).
+    "a normalizacao de rotulo de host some": (
+        [("elenco", ROTULOS, "        return frozenset(self.todos)")],
+        {"test_o_host_DERIVADO_do_elenco_passa"},
     ),
     "o manifesto declara fato que a fonte nao projeta": (
         [

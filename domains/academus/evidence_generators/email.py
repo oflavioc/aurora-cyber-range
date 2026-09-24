@@ -14,16 +14,24 @@ verificacao posterior:
 3. **link em sufixo reservado** — a URL e montada do valor que o fato declara,
    mais `.example`.
 
-O DOMINIO DERIVA DO ELENCO, E ISSO FECHA UMA FRESTA DO ITEM 1
-==============================================================
-O oraculo de `elenco.py` afirma ausencia de invencao **para endereco IP**, que
-tem forma fechada. Dominio nao tem: uma rede lexica que o pegasse pegaria
-palavra comum do corpo do texto. Entao um dominio escrito a mao aqui seria
-entidade inventada passando exatamente onde o oraculo nao olha.
+O DOMINIO DERIVA DO ELENCO, E AGORA HA QUEM COBRE
+==================================================
+O rotulo de host sai de `actor` (o remetente forjado, declarado no fato), e o
+sufixo e reservado. **Nada no texto nomeia host que o ground truth nao tenha
+fixado.**
 
-A saida e nao escrever nenhum: o rotulo de host sai de `actor` (o remetente
-forjado, declarado no fato), e o sufixo e reservado. **Nada no texto nomeia host
-que o ground truth nao tenha fixado.**
+E ATE O M2 DA SEGUNDA AUDITORIA ISSO ERA SO UMA INTENCAO — e uma intencao
+falsa. As duas leituras do fato eram `fato.get("actor", "ti")` e
+`fato.get("dest", "usuario")`: dois literais escritos a mao, exatamente a
+entidade inventada que o cabecalho anterior dizia nao existir. Pior, o texto
+afirmava que a reprojecao do `evidence verify` fechava a fresta — falso por
+construcao, porque `conferir` roda ESTE gerador de novo e um fallback
+deterministico sai identico das duas vezes.
+
+Os fallbacks sairam, e o oraculo ganhou a arma que faltava: `elenco.py` passou
+a afirmar ausencia de invencao tambem para **hostname**, que tem forma fechada
+como endereco IP tem. Campo obrigatorio ausente agora e recusa nomeada, e nao
+um valor plausivel.
 
 `_` VIRA `-` NO ROTULO DE HOST, e a troca e de forma e nao de identidade: `_`
 nao e valido em hostname, e `svc_academus` e ator legitimo que nunca deveria
@@ -35,7 +43,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-__all__ = ["gerar", "SUFIXO_RESERVADO"]
+__all__ = ["gerar", "SUFIXO_RESERVADO", "CampoAusente"]
+
+
+class CampoAusente(Exception):
+    """O fato projeta em `email` e nao tem o campo que a mensagem exige."""
 
 #: `05` §2 e §3 — dominio apenas de faixa reservada a documentacao.
 #: `contracts/evidence.schema.yaml` o lista em `allowed_domain_suffixes`, e
@@ -51,6 +63,26 @@ def _rotulo(valor: str) -> str:
     return valor.replace("_", "-")
 
 
+def _exigido(fato: Mapping, campo: str) -> str:
+    """O valor do campo, ou recusa nomeada. **Nunca um default plausivel.**
+
+    `04` §3 torna `actor` e `dest` opcionais no fato porque nem toda especie de
+    fato os tem. Mas um fato que declara `projections: [email]` afirma que ha
+    uma MENSAGEM, e mensagem sem remetente nem destinatario nao existe — a
+    omissao e erro de autoria de cenario, e o lugar de descobri-la e o
+    `evidence build`, nao a sala.
+    """
+    valor = fato.get(campo)
+    if not isinstance(valor, str) or not valor:
+        raise CampoAusente(
+            f"o fato {fato.get('fact_id')!r} projeta em `email` e nao declara "
+            f"{campo!r}. Um valor default aqui seria entidade inventada que a "
+            f"reprojecao NAO pega, por ser deterministica — M2 da segunda "
+            f"auditoria da Fase 9"
+        )
+    return valor
+
+
 def gerar(fatos: Sequence[Mapping]) -> str:
     """Uma mensagem RFC 5322 por fato de phishing.
 
@@ -60,8 +92,8 @@ def gerar(fatos: Sequence[Mapping]) -> str:
     """
     mensagens = []
     for fato in fatos:
-        remetente = fato.get("actor", "ti")
-        destinatario = fato.get("dest", "usuario")
+        remetente = _exigido(fato, "actor")
+        destinatario = _exigido(fato, "dest")
         host = f"{_rotulo(remetente)}{SUFIXO_RESERVADO}"
         mensagens.append(
             "\n".join(

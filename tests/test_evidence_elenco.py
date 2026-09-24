@@ -271,11 +271,46 @@ class AConjuncaoQueDecideOItem1(unittest.TestCase):
         O que se afirma de ator e destino e que o valor do fato APARECE na
         projecao, que e a consistencia mutua de `06` T13."""
         e = mod.elenco_de(GT_BASE)
-        linha = "user=svc_academus host=vpn-gw-01 src=198.51.100.42"
         self.assertTrue(e.contem("svc_academus"))
         self.assertTrue(e.contem("vpn-gw-01"))
-        self.assertIn("svc_academus", linha)
         self.assertFalse(e.contem("prof.inexistente"))
+
+    # -- hostname: a segunda forma fechada, M2 da segunda auditoria ----------
+
+    def test_host_DERIVADO_do_elenco_nao_e_invencao(self):
+        """`svc_academus` vira `svc-academus` porque `_` nao e valido em rotulo
+        de host (RFC 1123). A normalizacao e de sintaxe, nao de identidade."""
+        e = mod.elenco_de(GT_BASE)
+        texto = "Acesse: https://svc-academus.example/x"
+        self.assertEqual(mod.hosts_inventados(texto, e), [])
+
+    def test_host_com_rotulo_QUE_NINGUEM_FIXOU_e_invencao(self):
+        """O sufixo e reservado — `05` §2 esta satisfeito e o predicado de IOC
+        aprova. Quem recusa e o elenco, e so ele."""
+        e = mod.elenco_de(GT_BASE)
+        texto = "Acesse: https://intranet-ti.example/x"
+        self.assertEqual(mod.hosts_inventados(texto, e), ["intranet-ti.example"])
+
+    def test_o_SUFIXO_reservado_nao_precisa_estar_no_elenco(self):
+        """Exigi-lo obrigaria todo gabarito a declarar `.example` como se fosse
+        um ator — norma de seguranca virando entidade do mundo simulado."""
+        e = mod.elenco_de(GT_BASE)
+        self.assertNotIn("example", e.rotulos_de_host)
+        self.assertEqual(mod.hosts_inventados("svc-academus.example", e), [])
+
+    def test_host_FORA_de_faixa_reservada_NAO_e_reportado_aqui(self):
+        """A omissao e deliberada: dominio roteavel e IOC, e quem o nomeia e
+        `dados_sinteticos` na guarda seguinte. Reportar "entidade inventada"
+        mandaria o autor do gerador procurar no elenco o que e `05` §3."""
+        e = mod.elenco_de(GT_BASE)
+        self.assertEqual(mod.hosts_inventados("https://exemplo-real.com.br/x", e), [])
+
+    def test_nome_de_arquivo_nao_vira_hostname(self):
+        """`vpn.log` e `identity_audit.jsonl` aparecem em prosa de manifesto e
+        de comentario. Quem decide o que tem forma de host e `dados_sinteticos`,
+        e ele exclui sufixo de arquivo — reusar o julgamento e o que impede a
+        segunda resposta para a mesma pergunta."""
+        self.assertEqual(mod.hostnames_no("vpn.log identity_audit.jsonl"), set())
 
 
 if __name__ == "__main__":  # pragma: no cover

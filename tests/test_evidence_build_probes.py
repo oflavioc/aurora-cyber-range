@@ -72,6 +72,11 @@ TESTES = REPO_ROOT / "tests" / "test_evidence_build.py"
 #: sem mutacao propria, so para recarregar depois de `jsonl` e de `precursor`.
 MUTAVEIS = (
     ("build", "range_core.evidence.build", BUILD),
+    # O CLI ENTRA AQUI, e nao em arquivo proprio: `_entrega_declarada` so produz
+    # efeito observavel atraves do `MANIFEST.json`, e quem o le e a suite deste
+    # arquivo. A mutacao dele precisa estar onde ela e detectada — a mesma razao
+    # pela qual o loader e mutado junto com o engine.
+    ("cli", "range_cli.cli", REPO_ROOT / "range_cli" / "cli.py"),
     ("jsonl", "domains.academus.evidence_generators.jsonl", JSONL),
     ("precursor", "domains.academus.evidence_generators.precursor", PRECURSOR),
     ("identity_audit", "domains.academus.evidence_generators.identity_audit", IDENTITY),
@@ -83,6 +88,10 @@ COMPARA_HASH = """        if em_hash != source["sha256"]:"""
 COMPARA_GT = """    if declarado != esperado:"""
 
 VARRE_DIRETORIO = "    for caminho in sorted(destino.iterdir()):"
+
+COMPARA_COBERTURA = "        if declarada != reprojetada:"
+
+COMPARA_FORMATO = '        if source.get("format") != fonte.formato:'
 
 ESCRITA = '    alvo.write_text(conteudo, encoding="utf-8", newline="")'
 
@@ -118,6 +127,23 @@ MUTACOES = {
         [("build", VARRE_DIRETORIO, "    for caminho in []:")],
         {"test_arquivo_A_MAIS_no_diretorio_e_detectado"},
     ),
+    # H2 DA SEGUNDA AUDITORIA, PLANTADO DE VOLTA. O `conferir` comparava so os
+    # NOMES DE ARQUIVO, e estes dois degraus nao existiam: `projects_facts` e
+    # `format` eram escritos no build, conferidos quanto a FORMA pelo schema, e
+    # nunca mais lidos.
+    #
+    # As duas mutacoes sao finas de proposito — nao tocam byte de evidencia
+    # nenhum. `sha256`, `ground_truth_hash` e reprojecao continuam todos
+    # batendo, e o que sobra e exatamente a pergunta do item 2: a conferencia e
+    # dirigida por FATO?
+    "a cobertura por fato do manifesto nao e conferida": (
+        [("build", COMPARA_COBERTURA, "        if False:")],
+        {"test_a_CONFERENCIA_pega_projects_facts_adulterado"},
+    ),
+    "o formato declarado no manifesto nao e conferido": (
+        [("build", COMPARA_FORMATO, "        if False:")],
+        {"test_a_CONFERENCIA_pega_format_adulterado"},
+    ),
     # GROSSA POR CONSEQUENCIA REAL, e o conjunto foi medido NO WINDOWS: o CRLF
     # muda os bytes de todo arquivo, entao o `sha256` do manifesto deixa de
     # bater no mesmo build que o escreveu, e o `verify` acusa tudo. Nao da para
@@ -128,6 +154,27 @@ MUTACOES = {
             "test_escreve_com_LF_e_nunca_CRLF",
             "test_o_sha256_do_manifesto_confere_com_o_BYTE_em_disco",
             "test_pacote_recem_construido_nao_tem_achado",
+            "test_verify_de_pacote_integro_sai_limpo",
+            # OS TRES DE H2 ENTRARAM NESTE CONJUNTO, e nao por acaso: com todo
+            # `sha256` divergindo, `conferir` para de conferir o manifesto e
+            # passa a so reportar bytes. Um caso que espera achado ESPECIFICO
+            # cai junto com o par positivo — e isso e informacao: os degraus
+            # sao ordenados por dependencia, e o de cima quebrado enterra os de
+            # baixo no ruido.
+            "test_a_CONFERENCIA_pega_projects_facts_adulterado",
+            "test_a_CONFERENCIA_pega_format_adulterado",
+            "test_o_par_positivo_manifesto_INTACTO_nao_gera_achado",
+        },
+    ),
+    # M3 DA SEGUNDA AUDITORIA, PLANTADO DE VOLTA. O defeito nao era o motor:
+    # `montar` sempre soube receber `entrega`. Era o CLI **nunca passar** —
+    # exatamente o que esta mutacao restaura, e ela e verde em todo lugar que
+    # nao leia `delivery_mode`.
+    "o CLI nao le o modo de entrega dos injects": (
+        [("cli", "    alvo = pack_dir / INJECTS", '    alvo = pack_dir / "ausente.yaml"')],
+        {
+            "test_fonte_liberada_por_inject_NAO_sai_pre_posicionada",
+            "test_inject_que_libera_fonte_QUE_O_GABARITO_NAO_PROJETA_e_recusado",
         },
     ),
     "o precursor passa a atribuir ator": (
