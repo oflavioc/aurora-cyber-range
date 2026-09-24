@@ -54,7 +54,22 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-__all__ = ["VERSAO", "CHAVES_DO_CABECALHO", "linha"]
+__all__ = ["FONTE", "VERSAO", "CHAVES_DO_CABECALHO", "linha"]
+
+#: A FONTE DE EVIDENCIA que esta telemetria E — `08` §3 e o registro de
+#: `x-aurora-registry.source_formats`.
+#:
+#: B2 DA TERCEIRA AUDITORIA. O nome mora aqui porque ele responde por uma
+#: identidade, e nao por uma string solta: **o `telemetry_emitted` do event
+#: store e a linha do `cef.log` sao a mesma fonte, vista de dois lugares**. O
+#: arquivo era filtrado pela cobertura de projecao e o evento nao era filtrado
+#: por nada — entao o SIEM do exercicio mostrava sinal de fato que nao tem linha
+#: no arquivo, e ate de fato sem `projections`, que `08` §2 declara INVISIVEL ao
+#: time azul.
+#:
+#: Quem consome: `pack_loader._telemetria_do_pack`, para pedir a `cobertura_de`
+#: exatamente o mesmo conjunto que o motor entrega ao gerador.
+FONTE = "cef"
 
 #: A versao do cabecalho CEF. `CEF:0` e a unica publicada.
 VERSAO = "CEF:0"
@@ -62,7 +77,13 @@ VERSAO = "CEF:0"
 #: As chaves do payload que o CABECALHO consome — toda outra vira extensao.
 #: Declaradas aqui e consumidas pelo laco, para que a regra "o resto vira
 #: extensao" seja derivada de UMA lista e nao afirmada em dois lugares (R9 §8).
-CHAVES_DO_CABECALHO = ("signature", "severity")
+#:
+#: `event_time` entrou com o H1 da terceira auditoria, e ele e o carimbo do
+#: PREFIXO SYSLOG — nao uma extensao. Isso aperta a unificacao em vez de
+#: afroxa-la: o instante que o arquivo escreve deixou de vir de fora do payload
+#: e passou a sair dele, entao o que o `cef.log` carrega e, agora sem exceção,
+#: o que o `telemetry_emitted` carrega.
+CHAVES_DO_CABECALHO = ("signature", "severity", "event_time")
 
 #: `|` e `=` sao separadores do formato e precisam de escape; a ordem importa,
 #: porque escapar `\` depois criaria escape duplo.
@@ -82,21 +103,23 @@ def linha(
     vendor: str,
     produto: str,
     nome: str,
-    instante: str,
     origem: str,
     versao: str = "1.0",
 ) -> str:
     """A linha de fio deste payload de telemetria.
 
     `vendor` e `produto` vem do CONTRATO (`05` §5.1 — produto ficticio, nunca
-    nome de fornecedor real de mercado, *"em nenhum campo"*); `nome`, `instante`
-    e `origem` sao do fato, e sao o que o transporte acrescenta ao payload:
-    respectivamente o verbo observado, o carimbo de syslog e o host que assina a
-    linha.
+    nome de fornecedor real de mercado, *"em nenhum campo"*); `nome` e `origem`
+    sao, respectivamente, o verbo observado e o host que assina a linha.
 
-    NENHUM DOS TRES E CAMPO DE `02` §10, e por isso nenhum entra como extensao:
+    NENHUM DOS DOIS E CAMPO DE `02` §10, e por isso nenhum entra como extensao:
     a superficie de extensao e exatamente o payload.
+
+    O CARIMBO DE SYSLOG SAI DO PAYLOAD desde o H1 da terceira auditoria — ele e
+    `event_time`, a marca de `00` §5.6. Ate entao vinha por parametro, de fora,
+    e era a ultima coisa no arquivo que o evento nao tinha.
     """
+    instante = str(payload.get("event_time", "-"))
     cabecalho = "|".join(
         (
             VERSAO,

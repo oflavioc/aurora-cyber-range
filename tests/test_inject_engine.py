@@ -68,6 +68,7 @@ from range_core.engine.inject_engine import (
 )
 from range_core.engine.loader import contract_source
 from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
+from range_core.evidence.elenco import cobertura_de
 from range_core.events.store import InMemoryEventStore
 from range_core.state.simulation_state import TO_EVENT_ID
 
@@ -822,15 +823,21 @@ class OExercicioEMITEATelemetria(ValidacaoDeEnvelope, unittest.TestCase):
     def setUp(self) -> None:
         from range_core.telemetry.catalogo import carregar as carregar_catalogo
 
-        catalogo = carregar_catalogo(
+        self.catalogo = carregar_catalogo(
             REPO_ROOT / "domains" / "academus" / "telemetry_events.yaml",
             contratos=CONTRATOS,
+        )
+        #: O GABARITO LIDO DO DISCO, e nao o que o pack devolveu: a cobertura
+        #: esperada tem de sair do DOCUMENTO, senao o teste compara o produto
+        #: com ele mesmo.
+        self.gabarito = yaml.safe_load(
+            (PACK / "ground_truth.yaml").read_text(encoding="utf-8")
         )
         self.pack = load_pack(
             PACK,
             contracts=CONTRATOS,
             adapter_flags=FLAGS,
-            adapter_telemetry=catalogo,
+            adapter_telemetry=self.catalogo,
         )
         self.parede = RelogioDeParede()
         self.clock = ExerciseClock(T_ZERO, now=self.parede)
@@ -860,12 +867,49 @@ class OExercicioEMITEATelemetria(ValidacaoDeEnvelope, unittest.TestCase):
         for programado in self.pack.telemetria:
             self.assertIn("signature", programado.payload)
 
+    def test_SO_o_fato_que_projeta_em_cef_vira_telemetria(self):
+        """**B2 da terceira auditoria.**
+
+        O `telemetry_emitted` do store e a linha do `cef.log` sao a MESMA fonte
+        vista de dois lugares. O loader passava **todos** os fatos a
+        `programar`, e o arquivo era filtrado pela cobertura: o SIEM do
+        exercicio mostrava sinal de fato que nao tem linha no arquivo, e teria
+        mostrado ate de fato SEM `projections` — que `08` §2 define como
+        invisivel ao time azul.
+
+        A fixture tem os tres casos de proposito, e os tres com `fact_class`
+        que o catalogo mapeia: um projeta em `cef`, um projeta em outra fonte,
+        um nao projeta. So o primeiro pode virar evento.
+        """
+        self.engine.start()
+        emitidos = {e.payload["signature"] for e in self._telemetria()}
+        self.assertEqual(emitidos, {"BULK_STUDENT_EXPORT"})
+
+        # O PAR NEGATIVO, e ele e o que impede o caso acima de passar por
+        # engano: as OUTRAS duas assinaturas existem no catalogo e sao
+        # alcancaveis — o que as exclui e a cobertura, e nao a ausencia de
+        # mapeamento.
+        do_catalogo = {
+            e.signature
+            for e in self.catalogo.entradas
+            if e.fact_class in ("privilege_escalation", "initial_access")
+        }
+        self.assertEqual(len(do_catalogo), 2)
+        self.assertEqual(emitidos & do_catalogo, set())
+
     def test_o_START_emite_a_telemetria_pre_posicionada(self):
         """`08` §5 — pre-posicionada quer dizer *ja no SIEM quando o exercicio
-        comeca*. Ela vence em `t=0`, e o primeiro tick a emite."""
+        comeca*. Ela vence em `t=0`, e o primeiro tick a emite.
+
+        A CONTAGEM E CONTRA A COBERTURA DO GABARITO, e nao contra
+        `pack.telemetria` — que e a propria saida do produto. Comparar a saida
+        com ela mesma era tautologico sobre QUAIS fatos viram telemetria, e o
+        auditor o listou entre os testes que nao provam o requisito.
+        """
         self.assertEqual(self._telemetria(), [])
         self.engine.start()
-        self.assertEqual(len(self._telemetria()), len(self.pack.telemetria))
+        do_gabarito = cobertura_de(self.gabarito).get("cef") or frozenset()
+        self.assertEqual(len(self._telemetria()), len(do_gabarito))
 
     def test_a_telemetria_vem_DEPOIS_do_exercise_started(self):
         """O event store e append-only e a ordem de chegada e a da timeline do
@@ -905,6 +949,44 @@ class OExercicioEMITEATelemetria(ValidacaoDeEnvelope, unittest.TestCase):
         self.assertConformeAoContrato(
             self.store.read_all(), esperados={TELEMETRY_EMITTED}
         )
+
+    def test_o_evento_carrega_AS_DUAS_marcas_de_telemetria(self):
+        """**H1 da terceira auditoria.** `00` §5.6 e `01` §3 pedem duas, e a
+        distincao entre elas e o que as torna uteis:
+
+            `event_time`   quando o fato aconteceu no mundo simulado
+            `ingest_time`  quando o SIEM recebeu
+
+        O payload fechado (`additionalProperties: false`) impedia acrescentar
+        qualquer uma delas sem mudar o contrato — entao a fase que CRIOU o
+        contrato de telemetria fechou, por schema, um campo normativo do MASTER.
+
+        Num exercicio as duas ficam muito distantes: o fato e de `T+00:05` da
+        fixture, e a ingestao e do start. E a distancia que o
+        `discoverability.requires` manda correlacionar.
+        """
+        self.engine.start()
+        eventos = self._telemetria()
+        self.assertTrue(eventos)
+        for evento in eventos:
+            self.assertIn("event_time", evento.payload)
+            self.assertIn("ingest_time", evento.payload)
+            self.assertNotEqual(
+                evento.payload["event_time"],
+                evento.payload["ingest_time"],
+                "as duas marcas colapsaram numa so: `01` §3 as exige distintas",
+            )
+
+    def test_o_ingest_time_e_do_relogio_de_EXERCICIO(self):
+        """`01` §3 congela o exercise-clock no PAUSAR. Um `ingest_time` de
+        parede diria que o SIEM recebeu sinal durante uma sala parada.
+
+        A telemetria vence toda em `t=0`, entao a marca da gravacao e `T+00:00:00`
+        — e e ela que o envelope tambem carrega, porque o `append` E a ingestao.
+        """
+        self.engine.start()
+        for evento in self._telemetria():
+            self.assertEqual(evento.payload["ingest_time"], evento.exercise_time)
 
     def test_o_payload_NAO_carrega_fact_id(self):
         """`05` §6 — o participante ve este evento no SIEM do exercicio, e o

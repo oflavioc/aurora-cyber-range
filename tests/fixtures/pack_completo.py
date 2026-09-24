@@ -194,6 +194,27 @@ def _gabarito_sintetico() -> str:
         "  - fact_id: GT-FIXTURE-001\n"
         "    fact_class: exfiltration\n"
         "    exercise_time: 'T+00:05'\n"
+        "    projections: [cef]\n"
+        # OS DOIS FATOS ABAIXO NAO PRODUZEM TELEMETRIA, e sao eles que provam o
+        # B2 da terceira auditoria. A `fact_class` dos dois E mapeada pelo
+        # catalogo de `02` secao 10 — entao `programar` os aceitaria de bom
+        # grado. O que os exclui e a COBERTURA:
+        #
+        #   o primeiro projeta em OUTRA fonte — tem linha no `identity_audit`,
+        #   e nao no `cef.log`; um `telemetry_emitted` dele mostraria no SIEM
+        #   do exercicio um sinal sem arquivo correspondente;
+        #   o segundo nao projeta em fonte nenhuma, que `08` secao 2 define como
+        #   INVISIVEL ao time azul — e telemetria e visivel por construcao.
+        #
+        # Ate a correcao, o loader passava TODOS os fatos a `programar` e os
+        # dois viravam evento. Sem eles aqui, a suite nao teria como notar.
+        "  - fact_id: GT-FIXTURE-002\n"
+        "    fact_class: privilege_escalation\n"
+        "    exercise_time: 'T+00:06'\n"
+        "    projections: [identity_audit]\n"
+        "  - fact_id: GT-FIXTURE-003\n"
+        "    fact_class: initial_access\n"
+        "    exercise_time: 'T+00:07'\n"
         "verification_predicates:\n"
         "  containment:\n"
         "    all:\n"

@@ -410,6 +410,19 @@ def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
     que o gerador de CEF usa, entao o que vai para o event store e o que esta no
     arquivo — nao duas implementacoes coerentes, e sim um dicionario.
 
+    E O CONJUNTO TAMBEM E O MESMO, desde o B2 da terceira auditoria. A primeira
+    versao passava **todos** os fatos a `programar`, e "um produtor so" valia
+    para o formato do payload e nao para a populacao: o store recebia
+    `telemetry_emitted` de fato que declara `projections: [identity_audit]`, de
+    fato da Linha B, e teria recebido de fato SEM `projections` — que `08` §2
+    define como invisivel ao time azul. O `cef.log`, filtrado pela cobertura,
+    tinha metade disso.
+
+    A correcao nao e filtrar aqui com um criterio proprio: e pedir o conjunto a
+    `cobertura_de`, que e a MESMA funcao que o motor de projecao consulta para
+    decidir o que entregar ao gerador. Dois filtros equivalentes divergiriam na
+    primeira regra nova; um filtro so nao tem como.
+
     `catalogo` e `None` em teste e em demo, e a tolerancia e deliberada: o
     catalogo e do ADAPTER (`02` §10), e o loader nao sabe qual adapter e. Quem
     exige a composicao completa e `processo.criar`.
@@ -417,9 +430,17 @@ def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
     if catalogo is None or not ground_truth:
         return ()
 
+    from range_core.evidence.elenco import cobertura_de
+    from range_core.telemetry.cef import FONTE
     from range_core.telemetry.forwarder import programar
 
-    return programar(ground_truth.get("facts") or (), catalogo=catalogo)
+    da_fonte = cobertura_de(ground_truth).get(FONTE) or frozenset()
+    fatos = [
+        fato
+        for fato in (ground_truth.get("facts") or ())
+        if fato.get("fact_id") in da_fonte
+    ]
+    return programar(fatos, catalogo=catalogo)
 
 
 def load_pack(
