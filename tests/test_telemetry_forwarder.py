@@ -131,12 +131,20 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
     """Item 4 — a prova e de VALOR, não de estrutura."""
 
     def setUp(self):
-        self.fatos = linha_a.facts(SEED)
+        #: OS FATOS QUE O GABARITO ROTEIA PARA `cef`, e nao todos — e a mesma
+        #: filtragem que `projetar` faz pela cobertura. Passar todos aqui
+        #: mediria uma composicao que nao existe: `phishing_delivery` projeta em
+        #: `email` e `precursor`, nunca em `cef`.
+        self.fatos = [
+            f for f in linha_a.facts(SEED) if "cef" in (f.get("projections") or ())
+        ]
         self.catalogo = telemetria_do_academus.catalogo(CONTRATOS)
         self.programados = forwarder.programar(self.fatos, catalogo=self.catalogo)
         restricoes = contract_source.restricoes_de_evidencia(CONTRATOS)
         self.cef = cef_mod.fabricar(
-            restricoes["cef_vendor"], restricoes["cef_product"]
+            restricoes["cef_vendor"],
+            restricoes["cef_product"],
+            catalogo=self.catalogo,
         )(self.fatos)
 
     def test_cada_evento_programado_vem_de_UM_fato(self):
@@ -144,46 +152,95 @@ class ATelemetriaEProjecaoDoMesmoFato(unittest.TestCase):
         for programado in self.programados:
             self.assertIn(programado.fact_class, classes)
 
-    def test_os_VALORES_do_payload_aparecem_na_linha_CEF_do_mesmo_fato(self):
-        """**A unificacao medida.** Se as duas metades divergissem, o mesmo fato
-        produziria um `src` no arquivo e outro no evento — a contradicao que
-        `08` §1 chama de estruturalmente impossivel.
+    def test_o_payload_carrega_os_campos_do_FATO(self):
+        """**A metade que a unificacao NAO pode provar, e por construcao.**
 
-        **O campo tem de ESTAR no payload, e nao so bater quando esta.** A
-        primeira versao deste caso pulava a asserção quando a chave faltava
-        (`if valor:`), e a prova negativa mostrou o custo: remover `src` do mapa
-        CEF nao derrubava teste nenhum. Um caso que se auto-desliga na ausencia
-        do que ele julga nao julga nada.
+        Desde que o arquivo e o evento saem do mesmo `programar`, comparar um
+        com o outro deixa de guardar CONTEUDO: um campo que suma do payload
+        some dos dois, e a igualdade continua verdadeira. Medido — a mutacao
+        *"o `src` sai do payload"* deixou de derrubar qualquer teste no momento
+        em que as duas metades se unificaram.
+
+        Entao a segunda afirmacao tem de ser contra o FATO, e o mapa esta
+        escrito aqui a mao: `02` §10 nomeia `src`, `dst`, `suser` e `cnt`, e ler
+        `forwarder.CAMPO_PARA_CEF` faria o teste concordar com a implementacao
+        por construcao — mutar o mapa mudaria os dois lados.
         """
         por_fato = {f["fact_id"]: f for f in self.fatos}
-        #: `fact_class` -> a linha CEF daquele fato. O cabecalho CEF traz a
-        #: classe como `signature` (campo 5), entao a linha e localizavel.
-        linhas_cef = {
-            linha.split("|")[4]: linha for linha in self.cef.splitlines() if "|" in linha
-        }
+        vistos = 0
         for programado in self.programados:
             fato = por_fato[programado.fact_id]
-            # A LINHA DO PROPRIO FATO, e nao o arquivo inteiro.
-            #
-            # A primeira versao fazia `assertIn(valor, self.cef)` — substring
-            # sobre o `cef.log` todo. Um `src` que aparecesse na linha de OUTRO
-            # fato satisfazia, e o docstring prometia "comparados lado a lado".
-            # Afirmava menos do que dizia, e o auditor da Fase 9 o listou entre
-            # os testes que nao provam o requisito.
-            linha = linhas_cef.get(programado.fact_class)
-            self.assertIsNotNone(
-                linha, f"{programado.fact_class} nao tem linha no cef.log"
-            )
-            for campo, chave in (("source_ip", "src"), ("actor", "suser")):
+            for campo, chave in (
+                ("source_ip", "src"),
+                ("dest", "dst"),
+                ("actor", "suser"),
+                ("records_affected", "cnt"),
+            ):
                 if campo not in fato:
                     continue
-                self.assertIn(chave, programado.payload, f"{chave} ausente do payload")
-                self.assertEqual(programado.payload[chave], fato[campo])
                 self.assertIn(
-                    f"{chave}={fato[campo]}",
-                    linha,
-                    f"{chave} da linha CEF de {programado.fact_class} diverge do payload",
+                    chave, programado.payload, f"{chave} ausente do payload"
                 )
+                self.assertEqual(programado.payload[chave], fato[campo])
+                vistos += 1
+        # ANTI-VACUIDADE: sem isto, um `programar` que devolvesse payloads
+        # vazios passaria — nao haveria campo para conferir.
+        self.assertGreaterEqual(vistos, len(self.programados))
+
+    def test_a_linha_CEF_e_o_payload_sao_o_MESMO_dicionario(self):
+        """**H1 da segunda auditoria — a unificacao, medida por INTEIRO.**
+
+        As duas versoes anteriores deste caso comparavam `src` e `suser`, e
+        localizavam a linha CEF pela `fact_class`. Ou seja: **dependiam da
+        divergencia para funcionar**, porque so o gerador antigo punha a classe
+        do fato no campo de assinatura. Um par que compara dois campos de sete e
+        acha a linha pelo que difere nao prova unificacao nenhuma.
+
+        O que este caso afirma agora e igualdade TOTAL, nos dois sentidos: todo
+        campo do payload aparece na linha com o mesmo valor, e a linha nao tem
+        extensao nenhuma que o payload nao tenha. Campo novo no contrato de
+        telemetria entra nas duas pontas ou o teste cai.
+        """
+        linhas = [l for l in self.cef.splitlines() if "|" in l]
+        self.assertEqual(len(linhas), len(self.programados))
+
+        for programado, linha in zip(self.programados, linhas, strict=True):
+            cabecalho, _, extensoes = linha.rpartition("|")
+            partes = cabecalho.split("|")
+            payload = dict(programado.payload)
+
+            # As DUAS chaves que o cabecalho consome, no lugar que o formato
+            # fixa: `signature` e o Device Event Class ID (campo 5) e
+            # `severity` e o campo 7.
+            self.assertEqual(partes[4], payload.pop("signature"))
+            self.assertEqual(partes[6], str(payload.pop("severity")))
+
+            # E TODO O RESTO, nos dois sentidos.
+            na_linha = dict(
+                par.split("=", 1) for par in extensoes.split() if "=" in par
+            )
+            self.assertEqual(
+                na_linha,
+                {chave: str(valor) for chave, valor in payload.items()},
+                f"{programado.fact_id}: a linha e o payload divergem",
+            )
+
+    def test_a_assinatura_da_linha_CEF_vem_do_CATALOGO(self):
+        """B1/H1 no mesmo ponto: `initial_access` como `signature` era a
+        classificacao do gabarito na kill chain viajando como sinal de SIEM."""
+        classes = {f["fact_class"] for f in self.fatos}
+        assinaturas = {l.split("|")[4] for l in self.cef.splitlines() if "|" in l}
+        self.assertEqual(assinaturas & classes, set())
+        self.assertTrue(assinaturas <= set(self.catalogo.assinaturas()))
+
+    def test_nenhuma_extensao_da_linha_usa_cs1_a_cs4(self):
+        """`02` §10 reserva `cs1`-`cs4` para contexto do DOMINIO (campus, curso,
+        semestre, disciplina). A versao anterior punha `credential_state` em
+        `cs1` e `mfa` em `cs2` — campo reservado usado para o que coubesse, e
+        ainda com o veredito do gabarito dentro (B1)."""
+        for linha in self.cef.splitlines():
+            for reservado in ("cs1=", "cs2=", "cs3=", "cs4="):
+                self.assertNotIn(reservado, linha)
 
     def test_a_severidade_vem_do_CATALOGO_e_nao_do_fato(self):
         """`08` §2 — a telemetria nao julga.

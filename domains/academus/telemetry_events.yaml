@@ -67,18 +67,27 @@ events:
     severity: 6
     outcome: success
 
-  # O phishing que abre a Linha A. `AUTH_FAIL` e o sinal que o gateway de
-  # e-mail produz ao recusar o remetente forjado.
-  - signature: AUTH_FAIL
-    fact_class: phishing_delivery
-    severity: 3
-    outcome: failure
-
   # ---------------------------------------------------------------------
   # DECLARADOS E SEM FATO NESTE PACK — ver o cabecalho. Sao de `02` secao 10 e
   # existem para o proximo pack; `fact_class` ausente significa "nenhum fato
   # deste gabarito o dispara", e nao "sem dono".
   # ---------------------------------------------------------------------
+
+  # L1 DA SEGUNDA AUDITORIA — `phishing_delivery` ESTAVA AQUI, mapeado para
+  # `AUTH_FAIL` com `outcome: failure` e o comentario "o gateway recusou o
+  # remetente forjado". E o `email.eml` mostra a mensagem ENTREGUE, na conta
+  # que depois e comprometida: duas fontes do mesmo fato dizendo o oposto uma
+  # da outra, que e precisamente o que `08` secao 1 existe para impedir.
+  #
+  # A correcao nao e trocar a assinatura. E RECONHECER O QUE O GABARITO DIZ: o
+  # gateway nao barrou o phishing — se tivesse barrado, nao haveria Linha A.
+  # Fato sem assinatura e o limite de deteccao de `08` secao 2, e aqui ele e o
+  # proprio enredo: a unica evidencia da entrega e o `.eml` e o sinal fraco do
+  # `precursor_events.jsonl`, e ligar os dois ao acesso inicial e o trabalho
+  # que o exercicio mede.
+  - signature: AUTH_FAIL
+    severity: 3
+    outcome: failure
 
   - signature: AUTH_BRUTE
     severity: 6

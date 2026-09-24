@@ -63,11 +63,19 @@ from mutation_harness import caso_de_prova_negativa
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FORWARDER = REPO_ROOT / "range-core" / "telemetry" / "forwarder.py"
 CATALOGO = REPO_ROOT / "range-core" / "telemetry" / "catalogo.py"
+CEF_DE_FIO = REPO_ROOT / "range-core" / "telemetry" / "cef.py"
+CEF_DO_ADAPTER = REPO_ROOT / "domains" / "academus" / "evidence_generators" / "cef.py"
 TESTES = REPO_ROOT / "tests" / "test_telemetry_forwarder.py"
 
+#: A ORDEM E A DA DEPENDENCIA, e o ultimo entra SEM mutacao propria: o gerador
+#: do adapter faz `from range_core.telemetry.cef import linha` no topo e guarda
+#: a funcao ORIGINAL. Recarrega-lo depois e o que faz a mutacao do renderizador
+#: chegar ao arquivo — a mesma licao de instrumento que `jsonl` custou na peca 3.
 MUTAVEIS = (
     ("catalogo", "range_core.telemetry.catalogo", CATALOGO),
     ("forwarder", "range_core.telemetry.forwarder", FORWARDER),
+    ("cef_de_fio", "range_core.telemetry.cef", CEF_DE_FIO),
+    ("cef_do_adapter", "domains.academus.evidence_generators.cef", CEF_DO_ADAPTER),
 )
 
 MAPA_CEF = '    ("source_ip", "src"),'
@@ -80,10 +88,45 @@ MARCA_EMITIDO = "            self._emitidos.add(indice)"
 
 RETORNO_DOS_ERROS = '    return [f"{e.json_path}: {e.message}" for e in erros]'
 
+ASSINATURA_NA_LINHA = '            _escapar(payload.get("signature", "event")),'
+
 MUTACOES = {
+    # A QUE FICOU SEM DONO QUANDO AS DUAS METADES SE UNIFICARAM — medido na
+    # correcao do H1, e e o efeito colateral mais interessante dela.
+    #
+    # Enquanto o arquivo e o evento tinham caminhos proprios, comparar um com o
+    # outro guardava conteudo. Desde que os dois saem do MESMO `programar`, um
+    # campo que suma do payload some dos dois e a igualdade continua verdadeira:
+    # esta mutacao passou a nao derrubar teste nenhum.
+    #
+    # A unificacao nao pode provar conteudo, entao quem prova e a afirmacao
+    # contra o FATO — `test_o_payload_carrega_os_campos_do_FATO`, com o mapa de
+    # `02` §10 escrito a mao no teste. Nasceu daqui.
     "o `src` sai do payload de telemetria": (
         [("forwarder", MAPA_CEF, "")],
-        {"test_os_VALORES_do_payload_aparecem_na_linha_CEF_do_mesmo_fato"},
+        {"test_o_payload_carrega_os_campos_do_FATO"},
+    ),
+    # H1 DA SEGUNDA AUDITORIA, PLANTADO DE VOLTA. O defeito original era a linha
+    # CEF montar a assinatura por conta propria em vez de le-la do payload que o
+    # catalogo produziu — e o resultado era o arquivo dizendo `initial_access|5`
+    # enquanto o event store dizia `SERVICE_ACCOUNT_ANOMALY`, severidade 7.
+    #
+    # Esta e a mutacao que o par `linha CEF == payload` existe para matar.
+    "a assinatura da linha CEF deixa de vir do payload": (
+        [
+            (
+                "cef_de_fio",
+                ASSINATURA_NA_LINHA,
+                '            _escapar(payload.get("fact_class", "event")),',
+            )
+        ],
+        {
+            "test_a_linha_CEF_e_o_payload_sao_o_MESMO_dicionario",
+            # ACUSA TAMBEM, e nao esta sobrando: com a assinatura caindo no
+            # default `"event"`, ela deixa de pertencer ao catalogo — que e a
+            # outra metade da mesma afirmacao.
+            "test_a_assinatura_da_linha_CEF_vem_do_CATALOGO",
+        },
     ),
     # A QUE PASSOU DESPERCEBIDA NA PRIMEIRA MEDICAO. `records_affected % 11` da
     # valores 0-10, que VALIDAM contra o contrato — entao o caso de schema

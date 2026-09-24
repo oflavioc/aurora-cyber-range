@@ -19,8 +19,10 @@ pacote que parasse nas quatro nao projetaria o proprio gabarito do projeto.
 
 O QUE `cef` AQUI NAO E: o telemetry-forwarder. O item 4 da DoD tem duas metades
 — o ARQUIVO, que e esta, e `telemetry_emitted` indo para o event store, que e a
-outra e tem peca propria. As duas compartilham este gerador, e e isso que `08`
-§2 quer dizer com *"um contrato so"*.
+outra. As duas compartilham `range_core.telemetry.forwarder.programar`, e e isso
+que `08` §2 quer dizer com *"um contrato so"*: nao dois geradores coerentes, e
+sim UM produtor de payload com dois renderizadores. Ate o H1 da segunda
+auditoria eram dois, e ja divergiam — ver o cabecalho de `cef.py`.
 
     precursor        jsonl         o sinal fraco que antecede o incidente
 
@@ -89,6 +91,7 @@ def geradores(contratos: dict[str, dict]) -> dict[str, Callable]:
     """
     from importlib import import_module
 
+    from domains.academus.telemetria import catalogo
     from range_core.engine.loader.contract_source import restricoes_de_evidencia
 
     def _modulo(nome: str):
@@ -101,7 +104,13 @@ def geradores(contratos: dict[str, dict]) -> dict[str, Callable]:
         "identity_audit": _modulo("identity_audit").gerar,
         "database_audit": _modulo("database_audit").gerar,
         "precursor": _modulo("precursor").gerar,
+        # O CATALOGO ENTRA AQUI, e e o H1 da segunda auditoria: o `cef.log` e o
+        # `telemetry_emitted` passam a sair de `programar`, com o MESMO
+        # catalogo de `02` §10. Antes este gerador tinha mapeamento proprio, e
+        # as duas saidas ja nasceram divergentes para o mesmo fato.
         "cef": _modulo("cef").fabricar(
-            restricoes["cef_vendor"], restricoes["cef_product"]
+            restricoes["cef_vendor"],
+            restricoes["cef_product"],
+            catalogo=catalogo(contratos),
         ),
     }
