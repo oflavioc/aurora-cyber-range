@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **1125 testes** | `python -m unittest discover -s tests`, **com a stack no ar e zero pulos** — medido em 23/09/2026, com a árvore da Fase 9 em implementação. Os 176 acrescentados por ela são unitários (elenco, motor de projeção, geradores, build/verify, telemetria, a emissão no event store e as provas negativas por mutação), e o número **sem** a stack continua sendo 163 a menos. A medição anterior, de 949, é do fechamento da Fase 8 |
+| **1135 testes** | `python -m unittest discover -s tests`, **com a stack no ar e zero pulos** — medido em 24/09/2026, com a árvore da Fase 9 em implementação. Os 176 acrescentados por ela são unitários (elenco, motor de projeção, geradores, build/verify, telemetria, a emissão no event store e as provas negativas por mutação), e o número **sem** a stack continua sendo 163 a menos. A medição anterior, de 949, é do fechamento da Fase 8 |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -249,7 +249,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 163 dos 1125 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 163 dos 1135 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 
