@@ -109,6 +109,32 @@ def _consulta(motor, sql: str, conta_alvo: str) -> list:
         return list(conexao.execute(text(sql), linha_b.parametros(conta_alvo)))
 
 
+#: As colunas da trilha que um fato da Linha B carrega. UMA declaracao, dois
+#: consumidores (o laco de caso e o de fato) — duas copias da mesma query
+#: divergiriam na primeira coluna nova, e a divergencia apareceria como caso
+#: apontando para `fact_id` que nao existe.
+_COLUNAS_DA_TRILHA = (
+    "SELECT t.sequence, t.actor_user_id, t.occurred_at, t.source_ip,"
+    "       t.payload, t.authorization_id"
+    "  FROM audit_trail t WHERE t.sequence IN ("
+)
+
+
+def _linhas_da_trilha(motor, conjunto: str, conta_alvo: str) -> list:
+    """As linhas da trilha de um dos seis conjuntos de `02` §6.1.
+
+    `ORDER BY t.sequence` FICA, e a ordenacao por instante e feita DEPOIS, sobre
+    a lista inteira: ordenar por conjunto aqui e o que mantem a numeracao de
+    `case_id` estavel entre execucoes, e o que o arquivo de evidencia precisa e
+    outra ordem — ver `gerar`.
+    """
+    return _consulta(
+        motor,
+        _COLUNAS_DA_TRILHA + linha_b.CONJUNTOS[conjunto] + ") ORDER BY t.sequence",
+        conta_alvo,
+    )
+
+
 def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
     """Le a trilha SEMEADA e produz os dois artefatos.
 
@@ -117,38 +143,40 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
     carga perdesse linhas, o gabarito mentiria junto — e T8 exige que a query de
     referencia devolva exatamente os 22 que estao la.
     """
-    from sqlalchemy import text
-
     casos, fatos = [], []
     contagens: dict[str, int] = {}
     numero = 0
 
+    # OS SEIS CONJUNTOS VIRAM FATO; SO OS TRES PRIMEIROS VIRAM CASO — H1 da
+    # quarta auditoria.
+    #
+    # `CONJUNTOS_DE_CASO` continua sendo o que decide o que e CASO, e
+    # `linha_b.CONJUNTOS` e a populacao inteira da trilha na janela: 3.145
+    # linhas, das quais 67 sao caso.
+    #
+    # A ORDEM DAS DUAS COISAS E DIFERENTE, E E ISSO QUE IMPORTA: a numeracao do
+    # `case_id` segue `02` §6.1 (indevidos, ambiguos, suspeitos) e por isso o
+    # laco de CASO vem primeiro; os FATOS saem ordenados por instante, logo
+    # abaixo, porque a posicao no arquivo nao pode revelar o conjunto.
     for nome, rotulo in CONJUNTOS_DE_CASO:
-        linhas = _consulta(
-            motor,
-            "SELECT t.sequence, t.actor_user_id, t.occurred_at, t.source_ip,"
-            "       t.payload, t.authorization_id"
-            "  FROM audit_trail t WHERE t.sequence IN ("
-            + linha_b.CONJUNTOS[nome]
-            + ") ORDER BY t.sequence",
-            conta_alvo,
-        )
-        contagens[nome] = len(linhas)
-        for sequencia, ator, quando, ip, payload, autorizacao in linhas:
+        for sequencia, *_ in _linhas_da_trilha(motor, nome, conta_alvo):
             numero += 1
-            caso = CASO.format(numero)
-            fato = FATO.format(sequencia)
             casos.append(
                 {
-                    "case_id": caso,
+                    "case_id": CASO.format(numero),
                     "set": rotulo,
                     "defensibility": DEFENSIBILIDADE[rotulo],
-                    "supporting_evidence": [fato],
+                    "supporting_evidence": [FATO.format(sequencia)],
                 }
             )
+
+    for nome in linha_b.CONJUNTOS:
+        linhas = _linhas_da_trilha(motor, nome, conta_alvo)
+        contagens[nome] = len(linhas)
+        for sequencia, ator, quando, ip, payload, autorizacao in linhas:
             fatos.append(
                 {
-                    "fact_id": fato,
+                    "fact_id": FATO.format(sequencia),
                     "fact_class": "grade_change_retroactive",
                     # `exercise_time` e do envelope de exercicio; aqui ele marca
                     # o instante do fato no mundo simulado, e nao no exercicio —
@@ -160,38 +188,57 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
                     "records_affected": 1,
                     "dest": payload["student_id"],
                     # -------------------------------------------------------
-                    # SEM `projections`, E A AUSENCIA E DECIDIDA — B1 da 3a
-                    # auditoria da Fase 9.
+                    # A PROJECAO VOLTA, E AGORA COM A POPULACAO INTEIRA — H1 da
+                    # quarta auditoria da Fase 9.
                     #
-                    # A peca 3 acrescentou aqui `projections: ["database_audit"]`
-                    # citando `08` §3 (*"alteracoes de nota com IP e sessao"*).
-                    # A citacao estava certa e a conclusao estava errada, e o
-                    # motivo esta TRES LINHAS ACIMA deste laco: ele so percorre
-                    # `CONJUNTOS_DE_CASO`, que sao tres dos seis.
+                    # A peca 3 acrescentou esta linha citando `08` §3
+                    # (*"alteracoes de nota com IP e sessao"*), e o B1 da
+                    # TERCEIRA auditoria a tirou: o laco de cima percorria so
+                    # `CONJUNTOS_DE_CASO`, entao o arquivo saia com 67 linhas
+                    # numa populacao de 3.145 e entregava quais eram caso.
                     #
-                    # Ou seja: os unicos fatos que a Linha B tem sao os CASOS.
-                    # Projeta-los produz um arquivo com 67 linhas numa populacao
-                    # de 3.145 — e quem o abre sabe quais sao caso sem analisar
-                    # nenhuma. A defensibilidade vinha de brinde, na ordem.
+                    # O REGISTRO DAQUELA CORRECAO ESCOLHEU A SAIDA ERRADA. Ele
+                    # adiou a metade Linha B de `08` §3 para *"uma fonte que
+                    # projete da TRILHA (business state)"* — e `00` §5.3 e
+                    # categorico: *"toda evidencia e projecao de fato canonico
+                    # declarado em `ground_truth.yaml`. Nunca gerada
+                    # independentemente."* A pendencia apontava para fora da
+                    # spec, e a objecao que a sustentava era de TAMANHO, nao de
+                    # norma.
                     #
-                    # E O CONSERTO NAO E PROJETAR OS SEIS CONJUNTOS. Os outros
-                    # tres sao 3.078 linhas de trilha: dado academico REAL,
-                    # semeado, que `01` §2 poe em business state. Transforma-los
-                    # em `fact_id` faria o `ground_truth.yaml` virar copia da
-                    # tabela — e `linha_a` ja registra a fronteira: o incidente
-                    # e sintetizado porque e overlay, a Linha B e LIDA porque e
-                    # dado.
+                    # A saida dentro da spec e a que a propria mensagem da
+                    # guarda recomenda: *"projete a populacao inteira daquela
+                    # especie"*. E ela nao e concessao — e o artefato CERTO: a
+                    # trilha de auditoria que o time azul tem de triar sao as
+                    # 3.145 linhas, e nao as 67 que alguem ja separou.
                     #
-                    # A metade Linha B de `08` §3 fica em aberto, com mecanismo
-                    # nomeado: ela exige uma fonte que projete da TRILHA, e o
-                    # motor de evidencia recebe fatos, nunca business state.
-                    # P9-4.
+                    # E A FRONTEIRA DE `01` §2 CONTINUA DE PE. O banco segue
+                    # sendo a fonte: `gerar` LE a trilha e o `ground_truth.yaml`
+                    # e snapshot derivado dela, exatamente como ja era para os
+                    # 67 casos. Nao ha segunda autoridade — ha uma projecao
+                    # deterministica a mais.
                     # -------------------------------------------------------
+                    "projections": ["database_audit"],
                 }
             )
 
-    for nome in ("ruido_de_manutencao", "credenciais_compartilhadas", "legitimos_normais"):
-        contagens[nome] = len(_consulta(motor, linha_b.CONJUNTOS[nome], conta_alvo))
+    # OS FATOS DA LINHA B SAEM ORDENADOS POR INSTANTE — H1 da quarta auditoria.
+    #
+    # O motor de projecao preserva a ORDEM DO DOCUMENTO de proposito (ordenar por
+    # `exercise_time` exigiria comparar `T-17d` com `T-9d`, que e a gramatica da
+    # P6-3). Entao a ordem do arquivo de evidencia e a ordem daqui — e se ela for
+    # a dos conjuntos, a POSICAO no arquivo entrega a particao por
+    # defensibilidade sem que nenhum campo vaze.
+    #
+    # Ordenar aqui e possivel porque o instante da Linha B e ISO-8601, vindo da
+    # coluna `occurred_at`: comparacao total, sem gramatica nenhuma. E o lugar
+    # certo, e nao um contorno — quem sabe ordenar e quem conhece o formato do
+    # proprio dado, e o motor deliberadamente nao conhece.
+    #
+    # `sequence` desempata: dois registros no mesmo instante sairiam em ordem de
+    # dicionario, e determinismo e requisito (R7 §6) — o `sha256` do manifesto
+    # depende disso.
+    fatos.sort(key=lambda f: (f["exercise_time"], f["fact_id"]))
 
     # A LINHA A vem ANTES da B na lista de fatos, e a ordem e a do incidente: o
     # acesso inicial e o primeiro fato do mundo. Ela e SINTETIZADA do seed (nao

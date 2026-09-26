@@ -9,11 +9,25 @@ em arquivos distintos entregaria de graca a distincao que o participante precisa
 descobrir — que ha dois incidentes, nao um (o OBJ-03, *"reconhecer incidentes
 concorrentes"*).
 
-**A Linha B so chega aqui desde a peca 3 da Fase 9.** Ate entao os fatos
-`grade_change_retroactive` nao declaravam `projections`, e fato sem
-`projections` e invisivel ao time azul por desenho (`08` §2) — entao a cobertura
-passava e a linha de integridade simplesmente nao existia em arquivo nenhum.
-Medido na peca 1, §2.3 do registro da fase.
+A LINHA B LEVOU TRES RODADAS DE AUDITORIA PARA FICAR CERTA
+===========================================================
+    peca 3       os fatos da Linha B ganham `projections: [database_audit]`
+    B1 da 3a     a projecao SAI: o gabarito so tem fato para os CASOS, e o
+                 arquivo de 67 linhas entregava quais eram caso
+    H1 da 4a     a projecao VOLTA, agora com a populacao inteira — 3.145
+                 linhas de trilha, das quais 67 sao caso
+
+A saida do B1 que eu escolhi — *"uma fonte que projete da TRILHA"* — apontava
+para fora da spec: `00` §5.3 e categorico, *"toda evidencia e projecao de fato
+canonico declarado em `ground_truth.yaml`"*. A saida certa estava na propria
+mensagem da guarda de cobertura: **projetar a populacao inteira da especie**. E
+ela nao e concessao, e o artefato CERTO — a trilha que o time azul tria sao as
+3.145 linhas, nao as 67 que alguem ja separou.
+
+E A ORDEM DO ARQUIVO E POR INSTANTE, e nao por conjunto: `gabarito.gerar` ordena
+os fatos da Linha B antes de montar o documento, porque o motor preserva a ordem
+do documento e a POSICAO no arquivo entregaria a particao por defensibilidade sem
+que nenhum campo vazasse.
 
 `records_affected` E O QUE DISCRIMINA AS DUAS
 ==============================================

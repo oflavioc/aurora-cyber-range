@@ -368,6 +368,50 @@ class OMotorProjeta(unittest.TestCase):
             self._projetar(gerador_que_classifica)
         self.assertIn("fact_class", str(ctx.exception))
 
+    def test_o_INDICE_de_agulhas_responde_o_MESMO_que_a_busca(self):
+        """A otimizacao do H1 da 4ª auditoria, com o oraculo sendo a versao lenta.
+
+        Projetar a população inteira da Linha B levou `projetar` de menos de um
+        segundo para **128 s**: a guarda rodava `re.search` sobre o conteúdo
+        inteiro uma vez por agulha, e com 3.145 fatos isso é ~9 GB de varredura
+        para responder pertinência. O índice de corridas máximas faz a mesma
+        pergunta em uma passada — **0,36 s**.
+
+        Otimização de guarda é onde um gate silenciosamente para de morder, então
+        a equivalência é o que se testa, e não o ganho: para cada agulha, o
+        índice e o `re.search` têm de concordar. O caso inclui as três formas que
+        distinguem os dois caminhos — corrida pura, valor com espaço, e prefixo
+        que NÃO deve casar.
+        """
+        conteudo = (
+            '{"actor": "svc_academus", "ref": "GT-A-014"}\n'
+            "user=svc_academus credential=compromised\n"
+            "nota: correlacionar horario fora de expediente\n"
+        )
+        indice = projecao._indice_de_agulhas(conteudo)
+        agulhas = [
+            "svc_academus",
+            "GT-A-014",
+            "GT-A-01",  # PREFIXO: nao casa, e e o caso que a fronteira existe para
+            "GT-A-0142",  # SUFIXO: idem
+            "compromised",
+            "credential",
+            "credential_state",  # ausente
+            "correlacionar horario fora de expediente",  # com espaco: cai no re.search
+            "horario fora",
+            "ausente_de_tudo",
+        ]
+        for agulha in agulhas:
+            with self.subTest(agulha=agulha):
+                cabe = projecao._CORRIDA.fullmatch(agulha) is not None
+                pelo_indice = agulha in indice if cabe else projecao._ocorre(agulha, conteudo)
+                self.assertEqual(
+                    pelo_indice,
+                    projecao._ocorre(agulha, conteudo),
+                    "o indice e a busca divergiram — a guarda passou a responder "
+                    "outra pergunta",
+                )
+
     def test_a_CHAVE_do_campo_de_gabarito_tambem_e_recusada(self):
         """O valor nao vaza e a guarda morde mesmo assim — e o motivo esta
         escrito em `jsonl.py` desde a peca 3: campo presente com valor vazio

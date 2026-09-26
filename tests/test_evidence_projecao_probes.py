@@ -4,7 +4,7 @@ R3 §5. O motor e uma funcao curta que orquestra tres decisoes, e as tres sao do
 tipo que um gate distraido concede: *"filtrei os fatos certos"*, *"pus o
 banner"*, *"recusei a invencao"*. Cada mutacao ataca uma.
 
-AS NOVE MUTACOES
+AS ONZE MUTACOES
 =================
 | mutacao | o que ela e | propriedade atacada |
 |---|---|---|
@@ -12,7 +12,10 @@ AS NOVE MUTACOES
 | **o gerador recebe TODOS os fatos** | some o filtro por cobertura | fato invisivel nao projeta |
 | **o banner some** | o conteudo passa a ser so o corpo | `05` §4, primeira linha |
 | **a fonte ausente passa** | sai o `raise GeradorAusente` | falha fechada |
-| **a guarda de veredito nao encontra nada** | `_ocorre` devolve `False` | `00` §3, B1 da 2a auditoria |
+| **a guarda de veredito nao encontra nada** | `_ocorre` devolve `False` | `00` §3, B1 da 2a — hoje so o caminho LENTO |
+| **o indice de agulhas nasce vazio** | `_indice_de_agulhas` devolve `frozenset()` | o caminho RAPIDO da mesma guarda (H1 da 4a) |
+| **a fonte entrega a resposta** | `entrega_a_resposta` devolve `None` | `05` §6, B1 da 3a auditoria |
+| **a guarda de resposta julga a fonte inteira** | some o corte por especie | o falso NEGATIVO do mesmo gate |
 | **o NOME do campo sai da busca** | so os valores ficam guardados | `05` §6, o campo vazio que afirma |
 | **a recusa de host inventado vira aviso** | `hosts_inventados` devolve `[]` | item 1, M2 da 2a auditoria |
 | **a normalizacao de rotulo some** | `_` deixa de virar `-` | o falso POSITIVO do mesmo gate |
@@ -109,13 +112,21 @@ GUARDA_DE_GERADOR = """    faltando = sorted(set(cobertura) - set(geradores))
 
 PROJECTS_FACTS = '            "projects_facts": list(fonte.projects_facts),'
 
-#: A PORTA DO B1. Mutar `_ocorre` para `False` desliga a guarda inteira sem
-#: mudar mais nada — e a forma mais limpa de perguntar "o que este gate custa?".
+#: A PORTA DO B1, PELO CAMINHO LENTO. Ate a otimizacao do H1 da 4a auditoria
+#: este mutante desligava a guarda INTEIRA; hoje ele desliga so o caminho das
+#: agulhas com espaco, porque as demais passam pelo indice. Os dois caminhos tem
+#: mutante proprio de proposito — um mutante que cobrisse os dois deixaria de
+#: dizer qual deles morde.
 OCORRE = '    return re.search(rf"(?<![\\w.-]){re.escape(agulha)}(?![\\w.-])", conteudo) is not None'
 
 #: O NOME DO CAMPO saindo da busca. Mais fina que a acima: os VALORES continuam
 #: guardados, e o que se perde e so a chave escrita no registro JSONL.
 NOME_DO_CAMPO = "        agulhas.append((campo, campo))"
+
+#: A PORTA DO B1, PELO CAMINHO RAPIDO. O indice vazio faz toda agulha de corrida
+#: pura passar em branco — e sao a maioria: nome de campo, `fact_class`,
+#: `fact_id`. Otimizacao de guarda e onde um gate silenciosamente para de morder.
+INDICE = "    return frozenset(_CORRIDA.findall(conteudo))"
 
 #: A PORTA DO M2 — a segunda forma fechada do oraculo.
 RECUSA_DE_HOST = "        hosts = hosts_inventados(conteudo, elenco)"
@@ -126,7 +137,9 @@ RECUSA_DE_HOST = "        hosts = hosts_inventados(conteudo, elenco)"
 ROTULOS = '        return frozenset(v.replace("_", "-").lower() for v in self.todos)'
 
 #: A PORTA DO B1 DA 3a AUDITORIA — a fonte que entrega a resposta.
-RECUSA_DE_RESPOSTA = "        classe = _entrega_a_resposta(da_fonte, casos)"
+#: O NOME PERDEU O UNDERSCORE no M1 da 4a auditoria: a guarda passou a ser
+#: publica porque o loader tambem a chama — um contrato so, `08` §2.
+RECUSA_DE_RESPOSTA = "        classe = entrega_a_resposta(da_fonte, casos)"
 
 #: O JULGAMENTO POR ESPECIE. Trocar o subconjunto por igualdade sobre a fonte
 #: INTEIRA e o defeito espelhado: `exfiltration` na mesma fonte passaria a
@@ -175,11 +188,22 @@ MUTACOES = {
     "a guarda de veredito nunca encontra nada": (
         [("projecao", OCORRE, "    return False")],
         {
+            # SO AS DUAS, e a mudanca de conjunto e a prova de que a otimizacao
+            # do H1 da 4a auditoria entrou: as agulhas de corrida pura passaram
+            # a ir pelo indice, e este mutante deixou de alcanca-las. O par dele
+            # e `o indice de agulhas nasce vazio`.
+            "test_a_guarda_alcanca_valor_COM_ESPACO_dentro_de_mapa",
+            "test_o_INDICE_de_agulhas_responde_o_MESMO_que_a_busca",
+        },
+    ),
+    "o indice de agulhas nasce vazio": (
+        [("projecao", INDICE, "    return frozenset()")],
+        {
             "test_gerador_que_escreve_o_VEREDITO_do_gabarito_e_recusado",
             "test_gerador_que_escreve_a_CLASSE_do_fato_e_recusado",
             "test_gerador_que_carimba_o_FACT_ID_e_recusado",
             "test_a_CHAVE_do_campo_de_gabarito_tambem_e_recusada",
-            "test_a_guarda_alcanca_valor_COM_ESPACO_dentro_de_mapa",
+            "test_o_INDICE_de_agulhas_responde_o_MESMO_que_a_busca",
         },
     ),
     "o NOME do campo de gabarito sai da busca": (

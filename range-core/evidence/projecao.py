@@ -84,6 +84,8 @@ __all__ = [
     "IOCEncontrado",
     "VereditoDoGabarito",
     "RespostaEntregue",
+    "fatos_de_caso",
+    "entrega_a_resposta",
     "projetar",
     "nome_do_arquivo",
 ]
@@ -151,6 +153,11 @@ def _folhas(valor: object) -> list[str]:
     return []
 
 
+#: Uma CORRIDA MAXIMA de caracteres de identificador — a mesma classe que
+#: `_ocorre` usa como fronteira. Ver `_indice_de_agulhas`.
+_CORRIDA = re.compile(r"[\w.-]+")
+
+
 def _ocorre(agulha: str, conteudo: str) -> bool:
     """A agulha aparece no conteudo como UNIDADE, e nao como pedaco de palavra.
 
@@ -165,6 +172,32 @@ def _ocorre(agulha: str, conteudo: str) -> bool:
     `discoverability.requires` — com a mesma regra, em vez de uma segunda.
     """
     return re.search(rf"(?<![\w.-]){re.escape(agulha)}(?![\w.-])", conteudo) is not None
+
+
+def _indice_de_agulhas(conteudo: str) -> frozenset[str]:
+    """As corridas maximas de `[\\w.-]` do conteudo, para consulta em O(1).
+
+    POR QUE ISTO EXISTE — medido no H1 da quarta auditoria, e o numero e o
+    argumento
+    ----------------------------------------------------------------------------
+    Projetar a populacao inteira da Linha B levou o `database_audit.jsonl` de 1
+    linha para 3.145, e `projetar` passou de menos de um segundo para **128 s**.
+    A causa nao e o volume: e a guarda de veredito rodando `re.search` sobre o
+    conteudo INTEIRO uma vez por agulha. Com 3.145 fatos × ~6 agulhas × 520 KB,
+    sao ~9 GB de varredura para responder uma pergunta de pertinencia.
+
+    A EQUIVALENCIA E EXATA, E NAO UMA APROXIMACAO. `_ocorre(a, c)` pergunta se
+    `a` aparece em `c` sem `[\\w.-]` colado de nenhum lado. Quando `a` e ela
+    mesma uma corrida de `[\\w.-]`, isso e verdade **se e somente se** `a` e uma
+    corrida MAXIMA de `c` — que e o que este indice contem. Mesma resposta, uma
+    passada em vez de N.
+
+    QUEM NAO CABE AQUI CAI NO `_ocorre`: agulha com espaco, com `:`, ou com
+    qualquer caractere fora da classe — a frase de `discoverability.requires` e o
+    caso real. Elas sao poucas e o `re.search` continua sendo o oraculo delas, o
+    que mantem UMA definicao de "aparece" para os dois caminhos.
+    """
+    return frozenset(_CORRIDA.findall(conteudo))
 
 
 class GeradorAusente(Exception):
@@ -304,7 +337,7 @@ def _do_gabarito_no_fato(
     return agulhas
 
 
-def _fatos_de_caso(ground_truth: Mapping) -> frozenset[str]:
+def fatos_de_caso(ground_truth: Mapping) -> frozenset[str]:
     """Os `fact_id` que `line_b_cases` cita como evidencia de apoio.
 
     E a RESPOSTA escrita: quem tem esta lista sabe quais linhas da trilha sao
@@ -321,7 +354,7 @@ def _fatos_de_caso(ground_truth: Mapping) -> frozenset[str]:
     return frozenset(citados)
 
 
-def _entrega_a_resposta(
+def entrega_a_resposta(
     da_fonte: Sequence[Mapping], casos: frozenset[str]
 ) -> str | None:
     """A `fact_class` cuja populacao nesta fonte e so de caso, ou `None`.
@@ -373,7 +406,7 @@ def projetar(
     ordem_do_documento = list(ground_truth.get("facts") or ())
     projetaveis = campos_do_fato["projectable"]
     nomes_de_fonte = frozenset(formatos)
-    casos = _fatos_de_caso(ground_truth)
+    casos = fatos_de_caso(ground_truth)
 
     faltando = sorted(set(cobertura) - set(geradores))
     if faltando:
@@ -401,7 +434,7 @@ def projetar(
         # antes do gerador. Uma fonte que projeta so caso ja esta errada na
         # declaracao do gabarito, e nao na escrita do arquivo — o conserto e
         # remover a projecao ou acrescentar a populacao, nunca mudar o gerador.
-        classe = _entrega_a_resposta(da_fonte, casos)
+        classe = entrega_a_resposta(da_fonte, casos)
         if classe is not None:
             raise RespostaEntregue(
                 f"a fonte {fonte!r} projeta, da especie {classe!r}, APENAS fatos "
@@ -420,11 +453,17 @@ def projetar(
         # incoerente, IOC e norma de seguranca, e isto aqui e o exercicio
         # perdendo o sentido — a evidencia passa a afirmar a resposta, e toda
         # medicao de deteccao sobre ela vira medicao de leitura de rotulo.
+        indice = _indice_de_agulhas(conteudo)
         for fato in da_fonte:
             for campo, agulha in _do_gabarito_no_fato(
                 fato, projetaveis, nomes_de_fonte
             ):
-                if _ocorre(agulha, conteudo):
+                # O INDICE RESPONDE A MAIORIA; o `re.search` responde o resto —
+                # ver `_indice_de_agulhas`. A condicao e a mesma pergunta pelos
+                # dois caminhos, e nao duas perguntas parecidas.
+                cabe_no_indice = _CORRIDA.fullmatch(agulha) is not None
+                achou = agulha in indice if cabe_no_indice else _ocorre(agulha, conteudo)
+                if achou:
                     raise VereditoDoGabarito(
                         f"a projecao de {fonte!r} expressa {agulha!r}, que e o "
                         f"campo de gabarito `{campo}` do fato "
