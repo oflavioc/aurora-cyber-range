@@ -120,7 +120,7 @@ Números, com a forma que os mediu:
 
 | | |
 |---|---|
-| **1135 testes** | `python -m unittest discover -s tests`, **com a stack no ar e zero pulos** — medido em 24/09/2026, com a árvore da Fase 9 em implementação. Os 176 acrescentados por ela são unitários (elenco, motor de projeção, geradores, build/verify, telemetria, a emissão no event store e as provas negativas por mutação), e o número **sem** a stack continua sendo 163 a menos. A medição anterior, de 949, é do fechamento da Fase 8 |
+| **1139 testes** | `python -m unittest discover -s tests`, **com a stack no ar e zero pulos** — medido em 26/09/2026, com a árvore da Fase 9 em implementação. Os 176 acrescentados por ela são unitários (elenco, motor de projeção, geradores, build/verify, telemetria, a emissão no event store e as provas negativas por mutação), e o número **sem** a stack continua sendo 163 a menos. A medição anterior, de 949, é do fechamento da Fase 8 |
 | **latência do frame** | 47 ms medidos ponta a ponta no DEMO, contra um orçamento de 1 s |
 | **reinício** | provado com `docker restart` real, comparando `StartedAt` antes e depois — pausado restaura pausado, retomado restaura correndo |
 
@@ -187,7 +187,7 @@ O projeto é construído com assistência de IA sob um regime de verificação e
 
 **Cada checkpoint de fase é auditado por um agente adversarial**, em contexto isolado, num worktree fixado no commit candidato, sem ferramentas de escrita, emitindo PASS ou FAIL contra a especificação. Ele vive fora deste repositório de propósito: um auditor definido pelo commit que ele audita pode ser enfraquecido por esse mesmo commit.
 
-**As reprovações não são apagadas.** São **54 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 9, e a maioria é de rodadas que falharam — inclusive um launch que abortou antes de auditar, e ficou. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
+**As reprovações não são apagadas.** São **58 relatórios** de auditoria versionados em [`docs/progress/`](docs/progress/), cobrindo as Fases 0 a 9, e a maioria é de rodadas que falharam — inclusive um launch que abortou antes de auditar, e ficou. Cada registro de fase traz as decisões, as pendências com destinatário, os limites declarados e os defeitos que o próprio aparato de verificação teve — inclusive um verificador que aprovava uma prova vazia, e uma correção que reintroduziu a classe de erro que fechava.
 
 ## Estrutura do repositório
 
@@ -249,7 +249,7 @@ A suíte:
 python -m unittest discover -s tests
 ```
 
-Sem Postgres no ar, 163 dos 1135 testes pulam — os que exigem banco ou container.
+Sem Postgres no ar, 163 dos 1139 testes pulam — os que exigem banco ou container.
 
 ## Maturidade
 
