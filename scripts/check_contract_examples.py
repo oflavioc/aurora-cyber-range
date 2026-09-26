@@ -33,6 +33,7 @@ que a Fase 0 construiu nao ganhe dependencia.
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 import sys
 from pathlib import Path
@@ -357,6 +358,47 @@ def main(argv: list[str] | None = None) -> int:
                     "`fact_fields.ground_truth_only` vazia: a guarda de "
                     "`VereditoDoGabarito` nao teria o que recusar, e os "
                     "cruzamentos acima passariam sem afirmar nada"
+                )
+
+    # -----------------------------------------------------------------------
+    # A INSTANCIA REAL DO CONTRATO DE EVIDENCIA — B1 da quarta auditoria.
+    #
+    # `contracts/evidence.schema.yaml` tinha exemplos e nao tinha INSTANCIA: o
+    # unico `MANIFEST.json` versionado da arvore nunca passava por aqui. Quando o
+    # L2 tornou `_banner` obrigatorio, o contrato mudou, o produtor mudou, e o
+    # artefato versionado ficou invalido — com a suite verde e o CI vermelho.
+    #
+    # `domains/*/flags.yaml` ja era conferido assim, e a assimetria nao tinha
+    # razao: os dois sao artefato versionado de um contrato deste repositorio.
+    #
+    # ESTE E O TERCEIRO GUARDA DO MESMO OBJETO, e os tres sao de escopos
+    # diferentes de proposito: a suite roda o `evidence verify` inteiro (paridade
+    # com o passo de CI), `check_banner_de_simulacao` julga `05` §4, e este julga
+    # o SCHEMA. Um objeto que o contrato declara e ninguem valida e a forma como
+    # o B1 aconteceu.
+    # -----------------------------------------------------------------------
+    evidence_schema = contratos.get("evidence")
+    if evidence_schema is not None:
+        validador_evidencia = Draft202012Validator(evidence_schema, registry=registry)
+        manifestos = sorted(
+            (REPO_ROOT / "tests" / "fixtures").glob("*/evidence/MANIFEST.json")
+        )
+        if not manifestos:
+            falhas.append(
+                "tests/fixtures/*/evidence/MANIFEST.json: nenhum encontrado.\n"
+                "    Contrato com exemplo e sem instancia real e o que deixou o "
+                "manifesto versionado invalido atravessar (B1 da 4a auditoria). "
+                "Rode `range-cli evidence build tests/fixtures/pack_exemplo --seed <n>`."
+            )
+        for caminho in manifestos:
+            instancias += 1
+            documento = json.loads(caminho.read_text(encoding="utf-8"))
+            erros = sorted(validador_evidencia.iter_errors(documento), key=str)
+            if erros:
+                falhas.append(
+                    f"{caminho.relative_to(REPO_ROOT).as_posix()}\n"
+                    f"    nao valida contra evidence.schema.yaml: "
+                    + "; ".join(f"{e.json_path}: {e.message}" for e in erros)
                 )
 
     flags_schema = contratos.get("state_flags")

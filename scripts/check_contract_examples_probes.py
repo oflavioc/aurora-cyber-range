@@ -241,6 +241,52 @@ PROBES_INSTANCIA = [
 ]
 
 
+#: O `MANIFEST.json` VERSIONADO — B1 da quarta auditoria. Mesma forma dos probes
+#: de `flags.yaml`: planta no lugar, roda o executor, restaura. Escrita
+#: instrumental do proprio teste, a excecao delimitada que `phase0_negative_tests`
+#: ja pratica.
+MANIFESTO_VERSIONADO = (
+    REPO_ROOT / "tests" / "fixtures" / "pack_exemplo" / "evidence" / "MANIFEST.json"
+)
+
+PROBES_MANIFESTO = [
+    (
+        "MANIFEST.json versionado sem `_banner`",
+        '{"generated_from": {"pack_id": "pack_exemplo", "ground_truth_hash": '
+        '"sha256:0000000000000000000000000000000000000000000000000000000000000000", '
+        '"random_seed": 424242}, "sources": []}\n',
+        "nao valida contra evidence.schema.yaml",
+    ),
+]
+
+
+def roda_probe_manifesto(rotulo, conteudo, esperado) -> bool:
+    """O MESMO mecanismo do probe de instancia, sobre o outro artefato real.
+
+    Existe porque o B1 da 4a auditoria foi exatamente isto: o contrato ganhou
+    uma clausula, o produtor a cumpriu, e o unico artefato VERSIONADO dele ficou
+    invalido sem nada acusar. O executor passou a valida-lo; este probe prova
+    que a validacao morde.
+    """
+    original = MANIFESTO_VERSIONADO.read_bytes()
+    try:
+        MANIFESTO_VERSIONADO.write_text(conteudo, encoding="utf-8", newline="")
+        r = subprocess.run(
+            [sys.executable, str(EXECUTOR)], capture_output=True, text=True, cwd=REPO_ROOT
+        )
+        saida = r.stdout + r.stderr
+        if r.returncode != 1:
+            print(f"FALHA: probe '{rotulo}' saiu com rc={r.returncode}, esperado 1")
+            return False
+        if esperado not in saida:
+            print(f"FALHA: probe '{rotulo}' reprovou, mas nao pelo eixo esperado")
+            return False
+    finally:
+        MANIFESTO_VERSIONADO.write_bytes(original)
+    print(f"OK: reprovou com defeito plantado - {rotulo}")
+    return True
+
+
 def roda_probe_instancia(rotulo, conteudo, esperado) -> bool:
     alvo = REPO_ROOT / "domains" / "academus" / "flags.yaml"
     original = alvo.read_bytes()
@@ -320,12 +366,15 @@ def main() -> int:
         return 1
     resultados = [roda_probe(*p) for p in PROBES]
     resultados += [roda_probe_instancia(*p) for p in PROBES_INSTANCIA]
+    resultados += [roda_probe_manifesto(*p) for p in PROBES_MANIFESTO]
     print()
     if all(resultados):
         print(
-            f"check_contract_examples.py reprova nos {len(PROBES) + len(PROBES_INSTANCIA)} "
+            f"check_contract_examples.py reprova nos "
+            f"{len(PROBES) + len(PROBES_INSTANCIA) + len(PROBES_MANIFESTO)} "
             f"eixos: {len(PROBES)} de fixture mentirosa, {len(PROBES_INSTANCIA)} de "
-            f"instancia real invalida."
+            f"flags.yaml invalido, {len(PROBES_MANIFESTO)} de MANIFEST.json "
+            f"versionado invalido."
         )
         return 0
     print(f"{resultados.count(False)} de {len(resultados)} probes nao provaram o eixo.")

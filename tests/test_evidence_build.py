@@ -609,6 +609,59 @@ class OEvidenceVersionadoSobreviveAoCheckout(unittest.TestCase):
                 b"\r", caminho.read_bytes(), f"{caminho.name} veio com CRLF"
             )
 
+    def test_o_MESMO_COMANDO_DO_CI_sai_limpo_sobre_o_pack_versionado(self):
+        """**B1 da quarta auditoria — o gate que eu criei com o objeto inválido.**
+
+        A correção do L2 tornou `_banner` obrigatório no contrato e ensinou o
+        produtor a escrevê-lo. **O manifesto versionado não foi regenerado**, e o
+        passo de CI que roda `evidence verify` sobre este diretório saía com
+        rc=2 — no commit candidato.
+
+        E TRÊS COISAS ERAM CEGAS AO MESMO TEMPO, que é o que torna o achado
+        grave e não só chato:
+
+            a suíte              1135 testes verdes, e nenhum validava ESTE
+                                 objeto contra o contrato
+            o verificador        `check_banner_de_simulacao` isentava o
+            de banner            `MANIFEST.json`, com uma justificativa que o
+                                 contrato passou a desmentir
+            os exemplos          `check_contract_examples` valida instâncias
+            do contrato          reais, e este manifesto não estava entre elas
+
+        Este caso fecha a primeira. Ele roda **o mesmo verbo do passo de CI**,
+        sobre o mesmo diretório versionado — então suíte verde e CI vermelho
+        deixam de poder coexistir por esta causa.
+
+        SÓ LÊ, e por isso pode olhar a árvore: `04` §8.1 (a) põe
+        `evidence verify` na classe dos que não escrevem, e
+        `test_a_conferencia_NAO_ESCREVE_nada` prova a classificação.
+        """
+        contratos = contract_source.read_contracts()
+        pack = self.EVIDENCIA.parent
+        achados = build.conferir(
+            self.EVIDENCIA,
+            (pack / "ground_truth.yaml").read_bytes(),
+            contratos=contratos,
+            **_contexto(),
+        )
+        self.assertEqual(achados, [], f"o `evidence verify` do CI acusaria: {achados}")
+
+    def test_o_manifesto_versionado_CARREGA_o_banner(self):
+        """O braço específico do `05` §4, dito sem depender do verbo inteiro.
+
+        O caso acima ficaria vermelho por qualquer um dos seis degraus de
+        `conferir`, e a mensagem mandaria procurar. Este nomeia o requisito: o
+        manifesto é artefato gerado, e é o PRIMEIRO arquivo que o facilitador
+        abre.
+        """
+        import json
+
+        documento = json.loads(
+            (self.EVIDENCIA / build.MANIFESTO).read_text(encoding="utf-8")
+        )
+        esperado = banner.texto(contract_source.read_contracts())
+        self.assertEqual(documento.get("_banner"), esperado)
+
     def test_o_gitattributes_DECLARA_eol_lf_para_cada_um(self):
         """A causa, e ela e independente de plataforma — entao o CI a cobra.
 

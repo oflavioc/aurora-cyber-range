@@ -65,7 +65,16 @@ def main() -> int:
         )
         evidencia_ok = raiz / "evidence"
         _arquivo(raiz, "evidence/vpn.log", f"# {BANNER}\nT-9d user=svc\n")
-        _arquivo(raiz, "evidence/MANIFEST.json", '{"sources": []}\n')
+        # O MANIFESTO DA FIXTURE VALIDA GANHOU O BANNER — B1 da 4a auditoria.
+        # Ele nascera sem, e passava porque o verificador o ISENTAVA por nome de
+        # arquivo. Sem a isencao, uma fixture "valida" sem banner faria o eixo da
+        # combinacao correta reprovar — e o probe acusou na primeira execucao,
+        # que e o comportamento certo dele.
+        _arquivo(
+            raiz,
+            "evidence/MANIFEST.json",
+            '{"_banner": "%s", "sources": []}\n' % BANNER,
+        )
 
         def verifica(banner, fonte, telas, bundles, contrato=None, evidencia=None):
             """Os dois eixos novos com fixture valida, salvo quando o caso os ataca."""
@@ -123,10 +132,26 @@ def main() -> int:
         contrato_vazio = _arquivo(
             raiz, "contrato_zero.yaml", "x-aurora-security-constraints:\n  banner_text: ''\n"
         )
+        # O EIXO DO MANIFESTO TAMBEM NAO E VACUO, pela mesma razao do contrato e
+        # com a mesma consequencia para este caso: ele compara `_banner` por
+        # IGUALDADE, entao banner vazio contra manifesto preenchido ACUSA.
+        #
+        # Zerar os dois lados e o que mantem este caso medindo o que ele diz
+        # medir — a vacuidade que sobra nos eixos de SUBSTRING. Sem isto ele
+        # passaria a medir o eixo do manifesto, que nao e o assunto aqui. B1 da
+        # 4a auditoria: o manifesto deixou de ser isento.
+        evidencia_zero = raiz / "evidence_zero"
+        _arquivo(raiz, "evidence_zero/vpn.log", "# \nT-9d user=svc\n")
+        _arquivo(raiz, "evidence_zero/MANIFEST.json", '{"_banner": ""}\n')
         confere(
             "com banner VAZIO, os eixos de substring passariam — por isso o rc=2",
             not verifica(
-                "", componente, [tela_ok], [bundle_sem], contrato=contrato_vazio
+                "",
+                componente,
+                [tela_ok],
+                [bundle_sem],
+                contrato=contrato_vazio,
+                evidencia=evidencia_zero,
             ),
         )
         confere(
@@ -207,11 +232,66 @@ def main() -> int:
                 )
             ),
         )
+        # ------------------------------------------------------------------
+        # O MANIFESTO DEIXOU DE SER ISENTO — B1 da 4a auditoria.
+        #
+        # O caso anterior aqui dizia "reprovou diretorio SO com MANIFEST — o
+        # indice nao e artefato", e ele codificava a isencao: com
+        # `SEM_BANNER = {"MANIFEST.json"}`, um diretorio so com manifesto nao
+        # tinha candidato nenhum e reprovava por ANTI-VACUIDADE, nao por banner.
+        #
+        # Hoje o manifesto E candidato, e os tres casos abaixo separam o que
+        # aquele nao distinguia: sem a chave, com a chave em lugar errado, e
+        # formato que o verificador nao sabe julgar.
+        # ------------------------------------------------------------------
+        so_manifesto = raiz / "evidence_manifesto_sem_banner"
+        _arquivo(raiz, "evidence_manifesto_sem_banner/MANIFEST.json", '{"sources": []}\n')
+        confere(
+            "reprovou MANIFEST.json SEM `_banner` — o defeito exato do B1",
+            bool(
+                verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=so_manifesto)
+            ),
+        )
+
+        chave_tardia = raiz / "evidence_manifesto_chave_tardia"
+        _arquivo(
+            raiz,
+            "evidence_manifesto_chave_tardia/MANIFEST.json",
+            '{"sources": [], "_banner": "%s"}\n' % BANNER,
+        )
+        confere(
+            "reprovou `_banner` que NAO e a primeira chave — a posicao e o requisito",
+            bool(
+                verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=chave_tardia)
+            ),
+        )
+
+        formato_novo = raiz / "evidence_formato_novo"
+        _arquivo(raiz, "evidence_formato_novo/relatorio.pdf", "%PDF-1.4\n")
+        confere(
+            "reprovou formato SEM forma de banner declarada — nao saber julgar "
+            "nao e aprovar",
+            bool(
+                verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=formato_novo)
+            ),
+        )
+
+        manifesto_ok = raiz / "evidence_manifesto_ok"
+        _arquivo(
+            raiz,
+            "evidence_manifesto_ok/MANIFEST.json",
+            '{"_banner": "%s", "sources": []}\n' % BANNER,
+        )
+        confere(
+            "APROVOU o manifesto com `_banner` na primeira chave — sem este par "
+            "os tres acima passariam num verificador que recusa tudo",
+            not verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=manifesto_ok),
+        )
+
         vazio = raiz / "evidence_vazio"
         vazio.mkdir()
-        _arquivo(raiz, "evidence_vazio/MANIFEST.json", "{}\n")
         confere(
-            "reprovou diretorio SO com MANIFEST — o indice nao e artefato",
+            "reprovou diretorio de evidencia VAZIO — cobertura sem objeto",
             bool(verifica(BANNER, componente, [tela_ok], [bundle_ok], evidencia=vazio)),
         )
 

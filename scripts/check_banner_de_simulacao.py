@@ -132,12 +132,29 @@ CLASSES_DA_SECAO_4 = {
 #: DIRETORIO VAZIO OU AUSENTE NAO E "PASSOU": ver `verifica`.
 EVIDENCIA_DO_EXEMPLO = REPO_ROOT / "tests" / "fixtures" / "pack_exemplo" / "evidence"
 
-#: O `MANIFEST.json` NAO carrega banner, e a exclusao e do formato: `05` §4 pede
-#: o banner "como comentario na primeira linha, no formato do proprio arquivo",
-#: e um JSON de indice nao tem onde po-lo sem deixar de validar contra
-#: `evidence.schema.yaml` (`additionalProperties: false` na raiz). Ele e indice,
-#: nao artefato entregue.
-SEM_BANNER = frozenset({"MANIFEST.json"})
+#: NAO HA ISENCAO — B1 da quarta auditoria.
+#:
+#: Havia: `SEM_BANNER = {"MANIFEST.json"}`, com a justificativa de que `05` §4
+#: pede o banner *"como comentario na primeira linha, no formato do proprio
+#: arquivo"* e que um JSON de indice **nao teria onde po-lo** sem deixar de
+#: validar contra `evidence.schema.yaml` (`additionalProperties: false`).
+#:
+#: A justificativa era verdadeira quando foi escrita e o contrato a desmentiu no
+#: L2 da terceira auditoria: `_banner` virou `required` na raiz do manifesto. A
+#: isencao sobreviveu a norma que a sustentava — e foi ela que deixou o
+#: `MANIFEST.json` versionado sem banner passar por este verificador enquanto o
+#: `evidence verify` do CI reprovava.
+#:
+#: **A LICAO E SOBRE A FORMA DA ISENCAO, e nao sobre esta em particular.** Uma
+#: excecao declarada por NOME DE ARQUIVO nao tem como envelhecer alto: ela nao
+#: cita o que a justifica, entao nada fica vermelho quando aquilo muda. O que
+#: substituiu foi uma regra por FORMATO — cada formato diz onde o banner mora, e
+#: formato desconhecido e recusa (`_banner_de`).
+#:
+#: O QUE `05` §4 QUER, E ELE NAO FALA DE LINHA POR ACIDENTE: o aviso tem de ser
+#: o primeiro que quem abre o arquivo le. Em JSON isso e a primeira CHAVE, e nao
+#: a primeira linha — que e `{`. As duas leituras servem a mesma norma.
+_PRIMEIRA_CHAVE_JSON = "_banner"
 
 _BLOCO = re.compile(r"^## 4\..*?```\s*\n(.*?)\n```", re.S | re.M)
 
@@ -154,6 +171,74 @@ def texto_normativo(spec: Path | None = None) -> str:
     """
     achado = _BLOCO.search((SPEC if spec is None else spec).read_text(encoding="utf-8"))
     return achado.group(1).strip() if achado else ""
+
+
+def _banner_de(caminho: Path, banner: str) -> list[str]:
+    """Os problemas de banner deste arquivo, por FORMATO — ver `_PRIMEIRA_CHAVE_JSON`.
+
+    DOIS FORMATOS, E A DISTINCAO E DE ONDE O AVISO MORA:
+
+        `.json`   documento unico. O aviso e a PRIMEIRA CHAVE, porque a primeira
+                  linha e `{` e ninguem le `{` como aviso
+        o resto   `.log`, `.eml`, `.jsonl` — a PRIMEIRA LINHA, que e o que `05`
+                  §4 escreve literalmente
+
+    `.jsonl` cai no segundo caso de proposito: cada linha e um documento, e a
+    primeira linha e o registro de banner inteiro (`banner.linha("jsonl", ...)`).
+
+    FORMATO DESCONHECIDO NAO PASSA. Um `.pdf` ou um `.zip` aqui e artefato que
+    este verificador nao sabe julgar, e nao sabe julgar e diferente de aprovar —
+    e a forma que substituiu a isencao por nome de arquivo.
+    """
+    if caminho.suffix == ".json":
+        import json
+
+        try:
+            documento = json.loads(caminho.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as erro:
+            return [f"{rel(caminho)} nao e JSON legivel: {erro}"]
+        if not isinstance(documento, dict):
+            return [
+                f"{rel(caminho)} e JSON que nao e objeto — nao ha chave onde por "
+                f"o banner de `05` §4"
+            ]
+        chaves = list(documento)
+        if documento.get(_PRIMEIRA_CHAVE_JSON) != banner:
+            return [
+                f"{rel(caminho)} nao traz o banner em `{_PRIMEIRA_CHAVE_JSON}`.\n"
+                f"    Valor: {documento.get(_PRIMEIRA_CHAVE_JSON)!r}\n"
+                "    `05` §4 exige o aviso em todo artefato gerado, e "
+                "`contracts/evidence.schema.yaml` o declara `required` na raiz "
+                "do manifesto desde o L2 da 3a auditoria da Fase 9."
+            ]
+        if chaves[0] != _PRIMEIRA_CHAVE_JSON:
+            return [
+                f"{rel(caminho)} tem o banner, e nao na PRIMEIRA chave "
+                f"(primeira: {chaves[0]!r}).\n"
+                "    `05` §4 quer o aviso onde quem abre o arquivo o le antes "
+                "de qualquer outra coisa; em JSON isso e a primeira chave."
+            ]
+        return []
+
+    if caminho.suffix in (".log", ".eml", ".jsonl"):
+        primeira = caminho.read_text(encoding="utf-8").split("\n", 1)[0]
+        if banner not in primeira:
+            return [
+                f"{rel(caminho)} nao traz o banner na PRIMEIRA linha.\n"
+                f"    Primeira linha: {primeira[:80]!r}\n"
+                "    `05` §4 exige o banner como comentario na primeira linha, "
+                "no formato do proprio arquivo — no rodape ele nao avisa quem "
+                "abre o log e le as primeiras linhas."
+            ]
+        return []
+
+    return [
+        f"{rel(caminho)}: formato {caminho.suffix or '(sem extensao)'!r} sem "
+        f"forma de banner declarada neste verificador.\n"
+        "    Nao saber julgar e diferente de aprovar — foi uma isencao por NOME "
+        "DE ARQUIVO que deixou o `MANIFEST.json` sem banner atravessar este "
+        "verificador (B1 da 4a auditoria). Declare a forma do formato novo."
+    ]
 
 
 def _alvos_de_fonte() -> list[Path]:
@@ -305,7 +390,7 @@ def verifica(
             if alvo_de_evidencia.is_dir()
             else []
         )
-        candidatos = [p for p in arquivos if p.name not in SEM_BANNER]
+        candidatos = list(arquivos)
         if not candidatos:
             problemas.append(
                 f"a classe `evidencia` esta COBERTA e nao ha arquivo de evidencia "
@@ -315,15 +400,7 @@ def verifica(
                 "`range-cli evidence build tests/fixtures/pack_exemplo --seed <n>`."
             )
         for caminho in candidatos:
-            primeira = caminho.read_text(encoding="utf-8").split("\n", 1)[0]
-            if banner not in primeira:
-                problemas.append(
-                    f"{rel(caminho)} nao traz o banner na PRIMEIRA linha.\n"
-                    f"    Primeira linha: {primeira[:80]!r}\n"
-                    "    `05` §4 exige o banner como comentario na primeira "
-                    "linha, no formato do proprio arquivo — no rodape ele nao "
-                    "avisa quem abre o log e le as primeiras linhas."
-                )
+            problemas.extend(_banner_de(caminho, banner))
 
     return problemas
 

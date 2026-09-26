@@ -214,11 +214,17 @@ MECANISMOS: dict[int, Entrada] = {
         mecanismos=(
             "scripts/check_banner_de_simulacao.py",
             "scripts/check_banner_de_simulacao_probes.py",
+            "scripts/check_contract_examples.py",
         ),
         destinatario=None,
         nota="o texto do banner e extraido da spec e comparado letra por letra; o "
         "registro de classes (telas / evidencia / exportacao / relatorio) e "
-        "conferido nas duas direcoes, e e o precedente de forma desta checagem",
+        "conferido nas duas direcoes, e e o precedente de forma desta checagem. "
+        "O TERCEIRO ENTROU NO B1 DA 4a AUDITORIA DA FASE 9: `_banner` e "
+        "`required` na raiz do manifesto de evidencia, e quem valida a "
+        "instancia VERSIONADA daquele contrato e o verificador de exemplos — "
+        "sem ele, a clausula existia e o unico artefato dela ficou invalido com "
+        "a suite verde e o CI vermelho",
     ),
     5: Entrada(
         titulo="Identificação de fornecedores e de atores de ameaça",
