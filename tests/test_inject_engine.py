@@ -950,6 +950,55 @@ class OExercicioEMITEATelemetria(ValidacaoDeEnvelope, unittest.TestCase):
             self.store.read_all(), esperados={TELEMETRY_EMITTED}
         )
 
+    def test_o_LOADER_recusa_o_gabarito_que_entrega_a_resposta_no_SIEM(self):
+        """**M1 da quarta auditoria.**
+
+        `RespostaEntregue` vivia só em `projetar`, que só o `evidence
+        build`/`verify` chamam. Um gabarito que roteasse para `cef` apenas os
+        casos de `line_b_cases` era **recusado no build e carregado pelo
+        loader** — e o `start()` gravava a resposta no SIEM, que é exatamente o
+        que o participante vê.
+
+        A guarda é a mesma função, e não uma equivalente: `08` §2 quer um
+        contrato só, e dois julgamentos do mesmo predicado divergiriam.
+        """
+        import shutil
+        import tempfile
+
+        import yaml
+        from range_core.evidence.projecao import RespostaEntregue
+
+        tmp = Path(tempfile.mkdtemp(prefix="aurora-resposta-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        destino = tmp / PACK.name
+        shutil.copytree(PACK, destino)
+
+        gabarito = dict(self.gabarito)
+        gabarito["line_b_cases"] = [
+            {
+                "case_id": "GC-001",
+                "defensibility": 1.0,
+                "set": "indevido_comprovado",
+                # O UNICO fato que projeta em `cef` na fixture — entao, dentro
+                # da especie dele, a telemetria leva so caso.
+                "supporting_evidence": ["GT-FIXTURE-001"],
+            }
+        ]
+        (destino / "ground_truth.yaml").write_text(
+            yaml.safe_dump(gabarito, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+            newline="",
+        )
+
+        with self.assertRaises(RespostaEntregue) as ctx:
+            load_pack(
+                destino,
+                contracts=CONTRATOS,
+                adapter_flags=FLAGS,
+                adapter_telemetry=self.catalogo,
+            )
+        self.assertIn("SIEM", str(ctx.exception))
+
     def test_o_evento_carrega_AS_DUAS_marcas_de_telemetria(self):
         """**H1 da terceira auditoria.** `00` §5.6 e `01` §3 pedem duas, e a
         distincao entre elas e o que as torna uteis:

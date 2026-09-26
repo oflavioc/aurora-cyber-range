@@ -431,6 +431,11 @@ def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
         return ()
 
     from range_core.evidence.elenco import cobertura_de
+    from range_core.evidence.projecao import (
+        RespostaEntregue,
+        entrega_a_resposta,
+        fatos_de_caso,
+    )
     from range_core.telemetry.cef import FONTE
     from range_core.telemetry.forwarder import programar
 
@@ -440,6 +445,30 @@ def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
         for fato in (ground_truth.get("facts") or ())
         if fato.get("fact_id") in da_fonte
     ]
+
+    # A MESMA GUARDA DE COBERTURA DO ARQUIVO — M1 da quarta auditoria.
+    #
+    # `RespostaEntregue` vivia so em `projetar`, que so o `evidence build`/`verify`
+    # chamam. O caminho do event store nao passava por ela: um gabarito que
+    # roteasse para `cef` apenas os casos de `line_b_cases` era RECUSADO no build
+    # e CARREGADO pelo loader, e o `start()` gravava a resposta no SIEM — que e
+    # justamente o que o participante ve.
+    #
+    # As outras tres guardas estao cobertas por construcao neste caminho: o IOC
+    # pelo loader, e os campos do payload sao todos `projectable`. Faltava esta,
+    # e a razao e que ela e a unica que julga o CONJUNTO — as outras julgam
+    # conteudo, e aqui nao ha conteudo de fio para julgar.
+    #
+    # A FUNCAO E A MESMA, e nao uma equivalente: `08` §2 quer um contrato so, e
+    # dois julgamentos do mesmo predicado divergiriam na primeira regra nova.
+    classe = entrega_a_resposta(fatos, fatos_de_caso(ground_truth))
+    if classe is not None:
+        raise RespostaEntregue(
+            f"a telemetria deste gabarito leva, da especie {classe!r}, APENAS "
+            f"fatos que `line_b_cases` cita como caso. O SIEM do exercicio "
+            f"entrega a resposta — e e ele que o participante ve. `05` §6"
+        )
+
     return programar(fatos, catalogo=catalogo)
 
 

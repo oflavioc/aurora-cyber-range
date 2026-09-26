@@ -547,7 +547,24 @@ class AsProjecoesDoMesmoFatoSaoMUTUAMENTEConsistentes(unittest.TestCase):
         "exercise_time": "T-42d 03:07",
         "credential_state": "compromised",
         "mfa": "absent",
-        "projections": ["vpn", "identity_audit", "cef", "email", "precursor"],
+        # `database_audit` ENTROU NO M2 DA 4a AUDITORIA. Ele carrega `actor` e
+        # `source_ip` (`CAMPOS` de `database_audit.py`) e o fato de exfiltracao
+        # do gabarito real projeta nele — mas ficava fora desta comparacao, e
+        # os dois unicos casos que leem a fonte olham `records_affected` e a
+        # CHAVE `exercise_time`. Um `CAMPOS` sem `actor`, ou com o ator trocado
+        # por outro do elenco, nao era alcancado por teste nenhum.
+        #
+        # E a mesma familia do M1 da 3a auditoria — fonte saindo da comparacao
+        # em silencio —, agora por AUSENCIA no fato de teste em vez de por
+        # filtro generico.
+        "projections": [
+            "vpn",
+            "identity_audit",
+            "database_audit",
+            "cef",
+            "email",
+            "precursor",
+        ],
     }
 
     def setUp(self):

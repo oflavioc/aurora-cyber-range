@@ -273,34 +273,62 @@ def stream_do_pack(pack: LoadedPack, *, telemetria_por_minuto: int = 0) -> list[
     # `effect_class: machine` (`09` §4.1). Ela NAO carrega `actor_id` nem
     # `persona`: nao e ato de participante.
     #
-    # O PAYLOAD E O DO CONTRATO (`$defs/telemetry_emitted_payload`) e cicla pelo
-    # catalogo real de `02` §10 — um payload sintetico de forma diferente mediria
-    # outra coisa: `read_all` desserializa JSON, e o custo depende do tamanho.
+    # O PAYLOAD SAI DO PRODUTOR REAL, E NAO DE UMA COPIA A MAO — M3 da quarta
+    # auditoria.
+    #
+    # O comentario acima sempre disse que "um payload sintetico de forma
+    # diferente mediria outra coisa: `read_all` desserializa JSON, e o custo
+    # depende do tamanho". E a versao anterior montava o dicionario A MAO, com
+    # cinco chaves. Quando o H1 da 3a auditoria acrescentou `event_time` e
+    # `ingest_time` ao payload do produto, a copia nao acompanhou: a prova passou
+    # a medir eventos MENORES que os que o range emite, e a folga do item 7 e da
+    # ordem da dispersao.
+    #
+    # Hoje a forma vem de `forwarder.programar` — o mesmo que produz o
+    # `cef.log` e o evento do store — mais o `ingest_time` que `emissao` carimba
+    # na gravacao. Chave nova no contrato entra na medicao sozinha.
+    #
+    # O FATO SINTETICO CARREGA OS CAMPOS PROJETAVEIS que o gabarito real tem,
+    # para que `programar` produza o payload cheio (`src`, `dst`, `suser`,
+    # `cnt`). Fato pobre produziria payload pobre, e a medicao voltaria a ser
+    # menor que a realidade por outro caminho.
     telemetria = int(telemetria_por_minuto * duracao_s / 60)
     if telemetria:
         from domains.academus import telemetria as telemetria_do_academus
+        from range_core.telemetry.forwarder import programar
 
-        entradas = [
-            e
-            for e in telemetria_do_academus.catalogo(
-                contract_source.read_contracts()
-            ).entradas
-        ]
+        catalogo = telemetria_do_academus.catalogo(contract_source.read_contracts())
+        # SO AS ENTRADAS COM `fact_class`: `programar` ignora o resto, e um fato
+        # cuja classe o catalogo nao mapeia nao produziria evento nenhum — a
+        # medicao ficaria com menos eventos do que o volume declarado.
+        classes = [e.fact_class for e in catalogo.entradas if e.fact_class]
         for i in range(telemetria):
-            entrada = entradas[i % len(entradas)]
             t = round((i + 1) * duracao_s / (telemetria + 1))
+            fato = {
+                "fact_id": f"GT-MEDIDA-{i:06d}",
+                "fact_class": classes[i % len(classes)],
+                "exercise_time": f"T-{i % 30 + 1}d {i % 24:02d}:{i % 60:02d}",
+                "actor": f"u{i % 28000:05d}",
+                "action": "bulk_export",
+                "source_ip": f"198.51.100.{i % 254 + 1}",
+                "dest": f"host-{i % 512:03d}",
+                "records_affected": i % 4000,
+            }
+            (programado,) = programar([fato], catalogo=catalogo)
+            payload = dict(
+                programado.payload,
+                # O MESMO CARIMBO DE `emissao.para_o_store`: rotulo `T+HH:MM:SS`
+                # do relogio de exercicio. Escrito aqui pela forma, nao pelo
+                # valor — a medicao nao tem clock, e o que importa para
+                # `read_all` e o tamanho da chave e do valor.
+                ingest_time=f"T+{t // 3600:02d}:{t % 3600 // 60:02d}:{t % 60:02d}",
+            )
             agenda.append(
                 (
                     t,
                     3,
                     TELEMETRY_EMITTED,
-                    {
-                        "signature": entrada.signature,
-                        "severity": entrada.severity,
-                        **({"outcome": entrada.outcome} if entrada.outcome else {}),
-                        "src": f"198.51.100.{i % 254 + 1}",
-                        "suser": f"u{i % 28000:05d}",
-                    },
+                    payload,
                     None,
                     {"camada": "observable_evidence"},
                 )

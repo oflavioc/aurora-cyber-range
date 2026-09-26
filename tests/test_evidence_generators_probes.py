@@ -118,6 +118,15 @@ PHISHING = '            "projections": ["email", "precursor"],'
 
 REGISTRO = "        registro = {c: fato[c] for c in campos if c in fato}"
 
+#: O `actor` saindo de `database_audit` — M2 da quarta auditoria. A fonte
+#: carrega `actor` e `source_ip`, e ficava FORA da comparacao de consistencia
+#: mutua de `06` T13: os dois unicos casos que a leem olham `records_affected` e
+#: a CHAVE `exercise_time`. Um `CAMPOS` sem `actor` nao era alcancado.
+CAMPOS_DO_DATABASE = (
+    '    "exercise_time",\n    "actor",\n    "action",\n    "source_ip",\n'
+    '    "dest",\n    "records_affected",\n)'
+)
+
 #: TODA A SUITE QUE LE ARQUIVO PROJETADO, e ela e o conjunto vermelho de duas
 #: mutacoes desta tabela. A grossura nao e preguica de mutante — e a **falha
 #: fechada do motor**, medida: desde a correcao do B1 e do M2, tanto o `fact_id`
@@ -238,6 +247,21 @@ MUTACOES = {
             "test_o_link_aponta_para_SUFIXO_RESERVADO_a_documentacao",
             "test_o_dominio_do_link_DERIVA_de_entidade_do_elenco",
         },
+    ),
+    "o database_audit para de carregar o ator": (
+        [
+            (
+                "database_audit",
+                CAMPOS_DO_DATABASE,
+                '    "exercise_time",\n    "action",\n    "source_ip",\n'
+                '    "dest",\n    "records_affected",\n)',
+            )
+        ],
+        # ANTES DO M2 ESTE CONJUNTO ERA VAZIO — a mutacao nao matava nada, e a
+        # medicao e o que provou o achado: a fonte carregava `actor` e nenhum
+        # teste comparava. Hoje o caso de consistencia mutua a alcanca porque o
+        # fato de teste projeta nela.
+        {"test_usuario_IP_e_timestamp_CONCORDAM_entre_as_projecoes"},
     ),
     "o vendor do CEF vira literal no modulo": (
         [

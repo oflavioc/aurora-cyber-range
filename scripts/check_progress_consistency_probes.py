@@ -42,6 +42,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 from check_progress_consistency import (  # noqa: E402
     MARCADOR,
     SECAO,
+    confere_gatilhos,
     confere_pauta,
     tabela_resumo,
 )
@@ -233,13 +234,21 @@ def _registro(
     cabeca += ["## 6. Pendências", "", MARCA, ""]
     if com_estado:
         cabeca += ["| Id | O que é | Estado | Vence em |", "|---|---|---|---|"]
-        cabeca += [f"| {i} | o defeito | `{e}` | um gatilho |" for i, e in itens]
+        # `vencimento` por item quando ele vem na tupla de tres — o eixo (m)
+        # precisa escrever "Fase N" no VENCIMENTO, e nao um gatilho genérico.
+        cabeca += [
+            f"| {t[0]} | o defeito | `{t[1]}` | {t[2] if len(t) > 2 else 'um gatilho'} |"
+            for t in itens
+        ]
     else:
         cabeca += ["| Id | O que é | Vence em |", "|---|---|---|"]
-        cabeca += [f"| {i} | o defeito | um gatilho |" for i, _ in itens]
+        cabeca += [
+            f"| {t[0]} | o defeito | {t[2] if len(t) > 2 else 'um gatilho'} |"
+            for t in itens
+        ]
     corpo = [""]
-    for i, _ in itens:
-        corpo += [f"#### {i} — o defeito", "", "Corpo.", ""]
+    for t in itens:
+        corpo += [f"#### {t[0]} — o defeito", "", "Corpo.", ""]
     return "\n".join(cabeca + corpo).splitlines()
 
 
@@ -395,8 +404,57 @@ def eixo_l() -> bool:
     return True
 
 
+def eixo_m() -> bool:
+    """A VARREDURA DE GATILHO — P9-1, e as tres pernas que a definem.
+
+    O defeito que ela fecha: gatilho escrito numa fase de tabela ANTIGA (tres
+    colunas, sem estado) nao tinha quem o cobrasse, porque `confere_pauta` pula
+    essa fase inteira. Foi assim que P1-3, P1-13 e P2-11 prometeram a Fase 9 e
+    nao constavam da tabela da Fase 8.
+    """
+    # (m1) A PROMESSA VIVA QUE NAO CHEGA E PEGA — e a fase de origem e de TRES
+    # colunas, que e exatamente onde `confere_pauta` e cego.
+    orfa = {
+        2: _registro([("P2-11", "", "**Fase 9**")], com_estado=False),
+        9: _registro([("P9-1", "ABERTA")]),
+    }
+    falhas = confere_gatilhos(orfa)
+    if len(falhas) != 1 or "P2-11" not in falhas[0]:
+        print(f"FALHOU: [m1] o gatilho orfao NAO foi pego: {falhas}")
+        return False
+
+    # (m2) O CASO VERDE PASSA. Sem esta perna, um verificador que reprovasse
+    # todo gatilho passaria em (m1) sem distinguir nada.
+    chegou = {
+        2: _registro([("P2-11", "", "**Fase 9**")], com_estado=False),
+        9: _registro([("P2-11", "ABERTA"), ("P9-1", "ABERTA")]),
+    }
+    if confere_gatilhos(chegou):
+        print(f"FALHOU: [m2] o gatilho que CHEGOU foi reprovado: {confere_gatilhos(chegou)}")
+        return False
+
+    # (m3) DESTINO FECHADO NAO E COBRADO, e a razao e que a pergunta e
+    # inconclusiva: ausencia na tabela de la pode ser RESOLUCAO. Cobrar aqui
+    # transformaria 42 casos historicos em falha permanente, e a saida seria uma
+    # lista de excecao que nunca encolhe.
+    fechado = {
+        2: _registro([("P2-11", "", "**Fase 9**")], com_estado=False),
+        9: _registro([("P9-1", "ABERTA")], concluida=True),
+    }
+    if confere_gatilhos(fechado):
+        print("FALHOU: [m3] cobrou gatilho de destino CONCLUIDO, que e inconclusivo.")
+        return False
+
+    print(
+        "OK: [m - varredura de gatilho] a promessa viva que nao chega e pega "
+        "mesmo em tabela de tres colunas, a que chega passa, e destino concluido "
+        "nao e cobrado."
+    )
+    return True
+
+
 EIXOS = (eixo_a, eixo_b, eixo_c, eixo_d, eixo_e, eixo_f, eixo_g,
-         eixo_h, eixo_i, eixo_j, eixo_k, eixo_l)
+         eixo_h, eixo_i, eixo_j, eixo_k, eixo_l, eixo_m)
 
 
 def main() -> int:
