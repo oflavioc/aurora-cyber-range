@@ -1,9 +1,18 @@
 # Fase 9 — Evidência e telemetria
 
-**Status: ABERTA** — branch `claude/fase-9-evidence-telemetry-c49cf4`, âncora
-`c77120c` (a `origin/main` pós-fechamento da Fase 8). A linha de status existe
-porque `check_readme_atual.py` decide *"a fase fechou?"* por ela; ela só muda
-com o veredito do `checkpoint-auditor`.
+**Status: AUDITADA — PASS (5ª rodada).** Branch
+`claude/fase-9-evidence-telemetry-c49cf4`, âncora `c77120c` (a `origin/main`
+pós-fechamento da Fase 8). A linha de status existe porque
+`check_readme_atual.py` decide *"a fase fechou?"* por ela; ela só muda com o
+veredito do `checkpoint-auditor`, e mudou com
+`docs/progress/audit_20260926T163634Z.md`.
+
+**Cinco rodadas, quatro FAIL.** Os laudos estão todos versionados ao lado deste
+registro — as §2.9 a §2.12 dão disposição a cada achado, e a §7 diz o que as
+quatro reprovações ensinaram. O HIGH que sobrou no PASS (a volta da Linha B sem
+gate) e o MEDIUM dele (a espécie fixa para alterações dentro da janela) foram
+corrigidos **antes do PR**, como manda o `WORKFLOW.md`; os dois LOW viraram
+disposição de pendência — um deles, a P9-5, é decisão do proprietário.
 
 **Por que este registro nasce antes da fase.** Vinte e seis pendências
 não-fechadas migram para cá, e pendência sem lugar é pendência que ninguém
@@ -780,7 +789,8 @@ estado, e a relevância para ESTA fase.
 | P7-11 | condição temporal de branch (`before`/`after`) carrega e nunca ramifica | `ABERTA` | o gatilho da P6-3 (a gramática temporal nascer); detalhe em `fase_7.md` §"P7-11" |
 | P7-12 | a superfície do hook do auditor acumulou cinco achados M/L sem rastro | `ABERTA` | a próxima edição da allowlist do auditor; detalhe em `fase_7.md` §"P7-12" |
 | P7-13 | o harness não planta violação onde a correção entrou | `ABERTA` | **Onda 3 da Estrutura Agêntica** (TDD endurecido); detalhe em `fase_7.md` §"P7-13" |
-| P7-14 | seis afirmações de registro/teste sem disposição (varredura P7-6) | `ABERTA` | a varredura de fechamento desta fase; detalhe em `fase_7.md` §"P7-14" |
+| P7-14 | seis afirmações de registro/teste sem disposição (varredura P7-6) | `VENCIDA` | **rolou duas vezes** — o gatilho era a varredura de fechamento da Fase 8, a §7 de lá não a dispôs, e esta fase a herdou com a mesma redação. Passa a vencer na **Fase 10**, com número, para que `confere_gatilhos` a cobre; ver abaixo |
+| P9-5 | `08` §3 diz que o `database_audit.jsonl` traz *"alterações de nota com IP **e sessão**"*, e `02` §4 lista os campos da alteração de nota **sem sessão**. Dois documentos não-master divergem, e o CLAUDE.md manda parar e perguntar | `ABERTA` | **apresentação ao proprietário** — a resolução é spec-change num dos dois lados, e a fase não pode escolher por inferência; ver abaixo |
 | P8-2 | o banner (`05` §4) na classe `exportacao` não tem fase de destino | `ABERTA` | a fase que construir os artefatos de exportação do academus-web; detalhe em `fase_8.md` §"P8-2" |
 | P8-3 | a entrada `pytest` na allowlist do auditor admite comando que nenhum interpretador executa | `ABERTA` | a fase que adotar `pytest`, ou a decisão do proprietário de removê-la; detalhe em `fase_8.md` §"P8-3" |
 | P8-4 | cinco das sete superfícies do academus-web (`02` §7) não têm fase de destino | `ABERTA` | a fase que construir o restante do academus-web; detalhe em `fase_8.md` §"P8-4" |
@@ -999,6 +1009,44 @@ solicita a fonte. Mudar `evidence_release_item` é mudança de contrato de
 cenário, e entra com o consumidor — antes dele seria campo declarado sem quem o
 leia, que é a P1-3 outra vez.
 
+#### P9-5 — a "sessão" de `08` §3 não existe em `02` §4
+
+**Nasce no L1 da 5ª auditoria, e ela é a única desta fase que eu não podia
+resolver.**
+
+    08 §3   `database_audit.jsonl` — "alterações de nota com IP **e sessão**
+            (Linha B)"
+    02 §4   Alteração de nota — "nota anterior, nova nota, usuário, IP,
+            user-agent, timestamp duplo, semestre, disciplina, `within_window`,
+            `authorization_id`"
+
+Não há sessão em `02` §4, não há coluna de sessão na `audit_trail` (migração
+`0004`), e não há campo de sessão em `$defs/fact`. A projeção **não pode inventar
+campo** — é o item 1 da DoD desta fase —, então a lacuna não é de implementação:
+é entre os dois documentos.
+
+**E os dois são não-master.** CLAUDE.md §Autoridade: *"Em conflito entre dois
+documentos não-master, **pare e pergunte** — não resolva por inferência."*
+
+**A inferência tentadora, e por que ela fica de fora.** `user_agent` existe na
+trilha e é o campo mais próximo de "contexto de sessão". Tratá-lo como a "sessão"
+de `08` §3 resolveria o texto sem mudar spec — e seria exatamente a inferência
+que a regra proíbe, porque *"sessão"* também pode significar id de sessão de
+autenticação, que o modelo não tem e cuja criação é decisão de domínio.
+
+**O que a fase entrega aqui é o enquadramento, e não a escolha.** As saídas
+possíveis, para o proprietário:
+
+| saída | o que muda | custo |
+|---|---|---|
+| `08` §3 passa a dizer "IP e user-agent" | alinha ao modelo que existe | spec-change de uma linha; `CAMPOS` da fonte ganha o campo, e `$defs/fact` também |
+| `02` §4 ganha sessão | o modelo cresce | spec-change + coluna + seed + trilha; toca a Fase 2 |
+| `08` §3 perde "e sessão" | reconhece que o dado não existe | spec-change de uma linha, sem código |
+
+**Vence em:** apresentação ao proprietário. Nenhuma delas é trabalho desta fase —
+`07` põe a alteração de `docs/spec/` em PR próprio com aprovação humana, e é
+justamente a regra que impede uma fase de resolver spec no meio do fechamento.
+
 #### P9-4 — a metade Linha B de `08` §3 — RESOLVIDA no H1 da 4ª auditoria
 
 **Nasceu no B1 da 3ª auditoria e morreu no H1 da 4ª, e as duas coisas são a
@@ -1133,10 +1181,36 @@ allowlist do auditor; o resíduo específico é a P8-3.
 
 Herdada da Fase 7, gatilho **Onda 3**. Detalhe em `fase_7.md` §"P7-13".
 
-#### P7-14 — seis afirmações sem disposição
+#### P7-14 — seis afirmações sem disposição — VENCIDA, e o motivo é o mesmo da P9-1
 
-Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-14". A varredura de fechamento
-desta fase dá disposição a cada uma.
+Herdada da Fase 7. Detalhe em `fase_7.md` §"P7-14".
+
+**L2 da 5ª auditoria: ela rolou duas vezes.** O gatilho declarado era *"a
+varredura de fechamento da Fase 8"*; a §7 de `fase_8.md` não a dispôs, e esta
+fase a herdou como `ABERTA` com a redação trocada para *"desta fase"*. É a forma
+exata da P2-11 que o M4 da 4ª rodada corrigiu — agora numa pendência herdada.
+
+**E a causa é mecânica, não de disciplina.** `confere_gatilhos`, que a P9-1
+entregou nesta fase, cobra promessa que nomeia uma fase **por número**. *"A
+varredura de fechamento desta fase"* não nomeia número nenhum, então a varredura
+não a vê — e a pendência pode rolar indefinidamente sem que nada fique vermelho.
+É o limite que o próprio verificador declara: *"o que esta conferência alcança é a
+promessa NOMEADA"*.
+
+A disposição, então, é de duas partes:
+
+1. **estado `VENCIDA`**, porque o prazo passou e o trabalho não foi feito — e o
+   enum fechado da Fase 7 tem esse valor exatamente para isto;
+2. **vencimento com NÚMERO — Fase 10**, para que ela deixe de depender de alguém
+   lembrar. Quando `fase_10.md` abrir, `confere_gatilhos` exige P7-14 na
+   tabela-resumo dela ou reprova.
+
+**Por que não dispor as seis agora.** São itens de uma varredura da Fase 7 (S2,
+S11, S12, S13, S15, S16) sobre superfícies que esta fase não toca — contagem de
+CI, `ResourceWarning` em massa, o cruzamento emissão×consumo da contrassinatura.
+Dar disposição a eles aqui seria trabalho de outra fase entrando pela porta do
+fechamento, e é o oposto do que a R5 chama de *"corrigir de passagem"*. O que esta
+fase devia a ela era **um destino cobrável**, e é isso que ela leva.
 
 #### P8-2 — o banner na classe `exportacao` sem fase de destino
 
@@ -1183,5 +1257,183 @@ autoritativo e não de parâmetro do chamador. É o mesmo princípio, e o
 
 ## 7. Fechamento
 
-> A redigir por quem implementou, **após** o veredito do `checkpoint-auditor`,
-> como manda o rito.
+> Redigida por quem implementou, **após** o veredito PASS do `checkpoint-auditor`
+> (`docs/progress/audit_20260926T163634Z.md`), como manda o rito. As quatro
+> rodadas que falharam estão versionadas ao lado dele.
+
+### Resumo técnico
+
+A Fase 9 entregou o **evidence-simulator** e o **telemetry-forwarder** — os sete
+itens de DoD —, e o que ela é de verdade é a fase em que `00` §5.3 deixou de ser
+princípio e passou a ter porta:
+
+```text
+                        ground_truth.yaml
+                               │
+                     range-core/evidence/
+                               │
+    elenco ─── cobertura ─── projetar ─── manifesto ─── build/verify
+                               │
+                      QUATRO RECUSAS, em ordem
+                               │
+    1. RespostaEntregue     a fonte projeta SÓ os fatos que o gabarito
+                            cita como caso — o arquivo é a resposta
+    2. VereditoDoGabarito   a fonte expressa campo que só o gabarito sabe
+    3. EntidadeInventada    endereço ou hostname que o ground truth não fixou
+    4. IOCEncontrado        dado que não é sintético
+```
+
+As seis fontes de `08` §3 existem em `domains/academus/evidence_generators/`, e a
+telemetria é **um produtor só**: `forwarder.programar` monta o payload, e as duas
+saídas o renderizam — `telemetry/cef.py` escreve o `cef.log`, `telemetry/emissao.py`
+grava `telemetry_emitted` no event store pelo `InjectEngine.start()`.
+
+**A afirmação central da fase, e o que custou torná-la verdadeira.** `08` §1 diz
+que *"contradição entre fontes torna-se estruturalmente impossível"*. Uma frase
+assim só é verdadeira enquanto existir quem a imponha — e as quatro reprovações
+foram, todas, o mesmo defeito em canais diferentes:
+
+| rodada | o que vazava | por onde |
+|---|---|---|
+| 2ª | `credential=compromised` | **campo** — o veredito do gabarito dentro da linha |
+| 3ª | a lista dos 67 casos | **conjunto** — o arquivo inteiro era a resposta |
+| 3ª | telemetria de fato sem `projections` | **população** — o SIEM mostrava o que arquivo nenhum tinha |
+| 4ª | a partição por defensibilidade | **posição** — a ordem do arquivo agrupava por conjunto |
+
+Nenhum deles é IOC, dado real ou defeito de segurança. Os quatro são confusão de
+camada (`00` §3) — e é por isso que nenhum verificador de `05` os pegaria.
+
+### Estrutura de diretórios (novidades da fase)
+
+```text
+range-core/evidence/
+  elenco.py        elenco_de · cobertura_de · enderecos_no · hostnames_no ·
+                   hosts_inventados · tokens_no
+  projecao.py      o motor e as quatro recusas
+  banner.py        o banner por formato de fio, lido do contrato
+  manifesto.py     o MANIFEST.json e a validação contra o contrato (P1-3)
+  build.py         construir · conferir — reprojeta e compara, em 7 degraus
+
+range-core/telemetry/
+  catalogo.py      os doze eventos de `02` §10, conferidos na carga
+  forwarder.py     programar · Replay · erros_de_payload
+  cef.py           a linha de fio — o renderizador do payload
+  emissao.py       o envelope de `telemetry_emitted` para o event store
+
+domains/academus/
+  telemetry_events.yaml   o catálogo do adapter
+  telemetria.py           o caminho dele, do lado que o conhece
+  evidence_generators/    email · vpn · identity_audit · database_audit ·
+                          cef · precursor, mais o serializador jsonl
+```
+
+### Endpoints criados
+
+**Nenhum.** A fase é de motor e de CLI: `range-cli evidence build` escreve e
+`range-cli evidence verify` só lê (`04` §8.1 (a)). A entrega de evidência ao
+participante é superfície de outra fase — e a P9-3 registra que o terceiro modo
+de `08` §5 (`on_request`) depende dela.
+
+### Migrações
+
+**Nenhuma.** `telemetry_emitted` é `event_type` do catálogo e entra no event store
+pela tabela que a Fase 2 criou. Foi o argumento que permitiu emiti-lo em volume
+sem tocar métrica nenhuma: `09` §4.1 o marca `effect_class: machine`,
+`metric_side: none`.
+
+### Variáveis de ambiente
+
+`AURORA_TELEMETRY` — o `telemetry_events.yaml` do adapter, pelo mesmo desenho de
+`AURORA_FLAGS`: caminho por variável, lido como dado, porque o core não importa
+`domains/` (INV-4). **Exigida, não opcional** (R7 §4): um default vazio produziria
+um exercício inteiro sem telemetria no SIEM, e o facilitador descobriria na sala.
+
+### Pendências
+
+31 linhas na tabela-resumo: **4 RESOLVIDA**, 2 VENCIDA, 3 DECIDIDA, 1 LATENTE,
+21 ABERTA.
+
+As quatro resolvidas foram resgatadas ou nasceram aqui:
+
+| | |
+|---|---|
+| **P1-3** | o contrato do manifesto ganhou consumidor, oito fases depois |
+| **P1-13** | as duas cópias das faixas sintéticas passaram a ser cruzadas |
+| **P9-1** | a varredura de gatilho — promessa que nomeia fase aberta agora é cobrada |
+| **P9-4** | a Linha B inteira projetada, depois de eu adiá-la para fora da spec |
+
+**As duas VENCIDA são a mesma classe, e é a que esta fase aprendeu a nomear.**
+P2-11 (`append` abre conexão por chamada) e P7-14 (seis afirmações sem
+disposição) tinham gatilho "esta fase" e não foram exercidas. O enum tem
+`VENCIDA` exatamente para isso, e as duas ganharam destino **com número** — sem
+número, `confere_gatilhos` não as vê, e foi assim que a P7-14 rolou duas vezes.
+
+**Uma pendência nova exige o proprietário:** a **P9-5**, a "sessão" de `08` §3 que
+`02` §4 não tem. Dois documentos não-master divergem, e CLAUDE.md manda parar e
+perguntar. As três saídas estão enquadradas na seção dela; nenhuma é trabalho
+desta fase.
+
+### O que esta fase me ensinou, e vale mais que os sete itens
+
+**1. Comentário não é mecanismo.** O B1 da 2ª rodada foi o pior achado da fase, e
+a doutrina certa já estava escrita — em `vpn.py` e em `precursor.py`, em prosa.
+Dois módulos com a regra, três violando-a. A correção não foi lembrar melhor: foi
+a partição de `x-aurora-registry.fact_fields`, com um verificador que reprova
+campo novo até alguém classificá-lo.
+
+**2. Isenção por nome de arquivo não envelhece alto.** `SEM_BANNER =
+{"MANIFEST.json"}` tinha justificativa verdadeira no dia em que foi escrita, e o
+contrato a desmentiu duas rodadas depois. Ela não citava o que a sustentava, então
+nada ficou vermelho. O que a substituiu decide **por formato**, e formato
+desconhecido é recusa — porque não saber julgar é diferente de aprovar.
+
+**3. Um gate cujo objeto ninguém valida não é um gate.** Eu criei o passo de CI na
+1ª rodada e o deixei vermelho na 4ª, com 1135 testes verdes. Três guardas
+independentes cobrem hoje o mesmo `MANIFEST.json` versionado: paridade com o
+comando do CI, `05` §4 por formato, e o schema como instância real.
+
+**4. O artefato realista encontra o que o mínimo esconde.** Projetar 2 linhas
+custava nada; projetar 3.145 levou `projetar` a **128 s**, porque a guarda de
+veredito varria o conteúdo inteiro uma vez por agulha. O defeito estava lá desde a
+2ª rodada e **nenhuma das três auditorias podia vê-lo**. Foi a correção do H1 da
+4ª que o expôs — e o índice o levou a 0,36 s, com equivalência exata.
+
+**5. Otimizar guarda é onde um gate silenciosamente para de morder.** O mutante
+que desligava a guarda de veredito passou a matar dois testes em vez de cinco no
+instante em que o índice entrou. Não foi previsão: foi o harness acusando. Cada
+caminho ganhou mutante próprio, e o caso que acompanha testa a **equivalência**,
+não o ganho.
+
+**6. "Um contrato só" não é disciplina de escrita — é um produtor só.** Eu li a
+frase de `08` §2 como *"dois geradores coerentes"* e escrevi na §3 que havia um
+gerador só. Havia dois, e já divergiam. Pior: o teste **achava a linha CEF pela
+`fact_class`**, então dependia da divergência para funcionar.
+
+**7. A prova de 4 h é o último artefato antes do disparo.** Gravá-la e continuar
+commitando a órfã, e isso foi o B1 da 1ª rodada. Daí saiu também a regra de que o
+número mora no verificador e não na prosa: citar o valor num registro commitado
+abre um ciclo em que a prosa sempre erra.
+
+**8. Declarar margem é declarar o que não se mediu.** A §2.8 perdeu duas redações
+por afirmar folga que a gravação seguinte desmentiu. Hoje a tabela é histórico de
+observações, e o risco residual está escrito: a dispersão é da ordem da folga.
+
+### Próxima fase
+
+**Fase 10 — Assimetria e AAR** (⏸ no roadmap: parar e apresentar antes de
+prosseguir). Ela herda desta fase:
+
+- **P9-2** — o volume do item 7 pressupõe ruído de fundo que ninguém produz, e
+  agora com medida: o exercício emite **3** eventos de telemetria, e a medição usa
+  96.000. A **P2-11** vence junto, porque o produtor de ruído é quem grava um
+  evento por vez, em volume;
+- **P9-3** — `on_request` é declarado por `08` §5 e inexpressável por um pack;
+- **P7-14** — as seis afirmações, agora com destino cobrável;
+- **P9-5** — a decisão do proprietário sobre a "sessão" de `08` §3.
+
+E uma dívida que não é pendência: **envio por fio**. `01` §6 descreve o
+telemetry-forwarder com *"CEF via Syslog UDP/TCP, modo Live e modo Replay"*, e
+esta fase não implementa envio. Nenhum item da DoD da Fase 9 o cobra e `07` põe
+serviços externos nas Fases 11–12 — o auditor registrou que não verificou a qual
+fase cabe, e fica dito aqui pela mesma razão de sempre: limite não declarado vira
+garantia suposta.
