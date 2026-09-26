@@ -115,9 +115,31 @@ def _consulta(motor, sql: str, conta_alvo: str) -> list:
 #: apontando para `fact_id` que nao existe.
 _COLUNAS_DA_TRILHA = (
     "SELECT t.sequence, t.actor_user_id, t.occurred_at, t.source_ip,"
-    "       t.payload, t.authorization_id"
+    "       t.payload, t.authorization_id, t.within_window"
     "  FROM audit_trail t WHERE t.sequence IN ("
 )
+
+#: `fact_class` POR JANELA — M1 da quinta auditoria.
+#:
+#: Ate a volta da Linha B inteira (H1 da quarta) so havia fato para os CASOS, e
+#: os casos estao todos FORA da janela de retificacao: o rotulo fixo
+#: `grade_change_retroactive` era verdadeiro para todos eles.
+#:
+#: Com a populacao inteira, cerca de 3.000 alteracoes DENTRO da janela passaram a
+#: carregar o mesmo rotulo — e elas nao sao retroativas. O ground truth e a fonte
+#: autoritativa do que ocorreu (`00` §3), e um rotulo falso nele nao e imprecisao:
+#: e o gabarito afirmando uma especie que nao aconteceu.
+#:
+#: E O ROTULO NAO E COSMETICO. `fact_class` e a chave do catalogo de telemetria
+#: (`02` §10), e `grade_change_retroactive` dispara `GRADE_CHANGE_RETROACTIVE`.
+#: Um pack que roteasse a Linha B para `cef` emitiria no SIEM uma assinatura
+#: falsa por alteracao normal — o defeito estava latente, e latente nao e ausente.
+#:
+#: A CLASSE SAI DO DADO, e nao de uma tabela por conjunto: `within_window` e
+#: coluna da trilha, e derivar dela e o que faz o gabarito continuar descrevendo
+#: o que EXISTE. Uma tabela conjunto -> classe seria a segunda resposta para uma
+#: pergunta que o banco ja responde, e divergiria dele na primeira consulta nova.
+CLASSE_POR_JANELA = {True: "grade_change", False: "grade_change_retroactive"}
 
 
 def _linhas_da_trilha(motor, conjunto: str, conta_alvo: str) -> list:
@@ -135,13 +157,28 @@ def _linhas_da_trilha(motor, conjunto: str, conta_alvo: str) -> list:
     )
 
 
-def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
-    """Le a trilha SEMEADA e produz os dois artefatos.
+def ground_truth_de(motor, *, seed: int, conta_alvo: str) -> tuple[dict, dict[str, int]]:
+    """O `ground_truth.yaml` e as contagens por conjunto, sem tocar em prosa.
 
-    LE DO BANCO, e nao do gerador em memoria: o gabarito descreve o que EXISTE, e
-    um gabarito derivado do gerador afirmaria o que ele pretendia semear. Se a
-    carga perdesse linhas, o gabarito mentiria junto — e T8 exige que a query de
-    referencia devolva exatamente os 22 que estao la.
+    A COSTURA EXISTE PARA QUE AS INVARIANTES TENHAM GATE — H1 da quinta
+    auditoria, e ela e limite de INSTRUMENTO resolvido no lugar certo.
+
+    As quatro propriedades que o laudo cobrou — os seis conjuntos viram fato, so
+    tres viram caso, toda linha declara `projections`, e a ordem e por instante —
+    sao funcao das LINHAS DA TRILHA, e nada tem a ver com o `GM_NOTES.md`. Mas
+    `gerar` produz os dois juntos, e `_renderiza` le um template IRMAO por
+    `Path(__file__).parent`; o harness de mutacao carrega o modulo de um
+    diretorio temporario, entao o template nao existe la e a prova negativa
+    morria no `setUpClass` em vez de medir a propriedade.
+
+    Duas saidas ruins foram descartadas: copiar o template para o temporario
+    faria o harness conhecer dado de um modulo especifico, e resolver o template
+    pela raiz do repositorio trocaria a forma correta (`__file__` para dado de
+    pacote) por uma que serve ao teste.
+
+    A saida boa e esta: **os dois artefatos tem insumos e consumidores
+    diferentes**, e `Gabarito` ja os declara como dois campos. Quem carrega as
+    invariantes e o ground truth, e ele passa a ter porta propria.
     """
     casos, fatos = [], []
     contagens: dict[str, int] = {}
@@ -173,11 +210,12 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
     for nome in linha_b.CONJUNTOS:
         linhas = _linhas_da_trilha(motor, nome, conta_alvo)
         contagens[nome] = len(linhas)
-        for sequencia, ator, quando, ip, payload, autorizacao in linhas:
+        for sequencia, ator, quando, ip, payload, autorizacao, na_janela in linhas:
             fatos.append(
                 {
                     "fact_id": FATO.format(sequencia),
-                    "fact_class": "grade_change_retroactive",
+                    # A ESPECIE SAI DA JANELA — ver `CLASSE_POR_JANELA`.
+                    "fact_class": CLASSE_POR_JANELA[bool(na_janela)],
                     # `exercise_time` e do envelope de exercicio; aqui ele marca
                     # o instante do fato no mundo simulado, e nao no exercicio —
                     # o pack da Fase 7 e quem o ancora numa linha `T+`.
@@ -250,9 +288,28 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
         "verification_predicates": predicados_de_verificacao(),
     }
 
+    return ground_truth, contagens
+
+
+def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
+    """Le a trilha SEMEADA e produz os dois artefatos.
+
+    LE DO BANCO, e nao do gerador em memoria: o gabarito descreve o que EXISTE, e
+    um gabarito derivado do gerador afirmaria o que ele pretendia semear. Se a
+    carga perdesse linhas, o gabarito mentiria junto — e T8 exige que a query de
+    referencia devolva exatamente os 22 que estao la.
+
+    O GROUND TRUTH SAI DE `ground_truth_de`, e a separacao esta explicada la.
+    """
+    ground_truth, contagens = ground_truth_de(motor, seed=seed, conta_alvo=conta_alvo)
     produzido = Gabarito(
         ground_truth=ground_truth,
-        gm_notes=_renderiza(pack=pack, seed=seed, contagens=contagens, casos=casos),
+        gm_notes=_renderiza(
+            pack=pack,
+            seed=seed,
+            contagens=contagens,
+            casos=ground_truth["line_b_cases"],
+        ),
     )
     # O LINTER RECUSA AQUI, e nao depois: artefato divergente nao chega a existir.
     conferir(produzido)
