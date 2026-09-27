@@ -558,7 +558,7 @@ class ALinhaBInteiraVaiParaOArquivo(unittest.TestCase):
                 por_classe.setdefault(fato["fact_class"], set()).add(linha[6])
         self.assertEqual(
             por_classe,
-            {"grade_change_retroactive": {False}, "grade_change": {True}},
+            {"grade_change_retroactive": {False}, "grade_change_within_window": {True}},
             "a especie deixou de discriminar a janela",
         )
 

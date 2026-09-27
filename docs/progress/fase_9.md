@@ -1418,6 +1418,27 @@ abre um ciclo em que a prosa sempre erra.
 por afirmar folga que a gravação seguinte desmentiu. Hoje a tabela é histórico de
 observações, e o risco residual está escrito: a dispersão é da ordem da folga.
 
+### Uma última coisa, e ela é a melhor prova de que a fase entregou o que dizia
+
+O M1 desta última rodada me fez derivar `fact_class` da janela, e a primeira
+escolha de nome foi `grade_change` para o que está dentro dela. **A guarda de
+veredito recusou a projeção inteira**, e estava certa:
+
+```
+RECUSADO: VereditoDoGabarito: a projecao de 'database_audit' expressa
+'grade_change', que e o campo de gabarito `fact_class` do fato 'GT-LINHAB-1448'
+```
+
+`fact_class` é `ground_truth_only`; `action` é `projectable` e vale
+`grade_change`. O nome que escolhi colidia com um valor que a fonte escreve
+legitimamente, e a guarda não tinha como distinguir — nem deveria.
+
+Não foi falso positivo: foi **colisão de vocabulário entre um campo que pode ir
+para o fio e um que não pode**, e o conserto é o nome (`grade_change_within_window`,
+derivado da coluna de onde a distinção sai). A porta que a 2ª auditoria me
+obrigou a construir pegou um defeito meu, na última hora, num caminho que
+nenhuma das cinco rodadas tinha exercitado. É para isso que ela existe.
+
 ### Próxima fase
 
 **Fase 10 — Assimetria e AAR** (⏸ no roadmap: parar e apresentar antes de

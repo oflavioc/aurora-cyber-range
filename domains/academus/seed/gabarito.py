@@ -139,7 +139,20 @@ _COLUNAS_DA_TRILHA = (
 #: coluna da trilha, e derivar dela e o que faz o gabarito continuar descrevendo
 #: o que EXISTE. Uma tabela conjunto -> classe seria a segunda resposta para uma
 #: pergunta que o banco ja responde, e divergiria dele na primeira consulta nova.
-CLASSE_POR_JANELA = {True: "grade_change", False: "grade_change_retroactive"}
+#: E O NOME DA CLASSE DENTRO DA JANELA NAO PODE SER `grade_change`, que foi a
+#: primeira escolha — **a guarda de veredito a recusou, e estava certa**:
+#: `fact_class` e `ground_truth_only`, e `grade_change` e tambem o valor de
+#: `action`, que a fonte escreve legitimamente. `VereditoDoGabarito` encontrava a
+#: agulha no proprio `"action": "grade_change"` e reprovava a projecao inteira.
+#:
+#: Nao e falso positivo da guarda: e colisao de vocabulario entre um campo que
+#: PODE ir para o fio e um que NAO pode. O conserto e o nome, e `within_window`
+#: e a coluna de onde a distincao sai — derivar o nome dela deixa a origem
+#: legivel em vez de inventar um rotulo paralelo.
+CLASSE_POR_JANELA = {
+    True: "grade_change_within_window",
+    False: "grade_change_retroactive",
+}
 
 
 def _linhas_da_trilha(motor, conjunto: str, conta_alvo: str) -> list:
