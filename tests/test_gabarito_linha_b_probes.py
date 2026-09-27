@@ -48,7 +48,15 @@ from mutation_harness import caso_de_prova_negativa
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GABARITO = REPO_ROOT / "domains" / "academus" / "seed" / "gabarito.py"
-TESTES = REPO_ROOT / "tests" / "test_gabarito.py"
+#: O ALVO E A SUITE SEM BANCO, e a escolha e limite de instrumento resolvido no
+#: lugar certo. `test_gabarito.py` tem classe que exige Postgres e chama
+#: `gabarito.gerar`, que renderiza o `GM_NOTES.md` de um template IRMAO — e o
+#: harness carrega o modulo de um temporario, onde o template nao existe.
+#:
+#: Medido: com o alvo em `test_gabarito.py`, a ancora reprovava SO COM O BANCO NO
+#: AR (1147 OK sem Postgres, 5 falhas com ele). Instrumento que muda de veredito
+#: com o ambiente e pior que um que reprova sempre.
+TESTES = REPO_ROOT / "tests" / "test_gabarito_linha_b.py"
 
 MUTAVEIS = (("gabarito", "domains.academus.seed.gabarito", GABARITO),)
 

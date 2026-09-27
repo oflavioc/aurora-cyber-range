@@ -1439,6 +1439,26 @@ derivado da coluna de onde a distinção sai). A porta que a 2ª auditoria me
 obrigou a construir pegou um defeito meu, na última hora, num caminho que
 nenhuma das cinco rodadas tinha exercitado. É para isso que ela existe.
 
+### E um defeito de instrumento que só o ambiente completo revelou
+
+A prova negativa da Linha B nasceu apontando para `test_gabarito.py`, e ela dava
+**veredito diferente conforme o ambiente**: 1147 OK sem Postgres, 5 falhas com
+Postgres no ar.
+
+A causa é a mesma família de sempre. Aquele arquivo tem uma classe que exige
+banco e chama `gabarito.gerar`, que renderiza o `GM_NOTES.md` de um template
+**irmão** do módulo; o harness carrega o módulo de um diretório temporário, onde o
+template não existe. Sem Postgres a classe pula e o defeito não aparece; com
+Postgres ela roda e a âncora reprova.
+
+**Instrumento que muda de veredito com o ambiente é pior que um que reprova
+sempre** — ele ensina a confiar no verde errado. O alvo do probe passou a ser
+`tests/test_gabarito_linha_b.py`, que contém exatamente o que ele mede e não
+precisa de banco nenhum.
+
+Vale registrar que isto só apareceu porque a suíte foi rodada **nas duas
+configurações** antes do PR. Rodar só uma delas é o que deixaria passar.
+
 ### Próxima fase
 
 **Fase 10 — Assimetria e AAR** (⏸ no roadmap: parar e apresentar antes de
