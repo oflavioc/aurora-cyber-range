@@ -56,3 +56,30 @@ user-scope/hooks/** text eol=lf
 **/evidence/*.eml text eol=lf
 **/evidence/*.jsonl text eol=lf
 **/evidence/MANIFEST.json text eol=lf
+
+# O GABARITO VERSIONADO — LF pelo MESMO motivo, e ele NAO esta acima.
+#
+# P9-6, achado do CI. O bloco anterior cobriu a SAIDA do build e parou ali.
+# Mas o `MANIFEST.json` amarra um arquivo a mais, que nao mora em `evidence/`:
+# o gabarito de onde a evidencia foi projetada, em
+# `generated_from.ground_truth_hash`. Sem atributo ele chega com CRLF, o build
+# grava o hash dos bytes CRLF, e o `evidence verify` do CI — Linux, LF — sai com
+# rc=2 dizendo *"as fontes em disco projetam OUTRO gabarito"*. Acusa uma
+# reprojecao que nao houve, e manda procurar pelo lado errado.
+#
+# "AMPLO DE PROPOSITO" ali em cima era amplo na PROFUNDIDADE (qualquer
+# `evidence/`) e estreito no CRITERIO. O criterio e este, e e o que a guarda
+# em `OEvidenceVersionadoSobreviveAoCheckout` passou a cobrar:
+#
+#   arquivo versionado cujos BYTES entram numa identidade declarada.
+#
+# Os outros quatro YAML do pack ficam de fora de proposito — sao PARSEADOS, e
+# parsear YAML tolera CRLF. Hashear nao. Atributo sem motivo vira ruido que a
+# proxima leitura nao sabe avaliar.
+#
+# Hoje ha um so arquivo assim, em `tests/fixtures/pack_exemplo/` — a unica
+# isencao do eixo (a) de `check_gabarito_fora_do_git.py`. O padrao e amplo
+# porque, se um segundo gabarito sanitizado vier a ser versionado, ele precisa
+# nascer coberto: este defeito custou uma reprovacao de CI justamente por ter
+# nascido descoberto.
+**/ground_truth.yaml text eol=lf

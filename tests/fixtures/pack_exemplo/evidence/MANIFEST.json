@@ -2,7 +2,7 @@
   "_banner": "AMBIENTE SIMULADO — DADOS FICTÍCIOS",
   "generated_from": {
     "pack_id": "pack_exemplo",
-    "ground_truth_hash": "sha256:082adf246b9551892ebdebd1a97de5c2757a963a63d267c8713bebaa6db7f72d",
+    "ground_truth_hash": "sha256:b16cc92853b71b54271f591160bcfd7b7ad4fbe169b2760501cb3c97ed784d9c",
     "random_seed": 424242
   },
   "sources": [
