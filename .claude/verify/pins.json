@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "89a9497ee4075eff8bd5901921fae3bdcdc5e060",
+    "gerado_de_head": "d8098424260d3a4d03627f3f420c6238452486b3",
     "gerado_em": "2026-09-26",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -148,7 +148,7 @@
     "domains/academus/seed/dataset.py": "ac5497fc9c8aafe86094e6932764490233d8fe698d5c71a8eb92270052acc934",
     "domains/academus/seed/demonstracao.py": "0c5dfa82341d99feb4cc0e142d2210a8044f95687a3ea559c8bff67db7193e79",
     "domains/academus/seed/discriminantes.py": "5dfd1a9c9f2fa9eee2d9bb77c9532c1a09d0fcaa034612c7b499caefd7388f8f",
-    "domains/academus/seed/gabarito.py": "82ff34066e4fbb6ca5f204c0293b5c507f1586a21521763fb012e17f04364e09",
+    "domains/academus/seed/gabarito.py": "417ab01db5e2a1a2484bea53f7bb40cef7c272cb1d9022efc47669e79eb93496",
     "domains/academus/seed/linha_a.py": "760e38de07dbf2985061ecf277becfb1df843e4240b419c8c06bbf06346c434a",
     "domains/academus/seed/linha_b.py": "c39601e598176f479a940d98c68ba2fe406f52df824a5d03151e071f1e0209d3",
     "domains/academus/telemetria.py": "6290547159811aaa3bdd4c2dce585264c97e08f6314cc7a2a2279a76b5dcec42",
@@ -392,7 +392,7 @@
     "tests/test_evidence_projecao.py": "c4be9f412552616dff0ebcf9051bef69d9343fa78960555e3a81128f73ba0901",
     "tests/test_evidence_projecao_probes.py": "ca91ed33e09d2053c2a11edfab690266fe5fe69b051d2612c49cd45f1853cc71",
     "tests/test_exercise_clock.py": "c6db93b0f08e34b5b644e7830f876825965a2499f1acda417d2e87d12712ec35",
-    "tests/test_gabarito.py": "eeaf9352a788f0369bbd223edd27e63ee699f277d283590c443f97cfaa5332ef",
+    "tests/test_gabarito.py": "592eb52750dbe6a77c552cbe76407caa142b4d824b62c24cf7f92935bdfaa006",
     "tests/test_gabarito_probes.py": "4ad8a8f25bee4ca8824b82a51dfd6a8a3480d1013d91df21df394e687540431c",
     "tests/test_inject_engine.py": "fcf956201f4a3f4c277d109e7d80fe75c3411fc577699048518ff92090fe8f41",
     "tests/test_inject_engine_probes.py": "c834f6883af13264bac9bb81f6193f4685b30cc27cc481e3b36386a82f5e15c1",
