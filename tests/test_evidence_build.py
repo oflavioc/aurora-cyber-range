@@ -586,14 +586,49 @@ class OEvidenceVersionadoSobreviveAoCheckout(unittest.TestCase):
     aqui nao ha blob a que recorrer, porque em pack real (`scenarios/`, fora do
     Git desde a Fase 5) nao existe blob nenhum e o verificador le o disco. A
     disciplina tem de estar no checkout.
+
+    **P9-6 — a mesma causa voltou pela ENTRADA, e o CI a pegou.** A correcao do
+    M1 cobriu a SAIDA do build e parou ali: `evidence/*`. Mas o manifesto amarra
+    um arquivo a mais, que nao mora naquele diretorio — o proprio gabarito, em
+    `generated_from.ground_truth_hash`. Sem atributo, ele chega com CRLF, o
+    build grava o hash dos bytes CRLF, e o `evidence verify` do CI (Linux, LF)
+    sai com rc=2 acusando *"as fontes em disco projetam OUTRO gabarito"*.
+
+    E OS TRES CASOS ABAIXO ERAM CEGOS AO MESMO TEMPO, porque os tres olhavam
+    `EVIDENCIA` — e o defeito estava um nivel acima:
+
+        o de CARRIAGE_RETURN   nao lia o gabarito
+        o do .gitattributes    nao cobrava declaracao para ele
+        o do MESMO_COMANDO     confere o manifesto contra o MESMO disco que o
+                               gerou: auto-consistente em qualquer maquina,
+                               logo verde em toda ela
+
+    O conserto nao foi escrever um quarto caso: foi corrigir o ESCOPO dos tres.
+    O criterio nunca foi "o conteudo de `evidence/`" — era "arquivo versionado
+    cujos bytes entram numa identidade declarada", e aquele diretorio o
+    satisfazia por acaso. Com o escopo certo, o primeiro caso fica vermelho na
+    maquina onde o defeito existe e o segundo em qualquer lugar.
     """
 
     #: O diretorio VERSIONADO. Nao ha outro hoje, e o teste descobre os arquivos
     #: em vez de lista-los: arquivo novo entra na guarda sozinho.
     EVIDENCIA = Path(__file__).resolve().parent / "fixtures" / "pack_exemplo" / "evidence"
 
+    #: A ENTRADA versionada. Nao esta em `EVIDENCIA`, e foi por isso que a
+    #: primeira redacao desta classe passou por cima dela.
+    GABARITO = EVIDENCIA.parent / "ground_truth.yaml"
+
     def _arquivos(self):
-        return sorted(p for p in self.EVIDENCIA.iterdir() if p.is_file())
+        """Todo arquivo versionado cujos BYTES entram numa identidade declarada.
+
+        A saida entra porque cada `sources[]` declara um `sha256`; a entrada
+        entra porque o manifesto declara o `ground_truth_hash`. Parsear YAML
+        tolera CRLF — hashear nao. Os outros quatro YAML do pack ficam de fora
+        de proposito: ninguem hasheia os bytes deles.
+        """
+        return sorted(p for p in self.EVIDENCIA.iterdir() if p.is_file()) + [
+            self.GABARITO
+        ]
 
     def test_ha_o_que_conferir(self):
         """Anti-vacuidade: diretorio vazio faria os dois casos abaixo passarem
