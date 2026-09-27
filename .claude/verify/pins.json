@@ -1,7 +1,7 @@
 {
   "_meta": {
     "descricao": "Registry único de pins — fonte de identidade dos artefatos (R8). Hashes = SHA-256 dos blobs de HEAD. Alterar arquivo pinado exige regenerar este registry no MESMO PR, com motivo no commit.",
-    "gerado_de_head": "9a05567cd5e91038c39d2e655aa33da4500b0184",
+    "gerado_de_head": "955ae46a82ebc8abd5dfdffcad1cc196a5146a3a",
     "gerado_em": "2026-09-27",
     "exclusoes": [
       "docs/progress/** (registros de fase e auditorias — alta rotatividade; a trilha deles é o git)",
@@ -75,7 +75,7 @@
     ".claude/verify/toolchain.json": "6e357f6d93309efdb8d30670a336313801fff99718cb7e50cfd3c2a64c6c9995",
     ".dockerignore": "0bfb3a5c28421e5311e3420675f287d83e79509eda3743b7ded3f835cea45d77",
     ".env.example": "01c201eb3f1572e13c289c469b88cee15b4a32ff55209e75d3495362120e21bd",
-    ".gitattributes": "596056c0359b9cbee53301a6d5290eef8b6c6b927e8e0319d99f9a89a27dc88b",
+    ".gitattributes": "422e522700cb32b43a86e1e19682f982c680497ae018d7def80144b7eaed577d",
     ".github/workflows/invariants.yml": "c19ec78870a0d2e1b3d368349330076ade34310eeae1ac24b28aaa060987613a",
     ".gitignore": "711d4a5ba7f631ec6c9a60ace0a3be466f3ba5bd33f076b777c6ccdc0bd6b640",
     "CHANGELOG_V3.md": "1fb48eea18c4596d618b1858c853380825f9a72a98c9533c3aba03e775c78c0b",
@@ -352,7 +352,7 @@
     "tests/conformidade_de_envelope.py": "33bcce591545b9714fee9151cd076e8a3bf4343444ee42c273d5139f08a21f32",
     "tests/fixtures/pack_completo.py": "91c05353bc0c4e1d89f57826d136e570d08fa347f0f609c278c81bcc59478214",
     "tests/fixtures/pack_exemplo/branches.yaml": "307e2a6126cf14643b5474924fdd8a5d8a5665bf105fc6beed92880517b8f17e",
-    "tests/fixtures/pack_exemplo/evidence/MANIFEST.json": "d8bedbf7c9ecda86313e149c40b59341e666fa4b2d707d2937cfef42b91e509a",
+    "tests/fixtures/pack_exemplo/evidence/MANIFEST.json": "c867332510ecd31acc141c0ffed004a30ca92d66c1d53e8e86451d93d5ed91d4",
     "tests/fixtures/pack_exemplo/evidence/vpn.log": "6c66594ccec0efdde2b0a4cfa4105695c7b122cc3e44e129b978b9a6dae49b5d",
     "tests/fixtures/pack_exemplo/ground_truth.yaml": "b16cc92853b71b54271f591160bcfd7b7ad4fbe169b2760501cb3c97ed784d9c",
     "tests/fixtures/pack_exemplo/injects.yaml": "c9b243c8236ddb0446e561b800ad486710dad0e03d6ffe4b210677ba3ea3d9eb",
@@ -383,7 +383,7 @@
     "tests/test_determinism.py": "32e503693e658dd423edf12ccfa50cb266f2fd0e0b8deacff6995f3713f8f162",
     "tests/test_event_store.py": "46a321b43fcb9064748f87d1e4649e8d8e129291504c391a26b40ed6e2732adb",
     "tests/test_event_store_postgres.py": "dedb61b98263bab61e1355d6966ef05e0ed0c7f48e1e32d4ea2ac070d18c8ea2",
-    "tests/test_evidence_build.py": "a626e049dbcf58bc6a7189338b688d394b1b237ea7d25101c8d3a625b80e4d22",
+    "tests/test_evidence_build.py": "d108b786fb210e6bb5b7e3559031b757f3b034767178db9932773401764441ee",
     "tests/test_evidence_build_probes.py": "f7e80ea7cab67ca5e117f907324527a18d72609d6e942ee4f17540ef07ef74f4",
     "tests/test_evidence_elenco.py": "447628427b74af1ea7eeb1915127a19f410ae8092e8d9ed9b3a91b704d8ddb1f",
     "tests/test_evidence_elenco_probes.py": "c7c913f3e72c7e319d9bd5b178299f2b480db27dc65f31fdc7c1f65d75cd3813",
