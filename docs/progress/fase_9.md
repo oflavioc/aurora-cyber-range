@@ -791,6 +791,7 @@ estado, e a relevância para ESTA fase.
 | P7-13 | o harness não planta violação onde a correção entrou | `ABERTA` | **Onda 3 da Estrutura Agêntica** (TDD endurecido); detalhe em `fase_7.md` §"P7-13" |
 | P7-14 | seis afirmações de registro/teste sem disposição (varredura P7-6) | `VENCIDA` | **rolou duas vezes** — o gatilho era a varredura de fechamento da Fase 8, a §7 de lá não a dispôs, e esta fase a herdou com a mesma redação. Passa a vencer na **Fase 10**, com número, para que `confere_gatilhos` a cobre; ver abaixo |
 | P9-5 | `08` §3 diz que o `database_audit.jsonl` traz *"alterações de nota com IP **e sessão**"*, e `02` §4 lista os campos da alteração de nota **sem sessão**. Dois documentos não-master divergem, e o CLAUDE.md manda parar e perguntar | `ABERTA` | **apresentação ao proprietário** — a resolução é spec-change num dos dois lados, e a fase não pode escolher por inferência; ver abaixo |
+| P9-6 | ~~a guarda de fim de linha do pack versionado cobria a **saída** do build (`evidence/*`) e não a **entrada** que o manifesto hasheia (`ground_truth.yaml`) — e os três casos da classe olhavam o diretório errado~~ | `RESOLVIDA` | **venceu no primeiro CI desta branch**, depois do PASS: `**/ground_truth.yaml text eol=lf` e o escopo da guarda corrigido para *"arquivo versionado cujos bytes entram numa identidade declarada"*; ver abaixo |
 | P8-2 | o banner (`05` §4) na classe `exportacao` não tem fase de destino | `ABERTA` | a fase que construir os artefatos de exportação do academus-web; detalhe em `fase_8.md` §"P8-2" |
 | P8-3 | a entrada `pytest` na allowlist do auditor admite comando que nenhum interpretador executa | `ABERTA` | a fase que adotar `pytest`, ou a decisão do proprietário de removê-la; detalhe em `fase_8.md` §"P8-3" |
 | P8-4 | cinco das sete superfícies do academus-web (`02` §7) não têm fase de destino | `ABERTA` | a fase que construir o restante do academus-web; detalhe em `fase_8.md` §"P8-4" |
@@ -1255,6 +1256,81 @@ clock de exercício"* — é a exigência de que o tempo venha do relógio
 autoritativo e não de parâmetro do chamador. É o mesmo princípio, e o
 `ProvaEmAndamento` é o caso já medido dele. Detalhe em `fase_8.md` §"P8-7".
 
+#### P9-6 — a mesma causa voltou pela ENTRADA, e quem a pegou foi o CI
+
+Nasceu **depois do PASS**, no primeiro `invariantes` que esta branch rodou. O job
+`contratos` reprovou com rc=2, e a mensagem era precisa:
+
+```
+ground_truth mudou desde o build: o manifesto declara sha256:082adf24... e o
+documento tem sha256:b16cc928... Rode `evidence build` de novo — as fontes em
+disco projetam OUTRO gabarito
+```
+
+Os dois números são o mesmo arquivo em dois fins de linha: `082adf24…` são os
+bytes CRLF do meu checkout, `b16cc928…` são os bytes LF do blob. **Nenhuma fonte
+mudou.** É a R2 §2 outra vez, e é a mesma família do M1 da 2ª auditoria — que eu
+consertei nesta fase, e consertei estreito demais.
+
+Lá eu cobri a **saída** do build: `**/evidence/*` no `.gitattributes`. Mas o
+`MANIFEST.json` amarra um arquivo a mais, que não mora naquele diretório — o
+gabarito de onde a evidência foi projetada, em `generated_from.ground_truth_hash`.
+
+**E os três casos da guarda eram cegos ao mesmo tempo**, porque os três liam
+`EVIDENCIA` e o defeito estava um nível acima:
+
+| | |
+|---|---|
+| `test_nenhum_arquivo_chegou_com_CARRIAGE_RETURN` | não lia o gabarito |
+| `test_o_gitattributes_DECLARA_eol_lf_para_cada_um` | não cobrava declaração para ele |
+| `test_o_MESMO_COMANDO_DO_CI_sai_limpo` | confere o manifesto contra o **mesmo disco que o gerou** |
+
+O terceiro é o que merece ser olhado de perto, porque ele *parecia* ser a
+apólice: foi escrito no B1 da 4ª auditoria justamente para que "suíte verde e CI
+vermelho deixem de poder coexistir". Só que ele compara duas coisas que a minha
+máquina produziu uma da outra — é **auto-consistente em qualquer máquina**, logo
+verde em toda ela. Um gate que roda o verbo certo sobre o objeto certo ainda pode
+não medir nada, se os dois lados da comparação vierem da mesma fonte.
+
+O conserto não foi escrever um quarto caso: foi corrigir o **escopo** dos três. O
+critério nunca foi "o conteúdo de `evidence/`" — era
+
+> arquivo versionado cujos **bytes** entram numa identidade declarada
+
+e aquele diretório o satisfazia por acaso. Com o escopo certo, o primeiro caso
+fica vermelho na máquina onde o defeito existe e o segundo em qualquer lugar onde
+a declaração falte. Os outros quatro YAML do pack ficam fora de propósito: são
+**parseados**, e parsear YAML tolera CRLF. Hashear não.
+
+O `.gitattributes` ganhou `**/ground_truth.yaml text eol=lf`, o arquivo foi
+reentregue pelo checkout em LF, e o manifesto foi reconstruído — **uma linha de
+diff**, o hash. O `vpn.log` saiu byte-idêntico, que é o resultado certo: a
+projeção depende dos fatos parseados, não do fim de linha.
+
+**Varredura do resto da árvore por esta classe** — `sha256` sobre bytes de disco
+de arquivo versionado — encontrou só este. A prova de 4 h hasheia o pack real,
+que mora em `scenarios/`, fora do Git desde a Fase 5, e nasce LF do gerador
+(R7 §2): nenhum checkout o materializa.
+
+**E há um contraste que vale guardar.** O `pins.json` regenerado não mudou o pin
+do `ground_truth.yaml` — segue `b16cc928…`, o mesmo de antes. Os pins medem
+**blobs de HEAD** (R8, R7 §1), que sempre estiveram em LF: o registry era
+estruturalmente imune ao defeito que reprovou o CI. E é exatamente por isso que o
+manifesto de evidência **não pode** usar a mesma regra: em pack real não há blob
+a que recorrer. Onde existe blob, mede-se blob; onde não existe, a disciplina tem
+de estar no checkout.
+
+Evidência da correção:
+
+| | |
+|---|---|
+| RED commitado (`c2627c2`) | `Ran 5 tests — FAILED (failures=2)` — o sintoma e a causa |
+| GREEN (`955ae46`) | `Ran 5 tests — OK` |
+| `range-cli evidence verify tests/fixtures/pack_exemplo` | rc=0 |
+| suíte, com a stack | **1147 OK, 0 pulos** |
+| suíte, sem a stack | **1147 OK, 163 pulos** — o intervalo declarado |
+| `bash .claude/verify/run.sh` | 5 PASS · 0 FAIL |
+
 ## 7. Fechamento
 
 > Redigida por quem implementou, **após** o veredito PASS do `checkpoint-auditor`
@@ -1350,10 +1426,10 @@ um exercício inteiro sem telemetria no SIEM, e o facilitador descobriria na sal
 
 ### Pendências
 
-31 linhas na tabela-resumo: **4 RESOLVIDA**, 2 VENCIDA, 3 DECIDIDA, 1 LATENTE,
+32 linhas na tabela-resumo: **5 RESOLVIDA**, 2 VENCIDA, 3 DECIDIDA, 1 LATENTE,
 21 ABERTA.
 
-As quatro resolvidas foram resgatadas ou nasceram aqui:
+As cinco resolvidas foram resgatadas ou nasceram aqui:
 
 | | |
 |---|---|
@@ -1361,6 +1437,7 @@ As quatro resolvidas foram resgatadas ou nasceram aqui:
 | **P1-13** | as duas cópias das faixas sintéticas passaram a ser cruzadas |
 | **P9-1** | a varredura de gatilho — promessa que nomeia fase aberta agora é cobrada |
 | **P9-4** | a Linha B inteira projetada, depois de eu adiá-la para fora da spec |
+| **P9-6** | o fim de linha da **entrada** hasheada — nasceu e venceu no primeiro CI desta branch, depois do PASS |
 
 **As duas VENCIDA são a mesma classe, e é a que esta fase aprendeu a nomear.**
 P2-11 (`append` abre conexão por chamada) e P7-14 (seis afirmações sem
@@ -1458,6 +1535,36 @@ precisa de banco nenhum.
 
 Vale registrar que isto só apareceu porque a suíte foi rodada **nas duas
 configurações** antes do PR. Rodar só uma delas é o que deixaria passar.
+
+### E o PASS não foi o último portão — o CI foi
+
+A auditoria passou e **o primeiro CI desta branch reprovou** (P9-6). Vale dizer
+sem suavizar, porque a leitura fácil seria "o auditor deixou passar", e não é
+isso: os dois gates têm objetos diferentes. O auditor lê a árvore no worktree do
+commit candidato — **na minha plataforma**. O CI roda em Linux, e `07` §Fase 9
+não é quem diz que isso importa: é a R7 §5, *"a plataforma canônica é o CI
+Linux"*.
+
+O dado que eu não tinha olhado é simples e estava a um comando: **esta branch
+nunca havia rodado no CI**. O workflow dispara em `push` para `main` e em
+`pull_request`; os 65 commits foram empurrados para uma branch sem PR, então
+nenhum deles foi ao Linux. Todo o verde desta fase — 1147 testes, `verify` 5/5,
+os verificadores, as três provas do lançador — foi medido num só sistema
+operacional, e eu o relatei como se fosse o verde do produto.
+
+Duas coisas ficam disso, e a segunda é a que eu levo:
+
+**Rodar a suíte "nas duas configurações" não é o mesmo que rodar nas duas
+plataformas.** A lição que esta fase já tinha aprendido — com e sem a stack —
+cobre *dependência de ambiente*; não cobre *dependência de sistema operacional*.
+Eram dois eixos e eu contei um.
+
+**Um gate pode rodar o verbo certo sobre o objeto certo e ainda não medir nada.**
+O `test_o_MESMO_COMANDO_DO_CI_sai_limpo` nasceu para impedir exatamente a
+coexistência de suíte verde com CI vermelho, e não impediu — porque os dois lados
+da comparação vinham da mesma fonte, e auto-consistência viaja com a máquina.
+Quando um caso compara A com B, a primeira pergunta é **de onde A e B vieram**;
+se vieram um do outro, o caso mede a si mesmo.
 
 ### Próxima fase
 
