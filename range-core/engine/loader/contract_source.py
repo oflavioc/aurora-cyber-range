@@ -280,3 +280,96 @@ def since_qualifiers(contratos: dict[str, dict]) -> frozenset[str]:
             "seu literal, que e o defeito que esta funcao existe para desfazer"
         )
     return frozenset(enum)
+
+
+def formatos_por_fonte(contratos: dict[str, dict]) -> dict[str, str]:
+    """`fonte de evidencia -> formato de fio`, LIDO do contrato.
+
+    `08_EVIDENCE_SIMULATOR.md` §3 fixa as fontes v1 e o formato de cada uma;
+    `contracts/evidence.schema.yaml` as declara em
+    `x-aurora-registry.source_formats`, e o proprio comentario de la diz que o
+    conjunto e FECHADO nesta versao — pos-MVP entra por spec-change.
+
+    MESMA FORMA DE `rollback_reasons`: recebe os contratos ja parseados, faz a
+    busca, nao toca disco.
+
+    POR QUE O MOTOR NAO PODE TER A SUA COPIA. `projections` do fato nomeia a
+    FONTE (`vpn`), e o manifesto declara o FORMATO (`syslog_text`); quem liga os
+    dois e este registro. Uma copia no motor faria o gerador escrever num
+    formato e o manifesto declarar outro — e o manifesto e justamente o que o
+    `evidence verify` confere, entao a divergencia passaria pelo verificador
+    feito para pega-la.
+    """
+    evidence = contratos.get("evidence") or {}
+    registro = ((evidence.get("x-aurora-registry") or {}).get("source_formats")) or {}
+    if not registro:
+        raise ContractSourceError(
+            "contracts/evidence.schema.yaml sem `x-aurora-registry.source_formats`: "
+            "sem ele o motor de projecao teria de reescrever a ligacao "
+            "fonte -> formato, e o gerador poderia escrever num formato que o "
+            "manifesto declara como outro"
+        )
+    return dict(registro)
+
+
+def restricoes_de_evidencia(contratos: dict[str, dict]) -> dict:
+    """As restricoes de seguranca da evidencia, LIDAS do contrato.
+
+    `05_SECURITY_REQUIREMENTS.md` §2, §3, §4 e §5.1;
+    `contracts/evidence.schema.yaml` as declara em
+    `x-aurora-security-constraints` — banner, faixas de IP, sufixos de dominio,
+    vendor/product de CEF, e os dois booleanos de anexo e IOC.
+
+    E ELE QUE O BANNER LE, e a razao e a P1-13: o texto do banner num literal de
+    modulo seria a terceira copia de uma norma que ja divergiu duas vezes entre
+    o contrato e `tools/check_synthetic_data.py`. Aqui o motor consome o
+    contrato como DADO, e nao ha o que divergir.
+    """
+    evidence = contratos.get("evidence") or {}
+    restricoes = evidence.get("x-aurora-security-constraints")
+    if not restricoes:
+        raise ContractSourceError(
+            "contracts/evidence.schema.yaml sem `x-aurora-security-constraints`: "
+            "sem ele o motor de evidencia teria de reescrever o banner e as "
+            "faixas, que e a copia que a P1-13 existe para nao multiplicar"
+        )
+    return dict(restricoes)
+
+
+#: As tres classes de `x-aurora-registry.fact_fields`, e QUAL delas pode ir para
+#: o fio. Uma so — e a assimetria e o ponto: projetavel e a excecao declarada,
+#: e tudo o mais no fato e gabarito ate que alguem o classifique.
+_CLASSES_DE_CAMPO = ("projectable", "ground_truth_only", "structural")
+
+
+def campos_do_fato(contratos: dict[str, dict]) -> dict[str, frozenset[str]]:
+    """A particao dos campos do fato, LIDA do contrato — B1 da 2a auditoria.
+
+    `contracts/evidence.schema.yaml` §`x-aurora-registry.fact_fields` classifica
+    cada campo de `$defs/fact` em **projetavel**, **so-gabarito** ou
+    **estrutural**, e o comentario de la diz por que sao tres listas e nao uma
+    lista de proibidos.
+
+    QUEM CONSOME: `range-core/evidence/projecao.py`, que recusa a fonte cuja
+    saida expresse valor de campo nao projetavel; e
+    `scripts/check_contract_examples.py`, que cruza a uniao das tres com as
+    `properties` do contrato de ground truth — campo novo la fica sem classe
+    aqui, e o verificador reprova ate alguem decidir de que natureza ele e.
+
+    MESMA FORMA DE `formatos_por_fonte`: recebe os contratos ja parseados, faz a
+    busca, nao toca disco. E pela mesma razao — uma copia da particao no motor
+    faria o gerador seguir uma lista e o verificador julgar por outra.
+    """
+    evidence = contratos.get("evidence") or {}
+    registro = ((evidence.get("x-aurora-registry") or {}).get("fact_fields")) or {}
+
+    faltando = [classe for classe in _CLASSES_DE_CAMPO if not registro.get(classe)]
+    if faltando:
+        raise ContractSourceError(
+            "contracts/evidence.schema.yaml sem "
+            f"`x-aurora-registry.fact_fields.{'`, `'.join(faltando)}`: sem a "
+            "particao o motor de projecao nao teria como distinguir campo de "
+            "sensor de campo de gabarito, e `credential_state` voltaria para o "
+            "`vpn.log` — B1 da segunda auditoria da Fase 9"
+        )
+    return {classe: frozenset(registro[classe]) for classe in _CLASSES_DE_CAMPO}

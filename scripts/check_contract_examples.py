@@ -32,6 +32,8 @@ que a Fase 0 construiu nao ganhe dependencia.
 
 from __future__ import annotations
 
+import ipaddress
+import json
 import re
 import sys
 from pathlib import Path
@@ -220,6 +222,184 @@ def main(argv: list[str] | None = None) -> int:
                 f"    so no contrato: {sorted(declarados - aplicados) or 'nenhum'}\n"
                 f"    so no verificador: {sorted(aplicados - declarados) or 'nenhum'}"
             )
+
+        # ------------------------------------------------------------------
+        # A METADE DA P1-13 QUE FALTAVA — as faixas de IP.
+        #
+        # O cruzamento de dominio existia desde a Fase 1; o de IP nao, e era a
+        # metade que a P1-13 declarava aberta. `contracts/evidence.schema.yaml`
+        # lista sete `allowed_ip_ranges` e `dados_sinteticos` decide por quatro
+        # redes de DOCUMENTACAO mais os predicados de faixa privada do
+        # `ipaddress` — as duas listas ja divergiram DUAS vezes em silencio, e e
+        # por isso que a pendencia existe.
+        #
+        # A COMPARACAO NAO E DE CONJUNTO, e nao podia ser: as tres faixas
+        # privadas do contrato (RFC 1918) nao aparecem em
+        # `DOCUMENTATION_NETWORKS` porque `ip_permitido` as aceita por
+        # `address.is_private`, que e predicado e nao lista. Comparar conjuntos
+        # exigiria duplicar a RFC 1918 numa das pontas — a copia que a P1-13
+        # existe para nao multiplicar.
+        #
+        # O QUE SE CRUZA E O VEREDITO: toda faixa que o contrato declara tem de
+        # ser ACEITA pelo predicado, e uma faixa roteavel tem de ser recusada.
+        # Isso pega a divergencia real (faixa nova no contrato que o verificador
+        # nao conhece) sem exigir que as duas listas tenham a mesma forma.
+        # ------------------------------------------------------------------
+        faixas = (ev.get("x-aurora-security-constraints") or {}).get(
+            "allowed_ip_ranges"
+        ) or []
+        if not faixas:
+            falhas.append(
+                "contracts/evidence.schema.yaml sem `allowed_ip_ranges`: "
+                "sem a lista, nada cruza o contrato com `dados_sinteticos`"
+            )
+        for cidr in faixas:
+            try:
+                rede = ipaddress.ip_network(cidr)
+            except ValueError as exc:
+                falhas.append(f"`allowed_ip_ranges` com faixa invalida: {cidr!r} ({exc})")
+                continue
+            if not csd.ip_permitido(rede.network_address):
+                falhas.append(
+                    f"contracts/evidence.schema.yaml declara {cidr} como faixa "
+                    f"permitida, e `dados_sinteticos.ip_permitido` a RECUSA.\n"
+                    "    As duas fontes da mesma norma de `05` §3 divergiram — "
+                    "e a do verificador e quem o CI aplica, entao o gerador "
+                    "seguiria o contrato e o CI reprovaria o resultado."
+                )
+        # ANTI-VACUIDADE: se `ip_permitido` aceitasse tudo, o laco acima passaria
+        # sem afirmar nada. Um endereco roteavel tem de ser recusado.
+        if csd.ip_permitido(ipaddress.ip_address("8.8.8.8")):
+            falhas.append(
+                "`dados_sinteticos.ip_permitido` aceita endereco roteavel: o "
+                "cruzamento de faixas acima passaria vacuamente"
+            )
+
+        # ------------------------------------------------------------------
+        # A PARTICAO DOS CAMPOS DO FATO COBRE `$defs/fact` — B1 DA 2a AUDITORIA.
+        #
+        # `x-aurora-registry.fact_fields` classifica cada campo do fato em
+        # `projectable` / `ground_truth_only` / `structural`, e o motor de
+        # projecao recusa a fonte que expresse o que nao for projetavel.
+        #
+        # SEM ESTE CRUZAMENTO, A PARTICAO ENVELHECE CALADA. Campo novo em
+        # `$defs/fact` nasceria sem classe, e o motor o trataria como... o que?
+        # A implementacao trata o nao-projetavel como gabarito, que e o default
+        # SEGURO — mas um default seguro que ninguem confere vira surpresa na
+        # outra direcao: o autor acrescenta `geo_country` ao fato, espera ve-lo
+        # no `vpn.log`, e o build recusa sem que nada tenha dito que faltava
+        # classificar.
+        #
+        # Era exatamente a forma do defeito original: `credential_state` estava
+        # no contrato de ground truth desde a Fase 1, e a decisao sobre o que
+        # fazer com ele morava em COMENTARIO, em dois modulos, com tres outros
+        # ignorando-a.
+        #
+        # O CRUZAMENTO E DE CONJUNTO, e aqui ele pode ser: as duas pontas falam
+        # de nomes de propriedade do MESMO documento. Nao ha predicado a
+        # respeitar, como havia nas faixas de IP.
+        # ------------------------------------------------------------------
+        gt = contratos.get("ground_truth") or {}
+        do_contrato = set(
+            ((gt.get("$defs") or {}).get("fact") or {}).get("properties") or {}
+        )
+        classes = (ev.get("x-aurora-registry") or {}).get("fact_fields") or {}
+        if not do_contrato:
+            falhas.append(
+                "contracts/ground_truth.schema.yaml sem `$defs/fact.properties`: "
+                "sem o universo, a particao de `fact_fields` nao cruza com nada"
+            )
+        elif not classes:
+            falhas.append(
+                "contracts/evidence.schema.yaml sem "
+                "`x-aurora-registry.fact_fields`: o motor de projecao nao teria "
+                "como distinguir campo de sensor de campo de gabarito"
+            )
+        else:
+            declarados: list[str] = []
+            for nome in ("projectable", "ground_truth_only", "structural"):
+                declarados.extend(classes.get(nome) or ())
+
+            repetidos = sorted(
+                {c for c in declarados if declarados.count(c) > 1}
+            )
+            if repetidos:
+                falhas.append(
+                    f"`fact_fields` classifica o mesmo campo em duas classes: "
+                    f"{repetidos}.\n"
+                    "    A particao decide o que vai para o fio; campo em duas "
+                    "classes torna a resposta dependente da ordem de leitura."
+                )
+
+            sem_classe = sorted(do_contrato - set(declarados))
+            if sem_classe:
+                falhas.append(
+                    f"campos de `$defs/fact` sem classe em `fact_fields`: "
+                    f"{sem_classe}.\n"
+                    "    Decida se um SENSOR os registraria (`projectable`), se "
+                    "sao atribuicao ou facilitacao (`ground_truth_only`), ou se "
+                    "sao amarracao (`structural`). `00` §3 — evidencia "
+                    "observavel nao afirma ground truth."
+                )
+
+            inexistentes = sorted(set(declarados) - do_contrato)
+            if inexistentes:
+                falhas.append(
+                    f"`fact_fields` classifica campo que `$defs/fact` nao tem: "
+                    f"{inexistentes}.\n"
+                    "    Classe orfa e regra que nunca dispara — o inverso do "
+                    "problema, e igualmente invisivel."
+                )
+
+            # ANTI-VACUIDADE: uma particao que pusesse TUDO em `projectable`
+            # satisfaria os tres cruzamentos acima e desligaria a guarda.
+            if not (classes.get("ground_truth_only") or ()):
+                falhas.append(
+                    "`fact_fields.ground_truth_only` vazia: a guarda de "
+                    "`VereditoDoGabarito` nao teria o que recusar, e os "
+                    "cruzamentos acima passariam sem afirmar nada"
+                )
+
+    # -----------------------------------------------------------------------
+    # A INSTANCIA REAL DO CONTRATO DE EVIDENCIA — B1 da quarta auditoria.
+    #
+    # `contracts/evidence.schema.yaml` tinha exemplos e nao tinha INSTANCIA: o
+    # unico `MANIFEST.json` versionado da arvore nunca passava por aqui. Quando o
+    # L2 tornou `_banner` obrigatorio, o contrato mudou, o produtor mudou, e o
+    # artefato versionado ficou invalido — com a suite verde e o CI vermelho.
+    #
+    # `domains/*/flags.yaml` ja era conferido assim, e a assimetria nao tinha
+    # razao: os dois sao artefato versionado de um contrato deste repositorio.
+    #
+    # ESTE E O TERCEIRO GUARDA DO MESMO OBJETO, e os tres sao de escopos
+    # diferentes de proposito: a suite roda o `evidence verify` inteiro (paridade
+    # com o passo de CI), `check_banner_de_simulacao` julga `05` §4, e este julga
+    # o SCHEMA. Um objeto que o contrato declara e ninguem valida e a forma como
+    # o B1 aconteceu.
+    # -----------------------------------------------------------------------
+    evidence_schema = contratos.get("evidence")
+    if evidence_schema is not None:
+        validador_evidencia = Draft202012Validator(evidence_schema, registry=registry)
+        manifestos = sorted(
+            (REPO_ROOT / "tests" / "fixtures").glob("*/evidence/MANIFEST.json")
+        )
+        if not manifestos:
+            falhas.append(
+                "tests/fixtures/*/evidence/MANIFEST.json: nenhum encontrado.\n"
+                "    Contrato com exemplo e sem instancia real e o que deixou o "
+                "manifesto versionado invalido atravessar (B1 da 4a auditoria). "
+                "Rode `range-cli evidence build tests/fixtures/pack_exemplo --seed <n>`."
+            )
+        for caminho in manifestos:
+            instancias += 1
+            documento = json.loads(caminho.read_text(encoding="utf-8"))
+            erros = sorted(validador_evidencia.iter_errors(documento), key=str)
+            if erros:
+                falhas.append(
+                    f"{caminho.relative_to(REPO_ROOT).as_posix()}\n"
+                    f"    nao valida contra evidence.schema.yaml: "
+                    + "; ".join(f"{e.json_path}: {e.message}" for e in erros)
+                )
 
     flags_schema = contratos.get("state_flags")
     if flags_schema is not None:

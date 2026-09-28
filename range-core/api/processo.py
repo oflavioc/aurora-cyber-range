@@ -67,6 +67,7 @@ from range_core.engine.loader.pack_loader import AdapterFlags, load_pack
 from range_core.engine.verificacao import LacoDeVerificacao
 from range_core.events.postgres_store import PostgresEventStore
 from range_core.state.cache import RedisProjectionCache
+from range_core.telemetry.catalogo import carregar as carregar_catalogo
 
 #: O caminho do pack de exercicio. VOLUME, e nao conteudo de imagem: `01` §6 da
 #: ao gm-console um seletor de pack, entao o pack e entrada de deploy — e uma
@@ -76,6 +77,18 @@ VARIAVEL_DO_PACK = "AURORA_PACK"
 
 #: O `flags.yaml` do adapter, como DADO. Ver o cabecalho.
 VARIAVEL_DAS_FLAGS = "AURORA_FLAGS"
+
+#: O `telemetry_events.yaml` do adapter, pelo MESMO desenho das flags — `02`
+#: §10. M4 da segunda auditoria da Fase 9: sem esta composicao, `Replay` e
+#: `programar` existiam e nenhum codigo de produto emitia `telemetry_emitted`.
+#:
+#: **EXIGIDA, e nao opcional com default vazio.** R7 §4 — dependencia de
+#: ambiente e declarada, nunca implicita; ausencia vira falha nomeada, jamais
+#: SKIP silencioso. Um default vazio aqui produziria um exercicio inteiro sem
+#: telemetria nenhuma no SIEM, e o facilitador descobriria na sala. E
+#: exatamente o que a mensagem de `exige` diz: subir com metade da configuracao
+#: da uma API que autentica e nao opera.
+VARIAVEL_DA_TELEMETRIA = "AURORA_TELEMETRY"
 
 VARIAVEL_DO_BANCO = "DATABASE_URL"
 VARIAVEL_DO_REDIS = "REDIS_URL"
@@ -105,6 +118,7 @@ def criar() -> FastAPI:
     dsn = exige(VARIAVEL_DO_BANCO)
     caminho_do_pack = Path(exige(VARIAVEL_DO_PACK))
     caminho_das_flags = Path(exige(VARIAVEL_DAS_FLAGS))
+    caminho_da_telemetria = Path(exige(VARIAVEL_DA_TELEMETRIA))
 
     # DUAS CONSTRUCOES DO STORE, e a primeira so LE. O construtor exige clock
     # porque o store carimba no append; o clock, por sua vez, sai do fluxo que
@@ -120,7 +134,19 @@ def criar() -> FastAPI:
         yaml.safe_load(caminho_das_flags.read_text(encoding="utf-8")),
         source=caminho_das_flags.as_posix(),
     )
-    pack = load_pack(caminho_do_pack, contracts=contratos, adapter_flags=flags)
+    # O CATALOGO DE TELEMETRIA, pelo mesmo caminho das flags: CAMINHO por
+    # variavel de ambiente, lido como dado. O core nao sabe qual adapter e — e
+    # e por isso que a telemetria do pack sai do loader ja PROJETADA, com o
+    # `programar` que o `cef.log` tambem usa. Um contrato so (`08` §2).
+    catalogo_de_telemetria = carregar_catalogo(
+        caminho_da_telemetria, contratos=contratos
+    )
+    pack = load_pack(
+        caminho_do_pack,
+        contracts=contratos,
+        adapter_flags=flags,
+        adapter_telemetry=catalogo_de_telemetria,
+    )
 
     # O LAÇO CONTÍNUO de `03` §3.1, montado UMA vez e compartilhado.
     #

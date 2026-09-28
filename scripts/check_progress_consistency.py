@@ -257,6 +257,107 @@ def estados_da_tabela(linhas: list[str]) -> dict[str, str] | None:
     return estados or None
 
 
+#: `Fase 9`, `fase 10` — a citacao de fase numerada em texto livre.
+GATILHO_NUMERADO = re.compile(r"\b[Ff]ase\s+(\d{1,2})\b")
+
+
+def confere_gatilhos(registros: dict[int, list[str]]) -> list[str]:
+    """Todo gatilho que NOMEIA uma fase chega a tabela-resumo daquela fase.
+
+    P9-1, RESOLVIDA AQUI — e ela e a pendencia que a abertura desta fase criou
+    ao descobrir o proprio defeito.
+
+    O QUE ESTAVA CEGO. `confere_pauta` exige que pendencia nao-fechada de N
+    apareca na tabela de N+1, e **pula** a fase cuja tabela nao declara coluna de
+    estado: as fases 0 a 5 sao de tres colunas, anteriores ao vocabulario fechado
+    da Fase 7. Um gatilho escrito numa delas — *"resolve na Fase 9"* — nao tinha
+    quem o cobrasse, e a pendencia so chegava ao destino se um humano a
+    reencontrasse. Foi o que aconteceu com P1-3, P1-13 e P2-11 na abertura desta
+    fase: as tres nomeiam a Fase 9, e nenhuma constava da tabela da Fase 8.
+
+    ESTA CONFERENCIA NAO PASSA PELA COLUNA DE ESTADO, e e isso que a faz
+    alcancar as tabelas antigas: ela le o VENCIMENTO, que as tres colunas tambem
+    tem. Nao exige que tabela velha ganhe estado retroativo — exigencia
+    retroativa seria escrever historia por inferencia, que e o que a propria
+    P9-1 recusa.
+
+    O SALTO E PERMITIDO, e a permissao e o ponto: a pendencia nao precisa
+    aparecer em TODAS as fases entre a origem e o destino. Exigir isso obrigaria
+    a arrastar pendencia de longo prazo por cada registro, e foi por nao ser
+    arrastada que P1-3 sobreviveu oito fases — o que a P9-1 cobra e que ela
+    chegue ONDE FOI PROMETIDA.
+
+    SO GATILHO COM NUMERO. *"a fase que construir o produtor do ruido"* nao tem
+    destino verificavel, e inventar um seria pior que nao conferir. O limite fica
+    declarado em vez de fingido: o que esta conferencia alcanca e a promessa
+    NOMEADA.
+
+    E SO DESTINO AINDA ABERTO — E ESTA E A LINHA QUE A PRIMEIRA VERSAO ERROU.
+    ------------------------------------------------------------------------
+    Medido: a versao que conferia TODO destino acusou 17 gatilhos das fases 1 a
+    4, todos apontando para fases ja concluidas. E para destino FECHADO a
+    pergunta e inconclusiva por natureza: a pendencia pode nao estar na tabela
+    daquela fase porque foi **resolvida** la, e nao porque foi esquecida — o
+    verificador nao tem como distinguir.
+
+    Tratar isso com lista de excecao nominal seria transformar 17 casos
+    inconclusivos em 17 permissoes permanentes, e permissao que nao encolhe e
+    botao de mudo (R10 §3 admite excecao nominal COM PRAZO; aqui nao ha prazo a
+    dar, porque as fases fecharam).
+
+    **O predicado util e sobre destino ABERTO**, e e exatamente o caso que
+    falhou: P1-3, P1-13 e P2-11 prometiam a Fase 9, a Fase 9 abriu, e as tres
+    ficaram fora da tabela dela. Esse par — promessa viva, destino existente e
+    nao concluido — e decidivel, e e o que esta conferencia cobra.
+
+    Os destinos fechados sao CONTADOS E ANUNCIADOS, nunca silenciados: quem le a
+    saida ve quantas promessas antigas nao tem como ser conferidas.
+    """
+    falhas: list[str] = []
+    nas_tabelas = {
+        fase: set(tabela_resumo(linhas) or ()) for fase, linhas in registros.items()
+    }
+    concluidas = {fase: esta_concluida(linhas) for fase, linhas in registros.items()}
+    inconclusivos = 0
+
+    for fase, linhas in sorted(registros.items()):
+        corpo = _localiza(linhas)
+        if corpo is None:
+            continue
+        for linha in corpo:
+            casado = LINHA_TABELA.match(linha)
+            if not casado:
+                continue
+            pendencia = casado.group(1)
+            # A ULTIMA celula e o vencimento; as do meio sao assunto e estado, e
+            # as duas citam fase em prosa por razoes que nao sao promessa.
+            celulas = [c.strip() for c in linha.strip().strip("|").split("|")]
+            vencimento = celulas[-1] if celulas else ""
+            for numero in {int(n) for n in GATILHO_NUMERADO.findall(vencimento)}:
+                if numero <= fase or numero not in nas_tabelas:
+                    continue
+                if concluidas.get(numero):
+                    inconclusivos += 1
+                    continue
+                if pendencia not in nas_tabelas[numero]:
+                    falhas.append(
+                        f"fase_{fase}.md: {pendencia} promete vencer na Fase "
+                        f"{numero}, que esta ABERTA, e NAO esta na tabela-resumo "
+                        f"de fase_{numero}.md.\n"
+                        "    Gatilho que nao chega ao destino e pendencia que "
+                        "depende de alguem lembrar — foi assim que P1-3, P1-13 e "
+                        "P2-11 atravessaram fases sem dono (P9-1)."
+                    )
+
+    if inconclusivos:
+        print(
+            f"  INCONCLUSIVO — {inconclusivos} gatilho(s) apontam para fase já "
+            "concluída. Ausência na tabela de lá pode ser resolução ou "
+            "esquecimento, e este verificador não distingue os dois."
+        )
+    return falhas
+
+
 def confere_pauta(
     registros: dict[int, list[str]],
 ) -> tuple[list[str], list[str]]:
@@ -431,6 +532,10 @@ def main() -> int:
     for pulo in pulos:
         print(f"  PULADO — {pulo}")
 
+    # DEPOIS DAS CONTAGENS, porque ela IMPRIME o proprio inconclusivo — a
+    # ordem da saida e o que um humano le de cima para baixo.
+    falhas += confere_gatilhos(registros)
+
     if falhas:
         print(f"\nFALHAS: {len(falhas)}\n", file=sys.stderr)
         for f in falhas:
@@ -438,8 +543,10 @@ def main() -> int:
         return 1
 
     print(
-        "\nToda linha da tabela-resumo tem secao, toda secao esta no resumo, e "
-        "toda\npendencia nao-fechada de uma fase aparece na tabela da seguinte."
+        "\nToda linha da tabela-resumo tem secao, toda secao esta no resumo, "
+        "toda\npendencia nao-fechada de uma fase aparece na tabela da seguinte, "
+        "e todo\ngatilho que nomeia uma fase ABERTA chega a tabela-resumo dela "
+        "(P9-1)."
     )
     return 0
 

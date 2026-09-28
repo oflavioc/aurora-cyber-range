@@ -29,12 +29,18 @@ template. `test_nenhum_identificador_sobrevive_aos_dois_seeds` e essa descoberta
 
 from __future__ import annotations
 
+import importlib
 import unittest
 
 import yaml
 from sqlalchemy import text
 
-from domains.academus.seed import carga, dataset, gabarito, linha_b
+from domains.academus.seed import carga, dataset, linha_b
+
+#: Por `sys.modules`, e nao por `from <pacote> import <submodulo>` — a licao que
+#: esta fase aprendeu quatro vezes: o harness de mutacao substitui `sys.modules`
+#: e o atributo do pacote nao acompanha. `test_gabarito_probes.py` depende disto.
+gabarito = importlib.import_module("domains.academus.seed.gabarito")
 from range_core.engine.loader.pack_loader import (
     confere_folhas_temporais,
     confere_qualificador_since,

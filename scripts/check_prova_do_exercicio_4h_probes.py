@@ -34,6 +34,12 @@ def _integro() -> dict:
         "lint_sem_achados": True,
         "item_6_dryrun_todos_os_caminhos": True,
         "item_9_reconstrucao_em_menos_de_3_s": True,
+        # A SEGUNDA METADE — item 7 da Fase 9 (`06` T13). Entrou em `ITENS` do
+        # verificador no mesmo PR que o cria, e por isso entra aqui tambem: a
+        # fixture integra tem de carregar TODO item que o verificador cobra,
+        # senao o controle positivo reprova e as direcoes de veneno deixam de
+        # ser medidas.
+        "item_7_reconstrucao_com_telemetria": True,
     }
 
 
@@ -70,6 +76,17 @@ def main() -> int:
         _integro() | {"item_9_reconstrucao_em_menos_de_3_s": False},
         espera="NAO passou",
     )
+    # A MESMA DIRECAO, SOBRE O ITEM DA FASE 9 — e ela e propria e nao redundante.
+    # `ITENS` e uma tupla: um item novo entra nela e nada garante que a direcao
+    # (e) o alcance, porque a mensagem e por item. Sem este caso, remover
+    # `item_7_reconstrucao_com_telemetria` de `ITENS` deixaria a prova de falha
+    # da Fase 9 passar limpa — e o requisito morreria do jeito que o
+    # `spec-change item-8-volume-de-4h` descreve.
+    caso(
+        "(e) o item da Fase 9 gravado como falha",
+        _integro() | {"item_7_reconstrucao_com_telemetria": False},
+        espera="item_7_reconstrucao_com_telemetria",
+    )
     caso("(f) esquema desconhecido", _integro() | {"esquema": "outro/9"}, espera="esquema")
     caso(
         "(g) hash do pack divergente no disco",
@@ -91,7 +108,7 @@ def main() -> int:
             print(f"FALHA: {f}")
         return 1
     print(
-        "check_prova_do_exercicio_4h.py reprova nas 7 direcoes (9 venenos) e "
+        "check_prova_do_exercicio_4h.py reprova nas 7 direcoes (10 venenos) e "
         "aceita os 2 controles positivos — inclusive o modo declarado sem pack "
         "no checkout."
     )

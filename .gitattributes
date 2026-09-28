@@ -27,3 +27,59 @@
 # e inofensivo, e uma regra por arquivo deixaria o proximo hook de shell nascer
 # quebrado do mesmo jeito.
 user-scope/hooks/** text eol=lf
+
+# EVIDENCIA VERSIONADA — LF, porque o hash e sobre BYTES.
+#
+# M1 DA SEGUNDA AUDITORIA DA FASE 9. `tests/fixtures/pack_exemplo/evidence/`
+# nasceu versionado nesta fase para dar objeto ao `evidence verify` no CI, e o
+# `MANIFEST.json` declara o `sha256` do conteudo como o gerador o escreveu:
+# UTF-8 com LF, por `newline=""` explicito.
+#
+# Sem esta linha, um checkout com `core.autocrlf=true` — o da maquina do
+# operador, e o do worktree que a auditoria cria — entrega os dois arquivos com
+# CRLF. O `evidence verify` entao acusa *"o conteudo em disco nao e o que o
+# MANIFEST declara"*, e a mensagem diz "edicao manual, ou build de outro
+# gabarito": **acusa uma edicao que nao houve**.
+#
+# E a R2 §2 outra vez, do outro lado: la a licao era medir identidade sobre
+# blob de HEAD; aqui nao ha blob a que recorrer no momento da conferencia — o
+# verificador le o arquivo do disco, porque em pack real (`scenarios/`, fora do
+# Git desde a Fase 5) nao existe blob nenhum. Entao a disciplina tem de estar no
+# checkout, e e isto.
+#
+# O CI (Linux, `autocrlf` desligado) passava. O defeito so morde na plataforma
+# de quem desenvolve e de quem audita — a mesma classe do `*.sh` acima.
+#
+# O PADRAO E AMPLO DE PROPOSITO: qualquer `evidence/` que venha a ser versionado
+# entra sozinho. Uma linha por diretorio faria o proximo nascer quebrado.
+**/evidence/*.log text eol=lf
+**/evidence/*.eml text eol=lf
+**/evidence/*.jsonl text eol=lf
+**/evidence/MANIFEST.json text eol=lf
+
+# O GABARITO VERSIONADO — LF pelo MESMO motivo, e ele NAO esta acima.
+#
+# P9-6, achado do CI. O bloco anterior cobriu a SAIDA do build e parou ali.
+# Mas o `MANIFEST.json` amarra um arquivo a mais, que nao mora em `evidence/`:
+# o gabarito de onde a evidencia foi projetada, em
+# `generated_from.ground_truth_hash`. Sem atributo ele chega com CRLF, o build
+# grava o hash dos bytes CRLF, e o `evidence verify` do CI — Linux, LF — sai com
+# rc=2 dizendo *"as fontes em disco projetam OUTRO gabarito"*. Acusa uma
+# reprojecao que nao houve, e manda procurar pelo lado errado.
+#
+# "AMPLO DE PROPOSITO" ali em cima era amplo na PROFUNDIDADE (qualquer
+# `evidence/`) e estreito no CRITERIO. O criterio e este, e e o que a guarda
+# em `OEvidenceVersionadoSobreviveAoCheckout` passou a cobrar:
+#
+#   arquivo versionado cujos BYTES entram numa identidade declarada.
+#
+# Os outros quatro YAML do pack ficam de fora de proposito — sao PARSEADOS, e
+# parsear YAML tolera CRLF. Hashear nao. Atributo sem motivo vira ruido que a
+# proxima leitura nao sabe avaliar.
+#
+# Hoje ha um so arquivo assim, em `tests/fixtures/pack_exemplo/` — a unica
+# isencao do eixo (a) de `check_gabarito_fora_do_git.py`. O padrao e amplo
+# porque, se um segundo gabarito sanitizado vier a ser versionado, ele precisa
+# nascer coberto: este defeito custou uma reprovacao de CI justamente por ter
+# nascido descoberto.
+**/ground_truth.yaml text eol=lf

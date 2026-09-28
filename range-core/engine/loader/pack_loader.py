@@ -357,6 +357,30 @@ class LoadedPack:
     #: valendo, e `check_api_surface.py` continua sendo quem o cobra por rota.
     verification_predicates: Mapping[str, Mapping] = field(default_factory=dict)
 
+    #: A telemetria que este gabarito produz, **ja projetada** — `08` §2 e §5.
+    #:
+    #: M4 DA SEGUNDA AUDITORIA DA FASE 9. `Replay` existia, `programar` existia,
+    #: e nenhum codigo de produto emitia `telemetry_emitted`: o unico lugar que
+    #: montava payload de telemetria era o script de medicao do exercicio de
+    #: 4 h. O item 7 media a reconstrucao sobre um volume que o range nao
+    #: produzia.
+    #:
+    #: **E `Programado`, e nao os fatos.** A distincao e a mesma de
+    #: `verification_predicates` logo acima, e aqui ela cai do lado oposto:
+    #: aqueles SAO gabarito e entram porque o laco continuo precisa deles; isto
+    #: aqui ja e evidencia observavel — a projecao foi feita no loader, com o
+    #: catalogo do adapter, e o que o engine recebe e o payload de `02` §10. O
+    #: `fact_id` viaja fora do payload, no `Programado`, e nunca e publicado
+    #: (`05` §6).
+    #:
+    #: Por o gabarito inteiro em `LoadedPack` para o engine projetar seria
+    #: entregar os fatos a uma camada que nao precisa deles.
+    #:
+    #: VAZIA e caso normal: adapter sem catalogo de telemetria, ou pack sem
+    #: `ground_truth.yaml`. Quem exige a composicao completa e `processo.criar`,
+    #: que e a de producao — a mesma divisao que `laco` ja usa.
+    telemetria: tuple = ()
+
     def by_id(self, inject_id: str) -> Inject | None:
         for inject in self.injects:
             if inject.id == inject_id:
@@ -378,11 +402,82 @@ class LoadedPack:
         }
 
 
+def _telemetria_do_pack(ground_truth: Mapping | None, catalogo) -> tuple:
+    """Os eventos de telemetria que este gabarito produz — `08` §2, item 4.
+
+    A PROJECAO ACONTECE AQUI, E NAO NO ENGINE, e e a mesma razao pela qual o
+    `cef.log` nao tem tabela propria: **um produtor so**. `programar` e o mesmo
+    que o gerador de CEF usa, entao o que vai para o event store e o que esta no
+    arquivo — nao duas implementacoes coerentes, e sim um dicionario.
+
+    E O CONJUNTO TAMBEM E O MESMO, desde o B2 da terceira auditoria. A primeira
+    versao passava **todos** os fatos a `programar`, e "um produtor so" valia
+    para o formato do payload e nao para a populacao: o store recebia
+    `telemetry_emitted` de fato que declara `projections: [identity_audit]`, de
+    fato da Linha B, e teria recebido de fato SEM `projections` — que `08` §2
+    define como invisivel ao time azul. O `cef.log`, filtrado pela cobertura,
+    tinha metade disso.
+
+    A correcao nao e filtrar aqui com um criterio proprio: e pedir o conjunto a
+    `cobertura_de`, que e a MESMA funcao que o motor de projecao consulta para
+    decidir o que entregar ao gerador. Dois filtros equivalentes divergiriam na
+    primeira regra nova; um filtro so nao tem como.
+
+    `catalogo` e `None` em teste e em demo, e a tolerancia e deliberada: o
+    catalogo e do ADAPTER (`02` §10), e o loader nao sabe qual adapter e. Quem
+    exige a composicao completa e `processo.criar`.
+    """
+    if catalogo is None or not ground_truth:
+        return ()
+
+    from range_core.evidence.elenco import cobertura_de
+    from range_core.evidence.projecao import (
+        RespostaEntregue,
+        entrega_a_resposta,
+        fatos_de_caso,
+    )
+    from range_core.telemetry.cef import FONTE
+    from range_core.telemetry.forwarder import programar
+
+    da_fonte = cobertura_de(ground_truth).get(FONTE) or frozenset()
+    fatos = [
+        fato
+        for fato in (ground_truth.get("facts") or ())
+        if fato.get("fact_id") in da_fonte
+    ]
+
+    # A MESMA GUARDA DE COBERTURA DO ARQUIVO — M1 da quarta auditoria.
+    #
+    # `RespostaEntregue` vivia so em `projetar`, que so o `evidence build`/`verify`
+    # chamam. O caminho do event store nao passava por ela: um gabarito que
+    # roteasse para `cef` apenas os casos de `line_b_cases` era RECUSADO no build
+    # e CARREGADO pelo loader, e o `start()` gravava a resposta no SIEM — que e
+    # justamente o que o participante ve.
+    #
+    # As outras tres guardas estao cobertas por construcao neste caminho: o IOC
+    # pelo loader, e os campos do payload sao todos `projectable`. Faltava esta,
+    # e a razao e que ela e a unica que julga o CONJUNTO — as outras julgam
+    # conteudo, e aqui nao ha conteudo de fio para julgar.
+    #
+    # A FUNCAO E A MESMA, e nao uma equivalente: `08` §2 quer um contrato so, e
+    # dois julgamentos do mesmo predicado divergiriam na primeira regra nova.
+    classe = entrega_a_resposta(fatos, fatos_de_caso(ground_truth))
+    if classe is not None:
+        raise RespostaEntregue(
+            f"a telemetria deste gabarito leva, da especie {classe!r}, APENAS "
+            f"fatos que `line_b_cases` cita como caso. O SIEM do exercicio "
+            f"entrega a resposta — e e ele que o participante ve. `05` §6"
+        )
+
+    return programar(fatos, catalogo=catalogo)
+
+
 def load_pack(
     pack_dir: Path | str,
     *,
     contracts: Mapping[str, Mapping],
     adapter_flags: AdapterFlags,
+    adapter_telemetry=None,
 ) -> LoadedPack:
     """Carrega, valida e devolve o pack. Levanta `PackError` em qualquer recusa.
 
@@ -436,6 +531,9 @@ def load_pack(
             "verification_predicates"
         )
         or {},
+        telemetria=_telemetria_do_pack(
+            documentos.get("ground_truth.yaml"), adapter_telemetry
+        ),
         declarations=Declarations(
             pack_id=manifest["pack_id"],
             schema_version=manifest["schema_version"],

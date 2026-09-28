@@ -251,6 +251,42 @@ DECLARED: dict[str, tuple[frozenset[str], str]] = {
         "fazer `tools/` importar a aplicacao — as duas perdem, e o pacote de "
         "topo existe exatamente para os dois mundos lerem a mesma resposta",
     ),
+    "evidence/projecao.py": (
+        frozenset({"dados_sinteticos"}),
+        "O MESMO predicado, pelo mesmo motivo, no segundo produtor: o item 5 da "
+        "DoD da Fase 9 — sem IOC real, sem dominio roteavel — e a mesma "
+        "pergunta que o loader ja faz sobre o pack, agora sobre a evidencia "
+        "PROJETADA. Escrever um detector proprio no motor seria a terceira "
+        "resposta para 'este valor e sintetico?', e a P1-13 e exatamente o que "
+        "acontece quando essa resposta tem mais de uma fonte: elas divergem na "
+        "primeira faixa nova, e a divergencia so aparece no exercicio. "
+        "(A secao da spec NAO e citada por numero aqui de proposito: "
+        "`check_secoes_de_seguranca.py` le citacao em verificador como "
+        "reivindicacao de cobertura, e este verificador nao executa aquela "
+        "secao — ele guarda imports do core. Quem a executa e o proprio motor, "
+        "via `dados_sinteticos`.)",
+    ),
+    "evidence/elenco.py": (
+        frozenset({"dados_sinteticos"}),
+        "O MESMO predicado, agora para a segunda forma fechada do oraculo de "
+        "invencao: `hostnames_no` e `hosts_inventados` perguntam 'isto tem "
+        "forma de host?' e 'este sufixo e reservado?', e as duas ja tem dono. "
+        "M2 da segunda auditoria da Fase 9 — o oraculo afirmava ausencia de "
+        "invencao so para endereco IP, e `email.py` tinha rotulo de host "
+        "escrito a mao passando exatamente onde ele nao olhava. Um "
+        "reconhecedor proprio aqui seria a segunda resposta para a mesma "
+        "pergunta, e a divergencia apareceria como gerador aprovado pelo motor "
+        "e reprovado pelo CI",
+    ),
+    "telemetry/emissao.py": (
+        frozenset({"contracts.generated.events"}),
+        "mesma razao das outras cinco entradas de `contracts.generated.events`: "
+        "o emissor de telemetria grava `telemetry_emitted`, e literal de "
+        "catalogo dentro do core violaria o invariante 2. E EMISSAO — ele "
+        "recebe o store e chama `append` —, e por isso o modulo e so o "
+        "envelope: quando emitir e do `Replay`, e o payload vem pronto de "
+        "`programar`",
+    ),
 }
 
 

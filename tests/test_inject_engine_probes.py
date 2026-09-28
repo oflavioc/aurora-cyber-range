@@ -217,6 +217,63 @@ MUTACOES: dict[str, tuple[list[Substituicao], set[str]]] = {
             "test_o_fluxo_responde_sozinho_sem_engine",
         },
     ),
+    # -----------------------------------------------------------------------
+    # M4 DA SEGUNDA AUDITORIA — a emissao de telemetria, plantada de volta.
+    #
+    # As duas mutacoes sao o defeito em dois estagios, e a segunda e a que
+    # importa: ela restaura o estado EXATO que a auditoria encontrou — o
+    # mecanismo inteiro montado (`Replay`, `programar`, catalogo, payload
+    # conferido pelo contrato) e ninguem chamando o tick. Verde em toda parte,
+    # e nenhum `telemetry_emitted` no event store.
+    # -----------------------------------------------------------------------
+    # B2 DA TERCEIRA AUDITORIA, PLANTADO DE VOLTA. A mutacao devolve o defeito
+    # exato: o loader passando TODOS os fatos a `programar`, sem consultar a
+    # cobertura. O `cef.log` continua filtrado; o store passa a receber sinal de
+    # fato que nao tem linha no arquivo, e de fato que nem projeta.
+    "o store volta a receber a telemetria de TODOS os fatos": (
+        [
+            (
+                "loader",
+                '    da_fonte = cobertura_de(ground_truth).get(FONTE) or frozenset()',
+                '    da_fonte = {f.get("fact_id") for f in (ground_truth.get("facts") or ())}',
+            )
+        ],
+        {
+            "test_SO_o_fato_que_projeta_em_cef_vira_telemetria",
+            "test_o_START_emite_a_telemetria_pre_posicionada",
+        },
+    ),
+    "a projecao de telemetria some do pack": (
+        [
+            (
+                "loader",
+                "    return programar(fatos, catalogo=catalogo)",
+                "    return ()",
+            )
+        ],
+        {
+            "test_o_pack_carrega_a_telemetria_JA_PROJETADA",
+            "test_SO_o_fato_que_projeta_em_cef_vira_telemetria",
+            "test_o_START_emite_a_telemetria_pre_posicionada",
+            "test_a_telemetria_vem_DEPOIS_do_exercise_started",
+            "test_o_evento_carrega_AS_DUAS_marcas_de_telemetria",
+            "test_o_evento_emitido_VALIDA_contra_o_contrato",
+        },
+    ),
+    "o start deixa de emitir a telemetria pre-posicionada": (
+        [("engine", "        self.tick_de_telemetria()", "        pass")],
+        {
+            "test_o_START_emite_a_telemetria_pre_posicionada",
+            "test_SO_o_fato_que_projeta_em_cef_vira_telemetria",
+            "test_a_telemetria_vem_DEPOIS_do_exercise_started",
+            "test_o_evento_carrega_AS_DUAS_marcas_de_telemetria",
+            "test_o_evento_emitido_VALIDA_contra_o_contrato",
+            # ACUSA, e a deteccao e legitima: sem emissao no start, o tick
+            # seguinte emite TUDO — o caso afirma "nada novo sai", e sair
+            # atrasado viola isso pelo outro lado.
+            "test_o_tick_NAO_REEMITE",
+        },
+    ),
 }
 
 

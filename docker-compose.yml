@@ -153,6 +153,11 @@ services:
       # (invariante 1), entao o dominio chega por configuracao — e a mesma
       # imagem serve outro adapter sem uma linha de core mudar.
       AURORA_FLAGS: /app/domains/academus/flags.yaml
+      # O `telemetry_events.yaml` do adapter, pelo MESMO desenho — `02` §10 e
+      # `08` §2. E ele que faz o `telemetry_emitted` sair de verdade para o
+      # event store: sem a variavel o processo RECUSA o boot, porque um
+      # exercicio sem telemetria nenhuma no SIEM so seria descoberto na sala.
+      AURORA_TELEMETRY: /app/domains/academus/telemetry_events.yaml
       AURORA_GM_PASSWORD: ${AURORA_GM_PASSWORD}
       AURORA_JWT_SECRET: ${AURORA_JWT_SECRET}
     volumes:

@@ -697,6 +697,22 @@ jobs:
           range-cli scenario lint tests/fixtures/pack_exemplo
           range-cli scenario dryrun tests/fixtures/pack_exemplo
 
+      # `04` §8 diz que `lint`, `dryrun` E `evidence verify` rodam no CI. Os dois
+      # primeiros rodavam desde a Fase 7; o terceiro nasceu na Fase 9 e ficou de
+      # fora — a norma passaria a ser falsa a partir da fase que criou o verbo,
+      # sem nada ficar vermelho. Foi o H1 da auditoria da Fase 9.
+      #
+      # O OBJETO E O `evidence/` VERSIONADO do pack de exemplo, e versiona-lo e
+      # o que torna este passo mais que fumaca: `conferir` REPROJETA do ground
+      # truth e compara com o disco, entao qualquer mudanca no gerador que altere
+      # a saida deixa este passo VERMELHO. E gate de regressao do gerador, e nao
+      # so prova de que o verbo existe.
+      #
+      # `verify` e da classe que SO LE (`04` §8.1 (a)) — ele nao escreve nada
+      # aqui, e por isso o passo nao suja a arvore do job.
+      - name: o evidence verify roda no CI
+        run: range-cli evidence verify tests/fixtures/pack_exemplo
+
       # Item 1 da DoD da Fase 1. Conter exemplo nao e validar exemplo: aqui os
       # exemplos positivos precisam validar e os negativos precisam ser
       # recusados PELA CAMADA QUE CADA UM DECLARA em `rejected_by`.

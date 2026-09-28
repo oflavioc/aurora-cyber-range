@@ -174,18 +174,28 @@ MECANISMOS: dict[int, Entrada] = {
     ),
     2: Entrada(
         titulo="Evidências sintéticas",
-        mecanismos=("contracts/evidence.schema.yaml",),
-        destinatario=(
-            9,
-            "o evidence-simulator e `08` sao da Fase 9, e e la que existe gerador "
-            "produzindo arquivo de evidencia para varrer. Hoje `scenarios/` esta "
-            "vazio: um verificador de conteudo de evidencia nao teria sujeito",
+        mecanismos=(
+            "contracts/evidence.schema.yaml",
+            "tools/check_synthetic_data.py",
         ),
-        nota="COBERTURA PARCIAL, e a parte coberta e a que ja tem sujeito: o "
-        "contrato fecha anexo, binario e macro por `additionalProperties: false`, "
-        "e o exemplo negativo `anexo em evidencia: proibido por 05 secao 2` e "
-        "executado por `check_contract_examples.py`. O que falta e a varredura do "
-        "ARQUIVO gerado, que a Fase 9 traz",
+        destinatario=None,
+        nota="COBERTA DESDE A FASE 9, e o destinatario saiu porque o SUJEITO "
+        "chegou: ate ela nao havia arquivo de evidencia na arvore para varrer. "
+        "O contrato fecha anexo, binario e macro por "
+        "`additionalProperties: false`, com exemplo negativo executado por "
+        "`check_contract_examples.py`; e `check_synthetic_data.py` passou a "
+        "varrer `.log` e `.eml` token a token, fechando o limite 1 que o proprio "
+        "cabecalho dele declarava e nomeava a Fase 9 como dona. O objeto e o "
+        "`evidence/` versionado do pack de exemplo. "
+        "LIMITE DECLARADO: o unico arquivo de evidencia VERSIONADO e o do pack "
+        "de exemplo — `scenarios/**/evidence/` fica fora do Git por decisao da "
+        "Fase 5, e sobre o pack real a garantia e do PRODUTOR "
+        "(`range-core/evidence/projecao.py`, `IOCEncontrado`), com o mesmo "
+        "predicado de `dados_sinteticos`. O M1 da auditoria da Fase 9 pegou "
+        "esta entrada ainda dizendo `destinatario=(9, ...)` DEPOIS de a Fase 9 "
+        "entregar: registro que sobrevive ao proprio vencimento mente sobre o "
+        "estado da arvore, e por construcao nao fica vermelho quando o "
+        "mecanismo regride",
     ),
     3: Entrada(
         titulo="Dados",
@@ -204,11 +214,17 @@ MECANISMOS: dict[int, Entrada] = {
         mecanismos=(
             "scripts/check_banner_de_simulacao.py",
             "scripts/check_banner_de_simulacao_probes.py",
+            "scripts/check_contract_examples.py",
         ),
         destinatario=None,
         nota="o texto do banner e extraido da spec e comparado letra por letra; o "
         "registro de classes (telas / evidencia / exportacao / relatorio) e "
-        "conferido nas duas direcoes, e e o precedente de forma desta checagem",
+        "conferido nas duas direcoes, e e o precedente de forma desta checagem. "
+        "O TERCEIRO ENTROU NO B1 DA 4a AUDITORIA DA FASE 9: `_banner` e "
+        "`required` na raiz do manifesto de evidencia, e quem valida a "
+        "instancia VERSIONADA daquele contrato e o verificador de exemplos — "
+        "sem ele, a clausula existia e o unico artefato dela ficou invalido com "
+        "a suite verde e o CI vermelho",
     ),
     5: Entrada(
         titulo="Identificação de fornecedores e de atores de ameaça",

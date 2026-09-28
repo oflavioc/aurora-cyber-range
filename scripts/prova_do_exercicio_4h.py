@@ -38,7 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from check_prova_do_exercicio_4h import ESQUEMA, EVIDENCIA  # noqa: E402
-from medida_do_exercicio_4h import mede  # noqa: E402
+from medida_do_exercicio_4h import TELEMETRIA_POR_MINUTO, mede  # noqa: E402
 
 from range_cli import lint as lint_de_cenario  # noqa: E402
 from range_core.engine.loader import branching, contract_source, pack_loader  # noqa: E402
@@ -96,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     if achados:
         doc["item_6_dryrun_todos_os_caminhos"] = False
         doc["item_9_reconstrucao_em_menos_de_3_s"] = False
+        doc["item_7_reconstrucao_com_telemetria"] = False
     else:
         documentos = pack_loader.le_documentos(pack_dir, contracts)
         try:
@@ -113,6 +114,22 @@ def main(argv: list[str] | None = None) -> int:
         doc.update(medicao)
         doc["item_9_reconstrucao_em_menos_de_3_s"] = medicao["passa"]
 
+        # A SEGUNDA MEDICAO — item 7 da Fase 9 / `06` T13.
+        #
+        # O MESMO exercicio, com a fonte que o `spec-change item-8-volume-de-4h`
+        # mandou medir de novo aqui: *"o exercicio de 4 h medido na Fase 7 nao e
+        # o exercicio de 4 h desta fase — aquele mede o volume que o PACK
+        # produz, este mede o volume que o RANGE produz"*.
+        #
+        # AS DUAS FICAM NO MESMO ARQUIVO, e num sub-objeto para nao sobrescrever
+        # a primeira: o que torna o "CONTINUA em < 3 s" de T13 uma afirmacao e
+        # nao um numero solto e poder ler as duas lado a lado.
+        com_telemetria = mede(
+            pack_dir, url, telemetria_por_minuto=TELEMETRIA_POR_MINUTO
+        )
+        doc["com_telemetria"] = com_telemetria
+        doc["item_7_reconstrucao_com_telemetria"] = com_telemetria["passa"]
+
     destino = REPO_ROOT / EVIDENCIA
     destino.write_text(
         json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -126,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             "lint_sem_achados",
             "item_6_dryrun_todos_os_caminhos",
             "item_9_reconstrucao_em_menos_de_3_s",
+            "item_7_reconstrucao_com_telemetria",
         )
     )
     print(

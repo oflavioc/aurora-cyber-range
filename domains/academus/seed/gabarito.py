@@ -109,47 +109,126 @@ def _consulta(motor, sql: str, conta_alvo: str) -> list:
         return list(conexao.execute(text(sql), linha_b.parametros(conta_alvo)))
 
 
-def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
-    """Le a trilha SEMEADA e produz os dois artefatos.
+#: As colunas da trilha que um fato da Linha B carrega. UMA declaracao, dois
+#: consumidores (o laco de caso e o de fato) — duas copias da mesma query
+#: divergiriam na primeira coluna nova, e a divergencia apareceria como caso
+#: apontando para `fact_id` que nao existe.
+_COLUNAS_DA_TRILHA = (
+    "SELECT t.sequence, t.actor_user_id, t.occurred_at, t.source_ip,"
+    "       t.payload, t.authorization_id, t.within_window"
+    "  FROM audit_trail t WHERE t.sequence IN ("
+)
 
-    LE DO BANCO, e nao do gerador em memoria: o gabarito descreve o que EXISTE, e
-    um gabarito derivado do gerador afirmaria o que ele pretendia semear. Se a
-    carga perdesse linhas, o gabarito mentiria junto — e T8 exige que a query de
-    referencia devolva exatamente os 22 que estao la.
+#: `fact_class` POR JANELA — M1 da quinta auditoria.
+#:
+#: Ate a volta da Linha B inteira (H1 da quarta) so havia fato para os CASOS, e
+#: os casos estao todos FORA da janela de retificacao: o rotulo fixo
+#: `grade_change_retroactive` era verdadeiro para todos eles.
+#:
+#: Com a populacao inteira, cerca de 3.000 alteracoes DENTRO da janela passaram a
+#: carregar o mesmo rotulo — e elas nao sao retroativas. O ground truth e a fonte
+#: autoritativa do que ocorreu (`00` §3), e um rotulo falso nele nao e imprecisao:
+#: e o gabarito afirmando uma especie que nao aconteceu.
+#:
+#: E O ROTULO NAO E COSMETICO. `fact_class` e a chave do catalogo de telemetria
+#: (`02` §10), e `grade_change_retroactive` dispara `GRADE_CHANGE_RETROACTIVE`.
+#: Um pack que roteasse a Linha B para `cef` emitiria no SIEM uma assinatura
+#: falsa por alteracao normal — o defeito estava latente, e latente nao e ausente.
+#:
+#: A CLASSE SAI DO DADO, e nao de uma tabela por conjunto: `within_window` e
+#: coluna da trilha, e derivar dela e o que faz o gabarito continuar descrevendo
+#: o que EXISTE. Uma tabela conjunto -> classe seria a segunda resposta para uma
+#: pergunta que o banco ja responde, e divergiria dele na primeira consulta nova.
+#: E O NOME DA CLASSE DENTRO DA JANELA NAO PODE SER `grade_change`, que foi a
+#: primeira escolha — **a guarda de veredito a recusou, e estava certa**:
+#: `fact_class` e `ground_truth_only`, e `grade_change` e tambem o valor de
+#: `action`, que a fonte escreve legitimamente. `VereditoDoGabarito` encontrava a
+#: agulha no proprio `"action": "grade_change"` e reprovava a projecao inteira.
+#:
+#: Nao e falso positivo da guarda: e colisao de vocabulario entre um campo que
+#: PODE ir para o fio e um que NAO pode. O conserto e o nome, e `within_window`
+#: e a coluna de onde a distincao sai — derivar o nome dela deixa a origem
+#: legivel em vez de inventar um rotulo paralelo.
+CLASSE_POR_JANELA = {
+    True: "grade_change_within_window",
+    False: "grade_change_retroactive",
+}
+
+
+def _linhas_da_trilha(motor, conjunto: str, conta_alvo: str) -> list:
+    """As linhas da trilha de um dos seis conjuntos de `02` §6.1.
+
+    `ORDER BY t.sequence` FICA, e a ordenacao por instante e feita DEPOIS, sobre
+    a lista inteira: ordenar por conjunto aqui e o que mantem a numeracao de
+    `case_id` estavel entre execucoes, e o que o arquivo de evidencia precisa e
+    outra ordem — ver `gerar`.
     """
-    from sqlalchemy import text
+    return _consulta(
+        motor,
+        _COLUNAS_DA_TRILHA + linha_b.CONJUNTOS[conjunto] + ") ORDER BY t.sequence",
+        conta_alvo,
+    )
 
+
+def ground_truth_de(motor, *, seed: int, conta_alvo: str) -> tuple[dict, dict[str, int]]:
+    """O `ground_truth.yaml` e as contagens por conjunto, sem tocar em prosa.
+
+    A COSTURA EXISTE PARA QUE AS INVARIANTES TENHAM GATE — H1 da quinta
+    auditoria, e ela e limite de INSTRUMENTO resolvido no lugar certo.
+
+    As quatro propriedades que o laudo cobrou — os seis conjuntos viram fato, so
+    tres viram caso, toda linha declara `projections`, e a ordem e por instante —
+    sao funcao das LINHAS DA TRILHA, e nada tem a ver com o `GM_NOTES.md`. Mas
+    `gerar` produz os dois juntos, e `_renderiza` le um template IRMAO por
+    `Path(__file__).parent`; o harness de mutacao carrega o modulo de um
+    diretorio temporario, entao o template nao existe la e a prova negativa
+    morria no `setUpClass` em vez de medir a propriedade.
+
+    Duas saidas ruins foram descartadas: copiar o template para o temporario
+    faria o harness conhecer dado de um modulo especifico, e resolver o template
+    pela raiz do repositorio trocaria a forma correta (`__file__` para dado de
+    pacote) por uma que serve ao teste.
+
+    A saida boa e esta: **os dois artefatos tem insumos e consumidores
+    diferentes**, e `Gabarito` ja os declara como dois campos. Quem carrega as
+    invariantes e o ground truth, e ele passa a ter porta propria.
+    """
     casos, fatos = [], []
     contagens: dict[str, int] = {}
     numero = 0
 
+    # OS SEIS CONJUNTOS VIRAM FATO; SO OS TRES PRIMEIROS VIRAM CASO — H1 da
+    # quarta auditoria.
+    #
+    # `CONJUNTOS_DE_CASO` continua sendo o que decide o que e CASO, e
+    # `linha_b.CONJUNTOS` e a populacao inteira da trilha na janela: 3.145
+    # linhas, das quais 67 sao caso.
+    #
+    # A ORDEM DAS DUAS COISAS E DIFERENTE, E E ISSO QUE IMPORTA: a numeracao do
+    # `case_id` segue `02` §6.1 (indevidos, ambiguos, suspeitos) e por isso o
+    # laco de CASO vem primeiro; os FATOS saem ordenados por instante, logo
+    # abaixo, porque a posicao no arquivo nao pode revelar o conjunto.
     for nome, rotulo in CONJUNTOS_DE_CASO:
-        linhas = _consulta(
-            motor,
-            "SELECT t.sequence, t.actor_user_id, t.occurred_at, t.source_ip,"
-            "       t.payload, t.authorization_id"
-            "  FROM audit_trail t WHERE t.sequence IN ("
-            + linha_b.CONJUNTOS[nome]
-            + ") ORDER BY t.sequence",
-            conta_alvo,
-        )
-        contagens[nome] = len(linhas)
-        for sequencia, ator, quando, ip, payload, autorizacao in linhas:
+        for sequencia, *_ in _linhas_da_trilha(motor, nome, conta_alvo):
             numero += 1
-            caso = CASO.format(numero)
-            fato = FATO.format(sequencia)
             casos.append(
                 {
-                    "case_id": caso,
+                    "case_id": CASO.format(numero),
                     "set": rotulo,
                     "defensibility": DEFENSIBILIDADE[rotulo],
-                    "supporting_evidence": [fato],
+                    "supporting_evidence": [FATO.format(sequencia)],
                 }
             )
+
+    for nome in linha_b.CONJUNTOS:
+        linhas = _linhas_da_trilha(motor, nome, conta_alvo)
+        contagens[nome] = len(linhas)
+        for sequencia, ator, quando, ip, payload, autorizacao, na_janela in linhas:
             fatos.append(
                 {
-                    "fact_id": fato,
-                    "fact_class": "grade_change_retroactive",
+                    "fact_id": FATO.format(sequencia),
+                    # A ESPECIE SAI DA JANELA — ver `CLASSE_POR_JANELA`.
+                    "fact_class": CLASSE_POR_JANELA[bool(na_janela)],
                     # `exercise_time` e do envelope de exercicio; aqui ele marca
                     # o instante do fato no mundo simulado, e nao no exercicio —
                     # o pack da Fase 7 e quem o ancora numa linha `T+`.
@@ -159,11 +238,58 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
                     "source_ip": ip,
                     "records_affected": 1,
                     "dest": payload["student_id"],
+                    # -------------------------------------------------------
+                    # A PROJECAO VOLTA, E AGORA COM A POPULACAO INTEIRA — H1 da
+                    # quarta auditoria da Fase 9.
+                    #
+                    # A peca 3 acrescentou esta linha citando `08` §3
+                    # (*"alteracoes de nota com IP e sessao"*), e o B1 da
+                    # TERCEIRA auditoria a tirou: o laco de cima percorria so
+                    # `CONJUNTOS_DE_CASO`, entao o arquivo saia com 67 linhas
+                    # numa populacao de 3.145 e entregava quais eram caso.
+                    #
+                    # O REGISTRO DAQUELA CORRECAO ESCOLHEU A SAIDA ERRADA. Ele
+                    # adiou a metade Linha B de `08` §3 para *"uma fonte que
+                    # projete da TRILHA (business state)"* — e `00` §5.3 e
+                    # categorico: *"toda evidencia e projecao de fato canonico
+                    # declarado em `ground_truth.yaml`. Nunca gerada
+                    # independentemente."* A pendencia apontava para fora da
+                    # spec, e a objecao que a sustentava era de TAMANHO, nao de
+                    # norma.
+                    #
+                    # A saida dentro da spec e a que a propria mensagem da
+                    # guarda recomenda: *"projete a populacao inteira daquela
+                    # especie"*. E ela nao e concessao — e o artefato CERTO: a
+                    # trilha de auditoria que o time azul tem de triar sao as
+                    # 3.145 linhas, e nao as 67 que alguem ja separou.
+                    #
+                    # E A FRONTEIRA DE `01` §2 CONTINUA DE PE. O banco segue
+                    # sendo a fonte: `gerar` LE a trilha e o `ground_truth.yaml`
+                    # e snapshot derivado dela, exatamente como ja era para os
+                    # 67 casos. Nao ha segunda autoridade — ha uma projecao
+                    # deterministica a mais.
+                    # -------------------------------------------------------
+                    "projections": ["database_audit"],
                 }
             )
 
-    for nome in ("ruido_de_manutencao", "credenciais_compartilhadas", "legitimos_normais"):
-        contagens[nome] = len(_consulta(motor, linha_b.CONJUNTOS[nome], conta_alvo))
+    # OS FATOS DA LINHA B SAEM ORDENADOS POR INSTANTE — H1 da quarta auditoria.
+    #
+    # O motor de projecao preserva a ORDEM DO DOCUMENTO de proposito (ordenar por
+    # `exercise_time` exigiria comparar `T-17d` com `T-9d`, que e a gramatica da
+    # P6-3). Entao a ordem do arquivo de evidencia e a ordem daqui — e se ela for
+    # a dos conjuntos, a POSICAO no arquivo entrega a particao por
+    # defensibilidade sem que nenhum campo vaze.
+    #
+    # Ordenar aqui e possivel porque o instante da Linha B e ISO-8601, vindo da
+    # coluna `occurred_at`: comparacao total, sem gramatica nenhuma. E o lugar
+    # certo, e nao um contorno — quem sabe ordenar e quem conhece o formato do
+    # proprio dado, e o motor deliberadamente nao conhece.
+    #
+    # `sequence` desempata: dois registros no mesmo instante sairiam em ordem de
+    # dicionario, e determinismo e requisito (R7 §6) — o `sha256` do manifesto
+    # depende disso.
+    fatos.sort(key=lambda f: (f["exercise_time"], f["fact_id"]))
 
     # A LINHA A vem ANTES da B na lista de fatos, e a ordem e a do incidente: o
     # acesso inicial e o primeiro fato do mundo. Ela e SINTETIZADA do seed (nao
@@ -175,9 +301,28 @@ def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
         "verification_predicates": predicados_de_verificacao(),
     }
 
+    return ground_truth, contagens
+
+
+def gerar(motor, *, pack: str, seed: int, conta_alvo: str) -> Gabarito:
+    """Le a trilha SEMEADA e produz os dois artefatos.
+
+    LE DO BANCO, e nao do gerador em memoria: o gabarito descreve o que EXISTE, e
+    um gabarito derivado do gerador afirmaria o que ele pretendia semear. Se a
+    carga perdesse linhas, o gabarito mentiria junto — e T8 exige que a query de
+    referencia devolva exatamente os 22 que estao la.
+
+    O GROUND TRUTH SAI DE `ground_truth_de`, e a separacao esta explicada la.
+    """
+    ground_truth, contagens = ground_truth_de(motor, seed=seed, conta_alvo=conta_alvo)
     produzido = Gabarito(
         ground_truth=ground_truth,
-        gm_notes=_renderiza(pack=pack, seed=seed, contagens=contagens, casos=casos),
+        gm_notes=_renderiza(
+            pack=pack,
+            seed=seed,
+            contagens=contagens,
+            casos=ground_truth["line_b_cases"],
+        ),
     )
     # O LINTER RECUSA AQUI, e nao depois: artefato divergente nao chega a existir.
     conferir(produzido)

@@ -62,6 +62,13 @@ ITENS = (
     "lint_sem_achados",
     "item_6_dryrun_todos_os_caminhos",
     "item_9_reconstrucao_em_menos_de_3_s",
+    # A SEGUNDA METADE, acrescentada na Fase 9 — `06` T13.
+    #
+    # O `spec-change item-8-volume-de-4h` dividiu o item 8 da Fase 2 em dois, e
+    # disse por que: sem o criterio desta fase, T12 verificaria o requisito e
+    # ele *"passaria a ser falso aqui, sem nada ficar vermelho — que e como um
+    # requisito morre"*. Este nome na lista e o que impede isso.
+    "item_7_reconstrucao_com_telemetria",
 )
 
 
@@ -223,6 +230,17 @@ def main(argv: list[str] | None = None) -> int:
         f"  item 9   {doc['total_s']:.3f} s contra o orcamento de "
         f"{doc['orcamento_s']:.0f} s"
     )
+    # A SEGUNDA METADE — Fase 9. Impressa com o VOLUME junto, e nao so com o
+    # tempo: o numero sozinho nao diz contra o que ele passou, e e o volume que
+    # o `spec-change item-8-volume-de-4h` poe no centro do criterio.
+    com = doc.get("com_telemetria") or {}
+    if com:
+        print(
+            f"  item 7   {com['total_s']:.3f} s contra o orcamento de "
+            f"{com['orcamento_s']:.0f} s, com {com['eventos']} eventos "
+            f"({com['telemetria']} telemetry_emitted, "
+            f"{com['telemetria_por_minuto']}/min)"
+        )
     return 0
 
 

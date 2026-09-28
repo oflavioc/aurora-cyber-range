@@ -46,14 +46,33 @@ class AFormaDosFatos(unittest.TestCase):
     def setUp(self) -> None:
         self.fatos = linha_a.facts(SEED)
 
-    def test_as_tres_fases_do_incidente(self):
+    def test_as_fases_do_incidente_na_ordem_do_incidente(self):
+        """A ORDEM E A DO INCIDENTE, e ela e a ordem do documento — o motor de
+        projecao a herda para escrever cada log (`08` §1).
+
+        `phishing_delivery` entrou na peca 3 da Fase 9, e NAO afrouxa este
+        caso: ele continua fixando a lista INTEIRA e em ordem. `08` §3 exige a
+        fonte `email.eml` com *"phishing de recadastramento — origem da Linha
+        A"*, e sem o fato ela seria conteudo autoral em vez de projecao.
+        """
         self.assertEqual(
             [f["fact_class"] for f in self.fatos],
-            ["initial_access", "privilege_escalation", "exfiltration"],
+            [
+                "phishing_delivery",
+                "initial_access",
+                "privilege_escalation",
+                "exfiltration",
+            ],
         )
 
+    def test_o_phishing_ANTECEDE_o_acesso_que_ele_possibilita(self):
+        """A origem vem antes. Sem esta asserção, a lista acima poderia ser
+        reordenada e continuar "completa"."""
+        classes = [f["fact_class"] for f in self.fatos]
+        self.assertLess(classes.index("phishing_delivery"), classes.index("initial_access"))
+
     def test_o_acesso_inicial_tem_os_campos_de_04_secao_3(self):
-        acesso = self.fatos[0]
+        acesso = next(f for f in self.fatos if f["fact_class"] == "initial_access")
         for campo in (
             "fact_id", "actor", "action", "source_ip", "exercise_time",
             "credential_state", "mfa", "projections", "discoverability",
@@ -67,8 +86,18 @@ class AFormaDosFatos(unittest.TestCase):
             self.assertRegex(f["fact_id"], r"^GT-[A-Z0-9]+-[0-9]+$")
 
     def test_o_source_ip_e_faixa_de_documentacao(self):
-        ip = ipaddress.ip_address(self.fatos[0]["source_ip"])
-        self.assertIn(ip, REDE_DOC, "source_ip fora da faixa de documentacao — 05 §3")
+        """TODOS os fatos, e nao so o primeiro. O caso antigo olhava
+        `self.fatos[0]`, e com um fato novo na frente ele passaria a julgar
+        outro fato sem que nada dissesse — indice posicional em teste de forma
+        e a mesma fragilidade que a lista de `fact_class` tem, sem o mesmo
+        aviso."""
+        for fato in self.fatos:
+            if "source_ip" not in fato:
+                continue
+            ip = ipaddress.ip_address(fato["source_ip"])
+            self.assertIn(
+                ip, REDE_DOC, f"{fato['fact_class']}: source_ip fora da faixa — 05 §3"
+            )
 
     def test_ha_um_fato_de_exfiltracao_para_a_ausencia_referenciar(self):
         """`containment` exige `absence_of exfiltration since self`; sem um fato
